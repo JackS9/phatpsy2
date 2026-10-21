@@ -81,5 +81,13 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Complete replacement of legacy matrix diagonalizers (EISPAK/Jacobi) and fitting routines with standardized LAPACK calls (`DSYEV`, `DGELS`).
 - [ ] **Pure In-Memory Storage**
   - Eliminate all legacy scratch file/tape units (`Phatpsy.DAUnit1`, `Unit2`, `Unit3`, `Unit4`, `Temp`) in favor of dynamic in-memory arrays.
+- [ ] **Modernize active legacy FORTRAN routines (*.f) to Fortran 2018 modules (*.f90)**
+  - Audit and inventory the 109 legacy `src/*.f` routines to categorize into:
+    - *Retire/Delete:* Obsolete EISPAK/Jacobi diagonalizers, card-reader I/O, and scratch tape routines.
+    - *Retain & Modernize:* Active mathematical kernels (e.g., `gensab`, `genvab`, `symop`, `symxyz`).
+  - Convert retained routines using the `routine-modernization` skill:
+    - Convert fixed-form 72-column to free-form Fortran 2018.
+    - Enforce `implicit none` and dynamic memory / assumed-shape arrays (`(:,:)`).
+    - Eliminate legacy disk unit dependencies in favor of in-memory data structures.
 - [ ] **Continuous Integration (CI)**
   - Automated GitHub Actions workflow running tests across macOS and Linux runners on push and pull requests.
