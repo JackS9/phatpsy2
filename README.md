@@ -135,6 +135,11 @@ phatpsy2/
 
 ---
 
+## Project Roadmap & Goals
+Detailed modernization objectives, planned physics improvements, and structural modeling milestones are tracked in [ROADMAP.md](ROADMAP.md).
+
+---
+
 ## License & Citation
 Developed by **Jack A. Smith**.
 Theoretical details and mathematical derivations are available in the accompanying documentation and [PhD Thesis](PhD_Thesis/PHATPSY.pdf).

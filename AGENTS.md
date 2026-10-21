@@ -25,6 +25,7 @@ These instructions govern all autonomous and pair-programming development work o
 | **Model Potentials & Coulomb/Exchange Fitting** | [Model Potentials Reference](docs/science/model_potentials.md) |
 | **Fortran/Python Architecture & Memory Model** | [System Architecture](docs/development/architecture.md) |
 | **Regression Tests & Numerical Tolerances** | [Validation Standards](docs/development/validation_standards.md) |
+| **Project Milestones & Future Goals** | [Development Roadmap](ROADMAP.md) |
 | **Modernizing a Legacy `.f` Routine** | Use the `routine-modernization` skill ([`.agents/skills/routine-modernization/SKILL.md`](.agents/skills/routine-modernization/SKILL.md)) |
 
 ---
