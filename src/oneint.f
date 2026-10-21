@@ -110,13 +110,14 @@ C-----------------------------------------------------------------------
       MLJ=MJ-LJ-1
       IJ=INDEX(MI+ISKIP)+MJ+JSKIP
       DO 40 K=1,NVTERM
-      IF (LV(K)) 35,37,37
-   35 LK=-LV(K)
-      MK=MV(K)
-      GO TO 38
-   37 LK=0
-      MK=0
-   38 STPOT(IJ,K)=STPOTX(K)*CGCOEF(CGC,MLI,MK,MLJ,LI,LK,LJ,QREALY)
+      IF (LV(K) .LT. 0) THEN
+        LK=-LV(K)
+        MK=MV(K)
+      ELSE
+        LK=0
+        MK=0
+      END IF
+      STPOT(IJ,K)=STPOTX(K)*CGCOEF(CGC,MLI,MK,MLJ,LI,LK,LJ,QREALY)
    40 CONTINUE
    50 CONTINUE
    60 CONTINUE

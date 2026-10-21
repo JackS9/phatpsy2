@@ -5,22 +5,24 @@
         B(1,1)=1.
       IF(N.EQ.1)   RETURN
        DO1I=2,N
-      IM1=I-1
-      DO2J=1,IM1
-      B(I,J)=0.
-    2 B(J,I)=0.
-    1 B(I,I)=1.
+         IM1=I-1
+         DO2J=1,IM1
+            B(I,J)=0.
+            B(J,I)=0.
+    2    CONTINUE
+         B(I,I)=1.
+    1 CONTINUE
   200 P=0.
       DO3I=2,N
-      IM1=I-1
-      DO4J=1,IM1
-      Q=A(I,J)
-      IF(P.GE.DABS(Q)) GO TO 4
-      P=DABS(Q)
-      II=I
-      JJ=J
-    4 CONTINUE
-    3 CONTINUE
+         IM1=I-1
+         DO4J=1,IM1
+            Q=A(I,J)
+            IF(P.GE.DABS(Q)) GO TO 4
+            P=DABS(Q)
+            II=I
+            JJ=J
+    4       CONTINUE
+    3    CONTINUE
       IF (P.EQ.0.) GO TO 205
       P=A(II,II)
       Q=A(II,JJ)

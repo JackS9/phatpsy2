@@ -37,11 +37,12 @@ C...
    10 CONTINUE
       IF (NBAS.LT.2) GO TO 30
       DO 20 I=2,NBAS
-      II=(I*(I-1))/2
-      IM1=I-1
-      DO 20 J=1,IM1
-      IJ=II+J
-      DENS(IJ)=DENS(IJ)*OVLP(IJ)*TWO
+         II=(I*(I-1))/2
+         IM1=I-1
+         DO 25 J=1,IM1
+            IJ=II+J
+            DENS(IJ)=DENS(IJ)*OVLP(IJ)*TWO
+   25    CONTINUE
    20 CONTINUE
    30 CONTINUE
       TOTPOP=ZERO

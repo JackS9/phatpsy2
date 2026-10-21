@@ -1,0 +1,891 @@
+                                                                                 
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ THE 1ST CYCLE WILL BE A SEPARATED-ATOM CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THIS IS A GROUND STATE CALCULATION.
+ THIS MOLECULE CONTAINS  2 ATOMS MADE UP FROM  1 DIFFERENT ELEMENTS.
+ THIS MOLECULE CONTAINS  10 ATOMIC ORBITALS WITH A MAXIMUM OF  5 ON ANY ATOM.
+ THE BASIS CONTAINS  10 STO'S WITH THE LARGEST ATOM HAVING  5 WITH (N,L) UP TO (2,1).
+ THE MAXIMUM NUMBER CYCLES TO BE ALLOWED IS100 WITH 20 ITERATIONS PER CYCLE.
+ THE MAXIMUM CPU TIME ALLOWED IS   360. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-04
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE CHARGE TRANSFER IN THE MOLECULE WILL BE DAMPED BY  0.50 **  1.00.
+ THE FOLLOWING CONDITIONS WILL BE SATISFIED ACCORDING TO
+    THE GIVEN WEIGHTS IN FITTING THE MODEL POTENTIALS.
+       BEHAVIOR AT THE NUCLEUS........   1.0000
+       HF COUL POTENTIAL AT NUCLEUS...   1.0000
+       CORE HF COULOMB POTENTIALS.....   1.0000
+       VALENCE HF COULOMB POTENTIALS..   1.0000
+       EXTERNAL NUC. ATT. POTENTIAL...   1.0000
+ THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE HANDLED BY PSEUDOMETRIC.
+ THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY  0.50 **  1.00.
+ THE P-K PROJECTION MATRIX WILL BE SCALED BY  0.00.
+ THE PRIMITIVE TWO-CENTER OVERLAP INTEGRALS WILL BE ON DIRECT-ACCESS UNIT  1.
+ THE PRIMITIVE TWO-CENTER MODEL POTENTIAL INTEGRALS WILL BE ON UNIT  2.
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNITS  3 AND  4 ALTERNATELY.
+ THE FINAL CSF (MOLSTRUCT) OUTPUT WILL BE ON UNIT 10.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+ === ELEMENT  1 ===
+
+
+ THE BASIS CONTAINS  3 STO'S (  5 COUNTING ML-VALUES).
+ THIS ELEMENT IS DESCRIBED BY  5 ATOMIC ORBITALS.
+ THE MODEL POTENTIAL CONTAINS  5 TERMS.
+ ...     4K BYTES OF CORE TO BE ALLOCATED FOR ATOMIC ...
+
+ -------------------
+ ATOMIC SYMBOL... N 
+ ATOMIC NUMBER...  7
+ -------------------
+
+ CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN: 
+
+  #     TYPE     EXPONENT     NORMALIZATION
+  _     ____     ________     _____________
+
+  1     1S 0     6.665100      3.441438D+01
+  2     2S 0     1.923700      5.926697D+00
+  3     2P-1     1.917000      5.875227D+00
+  4        0
+  5        1
+
+ MODEL POTENTIAL ...
+
+  #     TYPE     EXPONENT                 COEF
+  _     ____     ________                 ____
+
+  1     0S 0     0.000000  ( 0.000)     7.0000  ( 1.000)
+  2     0S 0     7.603752  ( 3.519)    -0.8750  (-0.125)
+  3     0S 0     4.187573  ( 1.938)    -2.4500  (-0.350)
+  4     0S 0     0.771395  ( 0.357)    -3.6750  (-0.525)
+  5     0S 0     0.324116  ( 0.150)     0.0000  ( 0.000)
+
+ ... THE BASIS AND ONE-CENTER INTEGRALS FOR N  WERE WRITTEN ON UNIT 11 ...
+
+ ... IT TOOK    0.00 SECONDS TO COMPUTE THE 1-CENTER INTEGRALS ...      
+
+  1 NON-EQUIVALENT N  ATOMS WILL BE INPUT.
+
+
+
+ N 
+ __
+
+ STARTING VECTORS AND ENERGIES...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.6704     -1.1606     -0.5691     -0.5691     -0.5691
+     ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.5790     -0.7270      0.1912      0.1912      0.1912
+     ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+
+
+ N 
+ __
+
+ STARTING ORBITAL ENERGIES AND OCCUPATIONS...
+
+
+ ALPHA...
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.6704       -9832.84      -426.4026         1.000
+   2        -1.1606        -728.25       -31.5807         1.000
+   3        -0.5691        -357.10       -15.4856         1.000
+   4        -0.5691        -357.10       -15.4856         1.000
+   5        -0.5691        -357.10       -15.4856         1.000
+
+
+ BETA... 
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.5790       -9775.49      -423.9155         1.000
+   2        -0.7270        -456.18       -19.7822         1.000
+   3         0.1912         119.97         5.2027         0.000
+   4         0.1912         119.97         5.2027         0.000
+   5         0.1912         119.97         5.2027         0.000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......   7.0000
+    ELECTRONIC CHARGE...  -7.0000
+    NET CHARGE..........   0.0000
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   5.0000
+    BETA SPIN....   2.0000
+    NET SPIN.....   3.0000
+
+ STARTING COEFFICIENTS FOR THE MODEL POTENTIAL...
+
+  1      7.0000
+  2     -0.8750
+  3     -2.4500
+  4     -3.6750
+  5      0.0000
+
+ NUCLEAR COORDINATES...
+
+           X              Y              Z
+           _              _              _
+
+ N  1     0.00000000     0.00000000     1.03400000
+ ____
+                                                      * RMAX =   5.739 *
+         -0.00000000    -0.00000000    -1.03400000
+                                                      * SPIN FLIPPED   *
+                                                      * REFLECTED      *
+
+ THE INPUT FOR THE  2 N  ATOMS IS COMPLETE.
+
+
+ COMPLETE MOLECULAR BASIS ...
+
+ ATOM  N  L  ML       ETA
+ ----  -  -  --       ---
+   1   1  0   0     6.66510
+   1   2  0   0     1.92370
+   1   2  1  -1     1.91700
+   1   2  1   0     1.91700
+   1   2  1   1     1.91700
+   2   1  0   0     6.66510
+   2   2  0   0     1.92370
+   2   2  1  -1     1.91700
+   2   2  1   0     1.91700
+   2   2  1   1     1.91700
+
+
+ATOMIC ORBITALS OVER MOLECULAR BASIS...
+
+ ALPHA...
+
+         1           2           3           4           5           6
+
+     -15.6704     -1.1606     -0.5691     -0.5691     -0.5691    -15.5790
+     ________    ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      1.0000
+
+         7           8           9          10
+
+      -0.7270      0.1912      0.1912      0.1912
+     ________    ________    ________    ________
+ 
+  7    1.0000      0.0000      0.0000      0.0000
+  8    0.0000      1.0000      0.0000      0.0000
+  9    0.0000      0.0000     -1.0000      0.0000
+ 10    0.0000      0.0000      0.0000      1.0000
+
+ BETA... 
+
+         1           2           3           4           5           6
+
+     -15.5790     -0.7270      0.1912      0.1912      0.1912    -15.6704
+     ________    ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      1.0000
+
+         7           8           9          10
+
+      -1.1606     -0.5691     -0.5691     -0.5691
+     ________    ________    ________    ________
+ 
+  7    1.0000      0.0000      0.0000      0.0000
+  8    0.0000      1.0000      0.0000      0.0000
+  9    0.0000      0.0000     -1.0000      0.0000
+ 10    0.0000      0.0000      0.0000      1.0000
+
+
+ COORDINATE PROJECTIONS...
+ (EACH FRAME IS 10.0 BY 10.0)
+
+
+ +------------------------------------------+
+ |                     ð?
+               |
+ +------------------------------------------+
+ |                                          |
+ +------------------------------------------+
+ |                                          |
+ +------------------------------------------+
+
+  YZ, XZ, XY Projections
+
+
+
+
+ ... ALL INPUT IS COMPLETE ...
+ ... WRITES TO UNIT  3 ARE COMPLETE ...
+
+ ... IT TOOK    0.00 SECONDS TO PROCESS INPUT ...                       
+ ...   2 DIRECT-ACCESS RECORDS, 4*  200 BYTES EACH HAVE BEEN ALLOCATED ON UNIT  1 ...
+ DEBUG BLOOP: QFIRST= T  QSEPAT= T
+ DEBUG BLOOP: QFIRST= T  QSEPAT= T
+ ... WRITES TO UNIT  4 ARE COMPLETE ...
+ ...   2  200-BYTE RECORDS [   0K] WRITTEN TO UNIT  1
+       2   LOGICAL RECORDS [   0K]...
+ ... WRITES TO UNIT  2 ARE COMPLETE ...
+
+ ... IT TOOK    0.00 SECONDS TO COMPUTE THE 2-CENTER INTEGRALS ...      
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE  1 ...
+                                            +++ NEAR SEPARATED-ATOM LIMIT +++
+
+ THE TOTAL ENERGY CONVERGED TO 6.2D-08 AFTER  3 ITERATIONS.
+
+ THE EXTERNAL POTENTIALS WERE DAMPED THIS CYCLE BY 0.5000
+
+ ENERGY ANALYSIS...
+
+ ALPHA...
+
+  #    ORBITAL   KINETIC    INT       INT       INT       EXT       EXT       EXT     PSEUDO-      ORB
+       ENERGY    ENERGY   NUC ATTR  COULOMB   EXCHANGE  NUC ATTR  COULOMB   EXCHANGE  POTENTIAL   OCCUP
+
+  1   -15.632    21.895   -46.311    13.046    -4.262     0.000     0.000     0.000    -0.000     1.000
+    ( -15.632)                    (  12.900)                                          ( 0.000)
+  2    -2.674     2.483    -7.786     2.921    -0.291     0.000     0.000     0.000    -0.000     1.000
+    (  -2.674)                    (   4.893)                                          ( 0.000)
+  3    -2.191     1.837    -6.710     2.921    -0.241     0.000     0.000     0.000    -0.000     1.000
+    (  -2.191)                    (   4.884)                                          ( 0.000)
+  4    -2.191     1.837    -6.710     2.921    -0.241     0.000     0.000     0.000    -0.000     1.000
+    (  -2.191)                    (   4.884)                                          ( 0.000)
+  5    -2.191     1.837    -6.710     2.921    -0.241     0.000     0.000     0.000    -0.000     1.000
+    (  -2.191)                    (   4.884)                                          ( 0.000)
+
+ BETA... 
+
+  #    ORBITAL   KINETIC    INT       INT       INT       EXT       EXT       EXT     PSEUDO-      ORB
+       ENERGY    ENERGY   NUC ATTR  COULOMB   EXCHANGE  NUC ATTR  COULOMB   EXCHANGE  POTENTIAL   OCCUP
+
+  1   -15.567    21.935   -46.356    13.054    -4.201     0.000     0.000     0.000    -0.000     1.000
+    ( -15.567)                    (  12.906)                                          ( 0.000)
+  2    -2.646     2.443    -7.742     2.913    -0.260     0.000     0.000     0.000    -0.000     1.000
+    (  -2.646)                    (   4.886)                                          (-0.000)
+  3    -1.982     1.837    -6.710     2.921    -0.031     0.000     0.000     0.000    -0.000     0.000
+    (  -1.982)                    (   4.884)                                          ( 0.000)
+  4    -1.982     1.837    -6.710     2.921    -0.031     0.000     0.000     0.000    -0.000     0.000
+    (  -1.982)                    (   4.884)                                          ( 0.000)
+  5    -1.982     1.837    -6.710     2.921    -0.031     0.000     0.000     0.000    -0.000     0.000
+    (  -1.982)                    (   4.884)                                          ( 0.000)
+
+ =>   -43.093    54.269  -128.324    40.697    -9.735     0.000     0.000     0.000     0.000     7.000
+    ( -43.093)                    (  50.238)         (  -10.585)                      ( 0.000)(   7.000)
+
+    TOTAL ELECTRONIC ENERGY...   -58.5743
+    TOTAL KINETIC ENERGY......    54.2686
+    TOTAL POTENTIAL ENERGY....  -112.8428
+    VIRIAL THEOREM (V/T)......    -2.0793
+
+    NUCLEAR REPULSION.........     0.0000
+    CONTR. TO MOLEC. ENERGY...   -58.5743
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   5.0000
+    BETA SPIN....   2.0000
+    NET SPIN.....   3.0000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......   7.0000
+    ELECTRONIC CHARGE...   7.0000
+    NET CHARGE..........   0.0000
+
+ STD DEVS FOR THE LAST MODEL POTENTIAL FIT:
+
+    CORE HF COULOMB POTENTIAL........   0.0000
+    VALENCE HF COULOMB POTENTIAL.....   5.5630
+    EXTERNAL HF NUCLEAR ATTRACTION...   0.0000
+
+ NEW LOCAL MODEL POTENTIAL COEFFICIENTS ...
+
+  1      7.0000
+  2      1.5364
+  3     -9.2597
+  4     16.5422
+  5    -15.8189
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE  1 ...
+                                            +++ NEAR SEPARATED-ATOM LIMIT +++
+
+ FINAL VECTORS AND ENERGIES...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.6320     -2.6743     -2.1912     -2.1912     -2.1912
+     ________    ________    ________    ________    ________
+ 
+  1   -0.9937      0.2566      0.0000      0.0000      0.0000
+  2   -0.0266     -1.0259      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+
+      EV        INTENSITY      (SOURCE = 1251.69)
+      __        _________
+
+   425.358       34.871
+    72.769        2.300
+    59.625        0.044
+    59.625        0.044
+    59.625        0.044
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.5674     -2.6461     -1.9816     -1.9816     -1.9816
+     ________    ________    ________    ________    ________
+ 
+  1    0.9945     -0.2535      0.0000      0.0000      0.0000
+  2    0.0234      1.0260      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+
+      EV        INTENSITY      (SOURCE = 1251.69)
+      __        _________
+
+   423.600       34.879
+    72.001        2.251
+    53.920        0.043
+    53.920        0.043
+    53.920        0.043
+
+ ... END OF SCF FOR N  1 ...
+
+
+
+ ... IT TOOK    0.00 SECONDS TO COMPLETE THE SCF FOR THIS ATOM ...      
+ DEBUG BLOOP: QFIRST= F  QSEPAT= T
+ DEBUG BLOOP: QFIRST= F  QSEPAT= T
+   1       -117.1485       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   2       -125.3041       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   3       -125.9757       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   4       -124.3218       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   5       -122.6935       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   6       -121.5152       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   7       -120.7505       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   8       -120.2805       0.0012           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+   9       -120.0005       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  10       -119.8364       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  11       -119.7409       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  12       -119.6850       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  13       -119.6517       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  14       -119.6312       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  15       -119.6179       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  16       -119.6088       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  17       -119.6020       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  18       -119.5966       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  19       -119.5921       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  20       -119.5882       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  21       -119.5847       0.0012           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  22       -119.5816       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  23       -119.5787       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  24       -119.5761       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  25       -119.5737       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  26       -119.5714       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  27       -119.5693       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  28       -119.5674       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  29       -119.5656       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  30       -119.5640       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  31       -119.5625       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  32       -119.5611       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  33       -119.5598       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  34       -119.5586       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  35       -119.5575       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  36       -119.5565       0.0012           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  37       -119.5555       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  38       -119.5547       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  39       -119.5539       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  40       -119.5531       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  41       -119.5525       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  42       -119.5518       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  43       -119.5513       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  44       -119.5508       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  45       -119.5503       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  46       -119.5499       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  47       -119.5495       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  48       -119.5491       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  49       -119.5488       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  50       -119.5485       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  51       -119.5482       0.0012           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  52       -119.5480       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  53       -119.5478       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  54       -119.5476       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  55       -119.5474       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  56       -119.5472       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  57       -119.5471       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  58       -119.5470       0.0010           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  59       -119.5469       0.0000           0.0000        0.5000           <te>
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+  60       -119.5468       0.0010           0.0000        0.5000           <te>
+
+
+ ... LAST CYCLE FOLLOWS ...
+
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE 61 ...
+
+ THE TOTAL ENERGY CONVERGED TO 4.0D-06 AFTER  2 ITERATIONS.
+
+ THE EXTERNAL POTENTIALS WERE DAMPED THIS CYCLE BY 0.5000
+
+ ENERGY ANALYSIS...
+
+ ALPHA...
+
+  #    ORBITAL   KINETIC    INT       INT       INT       EXT       EXT       EXT     PSEUDO-      ORB
+       ENERGY    ENERGY   NUC ATTR  COULOMB   EXCHANGE  NUC ATTR  COULOMB   EXCHANGE  POTENTIAL   OCCUP
+
+  1   -15.481    21.867   -46.278    13.026    -4.238    -3.387     3.533    -0.004    -0.000     1.000
+    ( -15.481)                    (  13.024)                                          ( 0.000)
+  2    -4.004     2.201    -7.281     2.949    -0.264    -4.752     3.257    -0.115    -0.000     0.991
+    (  -4.004)                    (   3.062)                                          ( 0.000)
+  3    -1.960     2.148    -7.249     2.910    -0.251    -2.437     2.925    -0.006    -0.000     0.955
+    (  -1.960)                    (   3.065)                                          ( 0.000)
+  4    -1.902     1.837    -6.710     2.928    -0.147    -3.068     3.257     0.000    -0.000     0.556
+    (  -1.902)                    (   2.806)                                          ( 0.000)
+  5    -1.902     1.837    -6.710     2.928    -0.147    -3.068     3.257     0.000    -0.000     0.556
+    (  -1.902)                    (   2.806)                                          ( 0.000)
+
+ BETA... 
+
+  #    ORBITAL   KINETIC    INT       INT       INT       EXT       EXT       EXT     PSEUDO-      ORB
+       ENERGY    ENERGY   NUC ATTR  COULOMB   EXCHANGE  NUC ATTR  COULOMB   EXCHANGE  POTENTIAL   OCCUP
+
+  1   -15.432    21.837   -46.245    13.020    -4.186    -3.387     3.532    -0.004    -0.000     1.000
+    ( -15.432)                    (  13.014)                                          (-0.000)
+  2    -4.003     2.204    -7.285     2.950    -0.262    -4.751     3.257    -0.117    -0.000     0.991
+    (  -4.003)                    (   3.064)                                          ( 0.000)
+  3    -1.876     1.837    -6.710     2.928    -0.119    -3.068     3.257    -0.002    -0.000     0.444
+    (  -1.876)                    (   2.806)                                          ( 0.000)
+  4    -1.876     1.837    -6.710     2.928    -0.119    -3.068     3.257    -0.002    -0.000     0.444
+    (  -1.876)                    (   2.806)                                          ( 0.000)
+  5    -1.775     2.174    -7.277     2.916    -0.068    -2.438     2.925    -0.006    -0.000     0.064
+    (  -1.775)                    (   3.074)                                          (-0.000)
+
+ =>   -44.611    53.933  -127.757    40.712    -9.458   -24.806    23.011    -0.245     0.000     7.000
+    ( -44.611)                    (  40.843)         (  -24.845)                      ( 0.000)(   7.020)
+
+    TOTAL ELECTRONIC ENERGY...   -60.2373
+    TOTAL KINETIC ENERGY......    53.9326
+    TOTAL POTENTIAL ENERGY....  -114.1699
+    VIRIAL THEOREM (V/T)......    -2.1169
+
+    NUCLEAR REPULSION.........    23.6944
+    CONTR. TO MOLEC. ENERGY...   -59.7734
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   4.0578
+    BETA SPIN....   2.9422
+    NET SPIN.....   1.1155
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......   7.0000
+    ELECTRONIC CHARGE...   7.0000
+    NET CHARGE..........  -0.0000
+
+ STD DEVS FOR THE LAST MODEL POTENTIAL FIT:
+
+    CORE HF COULOMB POTENTIAL........   0.0000
+    VALENCE HF COULOMB POTENTIAL.....   0.3664
+    EXTERNAL HF NUCLEAR ATTRACTION...   0.0391
+
+ NEW LOCAL MODEL POTENTIAL COEFFICIENTS ...
+
+  1      7.0000
+  2    -22.8474
+  3     33.9515
+  4    -31.1165
+  5     12.9920
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE 61 ...
+
+ FINAL VECTORS AND ENERGIES...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.4809     -4.0037     -1.9597     -1.9016     -1.9016
+     ________    ________    ________    ________    ________
+ 
+  1    0.9931     -0.1816      0.1845      0.0000      0.0000
+  2    0.0288      0.6960     -0.7536      0.0000      0.0000
+  3    0.0000      0.0000      0.0000      1.0000      0.0000
+  4   -0.0082     -0.7344     -0.6786      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+
+      EV        INTENSITY      (SOURCE = 1251.69)
+      __        _________
+
+   421.245       34.682
+   108.943        1.210
+    53.325        1.192
+    51.744        0.043
+    51.744        0.043
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.4319     -4.0035     -1.8761     -1.8761     -1.7753
+     ________    ________    ________    ________    ________
+ 
+  1    0.9925     -0.1822      0.0000      0.0000     -0.1871
+  2    0.0312      0.6974      0.0000      0.0000      0.7523
+  3    0.0000      0.0000      0.0000      1.0000      0.0000
+  4   -0.0065     -0.7332      0.0000      0.0000      0.6799
+  5    0.0000      0.0000      1.0000      0.0000      0.0000
+
+
+      EV        INTENSITY      (SOURCE = 1251.69)
+      __        _________
+
+   419.912       34.586
+   108.937        1.217
+    51.051        0.043
+    51.051        0.043
+    48.306        1.212
+
+ ... END OF SCF FOR N  1 ...
+
+
+
+ ... IT TOOK    0.00 SECONDS TO COMPLETE THE SCF FOR THIS ATOM ...      
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ DEBUG BLOOP: QFIRST= F  QSEPAT= F
+ ... WRITES TO UNIT  4 ARE COMPLETE ...
+
+
+
+ MOLECULAR ORBITAL ENERGIES AND OCCUPATIONS...
+                                                                                                   ... CYCLE 61 ...
+
+
+ ALPHA...
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1        -4.5475       -2853.46      -123.7405         1.000
+   2        -2.9034       -1821.82       -79.0037         1.000
+   3        -0.8856        -555.69       -24.0975         1.000
+   4        -0.9829        -616.74       -26.7451         1.000
+   5        -0.9829        -616.74       -26.7451         1.000
+   6        -4.5133       -2831.97      -122.8088         1.000
+   7        -2.9013       -1820.53       -78.9475         1.000
+   8        -0.9574        -600.76       -26.0521         0.000
+   9        -0.9574        -600.76       -26.0521         0.000
+  10        -0.6882        -431.84       -18.7267         0.000
+
+
+ BETA... 
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1        -4.5133       -2831.97      -122.8088         1.000
+   2        -2.9013       -1820.53       -78.9475         1.000
+   3        -0.9574        -600.76       -26.0521         1.000
+   4        -0.9574        -600.76       -26.0521         1.000
+   5        -0.6882        -431.84       -18.7267         1.000
+   6        -4.5475       -2853.46      -123.7405         1.000
+   7        -2.9034       -1821.82       -79.0037         1.000
+   8        -0.8856        -555.69       -24.0975         0.000
+   9        -0.9829        -616.74       -26.7451         0.000
+  10        -0.9829        -616.74       -26.7451         0.000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......  14.0000
+    ELECTRONIC CHARGE... -14.0000
+    NET CHARGE..........  -0.0000
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   7.0000
+    BETA SPIN....   7.0000
+    NET SPIN.....   0.0000
+
+
+
+ TOTAL ENERGY ANALYSIS...
+
+    TOTAL POTENTIAL ENERGY.....   -227.4119
+    TOTAL KINETIC ENERGY.......    107.8652
+    TOTAL ELECTRONIC ENERGY....   -143.2411
+    NUCLEAR REPULSION ENERGY...     23.6944
+
+    TOTAL MOLECULAR ENERGY.....   -119.5467
+
+    VIRIAL THEOREM (V/T).......   -2.108298
+
+
+ -------------------------------------
+ TOTAL ENERGY CONVERGENCE...   0.00007
+ CPU SECONDS REMAINING......   359.952
+ ALLOWED CYCLES REMAINING...        39
+ -------------------------------------
+ ... IT TOOK  0.00 SECONDS TO COMPLETE THIS CYCLE ...
+
+ ALPHA...
+
+         1           2           3           4           5           6
+
+     -15.4809     -4.0037     -1.9597     -1.9016     -1.9016    -15.4319
+     ________    ________    ________    ________    ________    ________
+ 
+  1    0.9931     -0.1816      0.1845      0.0000      0.0000      0.0000
+  2    0.0288      0.6960     -0.7536      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  4   -0.0082     -0.7344     -0.6786      0.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      0.9925
+  7    0.0000      0.0000      0.0000      0.0000      0.0000      0.0312
+  9    0.0000      0.0000      0.0000      0.0000      0.0000      0.0065
+
+         7           8           9          10
+
+      -4.0035     -1.8761     -1.8761     -1.7753
+     ________    ________    ________    ________
+ 
+  6   -0.1822      0.0000      0.0000     -0.1871
+  7    0.6974      0.0000      0.0000      0.7523
+  8    0.0000      0.0000      1.0000      0.0000
+  9    0.7332      0.0000      0.0000     -0.6799
+ 10    0.0000      1.0000      0.0000      0.0000
+
+ BETA... 
+
+         1           2           3           4           5           6
+
+     -15.4319     -4.0035     -1.8761     -1.8761     -1.7753    -15.4809
+     ________    ________    ________    ________    ________    ________
+ 
+  1    0.9925     -0.1822      0.0000      0.0000     -0.1871      0.0000
+  2    0.0312      0.6974      0.0000      0.0000      0.7523      0.0000
+  3    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  4   -0.0065     -0.7332      0.0000      0.0000      0.6799      0.0000
+  5    0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      0.9931
+  7    0.0000      0.0000      0.0000      0.0000      0.0000      0.0288
+  9    0.0000      0.0000      0.0000      0.0000      0.0000      0.0082
+
+         7           8           9          10
+
+      -4.0037     -1.9597     -1.9016     -1.9016
+     ________    ________    ________    ________
+ 
+  6   -0.1816      0.1845      0.0000      0.0000
+  7    0.6960     -0.7536      0.0000      0.0000
+  8    0.0000      0.0000      1.0000      0.0000
+  9    0.7344      0.6786      0.0000      0.0000
+ 10    0.0000      0.0000      0.0000      1.0000
+
+ ... IT TOOK    0.05 SECONDS TO COMPLETE THIS CALCULATION ...           

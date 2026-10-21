@@ -1,0 +1,147 @@
+ ... Ag13, R(Ag-Ag)=5.46  (DZ Basis)                                             
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ THE 1ST CYCLE WILL BE A SEPARATED-ATOM CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THIS IS A GROUND STATE CALCULATION.
+ ONLY MINIMAL PRINTING ON UNIT  6 WILL BE PERFORMED.
+ THIS MOLECULE CONTAINS 13 ATOMS MADE UP FROM  1 DIFFERENT ELEMENTS.
+ THIS MOLECULE CONTAINS  24 ATOMIC ORBITALS WITH A MAXIMUM OF 24 ON ANY ATOM.
+ THE BASIS CONTAINS 624 STO'S WITH THE LARGEST ATOM HAVING 48 WITH (N,L) UP TO (5,2).
+ THE MAXIMUM NUMBER CYCLES TO BE ALLOWED IS 20 WITH 20 ITERATIONS PER CYCLE.
+ THE MAXIMUM CPU TIME ALLOWED IS  9999. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-04
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE CHARGE TRANSFER IN THE MOLECULE WILL BE DAMPED BY  0.50 **  1.00.
+ THE FOLLOWING CONDITIONS WILL BE SATISFIED ACCORDING TO
+    THE GIVEN WEIGHTS IN FITTING THE MODEL POTENTIALS.
+       BEHAVIOR AT THE NUCLEUS........   1.0000
+       HF COUL POTENTIAL AT NUCLEUS...   1.0000
+       CORE HF COULOMB POTENTIALS.....   0.1000
+       VALENCE HF COULOMB POTENTIALS..   1.0000
+       EXTERNAL NUC. ATT. POTENTIAL...  10.0000
+ THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE HANDLED BY PSEUDOMETRIC.
+ THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY  0.50 **  1.00.
+ THE P-K PROJECTION MATRIX WILL BE SCALED BY  1.00.
+ THE PRIMITIVE TWO-CENTER OVERLAP INTEGRALS WILL BE ON DIRECT-ACCESS UNIT  1.
+ THE PRIMITIVE TWO-CENTER MODEL POTENTIAL INTEGRALS WILL BE ON UNIT  2.
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNITS  3 AND  4 ALTERNATELY.
+ THE FINAL CSF (MOLSTRUCT) OUTPUT WILL BE ON UNIT 10.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+
+ MOLECULAR ORBITAL ENERGIES AND OCCUPATIONS...
+                                                                                                   ... CYCLE  0 ...
+
+
+ ALPHA...
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1      -914.0000     -573515.57    -24870.5798         1.000
+   2      -135.1000      -84772.38     -3676.1656         1.000
+   3      -125.4000      -78685.83     -3412.2218         1.000
+   4      -125.4000      -78685.83     -3412.2218         1.000
+   5      -125.4000      -78685.83     -3412.2218         1.000
+   6       -26.1100      -16383.47      -710.4714         1.000
+   7       -22.1400      -13892.38      -602.4449         1.000
+   8       -22.1400      -13892.38      -602.4449         1.000
+   9       -22.1400      -13892.38      -602.4449         1.000
+  10       -14.8700       -9330.61      -404.6231         1.000
+  11       -14.8700       -9330.61      -404.6231         1.000
+  12       -14.8700       -9330.61      -404.6231         1.000
+  13       -14.8700       -9330.61      -404.6231         1.000
+  14       -14.8700       -9330.61      -404.6231         1.000
+  15        -4.1800       -2622.86      -113.7407         1.000
+  16        -2.8400       -1782.04       -77.2784         1.000
+  17        -2.8400       -1782.04       -77.2784         1.000
+  18        -2.8400       -1782.04       -77.2784         1.000
+  19        -0.7000        -439.24       -19.0475         1.000
+  20        -0.7000        -439.24       -19.0475         1.000
+  21        -0.7000        -439.24       -19.0475         1.000
+  22        -0.7000        -439.24       -19.0475         1.000
+  23        -0.7000        -439.24       -19.0475         1.000
+  24        -0.2600        -163.14        -7.0748         1.000
+
+
+ BETA... 
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1      -914.0000     -573515.57    -24870.5798         1.000
+   2      -135.1000      -84772.38     -3676.1656         1.000
+   3      -125.4000      -78685.83     -3412.2218         1.000
+   4      -125.4000      -78685.83     -3412.2218         1.000
+   5      -125.4000      -78685.83     -3412.2218         1.000
+   6       -26.1100      -16383.47      -710.4714         1.000
+   7       -22.1400      -13892.38      -602.4449         1.000
+   8       -22.1400      -13892.38      -602.4449         1.000
+   9       -22.1400      -13892.38      -602.4449         1.000
+  10       -14.8700       -9330.61      -404.6231         1.000
+  11       -14.8700       -9330.61      -404.6231         1.000
+  12       -14.8700       -9330.61      -404.6231         1.000
+  13       -14.8700       -9330.61      -404.6231         1.000
+  14       -14.8700       -9330.61      -404.6231         1.000
+  15        -4.1800       -2622.86      -113.7407         1.000
+  16        -2.8400       -1782.04       -77.2784         1.000
+  17        -2.8400       -1782.04       -77.2784         1.000
+  18        -2.8400       -1782.04       -77.2784         1.000
+  19        -0.7000        -439.24       -19.0475         1.000
+  20        -0.7000        -439.24       -19.0475         1.000
+  21        -0.7000        -439.24       -19.0475         1.000
+  22        -0.7000        -439.24       -19.0475         1.000
+  23        -0.7000        -439.24       -19.0475         1.000
+  24        -0.2600        -163.14        -7.0748         0.000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......  47.0000
+    ELECTRONIC CHARGE... -47.0000
+    NET CHARGE..........   0.0000
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...  24.0000
+    BETA SPIN....  23.0000
+    NET SPIN.....   1.0000
+
+
+
+ TOTAL ENERGY ANALYSIS...
+
+    TOTAL POTENTIAL ENERGY.....-129628.1740
+    TOTAL KINETIC ENERGY.......  64814.0870
+    TOTAL ELECTRONIC ENERGY.... -64814.0870
+    NUCLEAR REPULSION ENERGY...      0.0000
+
+    TOTAL MOLECULAR ENERGY..... -64814.0870
+
+    VIRIAL THEOREM (V/T).......   -2.000000
+-*** LINEAR DEPENDENCY ENCOUNTERED, METRIC EIGENVALUE =  -3.7D-01 ***
+-*** LINEAR DEPENDENCY ENCOUNTERED, METRIC EIGENVALUE =  -3.8D-01 ***

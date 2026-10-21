@@ -37,20 +37,22 @@ C-----------------------------------------------------------------------
       DO 30 LP1=2,LMXP1
       L=LP1-1
       DO 20 MP1=1,L
-      M=MP1-1
-      LM=IINDEX(LP1)+M+1
-      LMP1=LM+1
-      LM1M=IINDEX(L)+M+1
-      TERM=DFLOAT(L-M)*COSB*PLM(LM)
-      IF (MP1.LE.L) TERM=TERM-DFLOAT(L+M)*PLM(LM1M)
-   20 PLM(LMP1)=FACTOR*TERM
+         M=MP1-1
+         LM=IINDEX(LP1)+M+1
+         LMP1=LM+1
+         LM1M=IINDEX(L)+M+1
+         TERM=DFLOAT(L-M)*COSB*PLM(LM)
+         IF (MP1.LE.L) TERM=TERM-DFLOAT(L+M)*PLM(LM1M)
+         PLM(LMP1)=FACTOR*TERM
+   20 CONTINUE
    30 CONTINUE
       GO TO 70
    40 LM=1
       DO 60 LP1=1,LMXP1
       DO 50 MP1=1,LP1
-      PLM(LM)=ZERO
-   50 LM=LM+1
+         PLM(LM)=ZERO
+         LM=LM+1
+   50 CONTINUE
       L0=IINDEX(LP1)+1
       PLM(L0)=ONE
       IF ((COSB.LT.ZERO).AND.(MOD(LP1,2).EQ.0)) PLM(L0)=-ONE

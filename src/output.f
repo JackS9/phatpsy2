@@ -59,7 +59,8 @@ C.......................................................................
       GO TO 1
     5 WRITE (6,2000) CTL,K,(MATRIX(K,I), I = BEGIN,LAST)
     1 CONTINUE
-    2 LAST = MIN0(LAST+KCOL,COLHI)
+      LAST = MIN0(LAST+KCOL,COLHI)
+    2 CONTINUE
     3 RETURN
  1000 FORMAT ('-',12X,5(7X,6A1,I4,7X))
  2000 FORMAT (A1,' ROW',I4,2X,5F24.15)

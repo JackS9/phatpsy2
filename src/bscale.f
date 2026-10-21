@@ -69,28 +69,31 @@ C.......................................................................
    20 XX = X*X
       NFLIP = +1
       DO 40 I = 1,NP1
-      NFLIP = -NFLIP
-      IM1MOD = MOD(I-1,2)
-      U = TWO
-      IF (NFLIP .EQ. 1) U = -U*X
-      TSUM = U/ZFLOAT(I+IM1MOD)
-      IF (TSUM .EQ. ZERO) GO TO 40
-      K = 1
-   30 KPK = K + K
-      U = XX*U/ZFLOAT(KPK*(KPK+NFLIP))
-      TK = U/ZFLOAT(I+KPK+IM1MOD)
-      IF (ZABS(TK/TSUM) .LT. TINY) GO TO 40
-      TSUM = TSUM + TK
-      K = K + 1
-      GO TO 30
-   40 B(I) = TSUM
+         NFLIP = -NFLIP
+         IM1MOD = MOD(I-1,2)
+         U = TWO
+         IF (NFLIP .EQ. 1) U = -U*X
+         TSUM = U/ZFLOAT(I+IM1MOD)
+         IF (TSUM .EQ. ZERO) GO TO 45
+         K = 1
+   30    KPK = K + K
+         U = XX*U/ZFLOAT(KPK*(KPK+NFLIP))
+         TK = U/ZFLOAT(I+KPK+IM1MOD)
+         IF (ZABS(TK/TSUM) .LT. TINY) GO TO 45
+         TSUM = TSUM + TK
+         K = K + 1
+         GO TO 30
+   45    CONTINUE
+         B(I) = TSUM
+   40 CONTINUE
 C.......................................................................
 C AT THIS POINT, THE TWO PRECEDING SECTIONS HAVE COMPUTED THE ORDINARY
 C UNSCALED B FUNCTIONS.  INCLUDE THE SCALE FACTOR NOW, THEN RETURN.
 C.......................................................................
    50 SCALE = ZEXP(-XABS)
       DO 60 I = 1,NP1
-   60 B(I) = SCALE*B(I)
+         B(I) = SCALE*B(I)
+   60 CONTINUE
       GO TO 100
 C.......................................................................
 C USE THE FINITE SERIES REPRESENTATION OF THE B FUNCTION.  THIS IS USED
@@ -102,11 +105,13 @@ C.......................................................................
       SUM = ZERO
       TNU = T0
       DO 80 NUP1 = 1,MUP1
-      SUM = SUM + TNU
-   80 TNU = -XABS*TNU/ZFLOAT(NUP1)
+         SUM = SUM + TNU
+         TNU = -XABS*TNU/ZFLOAT(NUP1)
+   80 CONTINUE
       IF ((X .LT. ZERO) .AND. (MOD(MUP1,2) .EQ. 0)) SUM = -SUM
       B(MUP1) = SUM
-   90 T0 = ZFLOAT(MUP1)*T0/XABS
+      T0 = ZFLOAT(MUP1)*T0/XABS
+   90 CONTINUE
   100 RETURN
   110 WRITE (6,1000) N
       STOP

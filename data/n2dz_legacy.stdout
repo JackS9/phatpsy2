@@ -1,0 +1,137 @@
+ ... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)                              
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ THE 1ST CYCLE WILL BE A SEPARATED-ATOM CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THIS IS A GROUND STATE CALCULATION.
+ THIS MOLECULE CONTAINS  2 ATOMS MADE UP FROM  1 DIFFERENT ELEMENTS.
+ THIS MOLECULE CONTAINS  10 ATOMIC ORBITALS WITH A MAXIMUM OF  5 ON ANY ATOM.
+ THE BASIS CONTAINS  10 STO'S WITH THE LARGEST ATOM HAVING  5 WITH (N,L) UP TO (2,1).
+ THE MAXIMUM NUMBER CYCLES TO BE ALLOWED IS 50 WITH 20 ITERATIONS PER CYCLE.
+ THE MAXIMUM CPU TIME ALLOWED IS   360. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  5.0D-04
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE CHARGE TRANSFER IN THE MOLECULE WILL BE DAMPED BY  0.00 **  1.00.
+ THE FOLLOWING CONDITIONS WILL BE SATISFIED ACCORDING TO
+    THE GIVEN WEIGHTS IN FITTING THE MODEL POTENTIALS.
+       BEHAVIOR AT THE NUCLEUS........   1.0000
+       HF COUL POTENTIAL AT NUCLEUS...   1.0000
+       CORE HF COULOMB POTENTIALS.....   1.0000
+       VALENCE HF COULOMB POTENTIALS..   1.0000
+       EXTERNAL NUC. ATT. POTENTIAL...   1.0000
+ THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE HANDLED BY PSEUDOMETRIC.
+ THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY  0.50 **  1.00.
+ THE P-K PROJECTION MATRIX WILL BE SCALED BY  1.00.
+ THE PRIMITIVE TWO-CENTER OVERLAP INTEGRALS WILL BE ON DIRECT-ACCESS UNIT  1.
+ THE PRIMITIVE TWO-CENTER MODEL POTENTIAL INTEGRALS WILL BE ON UNIT  2.
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNITS  3 AND  4 ALTERNATELY.
+ THE FINAL CSF (MOLSTRUCT) OUTPUT WILL BE ON UNIT 10.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+ === ELEMENT  1 ===
+
+
+ THE BASIS CONTAINS  6 STO'S ( 10 COUNTING ML-VALUES).
+ THIS ELEMENT IS DESCRIBED BY  5 ATOMIC ORBITALS.
+1...................................................
+-*** ERROR  5 - THE NO. OF STO'S (W/ ML'S) (MSTO) HAS EXCEEDED THE PREVIOUSLY SPECIFIED MAXIMUM (MXMSTO) ***
+-DUMP OF GLOBAL VARIABLES, PARM(*)...
+
+&VDUMP
+ NATOM=2          ,
+ NELEM=1          ,
+ NUCZ=0          ,
+ IEQAT=0          ,
+ MSTO=10         ,
+ NORB=5          ,
+ IORBT=0          ,
+ NORBT=10         ,
+ N2ORBT=55         ,
+ IATOM=0          ,
+ IDIFAT=0          ,
+ MXMSTO=5          ,
+ N2ATOM=3          ,
+ MXNORB=5          ,
+ MXNSTO=3          ,
+ MDIFAT=0          ,
+ NMAX=2          ,
+ NNMX=4          ,
+ NNMXM1=3          ,
+ LMAX=1          ,
+ LMXP1=2          ,
+ LLMXP1=3          ,
+ LLMXP2=4          ,
+ NCGC=16         ,
+ MXITER=20         ,
+ IELEM=1          ,
+ M2STO=0          ,
+ L3MX=10         ,
+ NFACT=6          ,
+ NABDIM=9          ,
+ NVTERM=5          ,
+ NSTO=6          ,
+ ISPIN=2          ,
+ NYLM=6          ,
+ N2ORB=0          ,
+ MXCYCL=50         ,
+ NCYCL=0          ,
+ IUNIT0=11         ,
+ M4STO=0          ,
+ QRSTRT=F,
+ QBAKUP=F,
+ QNWBAS=T,
+ QOPEN=T,
+ QFIRST=T,
+ QLAST=F,
+ QDEBUG=F,
+ QSEPAT=T,
+ QCMPTD=F,
+ QEWMO=F,
+ QFIXED=F,
+ QVIRTL=F,
+ QNWVEC=F,
+ QMOVE=F,
+ QFLIP=F,
+ QGSTAT=T,
+ QPLOT=F,
+ QCORE=F,
+ EXPMIN= -60.000000000000000     ,
+ CONVRG=  5.0000000000000001E-004,
+ THETA= 0.31667279999999998     ,
+ CDAMP=  0.0000000000000000     ,
+ CACCEL=  1.0000000000000000     ,
+ RANGE=  10.000000000000000     ,
+ PKSCAL=  1.0000000000000000     ,
+ TIMEND=  0.0000000000000000     ,
+ QPRINT=F,
+ QAUDMP=F,
+ QATOM=F,
+ MXCORE=1000000    ,
+ NWCORE=998564     ,
+ NWORDS=1436       ,
+ LAST=0          ,
+ /
+-...................................................

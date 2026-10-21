@@ -44,8 +44,23 @@ C-----------------------------------------------------------------------
       MT1=M1
       MT2=M2
    10 CONTINUE
-      IF (M2) 50,150,20
-   20 IF (M1) 40,150,30
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (M2 .LT. 0) THEN
+         GO TO 50
+      ELSE IF (M2 .EQ. 0) THEN
+         GO TO 150
+      ELSE
+         GO TO 20
+      END IF
+   20 CONTINUE
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (M1 .LT. 0) THEN
+         GO TO 40
+      ELSE IF (M1 .EQ. 0) THEN
+         GO TO 150
+      ELSE
+         GO TO 30
+      END IF
    30 IF (MM.EQ.M1+M2) GO TO 80
       IF (MM.NE.M1-M2) GO TO 100
       IF (MM.EQ.0) GO TO 140
@@ -54,7 +69,15 @@ C-----------------------------------------------------------------------
       IF (MM.NE.M1+M2) GO TO 100
       IF (MM.EQ.0) GO TO 100
       GO TO 80
-   50 IF (M1) 70,150,60
+   50 CONTINUE
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (M1 .LT. 0) THEN
+         GO TO 70
+      ELSE IF (M1 .EQ. 0) THEN
+         GO TO 150
+      ELSE
+         GO TO 60
+      END IF
    60 IF (MM.EQ.M2-M1) GO TO 110
       IF (MM.NE.-M1-M2) GO TO 100
       IF (MM.EQ.0) GO TO 100

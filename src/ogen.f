@@ -57,7 +57,8 @@ C ZERO THE ENTIRE COEFFICIENT MATRIX BEFORE STARTING.
 C.......................................................................
       DO 20 Q = 1,NODIM
       DO 10 P = 1,NODIM
-   10 OMEGA(P,Q) = ZERO
+      OMEGA(P,Q) = ZERO
+   10 CONTINUE
    20 CONTINUE
 C.......................................................................
 C COMPUTE THE LEGENDRE POLYNOMIAL EXPANSION COEFFICIENTS.  THESE ARE
@@ -88,7 +89,8 @@ C.......................................................................
       TERM = BINOM(LL)*GAMMA(2*(L-LAMBDA)+1)/(GAMMA(LM-2*LAMBDA+1)*
      X     GAMMA(L+1)*TWO**L)
       IF (ODD(MLABS+LAMBDA)) TERM = -TERM
-   30 PLM(LAMP1) = TERM
+      PLM(LAMP1) = TERM
+   30 CONTINUE
 C.......................................................................
 C NOW FILL IN THE OMEGA(*,*) MATRIX USING THE EXPLICIT FORMULAE FOR
 C THE COEFFICIENTS.  WE USE THE SYMMETRY RELATIONS TO FILL IN THE

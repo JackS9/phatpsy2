@@ -43,7 +43,7 @@ C-----------------------------------------------------------------------
       ROW(K)=ROWK
    10 CONTINUE
    
-      IF (QDELET) GO TO 20
+C      IF (QDELET) GO TO 20
       WRITE (IW,2000) J,(ROW(K),K=1,IEND)
    20 CONTINUE
    

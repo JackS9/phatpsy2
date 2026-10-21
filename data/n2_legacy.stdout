@@ -1,0 +1,376 @@
+                                                                                 
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ THE 1ST CYCLE WILL BE A SEPARATED-ATOM CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THIS IS A GROUND STATE CALCULATION.
+ THIS MOLECULE CONTAINS  2 ATOMS MADE UP FROM  1 DIFFERENT ELEMENTS.
+ THIS MOLECULE CONTAINS  10 ATOMIC ORBITALS WITH A MAXIMUM OF  5 ON ANY ATOM.
+ THE BASIS CONTAINS  10 STO'S WITH THE LARGEST ATOM HAVING  5 WITH (N,L) UP TO (2,1).
+ THE MAXIMUM NUMBER CYCLES TO BE ALLOWED IS100 WITH 20 ITERATIONS PER CYCLE.
+ THE MAXIMUM CPU TIME ALLOWED IS   360. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-04
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE CHARGE TRANSFER IN THE MOLECULE WILL BE DAMPED BY  0.50 **  1.00.
+ THE FOLLOWING CONDITIONS WILL BE SATISFIED ACCORDING TO
+    THE GIVEN WEIGHTS IN FITTING THE MODEL POTENTIALS.
+       BEHAVIOR AT THE NUCLEUS........   1.0000
+       HF COUL POTENTIAL AT NUCLEUS...   1.0000
+       CORE HF COULOMB POTENTIALS.....   1.0000
+       VALENCE HF COULOMB POTENTIALS..   1.0000
+       EXTERNAL NUC. ATT. POTENTIAL...   1.0000
+ THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE HANDLED BY PSEUDOMETRIC.
+ THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY  0.50 **  1.00.
+ THE P-K PROJECTION MATRIX WILL BE SCALED BY  0.00.
+ THE PRIMITIVE TWO-CENTER OVERLAP INTEGRALS WILL BE ON DIRECT-ACCESS UNIT  1.
+ THE PRIMITIVE TWO-CENTER MODEL POTENTIAL INTEGRALS WILL BE ON UNIT  2.
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNITS  3 AND  4 ALTERNATELY.
+ THE FINAL CSF (MOLSTRUCT) OUTPUT WILL BE ON UNIT 10.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+ === ELEMENT  1 ===
+
+
+ THE BASIS CONTAINS  3 STO'S (  5 COUNTING ML-VALUES).
+ THIS ELEMENT IS DESCRIBED BY  5 ATOMIC ORBITALS.
+ THE MODEL POTENTIAL CONTAINS  5 TERMS.
+ ...     4K BYTES OF CORE TO BE ALLOCATED FOR ATOMIC ...
+
+ -------------------
+ ATOMIC SYMBOL... N 
+ ATOMIC NUMBER...  7
+ -------------------
+
+ CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN: 
+
+  #     TYPE     EXPONENT     NORMALIZATION
+  _     ____     ________     _____________
+
+  1     1S 0     6.665100      3.441438D+01
+  2     2S 0     1.923700      5.926697D+00
+  3     2P-1     1.917000      5.875227D+00
+  4        0
+  5        1
+
+ MODEL POTENTIAL ...
+
+  #     TYPE     EXPONENT                 COEF
+  _     ____     ________                 ____
+
+  1     0S 0     0.000000  ( 0.000)     7.0000  ( 1.000)
+  2     0S 0     7.603752  ( 3.519)    -0.8750  (-0.125)
+  3     0S 0     4.187573  ( 1.938)    -2.4500  (-0.350)
+  4     0S 0     0.771395  ( 0.357)    -3.6750  (-0.525)
+  5     0S 0     0.324116  ( 0.150)     0.0000  ( 0.000)
+
+ ... THE BASIS AND ONE-CENTER INTEGRALS FOR N  WERE WRITTEN ON UNIT 11 ...
+
+ ... IT TOOK    0.00 SECONDS TO COMPUTE THE 1-CENTER INTEGRALS ...      
+
+  1 NON-EQUIVALENT N  ATOMS WILL BE INPUT.
+
+
+
+ N 
+ __
+
+ STARTING VECTORS AND ENERGIES...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.6704     -1.1606     -0.5691     -0.5691     -0.5691
+     ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.5790     -0.7270      0.1912      0.1912      0.1912
+     ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000
+
+
+
+ N 
+ __
+
+ STARTING ORBITAL ENERGIES AND OCCUPATIONS...
+
+
+ ALPHA...
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.6704       -9832.84      -426.4026         1.000
+   2        -1.1606        -728.25       -31.5807         1.000
+   3        -0.5691        -357.10       -15.4856         1.000
+   4        -0.5691        -357.10       -15.4856         1.000
+   5        -0.5691        -357.10       -15.4856         1.000
+
+
+ BETA... 
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.5790       -9775.49      -423.9155         1.000
+   2        -0.7270        -456.18       -19.7822         1.000
+   3         0.1912         119.97         5.2027         0.000
+   4         0.1912         119.97         5.2027         0.000
+   5         0.1912         119.97         5.2027         0.000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......   7.0000
+    ELECTRONIC CHARGE...  -7.0000
+    NET CHARGE..........   0.0000
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   5.0000
+    BETA SPIN....   2.0000
+    NET SPIN.....   3.0000
+
+ STARTING COEFFICIENTS FOR THE MODEL POTENTIAL...
+
+  1      7.0000
+  2     -0.8750
+  3     -2.4500
+  4     -3.6750
+  5      0.0000
+
+ NUCLEAR COORDINATES...
+
+           X              Y              Z
+           _              _              _
+
+ N  1     0.00000000     0.00000000     1.03400000
+ ____
+                                                      * RMAX =   5.739 *
+         -0.00000000    -0.00000000    -1.03400000
+                                                      * SPIN FLIPPED   *
+                                                      * REFLECTED      *
+
+ THE INPUT FOR THE  2 N  ATOMS IS COMPLETE.
+
+
+ COMPLETE MOLECULAR BASIS ...
+
+ ATOM  N  L  ML       ETA
+ ----  -  -  --       ---
+   1   1  0   0     6.66510
+   1   2  0   0     1.92370
+   1   2  1  -1     1.91700
+   1   2  1   0     1.91700
+   1   2  1   1     1.91700
+   2   1  0   0     6.66510
+   2   2  0   0     1.92370
+   2   2  1  -1     1.91700
+   2   2  1   0     1.91700
+   2   2  1   1     1.91700
+
+
+ATOMIC ORBITALS OVER MOLECULAR BASIS...
+
+ ALPHA...
+
+         1           2           3           4           5           6
+
+     -15.6704     -1.1606     -0.5691     -0.5691     -0.5691    -15.5790
+     ________    ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      1.0000
+
+         7           8           9          10
+
+      -0.7270      0.1912      0.1912      0.1912
+     ________    ________    ________    ________
+ 
+  7    1.0000      0.0000      0.0000      0.0000
+  8    0.0000      1.0000      0.0000      0.0000
+  9    0.0000      0.0000     -1.0000      0.0000
+ 10    0.0000      0.0000      0.0000      1.0000
+
+ BETA... 
+
+         1           2           3           4           5           6
+
+     -15.5790     -0.7270      0.1912      0.1912      0.1912    -15.6704
+     ________    ________    ________    ________    ________    ________
+ 
+  1    1.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+  2    0.0000      1.0000      0.0000      0.0000      0.0000      0.0000
+  3    0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+  4    0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.0000      0.0000      1.0000
+
+         7           8           9          10
+
+      -1.1606     -0.5691     -0.5691     -0.5691
+     ________    ________    ________    ________
+ 
+  7    1.0000      0.0000      0.0000      0.0000
+  8    0.0000      1.0000      0.0000      0.0000
+  9    0.0000      0.0000     -1.0000      0.0000
+ 10    0.0000      0.0000      0.0000      1.0000
+
+
+ COORDINATE PROJECTIONS...
+ (EACH FRAME IS 10.0 BY 10.0)
+
+
+ +------------------------------------------+
+ |                     р?
+               |
+ +------------------------------------------+
+ |                                      NА-C|
+ +------------------------------------------+
+ |лв6?Ћвэ]DФ?      а?      р?      $@    |
+ +------------------------------------------+
+
+  YZ, XZ, XY Projections
+
+
+
+
+ ... ALL INPUT IS COMPLETE ...
+ ... WRITES TO UNIT  3 ARE COMPLETE ...
+
+ ... IT TOOK    0.00 SECONDS TO PROCESS INPUT ...                       
+ ...   2 DIRECT-ACCESS RECORDS, 4*  200 BYTES EACH HAVE BEEN ALLOCATED ON UNIT  1 ...
+ ... WRITES TO UNIT  4 ARE COMPLETE ...
+ ...   2  200-BYTE RECORDS [   0K] WRITTEN TO UNIT  1
+       2   LOGICAL RECORDS [   0K]...
+ ... WRITES TO UNIT  2 ARE COMPLETE ...
+
+ ... IT TOOK    0.00 SECONDS TO COMPUTE THE 2-CENTER INTEGRALS ...      
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE  1 ...
+                                            +++ NEAR SEPARATED-ATOM LIMIT +++
+-*** WARNING 15 - FAILURE TO DETERMINE EIGENVALUE ***
+1...................................................
+-*** ERROR 16 - FAILURE TO DETERMINE AT LEAST  5 EIGENVALUES ***
+-DUMP OF GLOBAL VARIABLES, PARM(*)...
+
+&VDUMP
+ NATOM=2          ,
+ NELEM=1          ,
+ NUCZ=7          ,
+ IEQAT=2          ,
+ MSTO=5          ,
+ NORB=5          ,
+ IORBT=0          ,
+ NORBT=10         ,
+ N2ORBT=55         ,
+ IATOM=1          ,
+ IDIFAT=2          ,
+ MXMSTO=5          ,
+ N2ATOM=3          ,
+ MXNORB=5          ,
+ MXNSTO=3          ,
+ MDIFAT=1          ,
+ NMAX=2          ,
+ NNMX=4          ,
+ NNMXM1=3          ,
+ LMAX=1          ,
+ LMXP1=2          ,
+ LLMXP1=3          ,
+ LLMXP2=4          ,
+ NCGC=16         ,
+ MXITER=20         ,
+ IELEM=1          ,
+ M2STO=15         ,
+ L3MX=10         ,
+ NFACT=6          ,
+ NABDIM=9          ,
+ NVTERM=5          ,
+ NSTO=3          ,
+ ISPIN=2          ,
+ NYLM=6          ,
+ N2ORB=15         ,
+ MXCYCL=100        ,
+ NCYCL=1          ,
+ IUNIT0=11         ,
+ M4STO=120        ,
+ QRSTRT=F,
+ QBAKUP=F,
+ QNWBAS=T,
+ QOPEN=T,
+ QFIRST=T,
+ QLAST=F,
+ QDEBUG=F,
+ QSEPAT=T,
+ QCMPTD=F,
+ QEWMO=F,
+ QFIXED=F,
+ QVIRTL=F,
+ QNWVEC=F,
+ QMOVE=T,
+ QFLIP=F,
+ QGSTAT=T,
+ QPLOT=F,
+ QCORE=F,
+ EXPMIN= -60.000000000000000     ,
+ CONVRG=  1.0000000000000000E-004,
+ THETA= 0.31667279999999998     ,
+ CDAMP= 0.50000000000000000     ,
+ CACCEL=  1.0000000000000000     ,
+ RANGE=  10.000000000000000     ,
+ PKSCAL=  0.0000000000000000     ,
+ TIMEND=  0.0000000000000000     ,
+ QPRINT=T,
+ QAUDMP=F,
+ QATOM=F,
+ MXCORE=1000000    ,
+ NWCORE=997811     ,
+ NWORDS=937        ,
+ LAST=136        ,
+ /
+-...................................................

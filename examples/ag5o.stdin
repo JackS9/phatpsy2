@@ -1,0 +1,91 @@
+... Ag(100)-O, R(Ag-O)=4.0, R(Ag-Ag)=5.46, 5(FC) Ag + O(3P) ...
+                                                                                
+ &CTLINP                                                                        
+   QRSTRT=F,                                                                    
+   QOPEN=T,                                                                     
+   QEWMO=F,
+   QMNPRT=F,
+   NELEM=2,NATOM=6,                                                             
+   NORBT=29,                                                                    
+   MXNSTO=10,MXMSTO=24,MXNORB=24,
+   NMAX=5,LMAX=2,                                                               
+   MXCYCL=10,
+   DAMP=1.0,ACCEL=2.0,
+   TIMEND=200.0D0,                                                              
+ &END                                                                           
+                                                                                
+ &BASDIM                                                                        
+   NVTERM=4,                                                                    
+   MSTO=5,NSTO=3,                                                               
+   NORB=5,                                                                      
+ &END                                                                           
+                                                                                
+ &ELEM                                                                          
+   LATOM='O',DESCR='CLEMENTI SZ-BASIS FOR NEUTRAL OXYGEN:',                    
+   NUCZ=8,QMNBAS=T,                                                             
+ &END                                                                           
+  1  0   7.66                                                                   
+  2  0   2.25                                                                   
+  2  1   2.23                                                                   
+                                                                                
+ &ATOM XYZ=0.0,0.0,4.0,QPLOT=T &END                                             
+                                                                                
+ &ATORB EIGVAL=2*-20.6 &END                                                     
+ &ATORB EIGVAL=2*-1.15 &END                                                     
+ &ATORB EIGVAL=2*-0.50,OCCNO=1.0,0.0 &END                                       
+ &ATORB OCCNO=2*1.0 &END                                                        
+ &ATORB OCCNO=1.0,0.0 &END                                                      
+                                                                                
+ &BASDIM                                                                        
+   NVTERM=4,                                                                    
+   MSTO=24,NSTO=10,
+   NORB=24,                                                                     
+ &END                                                                           
+                                                                                
+ &ELEM                                                                          
+   LATOM='Ag',DESCR='Clementi SZ-Basis for neutral Silver:',                   
+   NUCZ=47,QMNBAS=T,                                                            
+   MDIFAT=1,                                                                    
+ &END                                                                           
+  1  0  46.04                                                                   
+  2  0  17.32                                                                   
+  2  1  21.46                                                                   
+  3  0  10.01                                                                   
+  3  1   9.95                                                                   
+  3  2  10.85                                                                  
+  4  0   5.05                                                                   
+  4  1   4.68
+  4  2   3.81
+  5  0   1.61
+                                                                                
+ &ATOM NEQAT=4,XYZ=0.0,0.0,0.0,QPLOT=T &END                                     
+                                                                                
+ &ATORB EIGVAL=2*-913.9 &END                                                    
+ &ATORB EIGVAL=2*-133.2 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-25.04 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-3.74 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL=2*-0.19,OCCNO=1.0,0.0 &END                                         
+                                                                                
+ &ATOM XYZ=5.46,0.0,0.0,QVIRTL=T &END
+ &ATOM ISYM=4,IXYZ=001,QVIRTL=T &END                                            
+ &ATOM ISYM=4,IXYZ=001,QVIRTL=T &END                                            
+ &ATOM ISYM=4,IXYZ=001,QVIRTL=T &END                                            

@@ -15,7 +15,14 @@ C
 C-----------------------------------------------------------------------
       DATA HALF/0.5D0/
       XMOD=X
-      IF (X) 30,20,10
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (X .LT. 0.0D0) THEN
+         GO TO 30
+      ELSE IF (X .EQ. 0.0D0) THEN
+         GO TO 20
+      ELSE
+         GO TO 10
+      END IF
    10 XMOD=XMOD+HALF
    20 XMOD=XMOD+HALF
    30 XMOD=XMOD-HALF

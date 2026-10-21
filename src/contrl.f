@@ -717,7 +717,8 @@ C-----------------------------------------------------------------------
       CLOSE(IUTEMP)
 
       DO 230 IELEM=1,NELEM
-  230 CLOSE(UNIT=IELEM+10)
+      CLOSE(UNIT=IELEM+10)
+  230 CONTINUE
   
       IF (QGEOM) GOTO 40
       GOTO 250

@@ -1,0 +1,54 @@
+title: '... CO, R=2.13 ...'
+control:
+  spin_unrestricted: true
+  max_cycles: 100
+  convergence: 0.0001
+  time_limit: 200.0
+  charge_damp: 0.0
+  charge_accel: 1.0
+  potential_damp: 0.5
+  potential_accel: 1.0
+  pk_scale: 0.8
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: C
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+- element: O
+  xyz:
+  - 0.0
+  - 0.0
+  - 2.13
+elements:
+  C:
+    symbol: C
+    atomic_number: 6
+    description: 'Clementi SZ-Basis for Neutral Carbon:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 5.67
+    - n: 2
+      l: 0
+      zeta: 1.61
+    - n: 2
+      l: 1
+      zeta: 1.57
+  O:
+    symbol: O
+    atomic_number: 8
+    description: 'Clementi SZ-Basis for Neutral Oxygen:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 7.66
+    - n: 2
+      l: 0
+      zeta: 2.25
+    - n: 2
+      l: 1
+      zeta: 2.23

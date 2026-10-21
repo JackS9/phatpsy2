@@ -1,0 +1,74 @@
+... Ag-Ag, R=4.68 (2.48 A)  - Experimental De = 1.65 eV (0.0607 au)
+                                                                                
+ &CTLINP                                                                        
+  QDEBUG=F, QMNPRT=F,
+  QRSTRT=F, QSEPAT=T,
+  QC2FIT=T, QX2FIT=T, VDAMP=0.2, VACCEL=1.0,
+  WGTC=1.0, WGTV=2.0, WGT2=10.0,
+  QPSMET=T, PKE=10.0, PKSCAL=1.0,
+  QEWMO=T, CDAMP=1.0, CACCEL=1.0,
+  CONVRG=5D-4, MXCYCL=100, TIMEND=360.0D0,
+   QOPEN=T,                                                                     
+   NELEM=1,NATOM=2, NORBT=48,
+   MXNSTO=10,MXMSTO=24,MXNORB=24,
+   NMAX=5,LMAX=2,                                                               
+ &END                                                                           
+                                                                                
+ &BASDIM                                                                        
+   NVTERM=8,
+   MSTO=24,NSTO=10,
+   NORB=24,                                                                     
+ &END                                                                           
+                                                                                
+ &ELEM                                                                          
+   LATOM='Ag',DESCR='Clementi SZ-Basis for neutral Silver:',                   
+   NUCZ=47,QMNBAS=T,                                                            
+   MDIFAT=1,                                                                    
+   QTFPOT=F
+ &END                                                                           
+  1  0  46.04                                                                   
+  2  0  17.32                                                                   
+  2  1  21.46                                                                   
+  3  0  10.01                                                                   
+  3  1   9.95                                                                   
+  3  2  10.85                                                                  
+  4  0   5.05                                                                   
+  4  1   4.68
+  4  2   3.81
+  5  0   1.61
+  0  0   0.00      1.00
+  0  0   7.20      0.00
+  0  0   3.60     -0.125
+  0  0   1.80     -0.375
+  0  0   0.90      0.00   
+  0  0   0.45     -0.500  
+  0  0   0.225     0.00
+  0  0   0.1125    0.00
+                                                                                
+ &ATOM NEQAT=1,XYZ=0.0,0.0,2.34 &END                                     
+                                                                                
+ &ATORB EIGVAL=2*-913.9 &END                                                    
+ &ATORB EIGVAL=2*-133.2 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-125.0 &END
+ &ATORB EIGVAL=2*-25.04 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-21.67 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-14.01 &END
+ &ATORB EIGVAL=2*-3.74 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL=2*-2.54 &END
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=1.0,0.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.36,OCCNO=2*1.0 &END                                        
+ &ATORB EIGVAL= 2*-0.19,OCCNO=2*1.0 &END                                         
+ &ATOM ISYM=-1,IXYZ=001,QFLIP=T &END

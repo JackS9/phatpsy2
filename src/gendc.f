@@ -91,7 +91,14 @@ C-----------------------------------------------------------------------
       D(NDXD(L+1,M,ISIGMA),2)=D2/CL1
       GO TO 70
    40 IF (M.NE.ISIGMA) GO TO 70
-      IF (T) 60,70,50
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (T .LT. 0.0D0) THEN
+         GO TO 60
+      ELSE IF (T .EQ. 0.0D0) THEN
+         GO TO 70
+      ELSE
+         GO TO 50
+      END IF
    50 D(NDXD(L+1,M,M),1)=ONE
       IF (M.EQ.0) D(NDXD(L+1,0,0),2)=(-ONE)**(L+1)
       GO TO 70

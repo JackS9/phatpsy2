@@ -1,0 +1,44 @@
+title: ''
+control:
+  spin_unrestricted: true
+  max_cycles: 100
+  convergence: 0.0001
+  time_limit: 360.0
+  charge_damp: 0.5
+  charge_accel: 1.0
+  potential_damp: 0.5
+  potential_accel: 1.0
+  pk_scale: 0.0
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - 1.034
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  symmetry:
+    ixyz: 1
+    isym: -1
+    qflip: true
+elements:
+  N:
+    symbol: N
+    atomic_number: 7
+    description: 'CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 6.6651
+    - n: 2
+      l: 0
+      zeta: 1.9237
+    - n: 2
+      l: 1
+      zeta: 1.917

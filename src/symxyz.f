@@ -34,7 +34,14 @@ C-----------------------------------------------------------------------
       ANGLE=TWO*PI/DFLOAT(NFOLD)
       LAST=IATOM-1
       PARITY=ONE
-      IF (ISYM) 60,80,70
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (ISYM .LT. 0) THEN
+         GO TO 60
+      ELSE IF (ISYM .EQ. 0) THEN
+         GO TO 80
+      ELSE
+         GO TO 70
+      END IF
 C-----------------------------------------------------------------------
 C
 C     REFLECTION.

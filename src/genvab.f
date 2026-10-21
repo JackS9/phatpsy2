@@ -149,8 +149,23 @@ C-----------------------------------------------------------------------
       MSUM=IABS(MI+MJ)
 	  
       MSIGN=1
-      IF (MSUM-MDIF) 20,10,30
-   10 IF (MI+MJ) 20,30,30
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (MSUM-MDIF .LT. 0) THEN
+         GO TO 20
+      ELSE IF (MSUM-MDIF .EQ. 0) THEN
+         GO TO 10
+      ELSE
+         GO TO 30
+      END IF
+   10 CONTINUE
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (MI+MJ .LT. 0) THEN
+         GO TO 20
+      ELSE IF (MI+MJ .EQ. 0) THEN
+         GO TO 30
+      ELSE
+         GO TO 30
+      END IF
    20 MSIGN=-1
    30 CONTINUE
       MADIF=MSIGN*MDIF

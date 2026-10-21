@@ -1,0 +1,66 @@
+... CO, R=2.13 ...
+                                                                                
+ &CTLINP                                                                        
+   QANGST=F,
+   QRSTRT=F,                                                                    
+   QOPEN=T,                                                                     
+   QEWMO=F,
+   QMNPRT=F,
+   NELEM=2,NATOM=2,                                                             
+   NORBT=10,                                                                    
+   MXNSTO=3,MXMSTO=5,MXNORB=5,
+   NMAX=2,LMAX=1,                                                               
+   MXCYCL=100,
+   CONVRG=1.D-4,
+   THETA=1.0D6,
+   VDAMP=0.5,
+   CDAMP=0.0,CACCEL=1.0,
+   PKSCAL=0.80
+   WGTC=1.0,WGTV=1.0,WGT2=1.0,
+   TIMEND=200.0D0,                                                              
+   KATOM=99,KORB=99,KSP=0,
+ /                                                                           
+ &BASDIM                                                                        
+   MSTO=5,NSTO=3,                                                               
+   NORB=5,                                                                      
+   NVTERM=4,
+ /                                                                           
+ &ELEM                                                                          
+   LATOM='C',DESCR='Clementi SZ-Basis for Neutral Carbon:',
+   NUCZ=6,QMNBAS=T,                                                             
+   MDIFAT=1,
+ /                                                                           
+  1  0   5.67                                                                   
+  2  0   1.61                                                                   
+  2  1   1.57                                                                   
+ -1  0   1.938
+
+ &ATOM XYZ=0.0,0.0,0.0 /                                             
+
+ &ATORB EIGVAL=2*-11.3 /                                                     
+ &ATORB EIGVAL=2*-0.68,OCCNO=1.0,1.0 /
+ &ATORB EIGVAL=2*-0.40,OCCNO=1.0,0.0 /
+ &ATORB OCCNO=0.0,0.0 /
+ &ATORB OCCNO=1.0,0.0 /
+
+ &BASDIM                                                                        
+   MSTO=5,NSTO=3,                                                               
+   NORB=5,                                                                      
+   NVTERM=4,
+ /                                                                           
+ &ELEM                                                                          
+   LATOM='O',DESCR='Clementi SZ-Basis for Neutral Oxygen:',                    
+   NUCZ=8,QMNBAS=T,                                                             
+ /                                                                           
+  1  0   7.66                                                                   
+  2  0   2.25                                                                   
+  2  1   2.23                                                                   
+ -1  0   1.938
+
+ &ATOM XYZ=0.0,0.0,2.13 /
+                                                                                
+ &ATORB EIGVAL=2*-20.6 /                                                     
+ &ATORB EIGVAL=2*-1.15 /                                                     
+ &ATORB EIGVAL=2*-0.50,OCCNO=0.0,1.0 /
+ &ATORB OCCNO=1.0,1.0 /
+ &ATORB OCCNO=0.0,1.0 /

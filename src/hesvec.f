@@ -8,52 +8,64 @@ C	  PARAMETER (TOL = $3510000000000000)
 	  PARAMETER (TOL = 16.0D0**(-12))
       FAC=ROOT+ETA
       ND=NN-1
-      DO 5 I=NN,N
-5     VEC(I)=0.
-      DO 12 I=1,NN
-      DO 10 J=1,NN
-10    SCR(I,J)=H(I,J)
-12    SCR(I,I)=SCR(I,I)-FAC
-      DO 35 I=1,ND
-      IF (DABS(SCR(I,I)).LT.1.D0) GO TO 20
-      SCR(I+1,I)=UNZ
-      FAC=1.D0/SCR(I,I)
+      DO 5 II=NN,N
+      VEC(II)=0.
+    5 CONTINUE
+      DO 12 II=1,NN
+      DO 10 JJ=1,NN
+      SCR(II,JJ)=H(II,JJ)
+   10 CONTINUE
+      SCR(II,II)=SCR(II,II)-FAC
+   12 CONTINUE
+      DO 35 II=1,ND
+      IF (DABS(SCR(II,II)).LT.1.D0) GO TO 20
+      SCR(II+1,II)=UNZ
+      FAC=1.D0/SCR(II,II)
       GO TO 30
-20    DO 25 J=I,NN
-      FAC=SCR(I,J)
-      SCR(I,J)=SCR(I+1,J)
-25    SCR(I+1,J)=FAC
-      FAC=SCR(I+1,I)
-30    DO 35 J=I,ND
-35    SCR(I+1,J+1)=SCR(I+1,J+1)-FAC*SCR(I,J+1)
-      DO 45 J=1,NN
-45    SCRV(J)=1.D0
+   20 DO 25 JJ=II,NN
+      FAC=SCR(II,JJ)
+      SCR(II,JJ)=SCR(II+1,JJ)
+      SCR(II+1,JJ)=FAC
+   25 CONTINUE
+      FAC=SCR(II+1,II)
+   30 DO 32 JJ=II,ND
+      SCR(II+1,JJ+1)=SCR(II+1,JJ+1)-FAC*SCR(II,JJ+1)
+   32 CONTINUE
+      CONTINUE
+   35 CONTINUE
+      DO 45 JJ=1,NN
+      SCRV(JJ)=1.D0
+   45 CONTINUE
       NIT=0
-50    VEC(NN)=SCRV(NN)/SCR(NN,NN)
+   50 VEC(NN)=SCRV(NN)/SCR(NN,NN)
       AVC=VEC(NN)
-      DO 60 I=1,ND
-      NI=NN-I
+      DO 60 III=1,ND
+      NI=NN-III
       FAC=SCRV(NI)
-      DO 55 J=NI,ND
-55    FAC=FAC-SCR(NI,J+1)*VEC(J+1)
+      DO 55 JJ=NI,ND
+      FAC=FAC-SCR(NI,JJ+1)*VEC(JJ+1)
+   55 CONTINUE
       VEC(NI)=FAC/SCR(NI,NI)
-60    IF (DABS(AVC).LT.DABS(VEC(NI))) AVC =VEC(NI)
-      I=0
-      DO 65 J=1,NN
-      VEC(J)=VEC(J)/AVC
-65    IF (DABS((VEC(J)-SCRV(J))/VEC(J)).GT.TOL) I=1
-      IF (I.EQ.0) RETURN
+   60 CONTINUE
+      IF (DABS(AVC).LT.DABS(VEC(NI))) AVC =VEC(NI)
+      IFLAG=0
+      DO 65 JJ=1,NN
+      VEC(JJ)=VEC(JJ)/AVC
+      IF (DABS((VEC(JJ)-SCRV(JJ))/VEC(JJ)).GT.TOL) IFLAG=1
+   65 CONTINUE
+      IF (IFLAG.EQ.0) RETURN
       NIT=NIT+1
-      IF (NIT.GT.8) RETURN1
-      DO 80 I=1,NN
-80    SCRV(I)=VEC(I)
-      DO 90 I=1,ND
-      IF (SCR(I+1,I).EQ.UNZ) GO TO 85
-      FAC=SCRV(I+1)
-      SCRV(I+1)=SCRV(I)-FAC*SCR(I+1,I)
-      SCRV(I)=FAC
+      IF (NIT.GT.8) RETURN 1
+      DO 80 III=1,NN
+      SCRV(III)=VEC(III)
+   80 CONTINUE
+      DO 90 III=1,ND
+      IF (SCR(III+1,III).EQ.UNZ) GO TO 85
+      FAC=SCRV(III+1)
+      SCRV(III+1)=SCRV(III)-FAC*SCR(III+1,III)
+      SCRV(III)=FAC
       GO TO 90
-85    SCRV(I+1)=SCRV(I+1)-SCRV(I)/SCR(I,I)
-90    CONTINUE
+   85 SCRV(III+1)=SCRV(III+1)-SCRV(III)/SCR(III,III)
+   90 CONTINUE
       GO TO 50
       END

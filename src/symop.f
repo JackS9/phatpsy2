@@ -55,7 +55,14 @@ C-----------------------------------------------------------------------
       NFOLD=ISYM
       ANGLE=TWO*PI/DFLOAT(IABS(NFOLD))
       QINVRT=.FALSE.
-      IF (ISYM) 1,50,2
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (ISYM .LT. 0) THEN
+         GO TO 1
+      ELSE IF (ISYM .EQ. 0) THEN
+         GO TO 50
+      ELSE
+         GO TO 2
+      END IF
 C-----------------------------------------------------------------------
 C
 C     REFLECTION.

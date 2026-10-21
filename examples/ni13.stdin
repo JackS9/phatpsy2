@@ -1,0 +1,67 @@
+... Ni13, R(Ni-Ni)=4.71
+                                                                                
+ &CTLINP                                                                        
+   QRSTRT=F,                                                                    
+   QDEBUG=F,
+   QOPEN=T,                                                                     
+   QEWMO=F,
+   QMNPRT=F,
+   NELEM=1,NATOM=13,                                                            
+   NORBT=195,                                                                    
+   MXNSTO=7,MXMSTO=15,MXNORB=15,
+   NMAX=4,LMAX=2,                                                               
+   MXCYCL=20,
+   CONVRG=1.D-4,
+   VDAMP=0.5,
+   CDAMP=0.00,CACCEL=1.0,
+   PKSCAL=0.40,
+   THETA=1.0D6,
+   WGTC=1.0,WGTV=1.0,WGT2=1.0,
+   TIMEND=600.0D0,                                                              
+   KATOM=99,KORB=0,KSP=0,
+ /                                                                           
+ &BASDIM                                                                        
+   NVTERM=4,                                                                    
+   MSTO=15,NSTO=7,
+   NORB=15,                                                                     
+ /                                                                           
+ &ELEM                                                                          
+   LATOM='Ni',DESCR='Clementi SZ-Basis for neutral Nickel:',                   
+   NUCZ=28,QMNBAS=T,                                                            
+   MDIFAT=1,                                                                    
+ /                                                                           
+  1  0  27.347                                                                  
+  2  0  10.1098                                                                 
+  2  1  12.0478                                                                 
+  3  0   4.98602                                                                 
+  3  1   4.69403                                                                
+  3  2   4.17688                                                               
+  4  0   1.42748                                                                
+ &ATOM NEQAT=12,XYZ=0.0,0.0,0.0, QPNCHV=F /                                     
+ &ATORB EIGVAL=2*-305.5 /                                                    
+ &ATORB EIGVAL=2*-37.21 /
+ &ATORB EIGVAL=2*-32.63 /
+ &ATORB EIGVAL=2*-32.63 /
+ &ATORB EIGVAL=2*-32.63 /
+ &ATORB EIGVAL=2*-4.341 /
+ &ATORB EIGVAL=2*-2.850 /
+ &ATORB EIGVAL=2*-2.850 /
+ &ATORB EIGVAL=2*-2.850 /
+ &ATORB EIGVAL=2*-0.001,OCCNO=1.0,1.0 /
+ &ATORB EIGVAL=2*-0.001,OCCNO=1.0,1.0 /
+ &ATORB EIGVAL=2*-0.001,OCCNO=1.0,1.0 /
+ &ATORB EIGVAL=2*-0.001,OCCNO=1.0,0.0 /
+ &ATORB EIGVAL=2*-0.001,OCCNO=1.0,0.0 /
+ &ATORB EIGVAL=2*-0.223,OCCNO=1.0,1.0 /
+ &ATOM XYZ= 4.71, 0.00, 0.00, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM XYZ= 2.72, 2.72, 2.72 /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM=-1,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /
+ &ATOM ISYM= 4,IXYZ=001, QFLIP=T /

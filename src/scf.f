@@ -534,7 +534,14 @@ C-----------------------------------------------------------------------
       CALL EISPAK(ONFOCK,SCRAT1,ONEVEC,SCRAT2,MSTO,MSTO,M2STO,
      X            NORB,IERR)
 
-      IF (IERR) 150,152,151
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (IERR .LT. 0) THEN
+         GO TO 150
+      ELSE IF (IERR .EQ. 0) THEN
+         GO TO 152
+      ELSE
+         GO TO 151
+      END IF
 
   150 CALL BOMB(17)
   
@@ -654,12 +661,13 @@ C-----------------------------------------------------------------------
       DO 200 ISP=1,ISPIN
 
       IJORB = 0
-      DO 190 IORB=1,NORB
+      DO 189 IORB=1,NORB
       DO 190 JORB=1,IORB
       IJORB = IJORB + 1
       AOFOCK(IJORB,ISP) = ZERO
       IF (JORB.EQ.IORB) AOFOCK(IJORB,ISP) = GAMMA(IORB,ISP)
   190 CONTINUE
+  189 CONTINUE
   
       CALL DENMAT(PKPOT(1,4,ISP),STEVEC(1,1,ISP),OCC(1,ISP),MSTO,
      X            M2STO,NORB)
@@ -783,10 +791,10 @@ C
 C     RE-CONSTRUCT COULOMB AND EXCHANGE MATRICES
 C
 C-----------------------------------------------------------------------
-      DO 251 ISP=1,ISPIN
+      DO 265 ISP=1,ISPIN
       CALL DENMAT(STDEN(1,ISP),STEVEC(1,1,ISP),OCC(1,ISP),MSTO,M2STO,
      X     NORB)
- 251  CONTINUE
+ 265  CONTINUE
       READ (IUNIT0) NSTO,MSTO,NORB,NVTERM
       READ (IUNIT0) LATOM,NUCZ,N,L,ETA,ANORM
       READ (IUNIT0) STOVL,STKIN,STPOT,LV,MV,VEXP
@@ -803,12 +811,13 @@ C-----------------------------------------------------------------------
       DO 256 ISP=1,ISPIN
 
       IJORB = 0
-      DO 252 IORB=1,NORB
+      DO 251 IORB=1,NORB
       DO 252 JORB=1,IORB
       IJORB = IJORB + 1
       AOFOCK(IJORB,ISP) = ZERO
       IF (JORB.EQ.IORB) AOFOCK(IJORB,ISP) = GAMMA(IORB,ISP)
   252 CONTINUE
+  251 CONTINUE
   
       CALL DENMAT(PKPOT(1,4,ISP),STEVEC(1,1,ISP),OCC(1,ISP),MSTO,
      X            M2STO,NORB)

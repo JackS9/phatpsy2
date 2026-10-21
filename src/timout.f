@@ -52,7 +52,14 @@ C-----------------------------------------------------------------------
      X 'COMPLETE',' THE ANA','LYSIS ..','.       ','        '/
 	  
       FINISH=SECNDS(BEGIN)
-      IF (MSGTYP) 10,40,20
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (MSGTYP .LT. 0) THEN
+         GO TO 10
+      ELSE IF (MSGTYP .EQ. 0) THEN
+         GO TO 40
+      ELSE
+         GO TO 20
+      END IF
 	  
    10 SECS=FINISH
       IF (MSGTYP.LT.(-1)) GO TO 30

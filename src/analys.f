@@ -266,7 +266,8 @@ C----------------------------------------------------------------------
       VDEV=ORBOCC*ECHF
 	  
       DO 113 NV=1,NVTERM
-  113 VDEV=VDEV-ORBOCC*VCOEF(NV)*EPOT(NV)
+         VDEV=VDEV-ORBOCC*VCOEF(NV)*EPOT(NV)
+  113 CONTINUE
   
       IF (IORB.LE.NCORE) VDEVC=VDEVC+VDEV*VDEV
       IF (IORB.GT.NCORE) VDEVV=VDEVV+VDEV*VDEV
@@ -407,7 +408,8 @@ C     IF (LV(I).EQ.0) VCALC1 = VCALC1 + VCOEF(I)*VEXP(I)
       IF (NVTERM.LT.4) GO TO 270
       VCOEF(1)=SUMOCC
       DO 264 NV=2,NVTERM
-  264 VCOEF(NV)=ZERO
+         VCOEF(NV)=ZERO
+  264 CONTINUE
       VCOEF(3)=-SUMOCC
       GO TO 270
 	  

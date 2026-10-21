@@ -1,4 +1,37 @@
+# Compiled binaries and extension modules
 *.o
 *.a
-/bin
-/data
+*.so
+*.dylib
+*.mod
+*.pyd
+
+# Fortran I/O and runtime scratch files
+Phatpsy.*
+legacy_n2.out
+modern_n2.out
+-.o
+
+# Build artifacts
+build/
+bin/
+
+# Python artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDE and OS metadata
+.DS_Store
+*.swp
+*.bak
+*~
+src/* copy.f90
+
+# Graphify tool outputs
+graphify-out/

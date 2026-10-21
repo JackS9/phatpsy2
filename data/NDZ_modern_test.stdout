@@ -1,0 +1,323 @@
+ Nitrogen atom                                                                   
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THE MAXIMUM CPU TIME ALLOWED IS 90000. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-03
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNIT  3.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+ === ELEMENT  1 ===
+
+
+ THE BASIS CONTAINS  6 STO'S ( 10 COUNTING ML-VALUES).
+ THIS ELEMENT IS DESCRIBED BY  5 ATOMIC ORBITALS.
+ THE MODEL POTENTIAL CONTAINS  5 TERMS.
+ ...     4K BYTES OF CORE TO BE ALLOCATED FOR ATOMIC ...
+
+ -------------------
+ ATOMIC SYMBOL... N 
+ ATOMIC NUMBER...  7
+ -------------------
+
+ CLEMENTI DZ-BASIS FOR NEUTRAL NITROGEN: 
+
+  #     TYPE     EXPONENT     NORMALIZATION
+  _     ____     ________     _____________
+
+  1     1S 0     8.495970      4.952785D+01
+  2     1S 0     5.986440      2.929429D+01
+  3     2S 0     2.260860      8.874697D+00
+  4     2S 0     1.424570      2.796912D+00
+  5     2P-1     3.249330      2.197627D+01
+  6        0
+  7        1
+  8     2P-1     1.499240      3.177952D+00
+  9        0
+ 10        1
+
+ MODEL POTENTIAL ...
+
+  #     TYPE     EXPONENT                 COEF
+  _     ____     ________                 ____
+
+  1     0S 0     0.000000  ( 0.000)     7.0000  ( 1.000)
+  2     0S 0     7.603752  ( 3.519)    -0.8750  (-0.125)
+  3     0S 0     4.187573  ( 1.938)    -2.4500  (-0.350)
+  4     0S 0     0.771395  ( 0.357)    -3.6750  (-0.525)
+  5     0S 0     0.324116  ( 0.150)     0.0000  ( 0.000)
+
+ ... THE BASIS AND ONE-CENTER INTEGRALS FOR N  WERE WRITTEN ON UNIT 11 ...
+
+ ... IT TOOK    0.00 SECONDS TO COMPUTE THE 1-CENTER INTEGRALS ...      
+
+  1 NON-EQUIVALENT N  ATOMS WILL BE INPUT.
+
+
+
+ N 
+ __
+
+ STARTING VECTORS AND ENERGIES...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.6250     -0.9430     -0.5660     -0.5660     -0.5660
+     ________    ________    ________    ________    ________
+ 
+  1    0.2697      0.0000      0.0000      0.0000      0.0000
+  2    0.7392     -0.2784      0.0000      0.0000      0.0000
+  3    0.0000      0.7257      0.0000      0.0000      0.0000
+  4    0.0000      0.3480      0.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.2891      0.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.2891      0.0000
+  7    0.0000      0.0000      0.0000      0.0000      0.2891
+  8    0.0000      0.0000      0.7775      0.0000      0.0000
+  9    0.0000      0.0000      0.0000      0.7775      0.0000
+ 10    0.0000      0.0000      0.0000      0.0000      0.7775
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.6250     -0.9430     -0.5660     -0.5660     -0.5660
+     ________    ________    ________    ________    ________
+ 
+  1    0.2697      0.0000      0.0000      0.0000      0.0000
+  2    0.7392     -0.2784      0.0000      0.0000      0.0000
+  3    0.0000      0.7257      0.0000      0.0000      0.0000
+  4    0.0000      0.3480      0.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.2891      0.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.2891      0.0000
+  7    0.0000      0.0000      0.0000      0.0000      0.2891
+  8    0.0000      0.0000      0.7775      0.0000      0.0000
+  9    0.0000      0.0000      0.0000      0.7775      0.0000
+ 10    0.0000      0.0000      0.0000      0.0000      0.7775
+
+
+
+ N 
+ __
+
+ STARTING ORBITAL ENERGIES AND OCCUPATIONS...
+
+
+ ALPHA...
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.6250       -9804.36      -425.1672         1.000
+   2        -0.9430        -591.71       -25.6597         1.000
+   3        -0.5660        -355.15       -15.4013         1.000
+   4        -0.5660        -355.15       -15.4013         1.000
+   5        -0.5660        -355.15       -15.4013         1.000
+
+
+ BETA... 
+
+   #       HARTREES       KCAL/MOLE         EVS            OCC
+   _       ________       _________         ___            ___
+
+   1       -15.6250       -9804.36      -425.1672         1.000
+   2        -0.9430        -591.71       -25.6597         1.000
+   3        -0.5660        -355.15       -15.4013         0.000
+   4        -0.5660        -355.15       -15.4013         0.000
+   5        -0.5660        -355.15       -15.4013         0.000
+
+ CHARGE ANALYSIS...
+
+    NUCLEAR CHARGE......   7.0000
+    ELECTRONIC CHARGE...  -7.0000
+    NET CHARGE..........   0.0000
+
+ SPIN ANALYSIS...
+
+    ALPHA SPIN...   5.0000
+    BETA SPIN....   2.0000
+    NET SPIN.....   3.0000
+
+ STARTING COEFFICIENTS FOR THE MODEL POTENTIAL...
+
+  1      7.0000
+  2     -0.8750
+  3     -2.4500
+  4     -3.6750
+  5      0.0000
+
+ THE INPUT FOR THE  1 N  ATOMS IS COMPLETE.
+
+
+ COMPLETE MOLECULAR BASIS ...
+
+ ATOM  N  L  ML       ETA
+ ----  -  -  --       ---
+   1   1  0   0     8.49597
+   1   1  0   0     5.98644
+   1   2  0   0     2.26086
+   1   2  0   0     1.42457
+   1   2  1  -1     3.24933
+   1   2  1   0     3.24933
+   1   2  1   1     3.24933
+   1   2  1  -1     1.49924
+   1   2  1   0     1.49924
+   1   2  1   1     1.49924
+
+
+ATOMIC ORBITALS OVER MOLECULAR BASIS...
+
+ ALPHA...
+
+         1           2           3           4           5
+
+     -15.6250     -0.9430     -0.5660     -0.5660     -0.5660
+     ________    ________    ________    ________    ________
+ 
+  1    0.2697      0.0000      0.0000      0.0000      0.0000
+  2    0.7392     -0.2784      0.0000      0.0000      0.0000
+  3    0.0000      0.7257      0.0000      0.0000      0.0000
+  4    0.0000      0.3480      0.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.2891      0.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.2891      0.0000
+  7    0.0000      0.0000      0.0000      0.0000      0.2891
+  8    0.0000      0.0000      0.7775      0.0000      0.0000
+  9    0.0000      0.0000      0.0000      0.7775      0.0000
+ 10    0.0000      0.0000      0.0000      0.0000      0.7775
+
+ BETA... 
+
+         1           2           3           4           5
+
+     -15.6250     -0.9430     -0.5660     -0.5660     -0.5660
+     ________    ________    ________    ________    ________
+ 
+  1    0.2697      0.0000      0.0000      0.0000      0.0000
+  2    0.7392     -0.2784      0.0000      0.0000      0.0000
+  3    0.0000      0.7257      0.0000      0.0000      0.0000
+  4    0.0000      0.3480      0.0000      0.0000      0.0000
+  5    0.0000      0.0000      0.2891      0.0000      0.0000
+  6    0.0000      0.0000      0.0000      0.2891      0.0000
+  7    0.0000      0.0000      0.0000      0.0000      0.2891
+  8    0.0000      0.0000      0.7775      0.0000      0.0000
+  9    0.0000      0.0000      0.0000      0.7775      0.0000
+ 10    0.0000      0.0000      0.0000      0.0000      0.7775
+
+
+ ... ALL INPUT IS COMPLETE ...
+ ... WRITES TO UNIT  3 ARE COMPLETE ...
+
+ ... IT TOOK    0.00 SECONDS TO PROCESS INPUT ...                       
+
+
+
+ N  1
+ ____
+                                                                                                   ... CYCLE  1 ...
+                                            +++ NEAR SEPARATED-ATOM LIMIT +++
+-*** WARNING 15 - FAILURE TO DETERMINE EIGENVALUE ***
+1...................................................
+-*** ERROR 16 - FAILURE TO DETERMINE AT LEAST  5 EIGENVALUES ***
+-DUMP OF GLOBAL VARIABLES, PARM(*)...
+
+&VDUMP
+ NATOM=1          ,
+ NELEM=1          ,
+ NUCZ=0          ,
+ IEQAT=0          ,
+ MSTO=10         ,
+ NORB=5          ,
+ IORBT=0          ,
+ NORBT=5          ,
+ N2ORBT=15         ,
+ IATOM=1          ,
+ IDIFAT=0          ,
+ MXMSTO=10         ,
+ N2ATOM=1          ,
+ MXNORB=5          ,
+ MXNSTO=6          ,
+ MDIFAT=1          ,
+ NMAX=2          ,
+ NNMX=4          ,
+ NNMXM1=3          ,
+ LMAX=1          ,
+ LMXP1=2          ,
+ LLMXP1=3          ,
+ LLMXP2=4          ,
+ NCGC=16         ,
+ MXITER=20         ,
+ IELEM=1          ,
+ M2STO=55         ,
+ L3MX=10         ,
+ NFACT=6          ,
+ NABDIM=9          ,
+ NVTERM=5          ,
+ NSTO=6          ,
+ ISPIN=2          ,
+ NYLM=6          ,
+ N2ORB=15         ,
+ MXCYCL=1          ,
+ NCYCL=1          ,
+ IUNIT0=11         ,
+ M4STO=1540       ,
+ QRSTRT=F,
+ QBAKUP=F,
+ QNWBAS=T,
+ QOPEN=T,
+ QFIRST=F,
+ QLAST=T,
+ QDEBUG=F,
+ QSEPAT=T,
+ QCMPTD=F,
+ QEWMO=F,
+ QFIXED=F,
+ QVIRTL=F,
+ QNWVEC=F,
+ QMOVE=T,
+ QFLIP=F,
+ QGSTAT=T,
+ QPLOT=F,
+ QCORE=F,
+ EXPMIN= -60.000000000000000     ,
+ CONVRG=  1.0000000000000000E-003,
+ THETA= 0.31667279999999998     ,
+ CDAMP=  1.0000000000000000     ,
+ CACCEL=  1.0000000000000000     ,
+ RANGE=  10.000000000000000     ,
+ PKSCAL=  1.0000000000000000     ,
+ TIMEND=  0.0000000000000000     ,
+ QPRINT=T,
+ QAUDMP=F,
+ QATOM=T,
+ MXCORE=500000     ,
+ NWCORE=500000     ,
+ NWORDS=0          ,
+ LAST=0          ,
+ /
+-...................................................

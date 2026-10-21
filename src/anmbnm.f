@@ -45,7 +45,8 @@ C.......................................................................
       LIMIT = N + 2*(M-K) + 1
       DO 10 I = 1,LIMIT
       ANM(I) = ANM(I+2) - ANM(I)
-   10 BNM(I) = BNM(I) - BNM(I+2)
+      BNM(I) = BNM(I) - BNM(I+2)
+   10 CONTINUE
    20 CONTINUE
    30 RETURN
       END

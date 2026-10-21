@@ -90,8 +90,10 @@ C
       NK(KOUNT) = KPLACE
       NL(KOUNT) = LPLACE
       IF (KOUNT.GE.KCOL) GO TO 50
-   30 KOUNT = KOUNT + 1
-   40 LLOW = 1
+   30 CONTINUE
+      KOUNT = KOUNT + 1
+   40 CONTINUE
+      LLOW = 1
    50 IF (NK(KOUNT) .EQ. NL(KOUNT)) GO TO 60
       LLOW = NL(KOUNT) + 1
       KLOW = NK(KOUNT)
@@ -131,7 +133,8 @@ C
       WRITE (6,1000) ASA(4),(BAR,NK(I),NL(I),RIGHT, I = 1,LAST)
       LINE = 0
    80 CONTINUE
-   90 JLOW = 1
+   90 CONTINUE
+      JLOW = 1
       NUMCOL = INDEX(NK(LAST)) + NL(LAST)
       LAST = MIN0(KCOL,NROW-NUMCOL)
       IF (NL(LAST) .LT. NSIZE) GO TO 20

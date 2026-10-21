@@ -1,0 +1,52 @@
+ ... Ag13, R(Ag-Ag)=5.46  (DZ Basis)                                             
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ THE 1ST CYCLE WILL BE A SEPARATED-ATOM CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THIS IS A GROUND STATE CALCULATION.
+ ONLY MINIMAL PRINTING ON UNIT  6 WILL BE PERFORMED.
+ THIS MOLECULE CONTAINS 13 ATOMS MADE UP FROM  1 DIFFERENT ELEMENTS.
+ THIS MOLECULE CONTAINS  24 ATOMIC ORBITALS WITH A MAXIMUM OF 24 ON ANY ATOM.
+ THE BASIS CONTAINS 624 STO'S WITH THE LARGEST ATOM HAVING 48 WITH (N,L) UP TO (5,2).
+ THE MAXIMUM NUMBER CYCLES TO BE ALLOWED IS 20 WITH 20 ITERATIONS PER CYCLE.
+ THE MAXIMUM CPU TIME ALLOWED IS  9999. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-04
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE CHARGE TRANSFER IN THE MOLECULE WILL BE DAMPED BY  0.50 **  1.00.
+ THE FOLLOWING CONDITIONS WILL BE SATISFIED ACCORDING TO
+    THE GIVEN WEIGHTS IN FITTING THE MODEL POTENTIALS.
+       BEHAVIOR AT THE NUCLEUS........   1.0000
+       HF COUL POTENTIAL AT NUCLEUS...   1.0000
+       CORE HF COULOMB POTENTIALS.....   0.1000
+       VALENCE HF COULOMB POTENTIALS..   1.0000
+       EXTERNAL NUC. ATT. POTENTIAL...  10.0000
+ THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE HANDLED BY PSEUDOMETRIC.
+ THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY  0.50 **  1.00.
+ THE P-K PROJECTION MATRIX WILL BE SCALED BY  1.00.
+ THE PRIMITIVE TWO-CENTER OVERLAP INTEGRALS WILL BE ON DIRECT-ACCESS UNIT  1.
+ THE PRIMITIVE TWO-CENTER MODEL POTENTIAL INTEGRALS WILL BE ON UNIT  2.
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNITS  3 AND  4 ALTERNATELY.
+ THE FINAL CSF (MOLSTRUCT) OUTPUT WILL BE ON UNIT 10.
+ ...   274K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...

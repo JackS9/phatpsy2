@@ -330,7 +330,8 @@ C
       QRERUN=.FALSE.
 
       DO 30 I=1,20
-   30 IUNIT(I)=I
+      IUNIT(I)=I
+   30 CONTINUE
 
       IUNIT(9)=21   ! Unit 9 reserved for console
       OPEN(9,FILE='Phatpsy.Stderr')

@@ -22,7 +22,14 @@ C.......................................................................
       IMPLICIT REAL*8 (A-H,O-Z)
       DIMENSION A(NADIM)
       DATA ONE/1.D+00/
-      IF (X) 40,40,10
+C     REPLACE ARITHMETIC IF WITH MODERN IF-ELSE IF STRUCTURE
+      IF (X .LT. 0.0D0) THEN
+         GO TO 40
+      ELSE IF (X .EQ. 0.0D0) THEN
+         GO TO 40
+      ELSE
+         GO TO 10
+      END IF
    10 IF (N .GE. NADIM) GO TO 50
       A(1) = ONE/X
       IF (N .EQ. 0) GO TO 30
@@ -30,7 +37,8 @@ C.......................................................................
       FIM1 = ONE
       DO 20 I = 2,NP1
       A(I) = A(1) + FIM1*A(I-1)/X
-   20 FIM1 = FIM1 + ONE
+      FIM1 = FIM1 + ONE
+   20 CONTINUE
    30 RETURN
    40 WRITE (6,1000) X
       GO TO 60

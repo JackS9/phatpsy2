@@ -105,6 +105,7 @@ C
       DO 70 K = 1, J
       JK = JK + 1
       A(JK) = A(JK) - F * E(K) - G * D(K)
+      CONTINUE
    70 CONTINUE
 C
    80 D(I) = A(IZ+1)

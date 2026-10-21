@@ -112,7 +112,8 @@ C-----------------------------------------------------------------------
       M1=IM1-1
       M2=MM-M1
       DO 30 I=1,LLMXP2
-   30 CGCSCR(I,1)=ZERO
+         CGCSCR(I,1)=ZERO
+   30 CONTINUE
       IF (M2.NE.0) GO TO 40
       CG=CGC(2)
       GO TO 50
@@ -136,7 +137,8 @@ C-----------------------------------------------------------------------
       DO 140 IL1=L1MN,L1MX
       L1=IL1-1
       DO 60 I=1,LLMXP2
-   60 CGCSCR(I,2)=ZERO
+         CGCSCR(I,2)=ZERO
+   60 CONTINUE
 C-----------------------------------------------------------------------
 C
 C     LOOP THROUGH LL WITH THE FOLLOWING RESTRICTIONS:

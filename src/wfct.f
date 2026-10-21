@@ -25,7 +25,8 @@ C-----------------------------------------------------------------------
       NN=N1+N2
       CALL SFCT(S,NN,N2,ETA1/ETA2)
       DO 10 NU=1,NMNM1
-   10 W(NU)=S(N2-NU+1)/ETA2**(NN+1)
+      W(NU)=S(N2-NU+1)/ETA2**(NN+1)
+   10 CONTINUE
       CALL SFCT(S,NN,N1,ETA2/ETA1)
       DO 20 NU=1,NMNM1
       W(NU)=W(NU)+S(N1-NU+1)/ETA1**(NN+1)

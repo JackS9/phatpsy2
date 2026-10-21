@@ -1,0 +1,118 @@
+ Nitrogen atom                                                                   
+
+
+                         ---------------------------------------------------- 
+                        |                                                    |
+                        |                 P H A T P S Y                      |
+                        |                                                    |
+                        |                    PROGRAM                         |
+                        |                                                    |
+                        |                      BY                            |
+                        |                                                    |
+                        |                 JACK A. SMITH                      |
+                        |             QUANTUM THEORY PROJECT                 |
+                        |             UNIVERSITY OF FLORIDA                  |
+                        |                      -                             |
+                        |           UNION CARBIDE CORPORATION                |
+                        |               S. CHARLESTON, WV                    |
+                        |                                                    |
+                         ---------------------------------------------------- 
+
+ === CONTROL INPUT ===
+
+
+ THIS IS A SPIN-UNRESTRICTED CALCULATION.
+ NO EWMO CALCULATION WILL BE PERFORMED - ONLY ATOMIC SCF WILL BE PERFORMED.
+ THE MAXIMUM CPU TIME ALLOWED IS 90000. SECONDS.
+ THE TWO-ELECTRON INTEGRAL BUFFER IS  804 DOUBLE WORDS LONG.
+ THE SMALLEST EXPONENT EVALUATED DURING INTEGRAL COMPUTATION IS  -60.0
+ THE TOTAL ENERGY CONVERGENCE THRESHOLD IS  1.0D-03
+ THE FERMI "TEMPERATURE" FOR CHARGE EQUILIBRATION IS  1.0D+05
+ THE INTERMEDIATE AND FINAL ATOMIC DATA WILL BE ON UNIT  3.
+ ...    11K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...
+
+
+ === ELEMENT  1 ===
+
+
+ THE BASIS CONTAINS  6 STO'S ( 10 COUNTING ML-VALUES).
+ THIS ELEMENT IS DESCRIBED BY  5 ATOMIC ORBITALS.
+1...................................................
+-*** ERROR  5 - THE NO. OF STO'S (W/ ML'S) (MSTO) HAS EXCEEDED THE PREVIOUSLY SPECIFIED MAXIMUM (MXMSTO) ***
+-DUMP OF GLOBAL VARIABLES, PARM(*)...
+
+&VDUMP
+ NATOM=1          ,
+ NELEM=1          ,
+ NUCZ=0          ,
+ IEQAT=0          ,
+ MSTO=10         ,
+ NORB=5          ,
+ IORBT=0          ,
+ NORBT=5          ,
+ N2ORBT=15         ,
+ IATOM=0          ,
+ IDIFAT=0          ,
+ MXMSTO=5          ,
+ N2ATOM=1          ,
+ MXNORB=5          ,
+ MXNSTO=3          ,
+ MDIFAT=0          ,
+ NMAX=2          ,
+ NNMX=4          ,
+ NNMXM1=3          ,
+ LMAX=1          ,
+ LMXP1=2          ,
+ LLMXP1=3          ,
+ LLMXP2=4          ,
+ NCGC=16         ,
+ MXITER=20         ,
+ IELEM=1          ,
+ M2STO=0          ,
+ L3MX=10         ,
+ NFACT=6          ,
+ NABDIM=9          ,
+ NVTERM=5          ,
+ NSTO=6          ,
+ ISPIN=2          ,
+ NYLM=6          ,
+ N2ORB=0          ,
+ MXCYCL=1          ,
+ NCYCL=0          ,
+ IUNIT0=11         ,
+ M4STO=0          ,
+ QRSTRT=F,
+ QBAKUP=F,
+ QNWBAS=T,
+ QOPEN=T,
+ QFIRST=T,
+ QLAST=T,
+ QDEBUG=F,
+ QSEPAT=T,
+ QCMPTD=F,
+ QEWMO=F,
+ QFIXED=F,
+ QVIRTL=F,
+ QNWVEC=F,
+ QMOVE=F,
+ QFLIP=F,
+ QGSTAT=T,
+ QPLOT=F,
+ QCORE=F,
+ EXPMIN= -60.000000000000000     ,
+ CONVRG=  1.0000000000000000E-003,
+ THETA= 0.31667279999999998     ,
+ CDAMP=  1.0000000000000000     ,
+ CACCEL=  1.0000000000000000     ,
+ RANGE=  10.000000000000000     ,
+ PKSCAL=  1.0000000000000000     ,
+ TIMEND=  0.0000000000000000     ,
+ QPRINT=F,
+ QAUDMP=F,
+ QATOM=T,
+ MXCORE=500000     ,
+ NWCORE=500000     ,
+ NWORDS=0          ,
+ LAST=0          ,
+ /
+-...................................................
