@@ -15,7 +15,21 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ---
 
-## 2. Structural Modeling & Graphical Visualization
+## 2. Modernized Atom Representation & Intrinsic Properties
+
+- [ ] **Improve/modernize handling of atom equivalency**
+  - Introduce atom IDs and move away from legacy equivalent-atom sets, at least for input files.
+    - *Implementation note:* May need to preserve equivalent sets internally to enforce that reference atoms precede those referencing them.
+  - Make "equivalent-to" an intrinsic atom property (e.g., `equivalent_to: <atom_id>`).
+  - Make symmetry operation a secondary property of "equivalent-to" (e.g., symmetry transform applied relative to reference atom).
+- [ ] **Make spin state (up or down) an intrinsic atom property**
+  - Specify local spin state ($\uparrow$ / $\alpha$ or $\downarrow$ / $\beta$) directly as an intrinsic property of the atom, rather than inferring it by "flipping" a reference atom.
+- [ ] **Make virtual an intrinsic atom property**
+  - Explicitly mark ghost/coordination atoms (`is_virtual: true`) to include them as external potential/coordination neighbors in local atomic calculations, while cleanly excluding them from the extended (molecular) state in the EWMO step.
+
+---
+
+## 3. Structural Modeling & Graphical Visualization
 
 - [ ] **Graphical builder that can handle virtual, equivalent, spin-flipped, and symmetry-generated atoms**
   - Interactive setup for complex surface clusters, symmetry generators, local spin assignments, and ghost/virtual coordination centers.
@@ -26,7 +40,7 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ---
 
-## 3. Potential Energy Surfaces, Reaction Pathways & Dynamics
+## 4. Potential Energy Surfaces, Reaction Pathways & Dynamics
 
 - [ ] **Geometry scans (1D and 2D)**
   - Automated rigid and relaxed 1D/2D potential energy surface (PES) mapping.
@@ -43,14 +57,25 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ---
 
-## 4. Excited States & Molecular Properties
+## 5. Excited States & Molecular Properties
 
 - [ ] **EOM properties**
   - Equation-of-Motion (EOM) formalisms for excitation energies, transition dipole moments, and response properties.
 
 ---
 
-## 5. Architectural Modernization & Infrastructure
+## 6. State Persistence, Restarts & Transferable Embedded Atoms
+
+- [ ] **Saving system state for restarting or starting new geometry**
+  - Implement full calculation state serialization (in-memory, HDF5, or structured JSON checkpoints) to allow warm restarts across geometry optimization steps or PES scans.
+- [ ] **Saving of embedded atom states for inclusion in other systems**
+  - Export converged localized atomic states (orbitals, potentials, density matrices) for reuse in other calculations (e.g., as fixed bulk substrate or surface atoms).
+  - [ ] **Override reading starting orbitals from basis set**
+    - Enable direct orbital ingestion from pre-converged embedded atom states rather than re-evaluating atomic STO basis tables.
+
+---
+
+## 7. Architectural Modernization & Infrastructure
 
 - [ ] **Full LAPACK Migration**
   - Complete replacement of legacy matrix diagonalizers (EISPAK/Jacobi) and fitting routines with standardized LAPACK calls (`DSYEV`, `DGELS`).
