@@ -25,7 +25,7 @@ Originally developed by **Jack A. Smith** at the Quantum Theory Project (Univers
 - **In-Notebook 3D Viewing**: Call `deck.show()` inside Jupyter notebooks for interactive rotating 3D molecular structures.
 - **Visual Encoding**:
   - **Spin Vectors**: Color-coded cyan ($\uparrow$, $\alpha$) and orange ($\downarrow$, $\beta$) arrows.
-  - **Virtual (Ghost) Atoms**: Translucent wireframe spheres for BSSE counterpoise corrections.
+  - **Virtual Atoms**: Translucent wireframe spheres representing coordination/neighborhood completion centers.
   - **Fixed Atoms**: Metallic cage bounding representations for frozen matrix environments.
   - **Symmetry Elements**: Reflection mirror planes, rotation axes, and generator linkage lines.
 - **CLI & Standalone Viewer**: Run `phatpsy view deck.stdin` to launch a full-screen 3D viewer in your browser.
