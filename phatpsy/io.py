@@ -104,6 +104,9 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
         )
 
         atom_entries = re.finditer(r"&ATOM\s+(.*?)(&END|/)", block, re.IGNORECASE | re.DOTALL)
+        atom_count_for_elem = 0
+        current_primary_atom: Optional[AtomConfig] = None
+
         for atom_m in atom_entries:
             atom_str = atom_m.group(1)
             fixed = bool(re.search(r"QFIXED\s*=\s*[Tt]", atom_str))
@@ -111,27 +114,54 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
             spin_flip = bool(re.search(r"QFLIP\s*=\s*[Tt]", atom_str))
             xyz_m = re.search(r"XYZ\s*=\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)", atom_str, re.IGNORECASE)
             symm_m = re.search(r"IXYZ\s*=\s*(\d+)", atom_str, re.IGNORECASE)
+
+            atom_count_for_elem += 1
+            atom_id = f"{sym}{atom_count_for_elem}"
+
             if xyz_m:
                 xyz = [float(xyz_m.group(1)), float(xyz_m.group(2)), float(xyz_m.group(3))]
-                geometry.append(AtomConfig(
+                p_atom = AtomConfig(
                     element=sym,
+                    id=atom_id,
                     xyz=xyz,
                     fixed=fixed,
                     virtual=virtual,
+                    spin="down" if spin_flip else "up",
                     spin_flip=spin_flip,
-                ))
+                )
+                current_primary_atom = p_atom
+                geometry.append(p_atom)
             elif symm_m:
                 ixyz = int(symm_m.group(1))
                 isym_m = re.search(r"ISYM\s*=\s*([-\d]+)", atom_str, re.IGNORECASE)
                 isym = int(isym_m.group(1)) if isym_m else -1
                 qflip_m = re.search(r"QFLIP\s*=\s*([TF])", atom_str, re.IGNORECASE)
                 qflip = (qflip_m.group(1).upper() == "T") if qflip_m else True
+
+                ref_id = current_primary_atom.id if current_primary_atom else None
+                ref_spin = current_primary_atom.spin if current_primary_atom else "up"
+                eq_spin = ("down" if ref_spin == "up" else "up") if qflip else ref_spin
+
+                # Calculate physical coordinates from reference atom if available
+                from phatpsy.schema import apply_symmetry_operation
+                eq_xyz = (
+                    apply_symmetry_operation(current_primary_atom.xyz, isym=isym, ixyz=ixyz)
+                    if current_primary_atom
+                    else [0.0, 0.0, 0.0]
+                )
+
                 geometry.append(AtomConfig(
                     element=sym,
+                    id=atom_id,
+                    xyz=eq_xyz,
+                    equivalent_to=ref_id,
+                    symmetry_op=isym,
+                    symmetry_axis=ixyz,
                     symmetry=SymmetrySpec(ixyz=ixyz, isym=isym, qflip=qflip),
                     fixed=fixed,
                     virtual=virtual,
-                    spin_flip=spin_flip,
+                    spin_flip=qflip,
+                    spin=eq_spin,
                 ))
 
     return CalculationDeck(

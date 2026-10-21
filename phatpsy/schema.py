@@ -9,7 +9,137 @@ from typing import List, Dict, Tuple, Optional, Any, Union
 from pathlib import Path
 import yaml
 import json
+import re
+import math
 from phatpsy.basis import get_element_basis, BasisFunction, ElementData
+
+
+def normalize_symmetry_axis(axis: Union[int, str, None]) -> Optional[int]:
+    """
+    Normalizes a symmetry axis identifier into the legacy Fortran mnemonic:
+    1 = X axis (or YZ plane reflection)
+    10 = Y axis (or XZ plane reflection)
+    100 = Z axis (or XY plane reflection)
+    """
+    if axis is None:
+        return None
+    if isinstance(axis, int):
+        return axis
+    s = str(axis).strip().lower()
+    if s in ("1", "x", "axis_x", "001", "yz"):
+        return 1
+    if s in ("10", "y", "axis_y", "010", "xz"):
+        return 10
+    if s in ("100", "z", "axis_z", "xy"):
+        return 100
+    try:
+        return int(s)
+    except ValueError:
+        return 1
+
+
+def normalize_symmetry_op(op: Union[int, str, None]) -> Optional[int]:
+    """
+    Normalizes a symmetry operation identifier into the legacy Fortran convention:
+    -1 = Pure reflection (mirror plane)
+    -2 = Inversion center
+    1 or 0 = Identity
+    N (>0) = N-fold proper rotation (C_n)
+    -N (< -2) = N-fold improper rotation / roto-reflection (S_n)
+    """
+    if op is None:
+        return None
+    if isinstance(op, int):
+        return op
+    s = str(op).strip().lower()
+    if s in ("reflection", "mirror", "refl", "sigma", "plane"):
+        return -1
+    if s in ("inversion", "inv", "i", "center"):
+        return -2
+    if s in ("identity", "e", "none"):
+        return 1
+    # Match C2, C3, C4, etc.
+    m = re.match(r"^c?(\d+)$", s)
+    if m:
+        return int(m.group(1))
+    # Match S3, S4, etc.
+    m = re.match(r"^s(\d+)$", s)
+    if m:
+        return -int(m.group(1))
+    try:
+        return int(s)
+    except ValueError:
+        return -1
+
+
+def apply_symmetry_operation(
+    xyz: List[float],
+    isym: int = -1,
+    ixyz: int = 1,
+) -> List[float]:
+    """
+    Transforms Cartesian coordinates [x, y, z] by a symmetry operation.
+    Corresponds to legacy Fortran SYMXYZ logic:
+    - isym = 1 or 0: Identity
+    - isym = -1: Pure reflection across the plane perpendicular to ixyz (1=X, 10=Y, 100=Z)
+    - isym = -2: Inversion through the origin
+    - isym = N (>0): N-fold rotation around axis ixyz
+    - isym = -N (< -2): N-fold roto-reflection
+    """
+    if isym in (0, 1):
+        return [float(c) for c in xyz]
+
+    x, y, z = float(xyz[0]), float(xyz[1]), float(xyz[2])
+
+    if isym == -2:
+        return [-x, -y, -z]
+
+    if isym == -1:
+        # Reflection through plane with normal along axis:
+        # ixyz == 1 (X normal, YZ plane): x -> -x
+        # ixyz == 10 (Y normal, XZ plane): y -> -y
+        # ixyz == 100 (Z normal, XY plane): z -> -z
+        if ixyz == 1:
+            return [-x, y, z]
+        elif ixyz == 10:
+            return [x, -y, z]
+        elif ixyz == 100:
+            return [x, y, -z]
+        else:
+            return [-x, y, z]
+
+    # N-fold rotation or roto-reflection
+    nfold = abs(isym)
+    angle = 2.0 * math.pi / float(nfold)
+    cos_a = math.cos(angle)
+    sin_a = math.sin(angle)
+
+    if ixyz == 1:
+        # Rotation around X axis
+        xr = x
+        yr = cos_a * y - sin_a * z
+        zr = sin_a * y + cos_a * z
+    elif ixyz == 10:
+        # Rotation around Y axis
+        xr = cos_a * x + sin_a * z
+        yr = y
+        zr = -sin_a * x + cos_a * z
+    else:  # ixyz == 100 or default Z
+        # Rotation around Z axis
+        xr = cos_a * x - sin_a * y
+        yr = sin_a * x + cos_a * y
+        zr = z
+
+    if isym < -2:
+        # Roto-reflection: rotate then reflect through plane perpendicular to axis
+        if ixyz == 1:
+            xr = -xr
+        elif ixyz == 10:
+            yr = -yr
+        else:
+            zr = -zr
+
+    return [xr, yr, zr]
 
 
 @dataclass
@@ -58,16 +188,35 @@ class SymmetrySpec:
 
 @dataclass
 class AtomConfig:
+    """
+    Modernized representation of an atom in a PHATPSY calculation.
+
+    Key Concepts & Invariants:
+    - id: Unique atom identifier (e.g. 'Ni1', 'O_top').
+    - equivalent_to: Intrinsic reference to another atom ID whose localized atomic state
+      and orbitals this atom shares.
+    - symmetry_op / symmetry_axis: Secondary properties of equivalency defining the geometric
+      transformation relative to the reference atom (e.g. op='reflection' or -1, axis='z' or 100).
+    - spin: Intrinsic local spin state ('up' / alpha, 'down' / beta, or None).
+    - virtual: True if atom is a ghost/coordination center to complete the local potential
+      during atomic calculations, but excluded from extended (molecular) EWMO Hamiltonians.
+    - fixed: True if atom is frozen/fixed in the substrate.
+    """
     element: str
+    id: Optional[str] = None
     xyz: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
-    symmetry: Optional[SymmetrySpec] = None
+    equivalent_to: Optional[str] = None
+    symmetry_op: Optional[Union[int, str]] = None
+    symmetry_axis: Optional[Union[int, str]] = None
+    symmetry: Optional[SymmetrySpec] = None  # Backward compatibility
     charge: float = 0.0
     fixed: bool = False
     virtual: bool = False
-    spin_flip: bool = False
+    spin_flip: bool = False  # Backward compatibility fallback
     spin: Optional[str] = None  # "up", "down", or None
 
     def __post_init__(self):
+        # 1. Normalize spin
         if self.spin is not None:
             s = str(self.spin).strip().lower()
             if s in ("up", "alpha", "+1", "1", "+"):
@@ -80,6 +229,23 @@ class AtomConfig:
         elif self.spin_flip:
             self.spin = "down"
 
+        # 2. Synchronize legacy SymmetrySpec with modern symmetry_op / symmetry_axis
+        if self.symmetry is not None:
+            if self.symmetry_op is None:
+                self.symmetry_op = self.symmetry.isym
+            if self.symmetry_axis is None:
+                self.symmetry_axis = self.symmetry.ixyz
+            if self.spin is None and self.symmetry.qflip:
+                self.spin = "down"
+                self.spin_flip = True
+        elif self.symmetry_op is not None or self.symmetry_axis is not None:
+            op = normalize_symmetry_op(self.symmetry_op) or -1
+            ax = normalize_symmetry_axis(self.symmetry_axis) or 1
+            do_flip = (self.spin == "down") if self.spin is not None else self.spin_flip
+            self.symmetry = SymmetrySpec(ixyz=ax, isym=op, qflip=do_flip)
+            self.symmetry_op = op
+            self.symmetry_axis = ax
+
     @property
     def is_spin_down(self) -> bool:
         return self.spin == "down" or self.spin_flip
@@ -88,12 +254,32 @@ class AtomConfig:
     def is_spin_up(self) -> bool:
         return self.spin == "up"
 
+    @property
+    def is_virtual(self) -> bool:
+        return self.virtual
+
+    @property
+    def is_fixed(self) -> bool:
+        return self.fixed
+
+    @property
+    def is_equivalent(self) -> bool:
+        return self.equivalent_to is not None or self.symmetry is not None
+
     def to_dict(self) -> Dict[str, Any]:
         res: Dict[str, Any] = {
             "element": self.element,
             "xyz": [round(float(c), 6) for c in self.xyz],
         }
-        if self.symmetry is not None:
+        if self.id:
+            res["id"] = self.id
+        if self.equivalent_to:
+            res["equivalent_to"] = self.equivalent_to
+        if self.symmetry_op is not None:
+            res["symmetry_op"] = self.symmetry_op
+        if self.symmetry_axis is not None:
+            res["symmetry_axis"] = self.symmetry_axis
+        elif self.symmetry is not None and not self.equivalent_to:
             res["symmetry"] = self.symmetry.to_dict()
         if self.charge != 0.0:
             res["charge"] = self.charge
@@ -119,7 +305,11 @@ class AtomConfig:
             spin_val = "down"
         return cls(
             element=data["element"].strip().capitalize(),
+            id=data.get("id"),
             xyz=[float(x) for x in xyz],
+            equivalent_to=data.get("equivalent_to"),
+            symmetry_op=data.get("symmetry_op"),
+            symmetry_axis=data.get("symmetry_axis"),
             symmetry=sym,
             charge=float(data.get("charge", 0.0)),
             fixed=bool(data.get("fixed", False)),
@@ -208,6 +398,111 @@ class CalculationDeck:
 
         return resolved
 
+    def ensure_atom_ids(self) -> None:
+        """Assigns default unique IDs to any atoms lacking one."""
+        existing_ids = {a.id for a in self.geometry if a.id}
+        elem_counts: Dict[str, int] = {}
+        for a in self.geometry:
+            sym = a.element.strip().capitalize()
+            elem_counts[sym] = elem_counts.get(sym, 0) + 1
+            if not a.id:
+                cand_id = f"{sym}{elem_counts[sym]}"
+                while cand_id in existing_ids:
+                    elem_counts[sym] += 1
+                    cand_id = f"{sym}{elem_counts[sym]}"
+                a.id = cand_id
+                existing_ids.add(cand_id)
+
+    def group_atoms_by_equivalency(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Groups atoms of each element into primary reference atoms and their
+        attached equivalent atoms. Enforces that reference atoms precede
+        atoms that reference them.
+        """
+        self.ensure_atom_ids()
+        result_by_elem: Dict[str, List[Dict[str, Any]]] = {}
+
+        # Preserve element encounter order
+        for a in self.geometry:
+            sym = a.element.strip().capitalize()
+            if sym not in result_by_elem:
+                result_by_elem[sym] = []
+
+        for sym, primary_groups in result_by_elem.items():
+            atoms_of_elem = [a for a in self.geometry if a.element.strip().capitalize() == sym]
+            groups_by_id: Dict[str, Dict[str, Any]] = {}
+
+            # First pass: identify primary reference atoms
+            for a in atoms_of_elem:
+                if a.equivalent_to is None and a.symmetry is None:
+                    grp = {"primary": a, "equivalent": []}
+                    primary_groups.append(grp)
+                    groups_by_id[a.id] = grp
+
+            # Fallback if all atoms have symmetry (e.g. legacy deck)
+            if not primary_groups and atoms_of_elem:
+                legacy_candidates = [a for a in atoms_of_elem if a.equivalent_to is None]
+                if legacy_candidates:
+                    first = legacy_candidates[0]
+                    grp = {"primary": first, "equivalent": []}
+                    primary_groups.append(grp)
+                    groups_by_id[first.id] = grp
+                    remaining = [a for a in atoms_of_elem if a is not first]
+                else:
+                    raise ValueError(
+                        f"All atoms of element '{sym}' declare 'equivalent_to', but no reference atom with that ID was found in element {sym}."
+                    )
+            else:
+                remaining = [a for a in atoms_of_elem if a.equivalent_to is not None or a.symmetry is not None]
+
+            # Second pass: attach equivalent atoms to their reference
+            last_primary = primary_groups[0]["primary"] if primary_groups else None
+            for a in remaining:
+                if a is primary_groups[0]["primary"]:
+                    continue
+                if a.equivalent_to:
+                    if a.equivalent_to in groups_by_id:
+                        groups_by_id[a.equivalent_to]["equivalent"].append(a)
+                    else:
+                        raise ValueError(
+                            f"Atom '{a.id}' has equivalent_to='{a.equivalent_to}', "
+                            f"but no reference atom with that ID was found in element {sym}."
+                        )
+                elif last_primary is not None:
+                    # Legacy positional equivalence
+                    groups_by_id[last_primary.id]["equivalent"].append(a)
+                else:
+                    grp = {"primary": a, "equivalent": []}
+                    primary_groups.append(grp)
+                    groups_by_id[a.id] = grp
+                    last_primary = a
+
+        return result_by_elem
+
+    def resolve_coordinates(self) -> "CalculationDeck":
+        """
+        Resolves unset [0, 0, 0] coordinates on equivalent atoms by applying
+        their symmetry operation to their primary reference atom.
+        """
+        self.ensure_atom_ids()
+        id_map = {a.id: a for a in self.geometry if a.id}
+        for a in self.geometry:
+            if (a.equivalent_to or a.symmetry is not None) and a.xyz == [0.0, 0.0, 0.0]:
+                ref = id_map.get(a.equivalent_to) if a.equivalent_to else None
+                if not ref:
+                    for prev in self.geometry:
+                        if prev is a:
+                            break
+                        if prev.element == a.element and prev.xyz != [0.0, 0.0, 0.0]:
+                            ref = prev
+                if ref:
+                    op = a.symmetry_op if a.symmetry_op is not None else (a.symmetry.isym if a.symmetry else -1)
+                    ax = a.symmetry_axis if a.symmetry_axis is not None else (a.symmetry.ixyz if a.symmetry else 1)
+                    op_val = normalize_symmetry_op(op) or -1
+                    ax_val = normalize_symmetry_axis(ax) or 1
+                    a.xyz = apply_symmetry_operation(ref.xyz, isym=op_val, ixyz=ax_val)
+        return self
+
     def to_stdin_text(self, include_coefficients: bool = True) -> str:
         """
         Generates the standard Fortran .stdin text representation from this deck.
@@ -270,7 +565,8 @@ class CalculationDeck:
         lines.append(" &END")
 
         # Element and basis blocks
-        atom_idx = 0
+        atom_groups_by_elem = self.group_atoms_by_equivalency()
+
         for sym in unique_elems:
             ed = elem_map[sym]
             norb_elem = len(ed.default_orbitals) if ed.default_orbitals else ed.msto
@@ -278,21 +574,8 @@ class CalculationDeck:
             lines.append(f"  MSTO={ed.msto}, NSTO={ed.nsto}, NORB={norb_elem}, NVTERM={ed.nvterm},")
             lines.append(" &END")
             lines.append(" &ELEM")
-            # Group atoms of this element into primary atoms and attached symmetry-equivalent atoms
-            atoms_of_elem = [a for a in self.geometry if a.element == sym]
-            primary_groups: List[Dict[str, Any]] = []
-            current_group: Optional[Dict[str, Any]] = None
-            for a in atoms_of_elem:
-                if a.symmetry is None:
-                    current_group = {"primary": a, "symmetry": []}
-                    primary_groups.append(current_group)
-                else:
-                    if current_group is not None:
-                        current_group["symmetry"].append(a)
-                    else:
-                        current_group = {"primary": a, "symmetry": []}
-                        primary_groups.append(current_group)
 
+            primary_groups = atom_groups_by_elem.get(sym, [])
             mdifat = len(primary_groups)
             lines.append(f"  LATOM='{ed.symbol}', NUCZ={ed.atomic_number},")
             lines.append(f"  DESCR='{ed.description[:40]}',")
@@ -307,7 +590,8 @@ class CalculationDeck:
             # Emit atoms for this element
             for group_idx, grp in enumerate(primary_groups):
                 p_atom = grp["primary"]
-                neqat = len(grp["symmetry"])
+                eq_atoms = grp["equivalent"]
+                neqat = len(eq_atoms)
                 x, y, z = p_atom.xyz
 
                 flags = []
@@ -319,7 +603,7 @@ class CalculationDeck:
                     flags.append("QFLIP=T")
                 flag_str = (", " + ", ".join(flags)) if flags else ""
 
-                if p_atom.symmetry is not None:
+                if p_atom.symmetry is not None and not p_atom.equivalent_to:
                     s = p_atom.symmetry
                     lines.append(f" &ATOM IXYZ={s.ixyz:03d}, ISYM={s.isym}, QFLIP={'T' if s.qflip else 'F'}{flag_str} &END")
                 elif neqat > 0:
@@ -349,16 +633,29 @@ class CalculationDeck:
                                     isto_val, ml_val, c1_val, c2_val = c_entry[:4]
                                 lines.append(f"{isto_val:3d}{ml_val:3d}{c1_val:10.5f}{c2_val:10.5f}")
 
-                for s_atom in grp["symmetry"]:
+                for s_atom in eq_atoms:
                     s = s_atom.symmetry
+                    isym_val = s_atom.symmetry_op if s_atom.symmetry_op is not None else (s.isym if s else -1)
+                    ixyz_val = s_atom.symmetry_axis if s_atom.symmetry_axis is not None else (s.ixyz if s else 1)
+                    isym_val = normalize_symmetry_op(isym_val) or -1
+                    ixyz_val = normalize_symmetry_axis(ixyz_val) or 1
+
                     s_flags = []
                     if s_atom.fixed:
                         s_flags.append("QFIXED=T")
                     if s_atom.virtual:
                         s_flags.append("QVIRTL=T")
-                    qflip_val = bool(s.qflip or s_atom.is_spin_down)
+
+                    # QFLIP is determined by comparing intrinsic spin with reference atom
+                    if s_atom.spin is not None and p_atom.spin is not None:
+                        qflip_val = (s_atom.spin != p_atom.spin)
+                    elif s is not None:
+                        qflip_val = bool(s.qflip or s_atom.is_spin_down)
+                    else:
+                        qflip_val = bool(s_atom.is_spin_down)
+
                     s_flag_str = (", " + ", ".join(s_flags)) if s_flags else ""
-                    lines.append(f" &ATOM IXYZ={s.ixyz:03d}, ISYM={s.isym}, QFLIP={'T' if qflip_val else 'F'}{s_flag_str} &END")
+                    lines.append(f" &ATOM IXYZ={ixyz_val:03d}, ISYM={isym_val}, QFLIP={'T' if qflip_val else 'F'}{s_flag_str} &END")
 
         return "\n".join(lines) + "\n"
 

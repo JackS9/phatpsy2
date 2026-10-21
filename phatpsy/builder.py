@@ -90,11 +90,15 @@ def parse_geometry(
             spin_flip_val = bool(item.get("spin_flip", spin_val == "down"))
             atom_configs.append(AtomConfig(
                 element=sym,
+                id=item.get("id"),
                 xyz=xyz_b,
+                equivalent_to=item.get("equivalent_to", item.get("eq")),
+                symmetry_op=item.get("symmetry_op", item.get("sym")),
+                symmetry_axis=item.get("symmetry_axis", item.get("axis")),
                 symmetry=symm_obj,
                 charge=float(item.get("charge", 0.0)),
-                fixed=bool(item.get("fixed", is_fix)),
-                virtual=bool(item.get("virtual", is_virt)),
+                fixed=bool(item.get("fixed", item.get("is_fixed", is_fix))),
+                virtual=bool(item.get("virtual", item.get("is_virtual", is_virt))),
                 spin_flip=spin_flip_val,
                 spin=spin_val,
             ))
@@ -367,10 +371,14 @@ def build_diatomic(
         # Homonuclear diatomic with symmetry along Z axis
         z_half = r_bohr / 2.0
         geometry = [
-            AtomConfig(element=sym1, xyz=[0.0, 0.0, z_half], spin="up"),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, z_half], spin="up"),
             AtomConfig(
+                id=f"{sym1}2",
                 element=sym1,
                 xyz=[0.0, 0.0, 0.0],
+                equivalent_to=f"{sym1}1",
+                symmetry_op=-1,
+                symmetry_axis=1,
                 symmetry=SymmetrySpec(ixyz=1, isym=-1, qflip=do_flip),
                 spin_flip=do_flip,
                 spin="down" if do_flip else "up",
@@ -379,8 +387,8 @@ def build_diatomic(
     else:
         # Heteronuclear or explicit coordinates
         geometry = [
-            AtomConfig(element=sym1, xyz=[0.0, 0.0, 0.0], spin="up" if is_homo else None),
-            AtomConfig(element=sym2, xyz=[0.0, 0.0, r_bohr], spin_flip=do_flip, spin="down" if do_flip else None),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin="up" if is_homo else None),
+            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin_flip=do_flip, spin="down" if do_flip else None),
         ]
 
     return build_molecule(

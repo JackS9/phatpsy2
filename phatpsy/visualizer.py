@@ -46,11 +46,14 @@ def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomC
         title = "PHATPSY Molecule"
 
     atom_data = []
-    # Identify symmetry generator mapping
+    # Identify symmetry generator mapping using explicit equivalent_to or fallback
+    id_to_idx = {a.id: idx for idx, a in enumerate(atoms) if a.id}
     generator_map: Dict[int, int] = {}
     current_primary_idx: Optional[int] = None
     for idx, a in enumerate(atoms):
-        if a.symmetry is None:
+        if a.equivalent_to and a.equivalent_to in id_to_idx:
+            generator_map[idx] = id_to_idx[a.equivalent_to]
+        elif a.symmetry is None:
             current_primary_idx = idx
         else:
             if current_primary_idx is not None:
@@ -75,7 +78,9 @@ def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomC
 
         atom_data.append({
             "index": idx,
+            "id": a.id or f"{a.element}{idx+1}",
             "element": a.element,
+            "equivalent_to": a.equivalent_to,
             "x": x_aa,
             "y": y_aa,
             "z": z_aa,

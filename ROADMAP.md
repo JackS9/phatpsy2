@@ -17,14 +17,14 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 2. Modernized Atom Representation & Intrinsic Properties
 
-- [ ] **Improve/modernize handling of atom equivalency**
+- [x] **Improve/modernize handling of atom equivalency**
   - Introduce atom IDs and move away from legacy equivalent-atom sets, at least for input files.
-    - *Implementation note:* May need to preserve equivalent sets internally to enforce that reference atoms precede those referencing them.
+    - *Implementation note:* Enforced internally so reference atoms precede those referencing them.
   - Make "equivalent-to" an intrinsic atom property (e.g., `equivalent_to: <atom_id>`).
   - Make symmetry operation a secondary property of "equivalent-to" (e.g., symmetry transform applied relative to reference atom).
-- [ ] **Make spin state (up or down) an intrinsic atom property**
+- [x] **Make spin state (up or down) an intrinsic atom property**
   - Specify local spin state ($\uparrow$ / $\alpha$ or $\downarrow$ / $\beta$) directly as an intrinsic property of the atom, rather than inferring it by "flipping" a reference atom.
-- [ ] **Make virtual an intrinsic atom property**
+- [x] **Make virtual an intrinsic atom property**
   - Explicitly mark ghost/coordination atoms (`is_virtual: true`) to include them as external potential/coordination neighbors in local atomic calculations, while cleanly excluding them from the extended (molecular) state in the EWMO step.
 
 ---
