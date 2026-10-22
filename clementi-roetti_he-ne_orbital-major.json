@@ -1,0 +1,859 @@
+{
+  "He": {
+    "symbol": "He",
+    "atomic_number": 2,
+    "name": "HELIUM",
+    "configuration": "HELIUM   1S(2), 1S",
+    "energy": -2.8616799,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for He (Z=2)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 1.41714
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 2.37682
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 4.39628
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 6.52699
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 7.94252
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -0.91795,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.76838,
+          0.22346,
+          0.04082,
+          -0.00994,
+          0.0023
+        ]
+      }
+    ]
+  },
+  "Li": {
+    "symbol": "Li",
+    "atomic_number": 3,
+    "name": "LITHIUM",
+    "configuration": "LITHIUM   1S(2)2S(1), 2S",
+    "energy": -7.4327257,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for Li (Z=3)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 2.47673
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 4.69873
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 0.3835
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 0.66055
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.07
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.632
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -2.47773,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.89786,
+          0.11131,
+          -8e-05,
+          0.00112,
+          -0.00216,
+          0.00884
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -0.19632,
+        "occ_up": 1.0,
+        "occ_down": 0.0,
+        "occ_total": 1.0,
+        "coeffs": [
+          -0.14029,
+          -0.01816,
+          0.03077,
+          0.96053,
+          0.10571,
+          -0.11021
+        ]
+      }
+    ]
+  },
+  "Be": {
+    "symbol": "Be",
+    "atomic_number": 4,
+    "name": "BERYLLIUM",
+    "configuration": "BERYLLIUM   1S(2)2S(2), 1S",
+    "energy": -14.573021,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for Be (Z=4)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 3.47116
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 6.36861
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 0.7782
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 0.94067
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.48725
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.7183
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -4.73267,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.91796,
+          0.08724,
+          0.00108,
+          -0.00199,
+          0.00176,
+          0.00628
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -0.30527,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.17092,
+          -0.01455,
+          0.21186,
+          0.62499,
+          0.26662,
+          -0.09919
+        ]
+      }
+    ]
+  },
+  "B": {
+    "symbol": "B",
+    "atomic_number": 5,
+    "name": "BORON",
+    "configuration": "BORON   1S(2)2S(2)2P(1), 2P",
+    "energy": -24.529057,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for B (Z=5)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 4.44561
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 7.91796
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 0.86709
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.21924
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.07264
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 3.44332
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 0.87481
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.36992
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 2.32262
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 5.59481
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -7.69533,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.92705,
+          0.0778,
+          0.00088,
+          -0.002,
+          0.00433,
+          0.0027
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -0.4946,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.19484,
+          -0.01254,
+          0.06741,
+          0.75234,
+          0.31656,
+          -0.12142
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.30986,
+        "occ_up": 1.0,
+        "occ_down": 0.0,
+        "occ_total": 1.0,
+        "coeffs": [
+          0.53622,
+          0.4034,
+          0.11653,
+          0.00821
+        ]
+      }
+    ]
+  },
+  "C": {
+    "symbol": "C",
+    "atomic_number": 6,
+    "name": "CARBON",
+    "configuration": "CARBON   1S(2)2S(2)2P(2), 3P",
+    "energy": -37.688612,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for C (Z=6)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 5.43599
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 9.48256
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.05749
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.52427
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.68435
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 4.20096
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 0.98073
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.44361
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 2.60051
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 6.51003
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -11.32554,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.93262,
+          0.06931,
+          0.00083,
+          -0.00176,
+          0.00559,
+          0.00382
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -0.70083,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.20814,
+          -0.01071,
+          0.08099,
+          0.75045,
+          0.33549,
+          -0.14765
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.43335,
+        "occ_up": 2.0,
+        "occ_down": 0.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.28241,
+          0.54697,
+          0.23195,
+          0.01025
+        ]
+      }
+    ]
+  },
+  "N": {
+    "symbol": "N",
+    "atomic_number": 7,
+    "name": "NITROGEN",
+    "configuration": "NITROGEN   1S(2)2S(2)2P(3), 4S",
+    "energy": -54.400924,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for N (Z=7)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 6.45739
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 11.172
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.36405
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.89734
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 3.28
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 5.08238
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.16068
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.70472
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 3.03935
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 7.17482
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -15.62909,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.9378,
+          0.05849,
+          0.00093,
+          -0.0017,
+          0.0057,
+          0.00957
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -0.94531,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.21677,
+          -0.00966,
+          0.17991,
+          0.67616,
+          0.31297,
+          -0.14497
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.56758,
+        "occ_up": 3.0,
+        "occ_down": 0.0,
+        "occ_total": 3.0,
+        "coeffs": [
+          0.26639,
+          0.52319,
+          0.27353,
+          0.01292
+        ]
+      }
+    ]
+  },
+  "O": {
+    "symbol": "O",
+    "atomic_number": 8,
+    "name": "OXYGEN",
+    "configuration": "OXYGEN   1S(2)2S(2)2P(4), 3P",
+    "energy": -74.80937,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for O (Z=8) \u2014 S block verified against the printed page (journal p.186); orthonormality 2.1e-05 / 5.1e-06 / 4.6e-06",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 7.61413
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 13.7574
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.69824
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.48022
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 4.31196
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 5.86596
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.14394
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.8173
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 3.44988
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 7.56484
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -20.66866,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.94516,
+          0.03391,
+          -0.00034,
+          0.00241,
+          -0.00486,
+          0.03681
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -1.24433,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.22157,
+          -0.00476,
+          0.34844,
+          0.60807,
+          0.25365,
+          -0.19183
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.63192,
+        "occ_up": 3.0,
+        "occ_down": 1.0,
+        "occ_total": 4.0,
+        "coeffs": [
+          0.16922,
+          0.57974,
+          0.32352,
+          0.0166
+        ]
+      }
+    ]
+  },
+  "F": {
+    "symbol": "F",
+    "atomic_number": 9,
+    "name": "FLUORINE",
+    "configuration": "FLUORINE   1S(2)2S(2)2P(5), 2P",
+    "energy": -99.4093,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for F (Z=9)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 8.5576
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 14.9766
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.82142
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.67295
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 4.90066
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 6.57362
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.2657
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 2.05803
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 3.92853
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 8.20212
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -26.38273,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.9471,
+          0.03718,
+          0.00013,
+          0.00093,
+          0.00068,
+          0.02602
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -1.57254,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.22694,
+          -0.0053,
+          0.23918,
+          0.68592,
+          0.31489,
+          -0.21822
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.73001,
+        "occ_up": 3.0,
+        "occ_down": 2.0,
+        "occ_total": 5.0,
+        "coeffs": [
+          0.1783,
+          0.56185,
+          0.33658,
+          0.01903
+        ]
+      }
+    ]
+  },
+  "Ne": {
+    "symbol": "Ne",
+    "atomic_number": 10,
+    "name": "NEON",
+    "configuration": "NEON   1S(2)2S(2)2P(6), 1S",
+    "energy": -128.54705,
+    "basis_name": "CLEMENTI-ROETTI",
+    "description": "Clementi-Roetti (1974) RHF STO basis for Ne (Z=10)",
+    "functions": [
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 9.48486
+      },
+      {
+        "n": 1,
+        "l": 0,
+        "zeta": 15.5659
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 1.69184
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 2.86423
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 4.8253
+      },
+      {
+        "n": 2,
+        "l": 0,
+        "zeta": 7.79262
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 1.45208
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 2.38168
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 4.48489
+      },
+      {
+        "n": 2,
+        "l": 1,
+        "zeta": 9.13666
+      }
+    ],
+    "orbitals": [
+      {
+        "name": "1S",
+        "l": 0,
+        "eigval": -32.77248,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          0.93717,
+          0.04899,
+          0.00458,
+          -0.00066,
+          0.00551,
+          0.01999
+        ]
+      },
+      {
+        "name": "2S",
+        "l": 0,
+        "eigval": -1.93043,
+        "occ_up": 1.0,
+        "occ_down": 1.0,
+        "occ_total": 2.0,
+        "coeffs": [
+          -0.23003,
+          -0.00635,
+          0.1992,
+          0.66899,
+          0.3091,
+          -0.13871
+        ]
+      },
+      {
+        "name": "2P",
+        "l": 1,
+        "eigval": -0.85046,
+        "occ_up": 3.0,
+        "occ_down": 3.0,
+        "occ_total": 6.0,
+        "coeffs": [
+          0.21799,
+          0.53338,
+          0.32933,
+          0.01872
+        ]
+      }
+    ]
+  }
+}
