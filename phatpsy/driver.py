@@ -19,7 +19,7 @@ class PhatpsyDriver:
             os.write(w_pipe, stdin_text.encode("utf-8"))
             os.close(w_pipe)
             os.dup2(r_pipe, 0)
-            return self.run_from_stdin(custom_damping_hook=custom_damping_hook)
+            return self.run_from_stdin(custom_damping_hook=custom_damping_hook, deck=deck)
         finally:
             os.dup2(saved_stdin_fd, 0)
             os.close(saved_stdin_fd)
@@ -27,6 +27,7 @@ class PhatpsyDriver:
                 os.close(r_pipe)
             except OSError:
                 pass
+
     def run_molecule(
         self,
         geometry,
@@ -35,6 +36,7 @@ class PhatpsyDriver:
         control=None,
         units="bohr",
         spin_unrestricted=True,
+        embedded_atoms=None,
         extra_namelist=None,
         custom_damping_hook=None,
     ):
@@ -49,6 +51,7 @@ class PhatpsyDriver:
             control=control,
             units=units,
             spin_unrestricted=spin_unrestricted,
+            embedded_atoms=embedded_atoms,
             extra_namelist=extra_namelist,
         )
         return self.run_deck(deck, custom_damping_hook=custom_damping_hook)
@@ -84,7 +87,40 @@ class PhatpsyDriver:
             os.dup2(saved_stdin_fd, fd_stdin)
             os.close(saved_stdin_fd)
 
-    def run_from_stdin(self, custom_damping_hook=None):
+    def restart(
+        self,
+        checkpoint,
+        new_geometry=None,
+        control_overrides=None,
+        units="bohr",
+        use_embedded_orbitals=True,
+        custom_damping_hook=None,
+    ):
+        """
+        Warm restart a calculation from a saved checkpoint or CalculationState.
+        Optionally updates geometry (e.g. for PES scans or geometry optimization steps)
+        and control settings, retaining pre-converged embedded atomic states.
+        """
+        from pathlib import Path
+        from phatpsy.state import CalculationState
+
+        if isinstance(checkpoint, (str, Path)):
+            calc_state = CalculationState.load(checkpoint)
+        elif isinstance(checkpoint, CalculationState):
+            calc_state = checkpoint
+        else:
+            raise TypeError(f"checkpoint must be a str, Path, or CalculationState, got {type(checkpoint)}")
+
+        restart_deck = calc_state.create_restart_deck(
+            new_geometry=new_geometry,
+            control_overrides=control_overrides,
+            units=units,
+            use_embedded_orbitals=use_embedded_orbitals,
+        )
+        return self.run_deck(restart_deck, custom_damping_hook=custom_damping_hook)
+
+    def run_from_stdin(self, custom_damping_hook=None, deck=None):
+        from phatpsy.state import extract_calculation_state
         state = core.phatpsy_state_mod
         contrl = core.phatpsy_contrl_mod
 
@@ -105,7 +141,6 @@ class PhatpsyDriver:
         if eof_reached or bool(state.qcheck):
             return None
 
-
         # 3. Main Polyatomic Self-Consistent Loop (formerly GOTO 90 in contrl.f)
         converged = False
         while True:
@@ -122,31 +157,4 @@ class PhatpsyDriver:
             if done_after_scf:
                 break
 
-        norbt = int(state.norbt)
-        mstot = int(state.mstot)
-        ispin = 2 if bool(state.qopen) else 1
-        n2orbt = (norbt * (norbt + 1)) // 2
-
-        evalx = state.get_evalx(norbt, ispin)
-        occx = state.get_occx(norbt, ispin)
-        evecx = state.get_evecx(mstot, norbt, ispin)
-        ovlp = state.get_ovlp(n2orbt, ispin)
-        ewmat = state.get_ewmat(n2orbt, ispin)
-
-        return {
-            "converged": bool(converged),
-            "cycles": int(state.ncycl),
-            "total_energy": float(state.tmole),
-            "kinetic_energy": float(state.totke),
-            "potential_energy": float(state.totpe),
-            "nuclear_repulsion": float(state.zzpot),
-            "delta_energy": float(state.deltae),
-            "norbt": norbt,
-            "mstot": mstot,
-            "ispin": ispin,
-            "eigenvalues": evalx,
-            "occupations": occx,
-            "mo_coefficients": evecx,
-            "overlap_packed": ovlp,
-            "ewmat_packed": ewmat,
-        }
+        return extract_calculation_state(state, deck=deck, converged=converged)

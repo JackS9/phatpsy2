@@ -214,6 +214,8 @@ class AtomConfig:
     virtual: bool = False
     spin_flip: bool = False  # Backward compatibility fallback
     spin: Optional[str] = None  # "up", "down", or None
+    embedded_state: Optional[Any] = None
+    starting_orbitals: Optional[List[Any]] = None
 
     def __post_init__(self):
         # 1. Normalize spin
@@ -291,6 +293,16 @@ class AtomConfig:
             res["spin"] = self.spin
         elif self.spin_flip:
             res["spin_flip"] = True
+        if self.embedded_state:
+            if hasattr(self.embedded_state, "to_dict"):
+                res["embedded_state"] = self.embedded_state.to_dict()
+            elif isinstance(self.embedded_state, dict):
+                res["embedded_state"] = self.embedded_state
+        if self.starting_orbitals:
+            res["starting_orbitals"] = [
+                (o.to_dict() if hasattr(o, "to_dict") else o)
+                for o in self.starting_orbitals
+            ]
         return res
 
     @classmethod
@@ -303,6 +315,14 @@ class AtomConfig:
         spin_flip_val = bool(data.get("spin_flip", False))
         if spin_val is None and spin_flip_val:
             spin_val = "down"
+
+        emb_data = data.get("embedded_state")
+        if emb_data and isinstance(emb_data, dict):
+            from phatpsy.state import EmbeddedAtomState
+            emb = EmbeddedAtomState.from_dict(emb_data)
+        else:
+            emb = emb_data
+
         return cls(
             element=data["element"].strip().capitalize(),
             id=data.get("id"),
@@ -316,6 +336,8 @@ class AtomConfig:
             virtual=bool(data.get("virtual", False)),
             spin_flip=spin_flip_val,
             spin=spin_val,
+            embedded_state=emb,
+            starting_orbitals=data.get("starting_orbitals"),
         )
 
 
@@ -379,11 +401,20 @@ class CalculationDeck:
             # Retrieve default or named library basis
             lib_elem = get_element_basis(sym, basis_name=basis_name)
 
+            # Check if any atom of this element has an embedded_state
+            embedded_atom = next(
+                (a for a in self.geometry if a.element.strip().capitalize() == sym and a.embedded_state),
+                None
+            )
+
             if user_elem and user_elem.functions:
                 # Custom user basis functions override library
                 funcs = user_elem.functions
                 desc = user_elem.description or f"Custom Basis for {sym}"
                 z = user_elem.atomic_number or lib_elem.atomic_number
+                orbs = lib_elem.default_orbitals
+                if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
+                    orbs = embedded_atom.embedded_state.to_initial_orbitals()
                 resolved[sym] = ElementData(
                     symbol=sym,
                     atomic_number=z,
@@ -391,10 +422,36 @@ class CalculationDeck:
                     basis_name=user_elem.basis or "CUSTOM",
                     functions=funcs,
                     nvterm=lib_elem.nvterm,
-                    default_orbitals=lib_elem.default_orbitals,
+                    default_orbitals=orbs,
+                )
+            elif embedded_atom and hasattr(embedded_atom.embedded_state, "basis_functions") and embedded_atom.embedded_state.basis_functions:
+                funcs = embedded_atom.embedded_state.to_basis_functions()
+                orbs = embedded_atom.embedded_state.to_initial_orbitals()
+                z = embedded_atom.embedded_state.atomic_number or lib_elem.atomic_number
+                desc = f"Pre-converged Embedded Atom Basis for {sym}"
+                resolved[sym] = ElementData(
+                    symbol=sym,
+                    atomic_number=z,
+                    description=desc,
+                    basis_name="EMBEDDED",
+                    functions=funcs,
+                    nvterm=lib_elem.nvterm,
+                    default_orbitals=orbs,
                 )
             else:
-                resolved[sym] = lib_elem
+                if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
+                    orbs = embedded_atom.embedded_state.to_initial_orbitals()
+                    resolved[sym] = ElementData(
+                        symbol=sym,
+                        atomic_number=lib_elem.atomic_number,
+                        description=lib_elem.description,
+                        basis_name=lib_elem.basis_name,
+                        functions=lib_elem.functions,
+                        nvterm=lib_elem.nvterm,
+                        default_orbitals=orbs,
+                    )
+                else:
+                    resolved[sym] = lib_elem
 
         return resolved
 
@@ -611,9 +668,20 @@ class CalculationDeck:
                 else:
                     lines.append(f" &ATOM XYZ={x:.5f},{y:.5f},{z:.5f}{flag_str} &END")
 
-                # Default initial orbital cards ONLY for the first primary atom
+                # Initial orbital cards for the primary atom (overridden by embedded_state if present)
                 if group_idx == 0:
-                    for orb in ed.default_orbitals:
+                    orbitals_to_use = ed.default_orbitals
+                    if p_atom.embedded_state:
+                        emb = p_atom.embedded_state
+                        if isinstance(emb, dict):
+                            from phatpsy.state import EmbeddedAtomState
+                            emb = EmbeddedAtomState.from_dict(emb)
+                        if hasattr(emb, "to_initial_orbitals"):
+                            orbitals_to_use = emb.to_initial_orbitals()
+                    elif p_atom.starting_orbitals:
+                        orbitals_to_use = p_atom.starting_orbitals
+
+                    for orb in orbitals_to_use:
                         parts = ["&ATORB"]
                         if orb.eigval:
                             parts.append(f"EIGVAL={orb.eigval[0]:.4f},{orb.eigval[1]:.4f}")

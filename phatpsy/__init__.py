@@ -29,9 +29,12 @@ from phatpsy.builder import (
 from phatpsy.basis import get_element_basis, list_available_elements
 from phatpsy.spin import assign_alternating_spin
 from phatpsy.visualizer import visualize_deck, show_deck
+from phatpsy.state import CalculationState, EmbeddedAtomState
 
 __all__ = [
     "PhatpsyDriver",
+    "CalculationState",
+    "EmbeddedAtomState",
     "DIISAccelerator",
     "solve_ewmo_propagator",
     "unpack_symmetric",

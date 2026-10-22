@@ -284,6 +284,10 @@ def save_results_to_json(results: Dict[str, Any], json_path: Path, indent: int =
 
     def _convert(obj):
         import numpy as np
+        if hasattr(obj, "to_dict"):
+            return _convert(obj.to_dict())
+        if isinstance(obj, (bool, np.bool_)):
+            return bool(obj)
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, (np.floating, np.float32, np.float64)):

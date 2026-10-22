@@ -29,6 +29,42 @@ python module _phatpsy_core
                 integer intent(in) :: n2, nspin
                 real(kind=real64) intent(out), dimension(n2, nspin) :: out_ewmat
             end subroutine get_ewmat
+            subroutine get_coord(out_coord, n3, n)
+                integer intent(in) :: n3, n
+                real(kind=real64) intent(out), dimension(n3, n) :: out_coord
+            end subroutine get_coord
+            subroutine get_charge(out_charge, n3, n)
+                integer intent(in) :: n3, n
+                real(kind=real64) intent(out), dimension(n3, n) :: out_charge
+            end subroutine get_charge
+            subroutine get_popul(out_popul, n, nspin)
+                integer intent(in) :: n, nspin
+                real(kind=real64) intent(out), dimension(n, nspin) :: out_popul
+            end subroutine get_popul
+            subroutine get_iatomx(out_iatom, m)
+                integer intent(in) :: m
+                integer(kind=int32) intent(out), dimension(m) :: out_iatom
+            end subroutine get_iatomx
+            subroutine get_nx(out_n, m)
+                integer intent(in) :: m
+                integer(kind=int32) intent(out), dimension(m) :: out_n
+            end subroutine get_nx
+            subroutine get_lx(out_l, m)
+                integer intent(in) :: m
+                integer(kind=int32) intent(out), dimension(m) :: out_l
+            end subroutine get_lx
+            subroutine get_mlx(out_ml, m)
+                integer intent(in) :: m
+                integer(kind=int32) intent(out), dimension(m) :: out_ml
+            end subroutine get_mlx
+            subroutine get_etax(out_eta, m)
+                integer intent(in) :: m
+                real(kind=real64) intent(out), dimension(m) :: out_eta
+            end subroutine get_etax
+            subroutine get_anormx(out_anorm, m)
+                integer intent(in) :: m
+                real(kind=real64) intent(out), dimension(m) :: out_anorm
+            end subroutine get_anormx
         end module phatpsy_state_mod
 
         module phatpsy_contrl_mod

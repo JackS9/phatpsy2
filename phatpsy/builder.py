@@ -68,13 +68,19 @@ def parse_geometry(
                 xyz_scaled = [c * to_bohr for c in item.xyz]
                 atom_configs.append(AtomConfig(
                     element=item.element,
+                    id=item.id,
                     xyz=xyz_scaled,
+                    equivalent_to=item.equivalent_to,
+                    symmetry_op=item.symmetry_op,
+                    symmetry_axis=item.symmetry_axis,
                     symmetry=item.symmetry,
                     charge=item.charge,
                     fixed=item.fixed,
                     virtual=item.virtual,
                     spin_flip=item.spin_flip,
                     spin=item.spin,
+                    embedded_state=item.embedded_state,
+                    starting_orbitals=item.starting_orbitals,
                 ))
             else:
                 atom_configs.append(item)
@@ -101,6 +107,8 @@ def parse_geometry(
                 virtual=bool(item.get("virtual", item.get("is_virtual", is_virt))),
                 spin_flip=spin_flip_val,
                 spin=spin_val,
+                embedded_state=item.get("embedded_state"),
+                starting_orbitals=item.get("starting_orbitals"),
             ))
 
         elif isinstance(item, (list, tuple)):
@@ -250,6 +258,7 @@ def build_molecule(
     units: str = "bohr",
     spin_unrestricted: bool = True,
     auto_spin_flip: bool = False,
+    embedded_atoms: Optional[Dict[Union[str, int], Any]] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
     """
@@ -265,6 +274,8 @@ def build_molecule(
         spin_unrestricted: True for UHF (QOPEN=T), False for RHF.
         auto_spin_flip: If True, automatically assigns alternating spin ('up'/'down')
                         using molecular graph connectivity for Localized Valence-Bond pairing.
+        embedded_atoms: Optional mapping of atom ID, index, or element to EmbeddedAtomState
+                        or dict, overriding default basis starting orbitals.
         extra_namelist: Additional &CTLINP parameters.
 
     Returns:
@@ -273,6 +284,27 @@ def build_molecule(
     atoms = parse_geometry(geometry, units=units)
     if not atoms:
         raise ValueError("Cannot build molecule deck from empty geometry.")
+
+    elem_counts: Dict[str, int] = {}
+    for a in atoms:
+        sym = a.element.strip().capitalize()
+        elem_counts[sym] = elem_counts.get(sym, 0) + 1
+        if not a.id:
+            a.id = f"{sym}{elem_counts[sym]}"
+
+    if embedded_atoms:
+        for idx, atom in enumerate(atoms):
+            emb = None
+            if atom.id and atom.id in embedded_atoms:
+                emb = embedded_atoms[atom.id]
+            elif idx in embedded_atoms:
+                emb = embedded_atoms[idx]
+            elif str(idx) in embedded_atoms:
+                emb = embedded_atoms[str(idx)]
+            elif atom.element in embedded_atoms:
+                emb = embedded_atoms[atom.element]
+            if emb is not None:
+                atom.embedded_state = emb
 
     if control is None:
         ctrl_extra = dict(extra_namelist or {})

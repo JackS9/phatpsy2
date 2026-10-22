@@ -389,4 +389,94 @@ contains
     end if
   end subroutine get_ewmat
 
+  subroutine get_coord(out_coord, n3, n)
+    integer(int32), intent(in) :: n3, n
+    real(real64), intent(out) :: out_coord(n3, n)
+    if (allocated(mol_ws%coord)) then
+      out_coord(1:min(n3, 3), 1:min(n, NATOM)) = mol_ws%coord(1:min(n3, 3), 1:min(n, NATOM))
+    else
+      out_coord = 0.0d0
+    end if
+  end subroutine get_coord
+
+  subroutine get_charge(out_charge, n3, n)
+    integer(int32), intent(in) :: n3, n
+    real(real64), intent(out) :: out_charge(n3, n)
+    if (allocated(mol_ws%charge)) then
+      out_charge(1:min(n3, 3), 1:min(n, NATOM)) = mol_ws%charge(1:min(n3, 3), 1:min(n, NATOM))
+    else
+      out_charge = 0.0d0
+    end if
+  end subroutine get_charge
+
+  subroutine get_popul(out_popul, n, nspin)
+    integer(int32), intent(in) :: n, nspin
+    real(real64), intent(out) :: out_popul(n, nspin)
+    if (allocated(mol_ws%popul)) then
+      out_popul(1:min(n, NORBT), 1:min(nspin, ISPIN)) = mol_ws%popul(1:min(n, NORBT), 1:min(nspin, ISPIN))
+    else
+      out_popul = 0.0d0
+    end if
+  end subroutine get_popul
+
+  subroutine get_iatomx(out_iatom, m)
+    integer(int32), intent(in) :: m
+    integer(int32), intent(out) :: out_iatom(m)
+    if (allocated(mol_ws%iatomx)) then
+      out_iatom(1:min(m, MSTOT)) = mol_ws%iatomx(1:min(m, MSTOT))
+    else
+      out_iatom = 0
+    end if
+  end subroutine get_iatomx
+
+  subroutine get_nx(out_n, m)
+    integer(int32), intent(in) :: m
+    integer(int32), intent(out) :: out_n(m)
+    if (allocated(mol_ws%nx)) then
+      out_n(1:min(m, MSTOT)) = mol_ws%nx(1:min(m, MSTOT))
+    else
+      out_n = 0
+    end if
+  end subroutine get_nx
+
+  subroutine get_lx(out_l, m)
+    integer(int32), intent(in) :: m
+    integer(int32), intent(out) :: out_l(m)
+    if (allocated(mol_ws%lx)) then
+      out_l(1:min(m, MSTOT)) = mol_ws%lx(1:min(m, MSTOT))
+    else
+      out_l = 0
+    end if
+  end subroutine get_lx
+
+  subroutine get_mlx(out_ml, m)
+    integer(int32), intent(in) :: m
+    integer(int32), intent(out) :: out_ml(m)
+    if (allocated(mol_ws%mlx)) then
+      out_ml(1:min(m, MSTOT)) = mol_ws%mlx(1:min(m, MSTOT))
+    else
+      out_ml = 0
+    end if
+  end subroutine get_mlx
+
+  subroutine get_etax(out_eta, m)
+    integer(int32), intent(in) :: m
+    real(real64), intent(out) :: out_eta(m)
+    if (allocated(mol_ws%etax)) then
+      out_eta(1:min(m, MSTOT)) = mol_ws%etax(1:min(m, MSTOT))
+    else
+      out_eta = 0.0d0
+    end if
+  end subroutine get_etax
+
+  subroutine get_anormx(out_anorm, m)
+    integer(int32), intent(in) :: m
+    real(real64), intent(out) :: out_anorm(m)
+    if (allocated(mol_ws%anormx)) then
+      out_anorm(1:min(m, MSTOT)) = mol_ws%anormx(1:min(m, MSTOT))
+    else
+      out_anorm = 0.0d0
+    end if
+  end subroutine get_anormx
+
 end module phatpsy_state_mod

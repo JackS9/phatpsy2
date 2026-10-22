@@ -66,11 +66,11 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 6. State Persistence, Restarts & Transferable Embedded Atoms
 
-- [ ] **Saving system state for restarting or starting new geometry**
+- [x] **Saving system state for restarting or starting new geometry**
   - Implement full calculation state serialization (in-memory, HDF5, or structured JSON checkpoints) to allow warm restarts across geometry optimization steps or PES scans.
-- [ ] **Saving of embedded atom states for inclusion in other systems**
+- [x] **Saving of embedded atom states for inclusion in other systems**
   - Export converged localized atomic states (orbitals, potentials, density matrices) for reuse in other calculations (e.g., as fixed bulk substrate or surface atoms).
-  - [ ] **Override reading starting orbitals from basis set**
+  - [x] **Override reading starting orbitals from basis set**
     - Enable direct orbital ingestion from pre-converged embedded atom states rather than re-evaluating atomic STO basis tables.
 
 ---
