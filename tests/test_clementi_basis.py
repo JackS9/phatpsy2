@@ -157,15 +157,27 @@ def test_element_basis_selector_clementi_and_thakkar():
     assert c_thak.nsto == 15
 
 
-def test_clementi_known_passing_elements_orthonormality():
-    """Verifies that currently verified Clementi elements pass orthonormality C^T S C = I."""
+def test_clementi_all_elements_orthonormality_and_variational_energy():
+    """Verifies that all 53 Clementi elements (SZ and DZ, Z=2..54) pass orthonormality and variational ordering."""
     from check_clementi_orthonormality import check_entry, TOL
     with open(CLEMENTI_JSON, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    passing = [("SZ", "C"), ("SZ", "B"), ("DZ", "C"), ("DZ", "O")]
-    for group, sym in passing:
-        worst, problems = check_entry(sym, data[group][sym])
-        assert worst <= TOL, f"{group} {sym} worst deviation {worst} > {TOL}"
-        assert not problems, f"{group} {sym} problems: {problems}"
+    for group in ("SZ", "DZ"):
+        for z in range(2, 55):
+            sym = PERIODIC_TABLE[z]
+            assert sym in data[group], f"{group} missing {sym}"
+            entry = data[group][sym]
+            worst, problems = check_entry(sym, entry)
+            assert worst <= TOL, f"{group} {sym} worst deviation {worst:9.2e} > {TOL}"
+            assert not problems, f"{group} {sym} problems: {problems}"
+
+    # Verify variational ordering: E_SZ >= E_DZ (where energies are negative, so E_SZ > E_DZ)
+    for z in range(2, 55):
+        sym = PERIODIC_TABLE[z]
+        e_sz = data["SZ"][sym]["energy"]
+        e_dz = data["DZ"][sym]["energy"]
+        assert e_sz is not None and e_dz is not None
+        assert e_sz > e_dz, f"Variational violation at {sym} (Z={z}): SZ={e_sz} <= DZ={e_dz}"
+
 
