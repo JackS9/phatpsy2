@@ -77,8 +77,8 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 7. Architectural Modernization & Infrastructure
 
-- [ ] **Full LAPACK Migration**
-  - Complete replacement of legacy matrix diagonalizers (EISPAK/Jacobi) and fitting routines with standardized LAPACK calls (`DSYEV`, `DGELS`).
+- [x] **Full LAPACK Migration**
+  - Complete replacement of legacy matrix diagonalizers (EISPAK/Jacobi) with modern, standardized LAPACK calls (`DSPEVD`, `DSPEV`), dynamic workspaces, and modern Fortran 2018 (`phatpsy_lowdin_mod.f90`). Legacy diagonalizer files (`eispak.f`, `jacobi.f`, `tred3.f`, etc.) retired from modern build targets.
 - [ ] **Pure In-Memory Storage**
   - Eliminate all legacy scratch file/tape units (`Phatpsy.DAUnit1`, `Unit2`, `Unit3`, `Unit4`, `Temp`) in favor of dynamic in-memory arrays.
 - [ ] **Modernize active legacy FORTRAN routines (*.f) to Fortran 2018 modules (*.f90)**

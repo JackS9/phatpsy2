@@ -6,7 +6,7 @@ module phatpsy_scf_mod
   public :: run_scf_element, USE_LAPACK_EIG, FOCK_MIX_ALPHA
 
   ! Modern solver toggles accessible from Python
-  logical,      save :: USE_LAPACK_EIG = .false. ! Set .true. to use LAPACK DSPEVD
+  logical,      save :: USE_LAPACK_EIG = .true.  ! Set .true. to use LAPACK DSPEVD
   real(real64), save :: FOCK_MIX_ALPHA = 1.0d0   ! 1.0 = legacy; <1.0 = Fock damping
 
 contains
@@ -22,17 +22,13 @@ contains
     integer(int32), allocatable :: iwork(:)
     integer(int32) :: lwork, liwork
 
-    if (.not. USE_LAPACK_EIG) then
-      call EISPAK(onfock, eval_all, onevec, scrat2, msto, msto, m2sto, norb, ierr)
-    else
-      lwork  = 1 + 6 * msto + 2 * msto * msto
-      liwork = 3 + 5 * msto
-      allocate(z_full(msto, msto), work(lwork), iwork(liwork))
-      call DSPEVD('V', 'U', msto, onfock, eval_all, z_full, msto, &
-                  work, lwork, iwork, liwork, ierr)
-      onevec(:, 1:norb) = z_full(:, 1:norb)
-      deallocate(z_full, work, iwork)
-    end if
+    lwork  = 1 + 6 * msto + 2 * msto * msto
+    liwork = 3 + 5 * msto
+    allocate(z_full(msto, msto), work(lwork), iwork(liwork))
+    call DSPEVD('V', 'U', msto, onfock, eval_all, z_full, msto, &
+                work, lwork, iwork, liwork, ierr)
+    onevec(:, 1:norb) = z_full(:, 1:norb)
+    deallocate(z_full, work, iwork)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()

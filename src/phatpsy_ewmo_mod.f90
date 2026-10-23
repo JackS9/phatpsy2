@@ -101,9 +101,18 @@ contains
           call PUTONE(mol_ws%ewmat(1, isp), NORBT, IUDUMP)
         end if
 
-        call EISPAK(mol_ws%ewmat(1, isp), evalmo(1, isp), evecmo(1, 1, isp), &
-                    scrat2, NORBT, NORBT, N2ORBT, NORBT, ierr)
-        if (ierr /= 0) call BOMB(17)
+        block
+          integer(int32) :: lwork, liwork
+          real(real64), allocatable :: work(:)
+          integer(int32), allocatable :: iwork(:)
+          lwork  = 1 + 6 * NORBT + 2 * NORBT * NORBT
+          liwork = 3 + 5 * NORBT
+          allocate(work(lwork), iwork(liwork))
+          call DSPEVD('V', 'U', NORBT, mol_ws%ewmat(1, isp), evalmo(1, isp), &
+                      evecmo(1, 1, isp), NORBT, work, lwork, iwork, liwork, ierr)
+          deallocate(work, iwork)
+          if (ierr /= 0) call BOMB(17)
+        end block
 
         mol_ws%ovlp  = ovlp_bak
         mol_ws%ewmat = ewmat_bak

@@ -23,6 +23,14 @@ set(REPLACED_LEGACY_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/fokmat.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/twoint.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/oneint.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/eispak.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/jacobi.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tred3.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/imtqlv.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tinvit.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/trbak3.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/eig.f"
 )
 
 # Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
@@ -31,6 +39,7 @@ list(REMOVE_ITEM RETAINED_UTILITY_F_SOURCES ${REPLACED_LEGACY_FILES})
 
 # Modernized Fortran 2018 module sources (in dependency order)
 set(MODERN_F90_MODULES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_lowdin_mod.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_state_mod.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_integrals_mod.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_analys_mod.f90"
