@@ -35,13 +35,13 @@ set(MODERN_F90_MODULES
 # Compiler flags for legacy fixed-form (.f) vs modern free-form (.f90)
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set_source_files_properties(${ALL_LEGACY_F_SOURCES} PROPERTIES
-        COMPILE_FLAGS "-std=legacy -fno-automatic -O2"
+        COMPILE_FLAGS "-std=legacy -fno-automatic -O2 -fbacktrace"
     )
     set_source_files_properties(${MODERN_F90_MODULES} "${CMAKE_CURRENT_SOURCE_DIR}/src/cli.f90" PROPERTIES
-        COMPILE_FLAGS "-std=gnu -ffree-line-length-none -Wall -Wno-compare-reals -Wno-unused-variable -fcheck=bounds -O2 -fPIC"
+        COMPILE_FLAGS "-std=gnu -ffree-line-length-none -Wall -Wno-compare-reals -Wno-unused-variable -fcheck=bounds -O2 -fPIC -fbacktrace"
     )
     set_source_files_properties(${RETAINED_UTILITY_F_SOURCES} PROPERTIES
-        COMPILE_FLAGS "-std=legacy -fno-automatic -O2 -fPIC"
+        COMPILE_FLAGS "-std=legacy -fno-automatic -O2 -fPIC -fbacktrace"
     )
 endif()
 

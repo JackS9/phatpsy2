@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Increase stack size limit for quantum chemical array evaluations
+ulimit -s unlimited 2>/dev/null || true
+
 # 1. Configure and build legacy baseline, modern CLI, and Python f2py extension
 PY_EXE=""
 if [ -f ".venv/bin/python3" ]; then
