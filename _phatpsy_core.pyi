@@ -126,6 +126,16 @@ class phatpsy_linalg_mod:
     def heseig(a: npt.NDArray[np.float64], nrt: int, x: npt.NDArray[np.float64], xp: npt.NDArray[np.float64], eta: float, nzc: int) -> tuple[npt.NDArray[np.float64], int]: ...
     @staticmethod
     def hesvec(h: npt.NDArray[np.float64], nn: int, root: float, eta: float, scrv: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], int]: ...
+    @staticmethod
+    def cdct(c: npt.NDArray[np.float64], d: npt.NDArray[np.float64], nvec: int | None = None, nbas: int | None = None, n2bas: int | None = None) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def ctsc(c: npt.NDArray[np.float64], s: npt.NDArray[np.float64], nbas: int | None = None, nvec: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def pcct(p: npt.NDArray[np.float64], c: npt.NDArray[np.float64], nvec: int | None = None, nbas: int | None = None, n2bas: int | None = None) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def insert(block: npt.NDArray[np.float64], supmat: npt.NDArray[np.float64], i: int, j: int, nrow: int | None = None, ncol: int | None = None) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def insrtd(block: npt.NDArray[np.float64], supmat: npt.NDArray[np.float64], i: int, n: int) -> npt.NDArray[np.float64]: ...
 
 class phatpsy_symmetry_mod:
     @staticmethod
@@ -157,6 +167,12 @@ class phatpsy_density_mod:
     @staticmethod
     def sfct(nu: int, mumxp1: int, alpha: float) -> npt.NDArray[np.float64]: ...
 
+class phatpsy_diagnostics_mod:
+    @staticmethod
+    def noble(nucz: int) -> int: ...
+    @staticmethod
+    def mapndx(x: float, mapdim: int) -> int: ...
+
 state: phatpsy_state_mod
 contrl: phatpsy_contrl_mod
 scf: phatpsy_scf_mod
@@ -167,6 +183,7 @@ modelpot: phatpsy_modelpot_mod
 linalg: phatpsy_linalg_mod
 symmetry: phatpsy_symmetry_mod
 density: phatpsy_density_mod
+diagnostics: phatpsy_diagnostics_mod
 
 
 

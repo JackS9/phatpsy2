@@ -223,6 +223,42 @@ python module _phatpsy_core
                 real(kind=real64) intent(out), dimension(n) :: vec
                 integer(kind=int32) intent(out) :: ierr
             end subroutine hesvec
+            subroutine cdct(c, d, dd, nvec, nbas, n2bas)
+                integer(kind=int32) optional, depend(c) :: nbas = shape(c, 0)
+                integer(kind=int32) optional, depend(c) :: nvec = shape(c, 1)
+                integer(kind=int32) optional, depend(nbas) :: n2bas = (nbas*(nbas+1))/2
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: c
+                real(kind=real64) intent(in), dimension(nvec), depend(nvec) :: d
+                real(kind=real64) intent(out), dimension(n2bas), depend(n2bas) :: dd
+            end subroutine cdct
+            subroutine ctsc(c, s, scrat, ss, nbas, nvec)
+                integer(kind=int32) optional, depend(c) :: nbas = shape(c, 0)
+                integer(kind=int32) optional, depend(c) :: nvec = shape(c, 1)
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: c
+                real(kind=real64) intent(in), dimension((nbas*(nbas+1))/2), depend(nbas) :: s
+                real(kind=real64) intent(out), dimension(nbas, nvec), depend(nbas, nvec) :: scrat
+                real(kind=real64) intent(out), dimension((nvec*(nvec+1))/2), depend(nvec) :: ss
+            end subroutine ctsc
+            subroutine pcct(p, c, psinv, nvec, nbas, n2bas)
+                integer(kind=int32) optional, depend(c) :: nbas = shape(c, 0)
+                integer(kind=int32) optional, depend(c) :: nvec = shape(c, 1)
+                integer(kind=int32) optional, depend(nbas) :: n2bas = (nbas*(nbas+1))/2
+                real(kind=real64) intent(in), dimension(n2bas) :: p
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: c
+                real(kind=real64) intent(out), dimension(nbas, nbas), depend(nbas) :: psinv
+            end subroutine pcct
+            subroutine insert(block, supmat, i, j, nrow, ncol)
+                integer(kind=int32) optional, depend(block) :: nrow = shape(block, 0)
+                integer(kind=int32) optional, depend(block) :: ncol = shape(block, 1)
+                integer(kind=int32) intent(in) :: i, j
+                real(kind=real64) intent(in), dimension(nrow, ncol) :: block
+                real(kind=real64) intent(in,out), dimension(*) :: supmat
+            end subroutine insert
+            subroutine insrtd(block, supmat, i, n)
+                integer(kind=int32) intent(in) :: i, n
+                real(kind=real64) intent(in), dimension((n*(n+1))/2) :: block
+                real(kind=real64) intent(in,out), dimension(*) :: supmat
+            end subroutine insrtd
         end module linalg
 
         module symmetry
@@ -318,5 +354,17 @@ python module _phatpsy_core
                 real(kind=real64) intent(out), dimension(mumxp1), depend(mumxp1) :: s
             end subroutine sfct
         end module density
+
+        module diagnostics
+            function noble(nucz) result(val)
+                integer intent(in) :: nucz
+                integer :: val
+            end function noble
+            function mapndx(x, mapdim) result(idx)
+                double precision intent(in) :: x
+                integer intent(in) :: mapdim
+                integer :: idx
+            end function mapndx
+        end module diagnostics
     end interface
 end python module _phatpsy_core

@@ -13,7 +13,8 @@ module linalg
   public :: addmat, submat, asum, dotprd, scmult, qzero, &
             erase, derase, ierase, qerase, dcopy, flip,  &
             trisq, tritri, uthu, invert, matinv, schmid, &
-            normlz, round, maxovl, hesbrg, norhes, heseig, hesvec
+            normlz, round, maxovl, hesbrg, norhes, heseig, hesvec, &
+            cdct, ctsc, csct, pcct, dmpab, dmpatb, insert, insrtd
 
 contains
 
@@ -818,6 +819,243 @@ contains
     end do
   end subroutine hesvec
 
+  !---------------------------------------------------------------------
+  ! CDCT: Similarity transformation on diagonal matrix D: DD = C * D * C^T
+  !---------------------------------------------------------------------
+  subroutine cdct(c, d, dd, nvec, nbas, n2bas)
+    integer(int32), intent(in)  :: nvec, nbas, n2bas
+    real(real64),   intent(in)  :: c(nbas, nvec), d(nvec)
+    real(real64),   intent(out) :: dd(n2bas)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: i, j, k, ii, ij
+    real(real64)   :: sum_val
+
+    do i = 1, nbas
+      ii = (i * (i - 1)) / 2
+      do j = 1, i
+        ij = ii + j
+        sum_val = ZERO
+        do k = 1, nvec
+          sum_val = sum_val + c(i, k) * d(k) * c(j, k)
+        end do
+        dd(ij) = sum_val
+      end do
+    end do
+  end subroutine cdct
+
+  !---------------------------------------------------------------------
+  ! CTSC: Similarity transformation of symmetric matrix S: SS = C^T * S * C
+  !---------------------------------------------------------------------
+  subroutine ctsc(c, s, scrat, ss, nbas, nvec)
+    integer(int32), intent(in)    :: nbas, nvec
+    real(real64),   intent(in)    :: c(nbas, nvec)
+    real(real64),   intent(in)    :: s(*)
+    real(real64),   intent(out)   :: scrat(nbas, nvec)
+    real(real64),   intent(out)   :: ss(*)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: i, j, k, ii, ij, ik
+    real(real64)   :: sum_val
+
+    do i = 1, nbas
+      ii = (i * (i - 1)) / 2
+      do j = 1, nvec
+        sum_val = ZERO
+        do k = 1, nbas
+          ik = ii + k
+          if (k > i) ik = (k * (k - 1)) / 2 + i
+          sum_val = sum_val + s(ik) * c(k, j)
+        end do
+        scrat(i, j) = sum_val
+      end do
+    end do
+
+    do i = 1, nvec
+      ii = (i * (i - 1)) / 2
+      do j = 1, i
+        ij = ii + j
+        sum_val = ZERO
+        do k = 1, nbas
+          sum_val = sum_val + c(k, i) * scrat(k, j)
+        end do
+        ss(ij) = sum_val
+      end do
+    end do
+  end subroutine ctsc
+
+  !---------------------------------------------------------------------
+  ! CSCT: Transpose similarity transformation: SS = C * S * C^T
+  !---------------------------------------------------------------------
+  subroutine csct(c, s, scrat, ss, nbas, nvec)
+    integer(int32), intent(in)    :: nbas, nvec
+    real(real64),   intent(in)    :: c(nvec, nbas)
+    real(real64),   intent(in)    :: s(*)
+    real(real64),   intent(out)   :: scrat(nbas, nvec)
+    real(real64),   intent(out)   :: ss(*)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: i, j, k, ii, ij, ik
+    real(real64)   :: sum_val
+
+    do i = 1, nbas
+      ii = (i * (i - 1)) / 2
+      do j = 1, nvec
+        sum_val = ZERO
+        do k = 1, nbas
+          ik = ii + k
+          if (k > i) ik = (k * (k - 1)) / 2 + i
+          sum_val = sum_val + s(ik) * c(j, k)
+        end do
+        scrat(i, j) = sum_val
+      end do
+    end do
+
+    do i = 1, nvec
+      ii = (i * (i - 1)) / 2
+      do j = 1, i
+        ij = ii + j
+        sum_val = ZERO
+        do k = 1, nbas
+          sum_val = sum_val + c(i, k) * scrat(k, j)
+        end do
+        ss(ij) = sum_val
+      end do
+    end do
+  end subroutine csct
+
+  !---------------------------------------------------------------------
+  ! PCCT: Generates PSINV = P * S^-1 = P * C * C^T
+  !---------------------------------------------------------------------
+  subroutine pcct(p, c, psinv, nvec, nbas, n2bas)
+    integer(int32), intent(in)  :: nvec, nbas, n2bas
+    real(real64),   intent(in)  :: p(n2bas), c(nbas, nvec)
+    real(real64),   intent(out) :: psinv(nbas, nbas)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: k, l, m, i, kk, mm, km
+    real(real64)   :: sum_val
+
+    do k = 1, nbas
+      kk = (k * (k - 1)) / 2
+      do l = 1, nbas
+        sum_val = ZERO
+        do i = 1, nvec
+          do m = 1, nbas
+            mm = (m * (m - 1)) / 2
+            km = kk + m
+            if (m > k) km = mm + k
+            sum_val = sum_val + p(km) * c(m, i) * c(l, i)
+          end do
+        end do
+        psinv(k, l) = sum_val
+      end do
+    end do
+  end subroutine pcct
+
+  !---------------------------------------------------------------------
+  ! DMPAB: Multiplies two rectangular matrices: C = A * B
+  !---------------------------------------------------------------------
+  subroutine dmpab(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+    integer(int32), intent(in)  :: na, ma, namx, mamx
+    integer(int32), intent(in)  :: nb, mb, nbmx, mbmx
+    integer(int32), intent(in)  :: ncmx, mcmx
+    real(real64),   intent(in)  :: a(namx, mamx), b(nbmx, mbmx)
+    real(real64),   intent(out) :: c(ncmx, mcmx)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: i, j, k
+    real(real64)   :: sum_val
+
+    if (ma /= nb) then
+      write(*,*) 'Incompatible dimensions in DMPAB...'
+      return
+    end if
+
+    do i = 1, na
+      do j = 1, mb
+        sum_val = ZERO
+        do k = 1, ma
+          sum_val = sum_val + a(i, k) * b(k, j)
+        end do
+        c(i, j) = sum_val
+      end do
+    end do
+  end subroutine dmpab
+
+  !---------------------------------------------------------------------
+  ! DMPATB: Multiplies rectangular matrices with left transpose: C = A^T * B
+  !---------------------------------------------------------------------
+  subroutine dmpatb(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+    integer(int32), intent(in)  :: na, ma, namx, mamx
+    integer(int32), intent(in)  :: nb, mb, nbmx, mbmx
+    integer(int32), intent(in)  :: ncmx, mcmx
+    real(real64),   intent(in)  :: a(namx, mamx), b(nbmx, mbmx)
+    real(real64),   intent(out) :: c(ncmx, mcmx)
+
+    real(real64), parameter :: ZERO = 0.0d0
+    integer(int32) :: i, j, k
+    real(real64)   :: sum_val
+
+    if (na /= nb) then
+      write(*,*) 'Incompatible dimensions in DMPATB...'
+      return
+    end if
+
+    do i = 1, ma
+      do j = 1, mb
+        sum_val = ZERO
+        do k = 1, na
+          sum_val = sum_val + a(k, i) * b(k, j)
+        end do
+        c(i, j) = sum_val
+      end do
+    end do
+  end subroutine dmpatb
+
+  !---------------------------------------------------------------------
+  ! INSERT: Inserts a rectangular block into a larger lower triangular packed matrix
+  !---------------------------------------------------------------------
+  subroutine insert(block, supmat, i, j, nrow, ncol)
+    integer(int32), intent(in)    :: i, j, nrow, ncol
+    real(real64),   intent(in)    :: block(nrow, ncol)
+    real(real64),   intent(inout) :: supmat(*)
+
+    integer(int32) :: k, l, ij, ijskip
+
+    ij = (i * (i - 1)) / 2 + j
+    ijskip = i - ncol - 1
+    do k = 1, nrow
+      do l = 1, ncol
+        supmat(ij) = block(k, l)
+        ij = ij + 1
+      end do
+      ij = ij + ijskip + k
+    end do
+  end subroutine insert
+
+  !---------------------------------------------------------------------
+  ! INSRTD: Inserts diagonal symmetry-packed block into larger symmetry-packed matrix
+  !---------------------------------------------------------------------
+  subroutine insrtd(block, supmat, i, n)
+    integer(int32), intent(in)    :: i, n
+    real(real64),   intent(in)    :: block(*)
+    real(real64),   intent(inout) :: supmat(*)
+
+    integer(int32) :: k, l, kk, kl, ij
+
+    ij = (i * (i + 1)) / 2
+    do k = 1, n
+      kk = (k * (k - 1)) / 2
+      do l = 1, k
+        kl = kk + l
+        supmat(ij) = block(kl)
+        ij = ij + 1
+      end do
+      ij = ij + i - 1
+    end do
+  end subroutine insrtd
+
 end module linalg
 
 !=======================================================================
@@ -1075,3 +1313,91 @@ subroutine hesvec(h, n, nn, scr, root, eta, scrv, vec, *)
   call mod_hesvec(h, n, nn, scr, root, eta, scrv, vec, ierr)
   if (ierr /= 0) return 1
 end subroutine hesvec
+
+subroutine cdct(c, d, dd, nvec, nbas, n2bas)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_cdct => cdct
+  implicit none
+  integer(int32), intent(in)  :: nvec, nbas, n2bas
+  real(real64),   intent(in)  :: c(nbas, nvec), d(nvec)
+  real(real64),   intent(out) :: dd(n2bas)
+  call mod_cdct(c, d, dd, nvec, nbas, n2bas)
+end subroutine cdct
+
+subroutine ctsc(c, s, scrat, ss, nbas, nvec)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_ctsc => ctsc
+  implicit none
+  integer(int32), intent(in)    :: nbas, nvec
+  real(real64),   intent(in)    :: c(nbas, nvec)
+  real(real64),   intent(in)    :: s(*)
+  real(real64),   intent(out)   :: scrat(nbas, nvec)
+  real(real64),   intent(out)   :: ss(*)
+  call mod_ctsc(c, s, scrat, ss, nbas, nvec)
+end subroutine ctsc
+
+subroutine csct(c, s, scrat, ss, nbas, nvec)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_csct => csct
+  implicit none
+  integer(int32), intent(in)    :: nbas, nvec
+  real(real64),   intent(in)    :: c(nvec, nbas)
+  real(real64),   intent(in)    :: s(*)
+  real(real64),   intent(out)   :: scrat(nbas, nvec)
+  real(real64),   intent(out)   :: ss(*)
+  call mod_csct(c, s, scrat, ss, nbas, nvec)
+end subroutine csct
+
+subroutine pcct(p, c, psinv, nvec, nbas, n2bas)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_pcct => pcct
+  implicit none
+  integer(int32), intent(in)  :: nvec, nbas, n2bas
+  real(real64),   intent(in)  :: p(n2bas), c(nbas, nvec)
+  real(real64),   intent(out) :: psinv(nbas, nbas)
+  call mod_pcct(p, c, psinv, nvec, nbas, n2bas)
+end subroutine pcct
+
+subroutine dmpab(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_dmpab => dmpab
+  implicit none
+  integer(int32), intent(in)  :: na, ma, namx, mamx
+  integer(int32), intent(in)  :: nb, mb, nbmx, mbmx
+  integer(int32), intent(in)  :: ncmx, mcmx
+  real(real64),   intent(in)  :: a(namx, mamx), b(nbmx, mbmx)
+  real(real64),   intent(out) :: c(ncmx, mcmx)
+  call mod_dmpab(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+end subroutine dmpab
+
+subroutine dmpatb(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_dmpatb => dmpatb
+  implicit none
+  integer(int32), intent(in)  :: na, ma, namx, mamx
+  integer(int32), intent(in)  :: nb, mb, nbmx, mbmx
+  integer(int32), intent(in)  :: ncmx, mcmx
+  real(real64),   intent(in)  :: a(namx, mamx), b(nbmx, mbmx)
+  real(real64),   intent(out) :: c(ncmx, mcmx)
+  call mod_dmpatb(a, na, ma, namx, mamx, b, nb, mb, nbmx, mbmx, c, ncmx, mcmx)
+end subroutine dmpatb
+
+subroutine insert(block, supmat, i, j, nrow, ncol)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_insert => insert
+  implicit none
+  integer(int32), intent(in)    :: i, j, nrow, ncol
+  real(real64),   intent(in)    :: block(nrow, ncol)
+  real(real64),   intent(inout) :: supmat(*)
+  call mod_insert(block, supmat, i, j, nrow, ncol)
+end subroutine insert
+
+subroutine insrtd(block, supmat, i, n)
+  use iso_fortran_env, only: real64, int32
+  use linalg,          only: mod_insrtd => insrtd
+  implicit none
+  integer(int32), intent(in)    :: i, n
+  real(real64),   intent(in)    :: block(*)
+  real(real64),   intent(inout) :: supmat(*)
+  call mod_insrtd(block, supmat, i, n)
+end subroutine insrtd
