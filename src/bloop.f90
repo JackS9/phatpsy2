@@ -1,6 +1,6 @@
-module phatpsy_bloop_mod
+module bloop
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
   implicit none
   private
   public :: run_bloop
@@ -337,4 +337,4 @@ contains
 5100 format(f10.5,$)
   end subroutine run_bloop
 
-end module phatpsy_bloop_mod
+end module bloop

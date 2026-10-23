@@ -1,8 +1,8 @@
-! src/phatpsy_cli.f90
+! src/cli.f90
 program phatpsy_cli
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
-  use phatpsy_contrl_mod
+  use state
+  use contrl
   implicit none
 
   integer(int32) :: isp

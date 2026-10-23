@@ -1,11 +1,23 @@
 import numpy as np
 import _phatpsy_core as core
 
+# Backward-compatibility aliases for legacy module names
+if hasattr(core, "state") and not hasattr(core, "phatpsy_state_mod"):
+    core.phatpsy_state_mod = core.state
+if hasattr(core, "contrl") and not hasattr(core, "phatpsy_contrl_mod"):
+    core.phatpsy_contrl_mod = core.contrl
+if hasattr(core, "scf") and not hasattr(core, "phatpsy_scf_mod"):
+    core.phatpsy_scf_mod = core.scf
+if hasattr(core, "analys") and not hasattr(core, "phatpsy_analys_mod"):
+    core.phatpsy_analys_mod = core.analys
+if hasattr(core, "integrals") and not hasattr(core, "phatpsy_integrals_mod"):
+    core.phatpsy_integrals_mod = core.integrals
+
 class PhatpsyDriver:
     """Hybrid Python orchestrator replacing main.f and contrl.f."""
 
     def __init__(self):
-        core.phatpsy_state_mod.init_block_data_and_defaults()
+        core.state.init_block_data_and_defaults()
 
     def run_deck(self, deck, custom_damping_hook=None):
         """
@@ -121,8 +133,8 @@ class PhatpsyDriver:
 
     def run_from_stdin(self, custom_damping_hook=None, deck=None):
         from phatpsy.state import extract_calculation_state
-        state = core.phatpsy_state_mod
-        contrl = core.phatpsy_contrl_mod
+        state = core.state
+        contrl = core.contrl
 
         # 0. Initialize block data and defaults
         state.init_block_data_and_defaults()

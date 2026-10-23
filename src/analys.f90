@@ -1,6 +1,7 @@
-module phatpsy_analys_mod
+module analys
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
+  use lowdin, only: run_lowdin
   implicit none
   private
   public :: run_analys, run_chgan, USE_LAPACK_FIT
@@ -28,7 +29,7 @@ contains
     if (.not. USE_LAPACK_FIT) then
       vinv   = 0.0d0
       scrat1 = 0.0d0
-      call LOWDIN(vmat_packed, vinv, scrat1, nfit, 20, 0, qindef)
+      call run_lowdin(vmat_packed, vinv, scrat1, nfit, 20, 0, qindef)
       if (qindef) return
       vcoef(1) = sumocc
       do i = 2, nvterm
@@ -349,4 +350,4 @@ contains
             '    NET CHARGE..........',f9.4)
   end subroutine run_chgan
 
-end module phatpsy_analys_mod
+end module analys

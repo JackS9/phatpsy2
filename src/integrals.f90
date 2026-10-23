@@ -1,6 +1,6 @@
-module phatpsy_integrals_mod
+module integrals
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
   implicit none
   private
   public :: run_oneint, run_twoint, run_fokmat, USE_IN_MEMORY_TEI, clear_tei_cache
@@ -355,4 +355,4 @@ contains
     end if
   end subroutine run_fokmat
 
-end module phatpsy_integrals_mod
+end module integrals

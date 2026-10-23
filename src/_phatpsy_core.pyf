@@ -1,6 +1,6 @@
 python module _phatpsy_core
     interface
-        module phatpsy_state_mod
+        module state
             use iso_fortran_env, only: real64, real32, int32
             integer(kind=int32) :: natom, nelem, norbt, mstot, ncycl
             real(kind=real64) :: tmole, totke, totpe, zzpot, deltae, cdamp, vdamp
@@ -65,9 +65,9 @@ python module _phatpsy_core
                 integer intent(in) :: m
                 real(kind=real64) intent(out), dimension(m) :: out_anorm
             end subroutine get_anormx
-        end module phatpsy_state_mod
+        end module state
 
-        module phatpsy_contrl_mod
+        module contrl
             use iso_fortran_env, only: real64, real32, int32
             subroutine contrl_read_control_input(eof_reached)
                 logical intent(out) :: eof_reached
@@ -83,28 +83,28 @@ python module _phatpsy_core
             subroutine contrl_step_scf(done_after_scf)
                 logical intent(out) :: done_after_scf
             end subroutine contrl_step_scf
-        end module phatpsy_contrl_mod
+        end module contrl
 
-        module phatpsy_scf_mod
+        module scf
             use iso_fortran_env, only: real64, int32
             logical :: use_lapack_eig
             real(kind=real64) :: fock_mix_alpha
-        end module phatpsy_scf_mod
+        end module scf
 
-        module phatpsy_analys_mod
+        module analys
             logical :: use_lapack_fit
-        end module phatpsy_analys_mod
+        end module analys
 
-        module phatpsy_integrals_mod
+        module integrals
             logical :: use_in_memory_tei
             subroutine clear_tei_cache
             end subroutine clear_tei_cache
-        end module phatpsy_integrals_mod
+        end module integrals
 
-        module phatpsy_ewmo_mod
+        module ewmo
             use iso_fortran_env, only: real64, int32
             logical(kind=1) :: qnopop_ewmo
             logical :: use_lowdin_ewmo
-        end module phatpsy_ewmo_mod
+        end module ewmo
     end interface
 end python module _phatpsy_core

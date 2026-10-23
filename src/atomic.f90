@@ -1,6 +1,7 @@
-module phatpsy_atomic_mod
+module atomic
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
+  use lowdin, only: run_lowdin
   implicit none
   private
   public :: run_atomic_element
@@ -193,7 +194,7 @@ contains
       call write_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
       call write_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
       stovl_bak = stovl
-      call LOWDIN(stovl, ontran, scrat1, MSTO, MSTO, 0, qindef)
+      call run_lowdin(stovl, ontran, scrat1, MSTO, MSTO, 0, qindef)
       if (qindef) call BOMB(0)
       stovl = stovl_bak
       do ij = 1, M2STO
@@ -578,4 +579,4 @@ contains
     if (allocated(stovl_bak)) deallocate(stovl_bak, stevec_bak, eval_bak, occ_bak)
   end subroutine run_atomic_element
 
-end module phatpsy_atomic_mod
+end module atomic

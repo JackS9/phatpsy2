@@ -1,10 +1,10 @@
-! src/phatpsy_lowdin_mod.f90
+! src/lowdin.f90
 !
 ! Modern Fortran 2018 Löwdin Orthonormal Transformation Module.
 ! Modernizes legacy lowdin.f using standard LAPACK DSPEV/DSPEVD eigensolvers
 ! and dynamic memory allocation, replacing legacy Jacobi iterations.
 !
-module phatpsy_lowdin_mod
+module lowdin
   use iso_fortran_env, only: real64, int32
   implicit none
   private
@@ -115,18 +115,4 @@ contains
     deallocate(w)
   end subroutine run_lowdin
 
-end module phatpsy_lowdin_mod
-
-! External legacy entry point callable from unconverted fixed-form Fortran
-subroutine LOWDIN(ovrlap, ontran, scrat1, nbas, ndim, itype, qindef)
-  use phatpsy_lowdin_mod, only: run_lowdin
-  use iso_fortran_env, only: real64, int32
-  implicit none
-  integer(int32),  intent(in)    :: nbas, ndim, itype
-  real(real64),    intent(inout) :: ovrlap((nbas * (nbas + 1)) / 2)
-  real(real64),    intent(out)   :: ontran(ndim, nbas)
-  real(real64),    intent(out)   :: scrat1(nbas, nbas)
-  logical(kind=1), intent(out)   :: qindef
-
-  call run_lowdin(ovrlap, ontran, scrat1, nbas, ndim, itype, qindef)
-end subroutine LOWDIN
+end module lowdin

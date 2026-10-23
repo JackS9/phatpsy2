@@ -1,6 +1,7 @@
-module phatpsy_scf_mod
+module scf
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
+  use lowdin, only: run_lowdin
   implicit none
   private
   public :: run_scf_element, USE_LAPACK_EIG, FOCK_MIX_ALPHA
@@ -136,12 +137,12 @@ contains
             stovl = stovl - pkpot(:, 1, isp)
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
           end if
-          call LOWDIN(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
+          call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
           if (qindef) then
             if (.not. QPSMET) call BOMB(0)
             stovl = stovl_bak
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
-            call LOWDIN(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
+            call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
             if (qindef) call BOMB(0)
           end if
           xpot2(:, isp) = pkpot(:, 3, isp)
@@ -229,7 +230,7 @@ contains
                           stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
                           onevec, MSTO, NORB)
               call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
-              call LOWDIN(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
+              call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
               if (.not. qindef) then
                 call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,     &
                            NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
@@ -478,4 +479,4 @@ contains
 28000 format(/' ... END OF SCF FOR ',a2,i2,' ...'//)
   end subroutine run_scf_element
 
-end module phatpsy_scf_mod
+end module scf

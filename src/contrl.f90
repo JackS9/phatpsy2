@@ -1,10 +1,10 @@
-module phatpsy_contrl_mod
+module contrl
   use iso_fortran_env, only: real64, real32, int32
-  use phatpsy_state_mod
-  use phatpsy_atomic_mod, only: run_atomic_element
-  use phatpsy_aloop_mod,  only: run_aloop_element
-  use phatpsy_scf_mod,    only: run_scf_element
-  use phatpsy_ewmo_mod,   only: run_ewmo
+  use state
+  use atomic, only: run_atomic_element
+  use aloop,  only: run_aloop_element
+  use scf,    only: run_scf_element
+  use ewmo,   only: run_ewmo
   implicit none
   public
 
@@ -590,4 +590,4 @@ contains
 39000 format(' ...',i6,'K BYTES OF CORE TO BE ALLOCATED FOR CONTRL ...')
   end subroutine print_banner_and_control_input
 
-end module phatpsy_contrl_mod
+end module contrl

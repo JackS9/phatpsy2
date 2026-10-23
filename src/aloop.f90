@@ -1,7 +1,7 @@
-module phatpsy_aloop_mod
+module aloop
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
-  use phatpsy_bloop_mod, only: run_bloop
+  use state
+  use bloop, only: run_bloop
   implicit none
   private
   public :: run_aloop_element
@@ -241,4 +241,4 @@ contains
                pkpota, projec, vfit2a, vcoefa, scrat)
   end subroutine run_aloop_element
 
-end module phatpsy_aloop_mod
+end module aloop

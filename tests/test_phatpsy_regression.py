@@ -196,8 +196,7 @@ def test_lapack_and_in_memory_tei_equivalence():
     in the Python hybrid extension reproduces the legacy solvers to < 1e-6 Hartree.
     """
     core = pytest.importorskip("_phatpsy_core")
-    # Verify module attributes are exposed to Python
-    assert hasattr(core, "phatpsy_state_mod")
-    assert hasattr(core, "phatpsy_scf_mod")
-    assert hasattr(core, "phatpsy_analys_mod")
-    assert hasattr(core, "phatpsy_integrals_mod")
+    assert hasattr(core, "state")
+    assert hasattr(core, "scf")
+    assert hasattr(core, "analys")
+    assert hasattr(core, "integrals")

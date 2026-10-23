@@ -32,6 +32,7 @@ set(REPLACED_LEGACY_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/trbak3.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eig.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/teindx.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/excite.f"
 )
 
 # Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
@@ -40,16 +41,16 @@ list(REMOVE_ITEM RETAINED_UTILITY_F_SOURCES ${REPLACED_LEGACY_FILES})
 
 # Modernized Fortran 2018 module sources (in dependency order)
 set(MODERN_F90_MODULES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_lowdin_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_state_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_integrals_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_analys_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_bloop_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_aloop_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_atomic_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_scf_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_ewmo_mod.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_contrl_mod.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/state.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/integrals.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/analys.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/bloop.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/aloop.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/atomic.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scf.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ewmo.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/contrl.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/modern_bridge.f90"
 )
 
@@ -58,7 +59,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set_source_files_properties(${ALL_LEGACY_F_SOURCES} PROPERTIES
         COMPILE_FLAGS "-std=legacy -fno-automatic -O2"
     )
-    set_source_files_properties(${MODERN_F90_MODULES} "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_cli.f90" PROPERTIES
+    set_source_files_properties(${MODERN_F90_MODULES} "${CMAKE_CURRENT_SOURCE_DIR}/src/cli.f90" PROPERTIES
         COMPILE_FLAGS "-std=gnu -ffree-line-length-none -Wall -Wno-compare-reals -Wno-unused-variable -fcheck=bounds -O2 -fPIC"
     )
     set_source_files_properties(${RETAINED_UTILITY_F_SOURCES} PROPERTIES
@@ -87,7 +88,7 @@ target_link_libraries(phatpsy_core_lib PUBLIC ${LAPACK_LIBRARIES} ${BLAS_LIBRARI
 add_executable(phatpsy
     ${MODERN_F90_MODULES}
     ${RETAINED_UTILITY_F_SOURCES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/phatpsy_cli.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cli.f90"
 )
 target_link_libraries(phatpsy PRIVATE ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES})
 set_target_properties(phatpsy PROPERTIES
@@ -96,6 +97,9 @@ set_target_properties(phatpsy PROPERTIES
 
 # ----------------------------------------------------------------------
 # Target 3: Python Hybrid Extension (_phatpsy_core via f2py)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python")
+    set(Python3_EXECUTABLE "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python")
+endif()
 set(Python3_FIND_VIRTUALENV FIRST)
 set(Python3_FIND_STRATEGY LOCATION)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

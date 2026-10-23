@@ -18,7 +18,7 @@ def run_no_potential_energy_curve():
 
     for r in bond_lengths:
         # Configure input parameters for NO molecule (Z_N = 7, Z_O = 8)
-        state = core.phatpsy_state_mod
+        state = core.state
         state.natom = 2
         state.nelem = 2
         # Setup diatomic coordinates along z-axis: N at origin, O at distance r
@@ -53,7 +53,7 @@ def run_nicluster_surface_benchmark():
     print("Initializing Ni(100) Surface Cluster Model...")
     driver = PhatpsyDriver()
     
-    state = core.phatpsy_state_mod
+    state = core.state
     # Configure bulk, surface, and four-fold hole cluster geometry
     state.natom = 5  # 4 surface/bulk Ni atoms + 1 adsorbate atom (NO)[cite: 13, 15]
     state.nelem = 3  # Ni, N, O

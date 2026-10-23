@@ -1,4 +1,4 @@
-module phatpsy_state_mod
+module state
   use iso_fortran_env, only: real64, real32, int32
   implicit none
   public
@@ -107,7 +107,6 @@ module phatpsy_state_mod
 
   integer(int32)  :: NCREAT, NANNIH, ICREAT(7), IANNIH(7)
   logical(kind=1) :: QTRANS
-  common /STATE/ NCREAT, NANNIH, ICREAT, IANNIH, QTRANS
 
   real(real64) :: TOTPE, TOTKE, TMOLE, ZZPOT, ETOT, VIRTHM, DELTAE
   common /ENERGY/ TOTPE, TOTKE, TMOLE, ZZPOT, ETOT, VIRTHM, DELTAE
@@ -945,4 +944,4 @@ contains
     ontran = mol_ws%elem_stream(ielem)%ontran
   end subroutine read_elem_core_matrices
 
-end module phatpsy_state_mod
+end module state

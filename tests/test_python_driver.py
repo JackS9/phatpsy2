@@ -64,7 +64,7 @@ def test_unpack_symmetric():
 
 def test_driver_observables_extraction():
     core = pytest.importorskip("_phatpsy_core")
-    state = core.phatpsy_state_mod
+    state = core.state
     state.init_block_data_and_defaults()
     state.natom = 2
     state.norbt = 10

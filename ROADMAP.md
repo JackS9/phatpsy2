@@ -81,6 +81,9 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Complete replacement of legacy matrix diagonalizers (EISPAK/Jacobi) with modern, standardized LAPACK calls (`DSPEVD`, `DSPEV`), dynamic workspaces, and modern Fortran 2018 (`phatpsy_lowdin_mod.f90`). Legacy diagonalizer files (`eispak.f`, `jacobi.f`, `tred3.f`, etc.) retired from modern build targets.
 - [x] **Pure In-Memory Storage**
   - Eliminate all legacy scratch file/tape units (`Phatpsy.DAUnit1`, `Unit2`, `Unit3`, `Unit4`, `Temp`, `Elem<IELEM>`) in favor of dynamic in-memory arrays and stream buffers. Zero binary disk scratch files are created during calculation.
+- [x] **Clean Fortran Module & Filename Standardization**
+  - Eliminate the `phatpsy_` prefix and `_mod` suffix across modern Fortran 2018 files and module declarations (e.g., `phatpsy_state_mod.f90` -> `state.f90` with `module state`, `phatpsy_contrl_mod.f90` -> `contrl.f90` with `module contrl`, etc.).
+  - Update CMake targets, f2py wrappers, Python driver/state accessors, and inter-module `use` statements.
 - [ ] **Modernize active legacy FORTRAN routines (*.f) to Fortran 2018 modules (*.f90)**
   - Audit and inventory the 109 legacy `src/*.f` routines to categorize into:
     - *Retire/Delete:* Obsolete EISPAK/Jacobi diagonalizers, card-reader I/O, and scratch tape routines.

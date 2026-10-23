@@ -4,8 +4,8 @@
 subroutine ONEINT(stovl, stkin, stpot, stpotx, lv, mv, vexp, &
                   n, l, eta, anorm, index_arr, cgc, qrealy)
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod, only: MSTO, M2STO, NVTERM, NSTO, NCGC
-  use phatpsy_integrals_mod, only: run_oneint
+  use state, only: MSTO, M2STO, NVTERM, NSTO, NCGC
+  use integrals, only: run_oneint
   implicit none
   real(real64),    intent(out) :: stovl(M2STO), stkin(M2STO), stpot(M2STO, NVTERM), stpotx(NVTERM)
   integer(int32),  intent(in)  :: lv(NVTERM), mv(NVTERM), n(NSTO), l(NSTO), index_arr(MSTO)
@@ -18,8 +18,8 @@ end subroutine ONEINT
 
 subroutine TWOINT(ntei, n, l, eta, s, w, index_arr, anorm, cgc, qrealy, teibuf)
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod, only: MSTO, NSTO, NNMX, NNMXM1, NCGC, LENBUF
-  use phatpsy_integrals_mod, only: run_twoint
+  use state, only: MSTO, NSTO, NNMX, NNMXM1, NCGC, LENBUF
+  use integrals, only: run_twoint
   implicit none
   integer(int32),  intent(out)   :: ntei
   integer(int32),  intent(in)    :: n(NSTO), l(NSTO), index_arr(MSTO)
@@ -32,8 +32,8 @@ end subroutine TWOINT
 
 subroutine FOKMAT(fc, fx, d, teibuf)
   use iso_fortran_env, only: real64
-  use phatpsy_state_mod, only: M2STO, ISPIN, LENBUF
-  use phatpsy_integrals_mod, only: run_fokmat
+  use state, only: M2STO, ISPIN, LENBUF
+  use integrals, only: run_fokmat
   implicit none
   real(real64), intent(out)   :: fc(M2STO, ISPIN), fx(M2STO, ISPIN)
   real(real64), intent(in)    :: d(M2STO, ISPIN)
@@ -46,8 +46,8 @@ subroutine ANALYS(stkin, stpot, stcoul, stexch, cpot2, zpot2, vfit2,    &
                   vcoef, vexp, lv, pkpot, xpot2, stevec, eval, occ,     &
                   gamma, index_arr, toten, tke, zzrep, stovl, charge, tcoul0)
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod, only: NATOM, MSTO, NORB, M2STO, NVTERM, ISPIN
-  use phatpsy_analys_mod, only: run_analys
+  use state, only: NATOM, MSTO, NORB, M2STO, NVTERM, ISPIN
+  use analys, only: run_analys
   implicit none
   real(real64),   intent(in)    :: stkin(M2STO), stpot(M2STO, NVTERM),      &
                                    stcoul(M2STO, ISPIN), stexch(M2STO, ISPIN), &
@@ -68,8 +68,8 @@ end subroutine ANALYS
 
 subroutine CHGAN(charge)
   use iso_fortran_env, only: real64
-  use phatpsy_state_mod, only: NATOM
-  use phatpsy_analys_mod, only: run_chgan
+  use state, only: NATOM
+  use analys, only: run_chgan
   implicit none
   real(real64), intent(in) :: charge(3, NATOM)
 

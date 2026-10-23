@@ -1,6 +1,7 @@
-module phatpsy_ewmo_mod
+module ewmo
   use iso_fortran_env, only: real64, int32
-  use phatpsy_state_mod
+  use state
+  use lowdin, only: run_lowdin
   implicit none
   private
   public :: run_ewmo, QNOPOP_EWMO, USE_LOWDIN_EWMO
@@ -91,7 +92,7 @@ contains
               end do
             end do
           end do
-          call LOWDIN(mol_ws%ovlp(1, isp), ontran, scrat1, NORBT, NORBT, 4, qindef)
+          call run_lowdin(mol_ws%ovlp(1, isp), ontran, scrat1, NORBT, NORBT, 4, qindef)
           if (qindef) call BOMB(17)
           call CTSC(ontran, mol_ws%ewmat(1, isp), scrat1, mol_ws%ewmat(1, isp), NORBT, NORBT)
         end if
@@ -132,7 +133,7 @@ contains
             end do
           end do
         else
-          call LOWDIN(mol_ws%ovlp(1, isp), ontran, scrat1, NORBT, NORBT, 2, qindef)
+          call run_lowdin(mol_ws%ovlp(1, isp), ontran, scrat1, NORBT, NORBT, 2, qindef)
           if (.not. qindef) then
             call DMPAB(ontran, NORBT, NORBT, NORBT, NORBT, evecmo(1, 1, isp), &
                        NORBT, NORBT, NORBT, NORBT, scrat1, NORBT, NORBT)
@@ -232,4 +233,39 @@ contains
 10000 format(/'     TOTAL',f9.4,f12.4)
   end subroutine run_ewmo
 
-end module phatpsy_ewmo_mod
+  subroutine EXCITE(occno, norb, ispin)
+    integer(int32), intent(in)    :: norb, ispin
+    real(real64),   intent(inout) :: occno(norb, ispin)
+
+    integer(int32) :: ncr, icr, iorb, isp, nan, ian
+    real(real64)   :: orbocc_local
+
+    orbocc_local = 0.5d0 * real(ispin, real64)
+    if (QTRANS) orbocc_local = 0.5d0 * orbocc_local
+
+    if (NCREAT > 0) then
+      do ncr = 1, NCREAT
+        icr = ICREAT(ncr)
+        iorb = abs(icr)
+        if (iorb >= 1 .and. iorb <= norb) then
+          isp = 1
+          if (icr < 0) isp = ispin
+          occno(iorb, isp) = occno(iorb, isp) + orbocc_local
+        end if
+      end do
+    end if
+
+    if (NANNIH > 0) then
+      do nan = 1, NANNIH
+        ian = IANNIH(nan)
+        iorb = abs(ian)
+        if (iorb >= 1 .and. iorb <= norb) then
+          isp = 1
+          if (ian < 0) isp = ispin
+          occno(iorb, isp) = occno(iorb, isp) - orbocc_local
+        end if
+      end do
+    end if
+  end subroutine EXCITE
+
+end module ewmo
