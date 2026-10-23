@@ -139,6 +139,24 @@ class phatpsy_symmetry_mod:
     @staticmethod
     def sympr2(p: npt.NDArray[np.float64], r: npt.NDArray[np.float64], s: npt.NDArray[np.float64], n: int, n2: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
+class phatpsy_density_mod:
+    @staticmethod
+    def denmat(evec: npt.NDArray[np.float64], occ: npt.NDArray[np.float64], nbas: int | None = None, n2bas: int | None = None, nvec: int | None = None) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def chrgbo(dens: npt.NDArray[np.float64], ovlp: npt.NDArray[np.float64], nbas: int, n2bas: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], float]: ...
+    @staticmethod
+    def mulpop(dens: npt.NDArray[np.float64], ovlp: npt.NDArray[np.float64], nbas: int, n2bas: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], float]: ...
+    @staticmethod
+    def averag(onemat: npt.NDArray[np.float64], denmat: npt.NDArray[np.float64], nbas: int | None = None, n2bas: int | None = None) -> float: ...
+    @staticmethod
+    def occmet(ontran: npt.NDArray[np.float64], occ: npt.NDArray[np.float64], norb: int | None = None, n2orb: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def neword(vector: npt.NDArray[np.float64], iorder: npt.NDArray[np.int32], nbas: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def wfct(nmx: int, nmnm1: int, n1: int, eta1: float, n2: int, eta2: float) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def sfct(nu: int, mumxp1: int, alpha: float) -> npt.NDArray[np.float64]: ...
+
 state: phatpsy_state_mod
 contrl: phatpsy_contrl_mod
 scf: phatpsy_scf_mod
@@ -148,5 +166,7 @@ ewmo: phatpsy_ewmo_mod
 modelpot: phatpsy_modelpot_mod
 linalg: phatpsy_linalg_mod
 symmetry: phatpsy_symmetry_mod
+density: phatpsy_density_mod
+
 
 

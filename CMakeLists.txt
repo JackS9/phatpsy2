@@ -20,6 +20,7 @@ set(MODERN_F90_MODULES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/modelpot.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/angular.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symmetry.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/density.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/elliptical.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/twocenter.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/integrals.f90"

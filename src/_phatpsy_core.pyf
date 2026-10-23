@@ -260,5 +260,63 @@ python module _phatpsy_core
                 real(kind=real64) intent(out), dimension(n, n), depend(n) :: scrat1, scrat2
             end subroutine sympr2
         end module symmetry
+
+        module density
+            use iso_fortran_env, only: real64, int32
+            subroutine denmat(dens, evec, occ, nbas, n2bas, nvec)
+                integer(kind=int32) optional, depend(evec) :: nbas = shape(evec, 0)
+                integer(kind=int32) optional, depend(nbas) :: n2bas = (nbas*(nbas+1))/2
+                integer(kind=int32) optional, depend(evec) :: nvec = shape(evec, 1)
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: evec
+                real(kind=real64) intent(in), dimension(nvec), depend(nvec) :: occ
+                real(kind=real64) intent(out), dimension(n2bas), depend(n2bas) :: dens
+            end subroutine denmat
+            subroutine chrgbo(dens, ovlp, popul, totpop, nbas, n2bas)
+                integer(kind=int32) intent(in) :: nbas
+                integer(kind=int32) optional, depend(dens) :: n2bas = shape(dens, 0)
+                real(kind=real64) intent(in,out), dimension(n2bas) :: dens
+                real(kind=real64) intent(in), dimension(n2bas), depend(n2bas) :: ovlp
+                real(kind=real64) intent(out), dimension(nbas), depend(nbas) :: popul
+                real(kind=real64) intent(out) :: totpop
+            end subroutine chrgbo
+            subroutine mulpop(dens, ovlp, popul, totpop, nbas, n2bas)
+                integer(kind=int32) intent(in) :: nbas
+                integer(kind=int32) optional, depend(dens) :: n2bas = shape(dens, 0)
+                real(kind=real64) intent(in,out), dimension(n2bas) :: dens
+                real(kind=real64) intent(in), dimension(n2bas), depend(n2bas) :: ovlp
+                real(kind=real64) intent(out), dimension(nbas), depend(nbas) :: popul
+                real(kind=real64) intent(out) :: totpop
+            end subroutine mulpop
+            function averag(onemat, denmat, nbas, n2bas) result(val)
+                integer optional, depend(onemat) :: n2bas = shape(onemat, 0)
+                integer optional, depend(n2bas) :: nbas = (int)(sqrt(8.0*n2bas+1.0)-1.0)/2
+                double precision intent(in), dimension(n2bas) :: onemat, denmat
+                double precision :: val
+            end function averag
+            subroutine occmet(ontran, occ, stovl, norb, n2orb)
+                integer(kind=int32) optional, depend(ontran) :: norb = shape(ontran, 0)
+                integer(kind=int32) optional, depend(norb) :: n2orb = (norb*(norb+1))/2
+                real(kind=real64) intent(in,out), dimension(norb, norb) :: ontran
+                real(kind=real64) intent(in), dimension(norb), depend(norb) :: occ
+                real(kind=real64) intent(out), dimension(n2orb), depend(n2orb) :: stovl
+            end subroutine occmet
+            subroutine neword(vector, scrat, iorder, nbas)
+                integer(kind=int32) optional, depend(vector) :: nbas = shape(vector, 0)
+                real(kind=real64) intent(in,out), dimension(nbas) :: vector
+                real(kind=real64) intent(out), dimension(nbas), depend(nbas) :: scrat
+                integer(kind=int32) intent(in), dimension(nbas), depend(nbas) :: iorder
+            end subroutine neword
+            subroutine wfct(w, s, nmx, nmnm1, n1, eta1, n2, eta2)
+                integer(kind=int32) intent(in) :: nmx, nmnm1, n1, n2
+                real(kind=real64) intent(in) :: eta1, eta2
+                real(kind=real64) intent(out), dimension(nmnm1), depend(nmnm1) :: w
+                real(kind=real64) intent(out), dimension(nmx), depend(nmx) :: s
+            end subroutine wfct
+            subroutine sfct(s, nu, mumxp1, alpha)
+                integer(kind=int32) intent(in) :: nu, mumxp1
+                real(kind=real64) intent(in) :: alpha
+                real(kind=real64) intent(out), dimension(mumxp1), depend(mumxp1) :: s
+            end subroutine sfct
+        end module density
     end interface
 end python module _phatpsy_core
