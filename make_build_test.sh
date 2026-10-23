@@ -24,6 +24,9 @@ else
     PYTHONPATH=. python3 -m phatpsy examples/n2.stdin -o data/n2_python_driver.json
 fi
 
+# Ag13 cluster smoke test
+./build/bin/phatpsy < examples/ag13dz.stdin > /dev/null
+
 # 3. Run the automated pytest regression suite
 if [ -f ".venv/bin/pytest" ]; then
     PYTHONPATH=. .venv/bin/pytest tests/ -v
