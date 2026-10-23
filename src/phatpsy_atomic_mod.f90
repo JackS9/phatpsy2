@@ -23,7 +23,8 @@ contains
     real(real64),   allocatable :: eta(:), anorm(:), stovl(:), stkin(:),     &
       stpot(:,:), stpotx(:), vexp(:), vcoef(:), sthmat(:), ontran(:,:),      &
       stevec(:,:,:), eval(:,:), occ(:,:), fock(:,:), gamma(:,:), zpot2(:),   &
-      scrat1(:,:), scrat2(:,:), vfit2(:), cpot2(:), pkpot(:,:,:)
+      scrat1(:,:), scrat2(:,:), vfit2(:), cpot2(:), pkpot(:,:,:),            &
+      stovl_bak(:), stevec_bak(:,:,:), eval_bak(:,:), occ_bak(:,:)
 
     ! Local scalars and small fixed arrays from atomic.f
     character(len=1), parameter :: LTYPE(6) = ['S', 'P', 'D', 'F', 'G', 'H']
@@ -54,6 +55,7 @@ contains
     if (allocated(n)) deallocate(n, l, m0, eta, anorm, stovl, stkin, stpot, stpotx, &
                                  lv, mv, vexp, vcoef, sthmat, ontran, stevec, eval,  &
                                  occ, fock, gamma, zpot2, scrat1, scrat2, vfit2, cpot2, pkpot)
+    if (allocated(stovl_bak)) deallocate(stovl_bak, stevec_bak, eval_bak, occ_bak)
 
     ! Allocate element-level workspace arrays
     allocate(n(NSTO), l(NSTO), m0(NSTO), eta(NSTO), anorm(NSTO))
@@ -64,6 +66,8 @@ contains
     allocate(fock(N2ORB, ISPIN), gamma(NORB, ISPIN), zpot2(M2STO))
     allocate(scrat1(MSTO, MSTO), scrat2(MSTO, 9), vfit2(NVTERM))
     allocate(cpot2(M2STO), pkpot(M2STO, 6, ISPIN))
+    allocate(stovl_bak(M2STO))
+    allocate(stevec_bak(MSTO, NORB, ISPIN), eval_bak(NORB, ISPIN), occ_bak(NORB, ISPIN))
 
     ! Initialize defaults (&ELEM)
     qmnbas = .false.
@@ -188,12 +192,10 @@ contains
                   anorm, mol_ws%index_arr, mol_ws%cgc, qrealy)
       write(IUNIT0) latom, nucz, n, l, eta, anorm
       write(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
-      write(IUTEMP) stovl
-      rewind(IUTEMP)
+      stovl_bak = stovl
       call LOWDIN(stovl, ontran, scrat1, MSTO, MSTO, 0, qindef)
       if (qindef) call BOMB(0)
-      read(IUTEMP) stovl
-      rewind(IUTEMP)
+      stovl = stovl_bak
       do ij = 1, M2STO
         sthmat(ij) = stkin(ij) - znuc * stpot(ij, 1)
       end do
@@ -431,8 +433,9 @@ contains
       !-----------------------------------------------------------------
       if (neqat > 0) then
         if (QRSTRT .and. QNWVEC) then
-          write(IUTEMP) stevec, eval, occ
-          rewind(IUTEMP)
+          stevec_bak = stevec
+          eval_bak   = eval
+          occ_bak    = occ
         end if
         do ieqat = 1, neqat
           IATOM = IATOM + 1
@@ -456,8 +459,9 @@ contains
 
           if (.not. (QRSTRT .and. .not. QNWVEC)) then
             if (QRSTRT) then
-              read(IUTEMP) stevec, eval, occ
-              rewind(IUTEMP)
+              stevec = stevec_bak
+              eval   = eval_bak
+              occ    = occ_bak
             end if
             if (isym /= 0) then
               call SYMOP(isym, ixyz, stevec, vcoef, l, lv, mol_ws%d, &
@@ -526,8 +530,9 @@ contains
           end if
 
           if (QRSTRT .and. QNWVEC .and. ieqat < neqat) then
-            write(IUTEMP) stevec, eval, occ
-            rewind(IUTEMP)
+            stevec_bak = stevec
+            eval_bak   = eval
+            occ_bak    = occ
           end if
         end do
       end if
@@ -571,6 +576,7 @@ contains
     if (allocated(n)) deallocate(n, l, m0, eta, anorm, stovl, stkin, stpot, stpotx, &
                                  lv, mv, vexp, vcoef, sthmat, ontran, stevec, eval,  &
                                  occ, fock, gamma, zpot2, scrat1, scrat2, vfit2, cpot2, pkpot)
+    if (allocated(stovl_bak)) deallocate(stovl_bak, stevec_bak, eval_bak, occ_bak)
   end subroutine run_atomic_element
 
 end module phatpsy_atomic_mod

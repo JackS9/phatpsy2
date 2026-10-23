@@ -165,8 +165,13 @@ module phatpsy_state_mod
   !---------------------------------------------------------------------
   ! 3. Modern Allocatable System Workspace (Replaces IC(1)..IC(28) in main.f)
   !---------------------------------------------------------------------
+  type :: PairMat
+    logical :: populated = .false.
+    real(real64), allocatable :: mat(:,:)
+  end type PairMat
+
   type :: MolecularWorkspace
-    integer(int32), allocatable :: index_arr(:)     ! Formerly JCORE(J1)
+    integer(int32), allocatable :: index_arr(:)      ! Formerly JCORE(J1)
     integer(int32), allocatable :: krec(:)          ! Formerly JCORE(J2)
     real(real64),   allocatable :: cgc(:)           ! Formerly CORE(IC(3))
     real(real64),   allocatable :: ylmnrm(:)        ! Formerly CORE(IC(4))
@@ -194,6 +199,12 @@ module phatpsy_state_mod
     real(real64),   allocatable :: evalx(:,:)       ! Formerly CORE(IC(26))
     real(real64),   allocatable :: occx(:,:)        ! Formerly CORE(IC(27))
     real(real64),   allocatable :: evecx(:,:,:)     ! Formerly CORE(IC(28))
+
+    ! In-memory caches replacing legacy scratch units (Phatpsy.DAUnit1 and Phatpsy.Unit2)
+    type(PairMat), allocatable :: pair_stovlp(:)
+    type(PairMat), allocatable :: pair_stvab(:)
+    integer(int32) :: stvab_count = 0
+    integer(int32) :: stvab_pos   = 0
   end type MolecularWorkspace
 
   type(MolecularWorkspace), target :: mol_ws
@@ -306,7 +317,8 @@ contains
       mol_ws%ovlp, mol_ws%ewmat, mol_ws%popul, mol_ws%coord, &
       mol_ws%label, mol_ws%charge, mol_ws%scrat, mol_ws%iatomx, &
       mol_ws%nx, mol_ws%lx, mol_ws%mlx, mol_ws%etax, &
-      mol_ws%anormx, mol_ws%evalx, mol_ws%occx, mol_ws%evecx)
+      mol_ws%anormx, mol_ws%evalx, mol_ws%occx, mol_ws%evecx, &
+      mol_ws%pair_stovlp, mol_ws%pair_stvab)
 
     allocate(mol_ws%index_arr(ndxdim))
     allocate(mol_ws%krec(N2ATOM))
@@ -336,6 +348,10 @@ contains
     allocate(mol_ws%evalx(NORBT, ISPIN))
     allocate(mol_ws%occx(NORBT, ISPIN))
     allocate(mol_ws%evecx(MSTOT, NORBT, ISPIN))
+    allocate(mol_ws%pair_stovlp(N2ATOM))
+    allocate(mol_ws%pair_stvab(max(10, NATOM * NATOM * 2)))
+    mol_ws%stvab_count = 0
+    mol_ws%stvab_pos   = 0
   end subroutine compute_derived_dimensions_and_allocate
 
   subroutine get_evalx(out_eval, n, nspin)

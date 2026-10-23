@@ -119,9 +119,12 @@ contains
                         bnorm, NSTOB, rab, mol_ws%a, mol_ws%b, mol_ws%omegai, &
                         mol_ws%omegaj, scrat4, mol_ws%index_arr, mol_ws%ylmnrm)
             call ROTSAB(stovlp, ovrlap, la, NSTO, MSTO, lb, NSTOB, MSTOB, mol_ws%d)
-            write(IUNIT1, rec=NEXREC) stovlp
-            mol_ws%krec(ijatom) = NEXREC
-            inquire(IUNIT1, nextrec=NEXREC)
+            mol_ws%pair_stovlp(ijatom)%populated = .true.
+            if (.not. allocated(mol_ws%pair_stovlp(ijatom)%mat)) then
+              allocate(mol_ws%pair_stovlp(ijatom)%mat(MSTO, MSTOB))
+            end if
+            mol_ws%pair_stovlp(ijatom)%mat = stovlp
+            mol_ws%krec(ijatom) = ijatom
             NBYTES = NBYTES + 8 * MSTO * MSTOB
             NLRECS = NLRECS + 1
             if (QDEBUG) then
@@ -129,8 +132,7 @@ contains
               call PUTMAT(stovlp, MSTO, MSTOB, IUDUMP)
             end if
           else
-            jrec = mol_ws%krec(ijatom)
-            read(IUNIT1, rec=jrec) stovlp
+            stovlp = mol_ws%pair_stovlp(ijatom)%mat
           end if
 
           !---------------------------------------------------------------
@@ -203,7 +205,22 @@ contains
                           mol_ws%omegai, mol_ws%omegaj, mol_ws%a, mol_ws%b,   &
                           scrat4, mol_ws%index_arr, anorm, mol_ws%ylmnrm,     &
                           mol_ws%d, mol_ws%cgc, qrealy)
-              write(IUNIT2) stvab
+              mol_ws%stvab_count = mol_ws%stvab_count + 1
+              if (mol_ws%stvab_count > size(mol_ws%pair_stvab)) then
+                block
+                  type(PairMat), allocatable :: tmp_stvab(:)
+                  integer(int32) :: old_sz
+                  old_sz = size(mol_ws%pair_stvab)
+                  allocate(tmp_stvab(old_sz * 2))
+                  tmp_stvab(1:old_sz) = mol_ws%pair_stvab
+                  call move_alloc(tmp_stvab, mol_ws%pair_stvab)
+                end block
+              end if
+              mol_ws%pair_stvab(mol_ws%stvab_count)%populated = .true.
+              if (.not. allocated(mol_ws%pair_stvab(mol_ws%stvab_count)%mat)) then
+                allocate(mol_ws%pair_stvab(mol_ws%stvab_count)%mat(M2STO, NVTRMB))
+              end if
+              mol_ws%pair_stvab(mol_ws%stvab_count)%mat = stvab
               if (QDEBUG) then
                 do nv = 1, NVTRMB
                   write(IUDUMP, 4000) IATOM, JATOM, nv
@@ -211,7 +228,8 @@ contains
                 end do
               end if
             else
-              read(IUNIT2) stvab
+              mol_ws%stvab_pos = mol_ws%stvab_pos + 1
+              stvab = mol_ws%pair_stvab(mol_ws%stvab_pos)%mat
             end if
 
             ! Punch multicenter projection tail if requested

@@ -85,11 +85,8 @@ contains
     QFIRST = (MXCYCL /= 0)
     QLAST  = (MXCYCL <= 1)
 
-    open(unit=IUNIT2, file='Phatpsy.Unit2', form='UNFORMATTED')
     open(unit=IUNIT3, file='Phatpsy.Unit3', form='UNFORMATTED')
     open(unit=IUNIT4, file='Phatpsy.Unit4', form='UNFORMATTED')
-    open(unit=IUTEMP, file='Phatpsy.Temp',  form='UNFORMATTED')
-    open(unit=IUCSF,  file='Phatpsy.CSF',   form='UNFORMATTED')
 
     elem_loop: do
       QNWBAS = (.not. QRSTRT)
@@ -176,10 +173,6 @@ contains
         NBYTES = NRECS * LENREC
       end if
 
-      inquire(unit=IUNIT1, opened=isOpen)
-      if (isOpen) close(unit=IUNIT1)
-      open(unit=IUNIT1, file='Phatpsy.DAUnit1', access='DIRECT', &
-           recl=LENREC, status=merge('OLD    ', 'UNKNOWN', logical(QCMPTD)))
       write(IW, 13000) NRECS, LENREC, IUNIT1
 
       OLDTE  = TMOLE
@@ -190,10 +183,7 @@ contains
         QSTALL = ((CDAMP >= CDMP90) .and. (CDAMP < REALS(1)))
         if (QSTALL) CDAMP = REALS(1)
       end if
-      if (.not. QCMPTD) then
-        write(IUNIT1, rec=1) mol_ws%krec
-        inquire(IUNIT1, nextrec=NEXREC)
-      end if
+      NEXREC = 2
       QFIRST = (MXCYCL /= 0)
       QLAST  = (MXCYCL <= 1)
     end if
@@ -243,7 +233,6 @@ contains
     IATOM  = 0; IORBT = 0; JSTOT = 0
     NBYTES = 8 * N2ATOM
     ZNSUM  = ZERO; ELSUM = ZERO; ELDIF = ZERO
-    if (QCMPTD) read(IUNIT1, rec=1) mol_ws%krec
 
     ! Run ALOOP across all elements
     do IELEM = 1, NELEM
@@ -257,14 +246,13 @@ contains
       rewind(IUNIT0)
     end do
 
-    rewind(IUNIT2); rewind(IUNIT3); rewind(IUNIT4)
+    mol_ws%stvab_pos = 0; rewind(IUNIT3); rewind(IUNIT4)
     if (QPRINT) write(IW, 12000) IUNIT4
     ELECS(ISPIN) = ZERO
     ELECS(1)     = HALF * (ELSUM + ELDIF)
     ELECS(ISPIN) = ELECS(ISPIN) + HALF * (ELSUM - ELDIF)
 
     if (.not. QCMPTD) then
-      write(IUNIT1, rec=1) mol_ws%krec
       write(IW, 13500) NEXREC - 1, LENREC, LENREC * (NEXREC - 1) / 1024, IUNIT1
       write(IW, 13600) NLRECS, NBYTES / 1024
       write(IW, 12000) IUNIT2

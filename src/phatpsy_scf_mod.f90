@@ -42,6 +42,13 @@ contains
       scrat1(:,:,:), scrat2(:,:), tranx(:,:,:), vfit2(:), vcoef(:),          &
       pkpot(:,:,:)
 
+    ! In-memory backups eliminating IUTEMP
+    real(real64), allocatable :: stovl_bak(:), ontran_bak(:,:)
+    real(real64), allocatable :: stevec_bak(:,:,:), eval_bak(:,:), occ_bak(:,:), &
+                                 pkpot_bak(:,:,:), aofock_bak(:,:), gamma_bak(:,:), &
+                                 vcoef_bak(:)
+    real(real64) :: toten_bak
+
     real(real64), parameter :: ESCALE = 1.55d0
     character(len=2) :: latom
     integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb
@@ -61,7 +68,9 @@ contains
                  sthmat, ontran, cpot2, xpot2, zpot2, stden, stfock,  &
                  stfock_prev, stcoul, stexch, onfock, onevec, stevec, &
                  oldvec, eval, occ, aofock, gamma, projec, iorder,    &
-                 scrat1, scrat2, tranx, vfit2, vcoef, pkpot)
+                 scrat1, scrat2, tranx, vfit2, vcoef, pkpot,          &
+                 stovl_bak, ontran_bak, stevec_bak, eval_bak, occ_bak,&
+                 pkpot_bak, aofock_bak, gamma_bak, vcoef_bak)
     end if
 
     allocate(n(NSTO), l(NSTO), eta(NSTO), anorm(NSTO))
@@ -77,6 +86,10 @@ contains
     allocate(gamma(NORB, ISPIN), projec(MSTO, MSTO, ISPIN), iorder(NORB, ISPIN))
     allocate(scrat1(MSTO, MSTO, 2), scrat2(MSTO, 9), tranx(MSTO, MSTO, ISPIN))
     allocate(vfit2(NVTERM), vcoef(NVTERM), pkpot(M2STO, 6, ISPIN))
+    allocate(stovl_bak(M2STO), ontran_bak(MSTO, MSTO))
+    allocate(stevec_bak(MSTO, NORB, ISPIN), eval_bak(NORB, ISPIN), occ_bak(NORB, ISPIN))
+    allocate(pkpot_bak(M2STO, 6, ISPIN), aofock_bak(N2ORB, ISPIN), gamma_bak(NORB, ISPIN))
+    allocate(vcoef_bak(NVTERM))
 
     rewind(IUNIT0)
 
@@ -90,8 +103,8 @@ contains
       read(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
       read(IUNIT0) sthmat, ontran
       rewind(IUNIT0)
-      write(IUTEMP) stovl, ontran
-      rewind(IUTEMP)
+      stovl_bak  = stovl
+      ontran_bak = ontran
 
       iunitx = merge(IUNIT3, IUNIT4, logical(QATOM))
       read(iunitx) QFLAGS, neqat, x, y, z, stevec, eval, occ, aofock, gamma, &
@@ -121,8 +134,7 @@ contains
 
         ! Construct pseudometric and Löwdin transformation matrix TRANX
         do isp = 1, ISPIN
-          read(IUTEMP) stovl
-          rewind(IUTEMP)
+          stovl = stovl_bak
           if (QPSMET) then
             stovl = stovl - pkpot(:, 1, isp)
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
@@ -130,8 +142,7 @@ contains
           call LOWDIN(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
           if (qindef) then
             if (.not. QPSMET) call BOMB(0)
-            read(IUTEMP) stovl
-            rewind(IUTEMP)
+            stovl = stovl_bak
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
             call LOWDIN(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
             if (qindef) call BOMB(0)
@@ -226,14 +237,14 @@ contains
               if (.not. qindef) then
                 call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,     &
                            NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
-                read(IUTEMP) stovl, ontran
-                rewind(IUTEMP)
+                stovl  = stovl_bak
+                ontran = ontran_bak
               end if
             end if
 
             if (qnrmlz) then
-              read(IUTEMP) stovl, ontran
-              rewind(IUTEMP)
+              stovl  = stovl_bak
+              ontran = ontran_bak
               call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
             end if
 
@@ -327,17 +338,31 @@ contains
       ! Loop over symmetry-equivalent atoms (IEQAT = 1..NEQAT)
       !-----------------------------------------------------------------
       if (neqat > 0) then
-        write(IUTEMP) stovl, ontran
-        write(IUTEMP) stevec, eval, occ, pkpot, aofock, gamma, vcoef, toten
-        zzrep0 = zzrep
-        rewind(IUTEMP)
+        stovl_bak  = stovl
+        ontran_bak = ontran
+        stevec_bak = stevec
+        eval_bak   = eval
+        occ_bak    = occ
+        pkpot_bak  = pkpot
+        aofock_bak = aofock
+        gamma_bak  = gamma
+        vcoef_bak  = vcoef
+        toten_bak  = toten
+        zzrep0     = zzrep
 
         do ieqat = 1, neqat
           read(IUNIT4) QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
                        gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
-          read(IUTEMP) stovl, ontran
-          read(IUTEMP) stevec, eval, occ, pkpot, aofock, gamma, vcoef, toten
-          rewind(IUTEMP)
+          stovl  = stovl_bak
+          ontran = ontran_bak
+          stevec = stevec_bak
+          eval   = eval_bak
+          occ    = occ_bak
+          pkpot  = pkpot_bak
+          aofock = aofock_bak
+          gamma  = gamma_bak
+          vcoef  = vcoef_bak
+          toten  = toten_bak
 
           mol_ws%charge(2, IATOM) = mol_ws%charge(2, IATOM - 1)
           mol_ws%charge(3, IATOM) = mol_ws%charge(3, IATOM - 1)
@@ -415,9 +440,16 @@ contains
           write(IUNIT3) QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
                         gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
           if (ieqat < neqat) then
-            write(IUTEMP) stovl, ontran
-            write(IUTEMP) stevec, eval, occ, pkpot, aofock, gamma, vcoef, toten
-            rewind(IUTEMP)
+            stovl_bak  = stovl
+            ontran_bak = ontran
+            stevec_bak = stevec
+            eval_bak   = eval
+            occ_bak    = occ
+            pkpot_bak  = pkpot
+            aofock_bak = aofock
+            gamma_bak  = gamma
+            vcoef_bak  = vcoef
+            toten_bak  = toten
           end if
         end do
       end if
@@ -428,7 +460,9 @@ contains
                  sthmat, ontran, cpot2, xpot2, zpot2, stden, stfock,  &
                  stfock_prev, stcoul, stexch, onfock, onevec, stevec, &
                  oldvec, eval, occ, aofock, gamma, projec, iorder,    &
-                 scrat1, scrat2, tranx, vfit2, vcoef, pkpot)
+                 scrat1, scrat2, tranx, vfit2, vcoef, pkpot,          &
+                 stovl_bak, ontran_bak, stevec_bak, eval_bak, occ_bak,&
+                 pkpot_bak, aofock_bak, gamma_bak, vcoef_bak)
     end if
 
 1000 format(///' ',a2,i2,/' ____')
