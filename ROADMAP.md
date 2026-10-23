@@ -84,7 +84,7 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 - [x] **Clean Fortran Module & Filename Standardization**
   - Eliminate the `phatpsy_` prefix and `_mod` suffix across modern Fortran 2018 files and module declarations (e.g., `phatpsy_state_mod.f90` -> `state.f90` with `module state`, `phatpsy_contrl_mod.f90` -> `contrl.f90` with `module contrl`, etc.).
   - Update CMake targets, f2py wrappers, Python driver/state accessors, and inter-module `use` statements.
-- [ ] **Modernize active legacy FORTRAN routines (*.f) to Fortran 2018 modules (*.f90)**
+- [x] **Modernize active legacy FORTRAN routines (*.f) to Fortran 2018 modules (*.f90)**
   - Audit and inventory the 109 legacy `src/*.f` routines to categorize into:
     - *Retire/Delete:* Obsolete EISPAK/Jacobi diagonalizers, card-reader I/O, and scratch tape routines.
     - *Retain & Modernize:* Active mathematical kernels (e.g., `gensab`, `genvab`, `symop`, `symxyz`).
