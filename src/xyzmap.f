@@ -78,16 +78,16 @@ C
 C-----------------------------------------------------------------------
       WRITE(IW,1000)
       DO 200 K=1,MAPDIM
-  200 CONTINUE
       WRITE(IW,2000) (MAP(I,1,K),I=1,MAPDIM)
+  200 CONTINUE
       WRITE(IW,1000)
       DO 300 K=1,MAPDIM
-  300 CONTINUE
       WRITE(IW,2000) (MAP(I,2,K),I=1,MAPDIM)
+  300 CONTINUE
       WRITE(IW,1000)
       DO 400 K=1,MAPDIM
-  400 CONTINUE
       WRITE(IW,2000) (MAP(I,3,K),I=1,MAPDIM)
+  400 CONTINUE
       WRITE(IW,1000)
       WRITE(IW,3000)
       RETURN
