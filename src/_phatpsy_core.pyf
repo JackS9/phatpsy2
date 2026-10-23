@@ -139,5 +139,90 @@ python module _phatpsy_core
                 real(kind=real64) intent(in,out), dimension(nvterm) :: vpot2
             end subroutine dampv
         end module modelpot
+
+        module linalg
+            use iso_fortran_env, only: real64, int32
+            subroutine trisq(n, h, u, result)
+                integer(kind=int32) intent(in) :: n
+                real(kind=real64) intent(in), dimension((n*(n+1))/2) :: h
+                real(kind=real64) intent(in), dimension(n, n) :: u
+                real(kind=real64) intent(out), dimension(n, n) :: result
+            end subroutine trisq
+            subroutine tritri(a, b, ab, n, n2)
+                integer(kind=int32) intent(in) :: n, n2
+                real(kind=real64) intent(in), dimension(n2) :: a
+                real(kind=real64) intent(in), dimension(n2) :: b
+                real(kind=real64) intent(out), dimension(n, n) :: ab
+            end subroutine tritri
+            subroutine uthu(n, h, u, scrat, result)
+                integer(kind=int32) intent(in) :: n
+                real(kind=real64) intent(in), dimension((n*(n+1))/2) :: h
+                real(kind=real64) intent(in), dimension(n, n) :: u
+                real(kind=real64) intent(out), dimension(n, n) :: scrat
+                real(kind=real64) intent(out), dimension((n*(n+1))/2) :: result
+            end subroutine uthu
+            subroutine invert(matrix, invers, nsize, ierror, nrow, ncolum)
+                integer(kind=int32) intent(in) :: nsize, nrow, ncolum
+                real(kind=real64) intent(in), dimension(nrow, ncolum) :: matrix
+                real(kind=real64) intent(out), dimension(nrow, ncolum) :: invers
+                integer(kind=int32) intent(out) :: ierror
+            end subroutine invert
+            subroutine matinv(a, n, b, m, determ)
+                integer(kind=int32) intent(in) :: n, m
+                real(kind=real64) intent(in,out), dimension(n, n) :: a
+                real(kind=real64) intent(in,out), dimension(n, m) :: b
+                real(kind=real64) intent(out) :: determ
+            end subroutine matinv
+            subroutine schmid(s, nrows)
+                integer(kind=int32) intent(in) :: nrows
+                real(kind=real64) intent(in,out), dimension((nrows*(nrows+1))/2) :: s
+            end subroutine schmid
+            subroutine normlz(evec, nvec, ovrlap, nbas, n2bas)
+                integer(kind=int32) intent(in) :: nvec, nbas, n2bas
+                real(kind=real64) intent(in,out), dimension(nbas, nvec) :: evec
+                real(kind=real64) intent(in), dimension(n2bas) :: ovrlap
+            end subroutine normlz
+            function round(x, n) result (round)
+                double precision intent(in) :: x
+                integer intent(in) :: n
+                double precision :: round
+            end function round
+            subroutine maxovl(iorder, evec1, evec2, ovlp, nbas, n2bas, nvec, qnword)
+                integer(kind=int32) intent(in) :: nbas, n2bas, nvec
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: evec1
+                real(kind=real64) intent(in), dimension(nbas, nvec) :: evec2
+                real(kind=real64) intent(in), dimension(n2bas) :: ovlp
+                integer(kind=int32) intent(out), dimension(nvec) :: iorder
+                logical intent(out) :: qnword
+            end subroutine maxovl
+            subroutine hesbrg(a, n, mpr)
+                integer(kind=int32) intent(in) :: n
+                real(kind=real64) intent(in,out), dimension(n, n) :: a
+                integer(kind=int32) intent(out), dimension(n) :: mpr
+            end subroutine hesbrg
+            subroutine norhes(h, n, fac, nn)
+                integer(kind=int32) intent(in) :: n
+                real(kind=real64) intent(in,out), dimension(n, n) :: h
+                real(kind=real64) intent(out), dimension(n) :: fac
+                integer(kind=int32) intent(out) :: nn
+            end subroutine norhes
+            subroutine heseig(a, n, nrt, x, xp, eig, eta, nzc, ierr)
+                integer(kind=int32) intent(in) :: n, nrt, nzc
+                real(kind=real64) intent(in), dimension(n, n) :: a
+                real(kind=real64) intent(in) :: eta
+                real(kind=real64) intent(in,out), dimension(n) :: x, xp
+                real(kind=real64) intent(out), dimension(nrt) :: eig
+                integer(kind=int32) intent(out) :: ierr
+            end subroutine heseig
+            subroutine hesvec(h, n, nn, scr, root, eta, scrv, vec, ierr)
+                integer(kind=int32) intent(in) :: n, nn
+                real(kind=real64) intent(in), dimension(n, n) :: h
+                real(kind=real64) intent(in) :: root, eta
+                real(kind=real64) intent(in,out), dimension(nn, nn) :: scr
+                real(kind=real64) intent(in,out), dimension(nn) :: scrv
+                real(kind=real64) intent(out), dimension(n) :: vec
+                integer(kind=int32) intent(out) :: ierr
+            end subroutine hesvec
+        end module linalg
     end interface
 end python module _phatpsy_core
