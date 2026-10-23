@@ -1,0 +1,53 @@
+# PHATPSY 2.0 CI — canonical build + verification loop on every push.
+#
+# Install: copy this file to .github/workflows/ci.yml in the repo.
+#
+# Design notes (adapted from Anthropic's AI-Native SDLC Playbook,
+# Stage 4 "Continuous evals in CI" and Stage 5 CI/CD plays):
+# - No path filters, on purpose. Changes to AGENTS.md or .agents/** steer
+#   the agent, so they run the full suite too — for this repo the test
+#   suite IS the eval suite for agent configuration.
+# - The job runs the repo's own canonical loop, make_build_test.sh,
+#   instead of duplicating its steps here. One definition of "verified":
+#   the same commands a developer (or agent) runs locally.
+# - meson and ninja are installed because numpy's f2py (>= 2.0) builds
+#   the _phatpsy_core extension through the meson backend.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Install Fortran toolchain and BLAS/LAPACK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran libopenblas-dev liblapack-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create the project venv and install Python dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja
+
+      # make_build_test.sh configures CMake against .venv's Python, builds
+      # the legacy baseline, the modern CLI and the f2py extension, runs
+      # the N2 smoke tests, and finishes with the full pytest suite.
+      # set -e in the script means any failure fails this job.
+      - name: Build, smoke test, and run pytest (canonical loop)
+        run: bash make_build_test.sh

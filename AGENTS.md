@@ -35,3 +35,53 @@ These instructions govern all autonomous and pair-programming development work o
 1. **No Silent Approximations:** Never change mathematical approximations, convergence criteria, or fitting formulas without documenting the scientific rationale and citing the relevant dissertation section.
 2. **No Regression Without Notification:** All modifications to core Fortran modules or the Python driver must pass the test suite (`pytest tests/`). Any numerical deviation from established baselines must be reported explicitly.
 3. **No Unrequested Tool/Dependency Installation:** Do not install global Python packages or system binaries without explicit user consent.
+
+---
+
+## 4. Verification & Definition of Done
+
+1. **Canonical verification loop:** `./make_build_test.sh` — it builds
+   the legacy baseline, the modern CLI, and the Python extension, runs
+   the N2 smoke tests, and finishes with the full pytest suite.
+   *Healthy result:* the script exits 0 and the pytest summary reports
+   all tests passed (0 failed, 0 errors).
+2. **Quick loop (Python-only changes):**
+   `PYTHONPATH=. .venv/bin/pytest tests/ -v`
+   *Healthy result:* `N passed` with 0 failed.
+3. **Evidence rule:** Work is not done until the verification loop has
+   been run on the final state of the change. When reporting work
+   complete, include the tail of the verification output (at minimum
+   the pytest summary line) in the report. A claim that tests pass,
+   without the output, is not evidence.
+4. **Deviations:** Any numerical deviation from established baselines
+   surfaced by verification is reported explicitly, per Section 3,
+   Rule 2 — never silently absorbed.
+5. **Mistake-twice rule:** When the same mistake is made twice, the
+   correction goes into this file (or the relevant file under
+   `.agents/rules/`) in the same commit as the fix, so the next
+   session does not repeat it.
+
+---
+
+## 5. Protected Paths
+
+These paths carry the project's baselines and generated data. The
+restrictions below are the advisory layer; CI (`.github/workflows/ci.yml`)
+is the deterministic backstop.
+
+1. **Generated basis data — `phatpsy/data/*.json`**
+   (e.g. `clementi_sto.json`, `thakkar_sto.json`): change these only
+   by rerunning the corresponding ingest script
+   (`phatpsy/ingest_clementi.py`, `phatpsy/ingest_thakkar.py`) and
+   committing the regenerated output together with the ingest change.
+   Never hand-edit values in these files.
+2. **Frozen legacy baselines — `data/*_legacy.stdout`:** never modify.
+   Modern reference outputs in `data/` (e.g. `n2_modern.stdout`) may
+   change only alongside an explicit numerical-deviation report, per
+   Section 3, Rule 2.
+3. **Tests during a bug fix — `tests/`:** while fixing a bug, do not
+   edit the test that demonstrates the bug. If a test appears to be
+   wrong, stop and flag it for review rather than changing it mid-fix:
+   a test that predates the fix and that the fix did not touch is the
+   proof the bug is gone.
+
