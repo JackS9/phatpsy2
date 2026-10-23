@@ -44,6 +44,7 @@ jobs:
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       # make_build_test.sh configures CMake against .venv's Python, builds
       # the legacy baseline, the modern CLI and the f2py extension, runs
