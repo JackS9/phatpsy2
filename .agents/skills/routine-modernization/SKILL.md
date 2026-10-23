@@ -23,12 +23,12 @@ Use this skill whenever converting a remaining legacy fixed-form Fortran routine
    - Create or update the modern `.f90` module using free-form Fortran 2018 with `implicit none`.
    - Import explicit standard types from `iso_fortran_env` (`real64`, `int32`).
 2. **State & Memory Migration:**
-   - Access global quantum state and dimensions via `use phatpsy_state_mod`.
+   - Access global quantum state and dimensions via `use state`.
    - Never reintroduce static dimension limits or common blocks. Use dynamic arrays allocated in `mol_ws`.
 3. **Linear Algebra Modernization (LAPACK Mandate):**
    - Replace legacy hand-rolled matrix algorithms (e.g. Jacobi iterations, EISPAK `tred3`/`imtqlv`) with standard LAPACK calls (`dsyev`, `dgels`, `dgemm`).
 4. **Pure In-Memory Storage:**
-   - Replace any disk I/O streaming to temporary units with in-memory buffers in [`phatpsy_integrals_mod.f90`](file:///Users/jacksmith/phatpsy2/src/phatpsy_integrals_mod.f90).
+   - Replace any disk I/O streaming to temporary units with in-memory buffers in [`integrals.f90`](file:///Users/jacksmith/phatpsy2/src/integrals.f90).
 
 ---
 
