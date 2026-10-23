@@ -127,6 +127,18 @@ class phatpsy_linalg_mod:
     @staticmethod
     def hesvec(h: npt.NDArray[np.float64], nn: int, root: float, eta: float, scrv: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], int]: ...
 
+class phatpsy_symmetry_mod:
+    @staticmethod
+    def genrot(alpha: float, beta: float, gamma: float) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def sympak(a: npt.NDArray[np.float64], n: int | None = None, n2: int | None = None) -> npt.NDArray[np.float64]: ...
+    @staticmethod
+    def sympro(a: npt.NDArray[np.float64], b: npt.NDArray[np.float64], icode: int, nbas: int | None = None, n2bas: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def sympr1(p: npt.NDArray[np.float64], r: npt.NDArray[np.float64], s: npt.NDArray[np.float64], n: int, n2: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+    @staticmethod
+    def sympr2(p: npt.NDArray[np.float64], r: npt.NDArray[np.float64], s: npt.NDArray[np.float64], n: int, n2: int | None = None) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+
 state: phatpsy_state_mod
 contrl: phatpsy_contrl_mod
 scf: phatpsy_scf_mod
@@ -135,4 +147,6 @@ integrals: phatpsy_integrals_mod
 ewmo: phatpsy_ewmo_mod
 modelpot: phatpsy_modelpot_mod
 linalg: phatpsy_linalg_mod
+symmetry: phatpsy_symmetry_mod
+
 

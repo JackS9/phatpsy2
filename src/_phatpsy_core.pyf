@@ -224,5 +224,41 @@ python module _phatpsy_core
                 integer(kind=int32) intent(out) :: ierr
             end subroutine hesvec
         end module linalg
+
+        module symmetry
+            use iso_fortran_env, only: real64, int32
+            subroutine genrot(alpha, beta, gamma, rotate)
+                real(kind=real64) intent(in) :: alpha, beta, gamma
+                real(kind=real64) intent(out), dimension(3, 3) :: rotate
+            end subroutine genrot
+            subroutine sympak(a, asym, n, n2)
+                integer(kind=int32) optional, depend(a) :: n = shape(a, 0)
+                integer(kind=int32) optional, depend(n) :: n2 = (n*(n+1))/2
+                real(kind=real64) intent(in), dimension(n, n) :: a
+                real(kind=real64) intent(out), dimension(n2), depend(n2) :: asym
+            end subroutine sympak
+            subroutine sympro(a, b, scrat, nbas, n2bas, icode)
+                integer(kind=int32) intent(in) :: icode
+                integer(kind=int32) optional, depend(b) :: nbas = shape(b, 0)
+                integer(kind=int32) optional, depend(a) :: n2bas = shape(a, 0)
+                real(kind=real64) intent(in,out), dimension(n2bas) :: a
+                real(kind=real64) intent(in), dimension(nbas, nbas) :: b
+                real(kind=real64) intent(out), dimension(n2bas), depend(n2bas) :: scrat
+            end subroutine sympro
+            subroutine sympr1(p, r, s, f, scrat, n, n2)
+                integer(kind=int32) intent(in) :: n
+                integer(kind=int32) optional, depend(p) :: n2 = shape(p, 0)
+                real(kind=real64) intent(in), dimension(n2) :: p, r, s
+                real(kind=real64) intent(out), dimension(n2), depend(n2) :: f
+                real(kind=real64) intent(out), dimension(n, n), depend(n) :: scrat
+            end subroutine sympr1
+            subroutine sympr2(p, r, s, scrat1, scrat2, n, n2)
+                integer(kind=int32) intent(in) :: n
+                integer(kind=int32) optional, depend(p) :: n2 = shape(p, 0)
+                real(kind=real64) intent(in), dimension(n2) :: p, s
+                real(kind=real64) intent(in,out), dimension(n2) :: r
+                real(kind=real64) intent(out), dimension(n, n), depend(n) :: scrat1, scrat2
+            end subroutine sympr2
+        end module symmetry
     end interface
 end python module _phatpsy_core

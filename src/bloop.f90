@@ -3,6 +3,7 @@ module bloop
   use state
   use twocenter, only: rbeta, gensab, genvab
   use angular,   only: gendc, putdc, genplm
+  use symmetry,  only: rotsab
   implicit none
   private
   public :: run_bloop
