@@ -92,6 +92,7 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - [x] **Symmetry module (`src/symmetry.f90`):** Modernize `symop.f`, `symxyz.f`, and `genrot.f` into clean free-form Fortran 2018 with `implicit none` and dynamic workspace allocation.
     - [x] **Two-center module (`src/twocenter.f90`):** Modernize `gensab.f`, `genvab.f`, and `rbeta.f` into clean free-form Fortran 2018 with `implicit none`.
     - [x] **Linear algebra & vector utilities (`src/linalg.f90`):** Modernize `addmat.f`, `asum.f`, `sum.f`, `dcopy.f`, `dotprd.f`, `scmult.f`, `zero.f`, `erase.f`, `flip.f` into clean free-form Fortran 2018 with `implicit none` and intrinsic/BLAS equivalents.
+    - [x] **Elliptical coordinate quadratures & expansion kernels (`src/elliptical.f90`):** Modernize `absum.f`, `anmbnm.f`, `ascale.f`, `bscale.f`, and `ogen.f` into clean free-form Fortran 2018 with `implicit none`, numerical stability across small/large arguments, and global compatibility wrappers. Retired legacy `.f` files to `legacy/`.
     - Convert fixed-form 72-column to free-form Fortran 2018.
     - Enforce `implicit none` and dynamic memory / assumed-shape arrays (`(:,:)`).
     - Eliminate legacy disk unit dependencies in favor of in-memory data structures.

@@ -6,6 +6,7 @@ module twocenter
   use iso_fortran_env, only: real64, int32
   use state,           only: EXPMIN, NNMXM1, NABDIM, NSTO, NYLM, L3MX, NCGC, &
                              FACT, BINOM, HALF, ROOTPI, NVTRMB
+  use elliptical,      only: absum, anmbnm, ogen
   implicit none
 
   real(real64), parameter :: PI    = 3.141592653589793238462643383279502884d0
@@ -73,7 +74,6 @@ contains
     real(real64)   :: retai, retaj, expon, dexpon, snorm, sum_val
     integer(int32) :: i, j, nai, lai, l2ai, nbj, lbj, l2bj, lmin, llmnp1
     integer(int32) :: iml, ml, iabsml, mlp1, limi, limj, limij
-    external       :: ogen, anmbnm, absum
 
     rhalf = half * rab
     cnorm = twopi * rhalf * rhalf * rhalf
@@ -163,7 +163,6 @@ contains
     integer(int32) :: ila, la, l2a, lmin, imlmx, iml, ml, iabsml, mlp1
     integer(int32) :: limi, limj, limij, nvterm
     real(real64), external :: dcoef, cgcoef
-    external               :: ogen, anmbnm, absum
 
     nvterm = NVTRMB
     rhalf  = half * rab
