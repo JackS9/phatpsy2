@@ -36,6 +36,9 @@ set(REPLACED_LEGACY_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symop.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symxyz.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/genrot.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/rbeta.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gensab.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/genvab.f"
 )
 
 # Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
@@ -47,6 +50,7 @@ set(MODERN_F90_MODULES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/state.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symmetry.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/twocenter.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/integrals.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/analys.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/bloop.f90"

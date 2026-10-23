@@ -1,6 +1,7 @@
 module bloop
   use iso_fortran_env, only: real64, int32
   use state
+  use twocenter, only: rbeta, gensab, genvab
   implicit none
   private
   public :: run_bloop

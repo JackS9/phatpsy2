@@ -90,7 +90,7 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - *Retain & Modernize:* Active mathematical kernels (e.g., `gensab`, `genvab`, `symop`, `symxyz`).
   - Convert retained routines using the `routine-modernization` skill:
     - [x] **Symmetry module (`src/symmetry.f90`):** Modernize `symop.f`, `symxyz.f`, and `genrot.f` into clean free-form Fortran 2018 with `implicit none` and dynamic workspace allocation.
-    - [ ] **Matrix & Overlap generation:** Modernize `gensab.f`, `genvab.f`, and `rbeta.f`.
+    - [x] **Two-center module (`src/twocenter.f90`):** Modernize `gensab.f`, `genvab.f`, and `rbeta.f` into clean free-form Fortran 2018 with `implicit none`.
     - Convert fixed-form 72-column to free-form Fortran 2018.
     - Enforce `implicit none` and dynamic memory / assumed-shape arrays (`(:,:)`).
     - Eliminate legacy disk unit dependencies in favor of in-memory data structures.
