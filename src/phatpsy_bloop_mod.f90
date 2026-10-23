@@ -63,9 +63,8 @@ contains
     fractn = 1.0d0 - VDAMP
     occmx  = real(3 - ISPIN, real64)
 
-    read(IUNITB) latomb, nuczb, nb, lb, etab, bnorm
-    read(IUNITB) stovlb, stkinb, stpotb, lvb, mvb, vexpb
-    rewind(IUNITB)
+    call read_elem_basis(IUNITB - 10, latomb, nuczb, nb, lb, etab, bnorm)
+    call read_elem_potentials(IUNITB - 10, stovlb, stkinb, stpotb, lvb, mvb, vexpb)
 
     znuca  = real(NUCZA, real64)
     znucb  = real(nuczb, real64)
@@ -73,15 +72,15 @@ contains
 
     jdfat_loop: do jdfatb = JDFAT1, jdfat2
       if (MEQATB == 0) then
-        read(IUNIT3) qflagb, neqatb, xb, yb, zb, evecb, evalb, occb, fockb,   &
-                     gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b, totenb,  &
-                     zzrepb, rmaxb
+        call read_atom_record_ref(IUNIT3, qflagb, neqatb, xb, yb, zb, evecb, evalb, occb, fockb,   &
+                                  gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b, totenb,  &
+                                  zzrepb, rmaxb)
         MEQATB = neqatb
         if ((IELEMB == NELEM + 1) .and. (jdfatb == JDFATA)) MEQATB = IEQATA
       else
-        read(IUNIT3) qflagb, isymb, ixyzb, xb, yb, zb, evecb, evalb, occb,    &
-                     fockb, gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b,   &
-                     totenb, zzrepb, rmaxb
+        call read_atom_record_equiv(IUNIT3, qflagb, isymb, ixyzb, xb, yb, zb, evecb, evalb, occb,    &
+                                    fockb, gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b,   &
+                                    totenb, zzrepb, rmaxb)
         MEQATB = MEQATB - 1
       end if
 
@@ -315,9 +314,9 @@ contains
         if (.not. qvirtb) IORBTB = mod(IORBTB + NORBB - 1, NORBT) + 1
         if (MEQATB == 0) exit eqat_loop
 
-        read(IUNIT3) qflagb, isymb, ixyzb, xb, yb, zb, evecb, evalb, occb,    &
-                     fockb, gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b,   &
-                     totenb, zzrepb, rmaxb
+        call read_atom_record_equiv(IUNIT3, qflagb, isymb, ixyzb, xb, yb, zb, evecb, evalb, occb,    &
+                                    fockb, gammab, cpot2b, vfit2b, vcoefb, pkpotb, zpot2b,   &
+                                    totenb, zzrepb, rmaxb)
         MEQATB = MEQATB - 1
       end do eqat_loop
     end do jdfat_loop

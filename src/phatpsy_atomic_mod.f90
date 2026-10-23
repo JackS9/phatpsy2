@@ -76,16 +76,16 @@ contains
     rscale = 0.0d0
     descr  = 'STO BASIS...'
     iurst  = merge(IUNIT3, IUNIT4, logical(QBAKUP))
-    if (QRSTRT) read(iurst) MDIFAT
+    if (QRSTRT) call read_atom_stream_mdifat(iurst, MDIFAT)
 
     stevec = 0.0d0; cpot2 = 0.0d0; fock = 0.0d0
     gamma  = 0.0d0; pkpot = 0.0d0; vfit2 = 0.0d0; zpot2 = 0.0d0
     zzrep  = 0.0d0
 
     if (.not. QNWBAS) then
-      read(IUNIT0) latom, nucz, n, l, eta, anorm
-      read(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
-      read(IUNIT0) sthmat, ontran
+      call read_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
+      call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
+      call read_elem_core_matrices(IELEM, sthmat, ontran)
     end if
 
     if (QTRACE) write(9, *) 'Reading Element Description (&ELEM)...'
@@ -104,7 +104,7 @@ contains
     if (rscale <= 0.0d0) rscale = ZSCALE * znuc**(1.0d0 / 3.0d0)
     if ((rscale <= 0.0d0) .and. (nucz == 1)) rscale = 1.0d0
     if (QDEBUG) write(IUDUMP, nml=ELEM)
-    if (.not. QBAKUP) write(IUNIT3) MDIFAT
+    if (.not. QBAKUP) call write_atom_stream_mdifat(IUNIT3, MDIFAT)
 
     !-------------------------------------------------------------------
     ! Read and write STO basis
@@ -190,8 +190,8 @@ contains
       call TIMOUT(0)
       call ONEINT(stovl, stkin, stpot, stpotx, lv, mv, vexp, n, l, eta, &
                   anorm, mol_ws%index_arr, mol_ws%cgc, qrealy)
-      write(IUNIT0) latom, nucz, n, l, eta, anorm
-      write(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
+      call write_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
+      call write_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
       stovl_bak = stovl
       call LOWDIN(stovl, ontran, scrat1, MSTO, MSTO, 0, qindef)
       if (qindef) call BOMB(0)
@@ -199,12 +199,10 @@ contains
       do ij = 1, M2STO
         sthmat(ij) = stkin(ij) - znuc * stpot(ij, 1)
       end do
-      write(IUNIT0) sthmat, ontran
+      call write_elem_core_matrices(IELEM, sthmat, ontran)
 
-      call TEINDX(-1, mol_ws%buffer)
       call TWOINT(ntei, n, l, eta, mol_ws%s, mol_ws%w, mol_ws%index_arr, &
                   anorm, mol_ws%cgc, qrealy, mol_ws%buffer)
-      call DMPBUF(mol_ws%buffer)
       write(IW, 11000) latom, IUNIT0
       call TIMOUT(4)
     end if
@@ -394,8 +392,9 @@ contains
       mol_ws%charge(3, IATOM) = alpha - beta
 
       if (.not. QBAKUP) then
-        write(IUNIT3) QFLAGS, neqat, xyz, stevec, eval, occ, fock, gamma, &
-                      cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
+        call write_atom_record_ref(IUNIT3, QFLAGS, neqat, xyz(1), xyz(2), xyz(3), &
+                                   stevec, eval, occ, fock, gamma, &
+                                   cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
       end if
       TMOLE = TMOLE + toten
 
@@ -495,9 +494,9 @@ contains
           mol_ws%coord(:, IATOM) = xyz
           mol_ws%label(IATOM)    = latom
           if (.not. QBAKUP) then
-            write(IUNIT3) QFLAGS, isym, ixyz, xyz, stevec, eval, occ, &
-                          fock, gamma, cpot2, vfit2, vcoef, pkpot,    &
-                          zpot2, toten, zzrep, rmAx
+            call write_atom_record_equiv(IUNIT3, QFLAGS, isym, ixyz, xyz(1), xyz(2), xyz(3), &
+                                         stevec, eval, occ, fock, gamma, &
+                                         cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
           end if
           TMOLE = TMOLE + toten
 

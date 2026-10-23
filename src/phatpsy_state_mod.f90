@@ -170,6 +170,39 @@ module phatpsy_state_mod
     real(real64), allocatable :: mat(:,:)
   end type PairMat
 
+  type :: AtomRecord
+    logical(kind=1) :: qflags(8) = .false.
+    integer(int32)  :: neqat = 0, isym = 0, ixyz = 0
+    real(real64)    :: xyz(3) = 0.0d0
+    real(real64), allocatable :: stevec(:,:,:)
+    real(real64), allocatable :: eval(:,:)
+    real(real64), allocatable :: occ(:,:)
+    real(real64), allocatable :: fock(:,:)
+    real(real64), allocatable :: gamma(:,:)
+    real(real64), allocatable :: cpot2(:)
+    real(real64), allocatable :: vfit2(:)
+    real(real64), allocatable :: vcoef(:)
+    real(real64), allocatable :: pkpot(:,:,:)
+    real(real64), allocatable :: zpot2(:)
+    real(real64)    :: toten = 0.0d0, zzrep = 0.0d0, rmax = 0.0d0
+  end type AtomRecord
+
+  type :: AtomStream
+    integer(int32) :: pos = 0
+    integer(int32) :: mdifat = 0
+    type(AtomRecord), allocatable :: records(:)
+  end type AtomStream
+
+  type :: ElemStream
+    integer(int32) :: pos = 0
+    integer(int32) :: nsto = 0, msto = 0, norb = 0, nvterm = 0
+    character(len=2) :: latom = '  '
+    integer(int32) :: nucz = 0
+    integer(int32), allocatable :: n(:), l(:), lv(:), mv(:)
+    real(real64),   allocatable :: eta(:), anorm(:), vexp(:)
+    real(real64),   allocatable :: stovl(:), stkin(:), stpot(:,:), sthmat(:), ontran(:,:)
+  end type ElemStream
+
   type :: MolecularWorkspace
     integer(int32), allocatable :: index_arr(:)      ! Formerly JCORE(J1)
     integer(int32), allocatable :: krec(:)          ! Formerly JCORE(J2)
@@ -205,6 +238,11 @@ module phatpsy_state_mod
     type(PairMat), allocatable :: pair_stvab(:)
     integer(int32) :: stvab_count = 0
     integer(int32) :: stvab_pos   = 0
+
+    ! In-memory streams replacing legacy Units 3, 4, and 0 (Elem)
+    type(AtomStream) :: unit3_stream
+    type(AtomStream) :: unit4_stream
+    type(ElemStream), allocatable :: elem_stream(:)
   end type MolecularWorkspace
 
   type(MolecularWorkspace), target :: mol_ws
@@ -352,6 +390,15 @@ contains
     allocate(mol_ws%pair_stvab(max(10, NATOM * NATOM * 2)))
     mol_ws%stvab_count = 0
     mol_ws%stvab_pos   = 0
+
+    if (allocated(mol_ws%elem_stream)) deallocate(mol_ws%elem_stream)
+    allocate(mol_ws%elem_stream(max(10, NELEM)))
+    if (allocated(mol_ws%unit3_stream%records)) deallocate(mol_ws%unit3_stream%records)
+    if (allocated(mol_ws%unit4_stream%records)) deallocate(mol_ws%unit4_stream%records)
+    allocate(mol_ws%unit3_stream%records(max(10, NATOM * 2)))
+    allocate(mol_ws%unit4_stream%records(max(10, NATOM * 2)))
+    mol_ws%unit3_stream%pos = 0
+    mol_ws%unit4_stream%pos = 0
   end subroutine compute_derived_dimensions_and_allocate
 
   subroutine get_evalx(out_eval, n, nspin)
@@ -494,5 +541,408 @@ contains
       out_anorm = 0.0d0
     end if
   end subroutine get_anormx
+
+  !---------------------------------------------------------------------
+  ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
+  !---------------------------------------------------------------------
+  subroutine rewind_atom_stream(unit_id)
+    integer(int32), intent(in) :: unit_id
+    if (unit_id == IUNIT3) mol_ws%unit3_stream%pos = 0
+    if (unit_id == IUNIT4) mol_ws%unit4_stream%pos = 0
+  end subroutine rewind_atom_stream
+
+  subroutine write_atom_stream_mdifat(unit_id, mdifat)
+    integer(int32), intent(in) :: unit_id, mdifat
+    if (unit_id == IUNIT3) mol_ws%unit3_stream%mdifat = mdifat
+    if (unit_id == IUNIT4) mol_ws%unit4_stream%mdifat = mdifat
+  end subroutine write_atom_stream_mdifat
+
+  subroutine read_atom_stream_mdifat(unit_id, mdifat)
+    integer(int32), intent(in) :: unit_id
+    integer(int32), intent(out) :: mdifat
+    if (unit_id == IUNIT3) mdifat = mol_ws%unit3_stream%mdifat
+    if (unit_id == IUNIT4) mdifat = mol_ws%unit4_stream%mdifat
+  end subroutine read_atom_stream_mdifat
+
+  subroutine write_atom_record_ref(unit_id, qflags, neqat, x, y, z, stevec, eval, occ, fock, &
+                                   gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmax)
+    integer(int32), intent(in) :: unit_id, neqat
+    logical(kind=1), intent(in) :: qflags(8)
+    real(real64), intent(in) :: x, y, z, toten, zzrep, rmax
+    real(real64), intent(in) :: stevec(:,:,:), eval(:,:), occ(:,:), fock(:,:), gamma(:,:)
+    real(real64), intent(in) :: cpot2(:), vfit2(:), vcoef(:), pkpot(:,:,:), zpot2(:)
+
+    integer(int32) :: idx
+
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%pos = mol_ws%unit3_stream%pos + 1
+      idx = mol_ws%unit3_stream%pos
+      if (idx > size(mol_ws%unit3_stream%records)) then
+        block
+          type(AtomRecord), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit3_stream%records)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit3_stream%records
+          call move_alloc(tmp, mol_ws%unit3_stream%records)
+        end block
+      end if
+      mol_ws%unit3_stream%records(idx)%qflags = qflags
+      mol_ws%unit3_stream%records(idx)%neqat  = neqat
+      mol_ws%unit3_stream%records(idx)%isym   = 0
+      mol_ws%unit3_stream%records(idx)%ixyz   = 0
+      mol_ws%unit3_stream%records(idx)%xyz    = [x, y, z]
+      mol_ws%unit3_stream%records(idx)%stevec = stevec
+      mol_ws%unit3_stream%records(idx)%eval   = eval
+      mol_ws%unit3_stream%records(idx)%occ    = occ
+      mol_ws%unit3_stream%records(idx)%fock   = fock
+      mol_ws%unit3_stream%records(idx)%gamma  = gamma
+      mol_ws%unit3_stream%records(idx)%cpot2  = cpot2
+      mol_ws%unit3_stream%records(idx)%vfit2  = vfit2
+      mol_ws%unit3_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit3_stream%records(idx)%pkpot  = pkpot
+      mol_ws%unit3_stream%records(idx)%zpot2  = zpot2
+      mol_ws%unit3_stream%records(idx)%toten  = toten
+      mol_ws%unit3_stream%records(idx)%zzrep  = zzrep
+      mol_ws%unit3_stream%records(idx)%rmax   = rmax
+    else
+      mol_ws%unit4_stream%pos = mol_ws%unit4_stream%pos + 1
+      idx = mol_ws%unit4_stream%pos
+      if (idx > size(mol_ws%unit4_stream%records)) then
+        block
+          type(AtomRecord), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit4_stream%records)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit4_stream%records
+          call move_alloc(tmp, mol_ws%unit4_stream%records)
+        end block
+      end if
+      mol_ws%unit4_stream%records(idx)%qflags = qflags
+      mol_ws%unit4_stream%records(idx)%neqat  = neqat
+      mol_ws%unit4_stream%records(idx)%isym   = 0
+      mol_ws%unit4_stream%records(idx)%ixyz   = 0
+      mol_ws%unit4_stream%records(idx)%xyz    = [x, y, z]
+      mol_ws%unit4_stream%records(idx)%stevec = stevec
+      mol_ws%unit4_stream%records(idx)%eval   = eval
+      mol_ws%unit4_stream%records(idx)%occ    = occ
+      mol_ws%unit4_stream%records(idx)%fock   = fock
+      mol_ws%unit4_stream%records(idx)%gamma  = gamma
+      mol_ws%unit4_stream%records(idx)%cpot2  = cpot2
+      mol_ws%unit4_stream%records(idx)%vfit2  = vfit2
+      mol_ws%unit4_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit4_stream%records(idx)%pkpot  = pkpot
+      mol_ws%unit4_stream%records(idx)%zpot2  = zpot2
+      mol_ws%unit4_stream%records(idx)%toten  = toten
+      mol_ws%unit4_stream%records(idx)%zzrep  = zzrep
+      mol_ws%unit4_stream%records(idx)%rmax   = rmax
+    end if
+  end subroutine write_atom_record_ref
+
+  subroutine write_atom_record_equiv(unit_id, qflags, isym, ixyz, x, y, z, stevec, eval, occ, &
+                                     fock, gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmax)
+    integer(int32), intent(in) :: unit_id, isym, ixyz
+    logical(kind=1), intent(in) :: qflags(8)
+    real(real64), intent(in) :: x, y, z, toten, zzrep, rmax
+    real(real64), intent(in) :: stevec(:,:,:), eval(:,:), occ(:,:), fock(:,:), gamma(:,:)
+    real(real64), intent(in) :: cpot2(:), vfit2(:), vcoef(:), pkpot(:,:,:), zpot2(:)
+
+    integer(int32) :: idx
+
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%pos = mol_ws%unit3_stream%pos + 1
+      idx = mol_ws%unit3_stream%pos
+      if (idx > size(mol_ws%unit3_stream%records)) then
+        block
+          type(AtomRecord), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit3_stream%records)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit3_stream%records
+          call move_alloc(tmp, mol_ws%unit3_stream%records)
+        end block
+      end if
+      mol_ws%unit3_stream%records(idx)%qflags = qflags
+      mol_ws%unit3_stream%records(idx)%neqat  = 0
+      mol_ws%unit3_stream%records(idx)%isym   = isym
+      mol_ws%unit3_stream%records(idx)%ixyz   = ixyz
+      mol_ws%unit3_stream%records(idx)%xyz    = [x, y, z]
+      mol_ws%unit3_stream%records(idx)%stevec = stevec
+      mol_ws%unit3_stream%records(idx)%eval   = eval
+      mol_ws%unit3_stream%records(idx)%occ    = occ
+      mol_ws%unit3_stream%records(idx)%fock   = fock
+      mol_ws%unit3_stream%records(idx)%gamma  = gamma
+      mol_ws%unit3_stream%records(idx)%cpot2  = cpot2
+      mol_ws%unit3_stream%records(idx)%vfit2  = vfit2
+      mol_ws%unit3_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit3_stream%records(idx)%pkpot  = pkpot
+      mol_ws%unit3_stream%records(idx)%zpot2  = zpot2
+      mol_ws%unit3_stream%records(idx)%toten  = toten
+      mol_ws%unit3_stream%records(idx)%zzrep  = zzrep
+      mol_ws%unit3_stream%records(idx)%rmax   = rmax
+    else
+      mol_ws%unit4_stream%pos = mol_ws%unit4_stream%pos + 1
+      idx = mol_ws%unit4_stream%pos
+      if (idx > size(mol_ws%unit4_stream%records)) then
+        block
+          type(AtomRecord), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit4_stream%records)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit4_stream%records
+          call move_alloc(tmp, mol_ws%unit4_stream%records)
+        end block
+      end if
+      mol_ws%unit4_stream%records(idx)%qflags = qflags
+      mol_ws%unit4_stream%records(idx)%neqat  = 0
+      mol_ws%unit4_stream%records(idx)%isym   = isym
+      mol_ws%unit4_stream%records(idx)%ixyz   = ixyz
+      mol_ws%unit4_stream%records(idx)%xyz    = [x, y, z]
+      mol_ws%unit4_stream%records(idx)%stevec = stevec
+      mol_ws%unit4_stream%records(idx)%eval   = eval
+      mol_ws%unit4_stream%records(idx)%occ    = occ
+      mol_ws%unit4_stream%records(idx)%fock   = fock
+      mol_ws%unit4_stream%records(idx)%gamma  = gamma
+      mol_ws%unit4_stream%records(idx)%cpot2  = cpot2
+      mol_ws%unit4_stream%records(idx)%vfit2  = vfit2
+      mol_ws%unit4_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit4_stream%records(idx)%pkpot  = pkpot
+      mol_ws%unit4_stream%records(idx)%zpot2  = zpot2
+      mol_ws%unit4_stream%records(idx)%toten  = toten
+      mol_ws%unit4_stream%records(idx)%zzrep  = zzrep
+      mol_ws%unit4_stream%records(idx)%rmax   = rmax
+    end if
+  end subroutine write_atom_record_equiv
+
+  subroutine read_atom_record_ref(unit_id, qflags, neqat, x, y, z, stevec, eval, occ, fock, &
+                                  gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmax)
+    integer(int32), intent(in) :: unit_id
+    integer(int32), intent(out) :: neqat
+    logical(kind=1), intent(out) :: qflags(8)
+    real(real64), intent(out) :: x, y, z, toten, zzrep, rmax
+    real(real64), intent(out) :: stevec(:,:,:), eval(:,:), occ(:,:), fock(:,:), gamma(:,:)
+    real(real64), intent(out) :: cpot2(:), vfit2(:), vcoef(:), pkpot(:,:,:), zpot2(:)
+
+    integer(int32) :: idx
+
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%pos = mol_ws%unit3_stream%pos + 1
+      idx = mol_ws%unit3_stream%pos
+      qflags = mol_ws%unit3_stream%records(idx)%qflags
+      neqat  = mol_ws%unit3_stream%records(idx)%neqat
+      x      = mol_ws%unit3_stream%records(idx)%xyz(1)
+      y      = mol_ws%unit3_stream%records(idx)%xyz(2)
+      z      = mol_ws%unit3_stream%records(idx)%xyz(3)
+      stevec = mol_ws%unit3_stream%records(idx)%stevec
+      eval   = mol_ws%unit3_stream%records(idx)%eval
+      occ    = mol_ws%unit3_stream%records(idx)%occ
+      fock   = mol_ws%unit3_stream%records(idx)%fock
+      gamma  = mol_ws%unit3_stream%records(idx)%gamma
+      cpot2  = mol_ws%unit3_stream%records(idx)%cpot2
+      vfit2  = mol_ws%unit3_stream%records(idx)%vfit2
+      vcoef  = mol_ws%unit3_stream%records(idx)%vcoef
+      pkpot  = mol_ws%unit3_stream%records(idx)%pkpot
+      zpot2  = mol_ws%unit3_stream%records(idx)%zpot2
+      toten  = mol_ws%unit3_stream%records(idx)%toten
+      zzrep  = mol_ws%unit3_stream%records(idx)%zzrep
+      rmax   = mol_ws%unit3_stream%records(idx)%rmax
+    else
+      mol_ws%unit4_stream%pos = mol_ws%unit4_stream%pos + 1
+      idx = mol_ws%unit4_stream%pos
+      qflags = mol_ws%unit4_stream%records(idx)%qflags
+      neqat  = mol_ws%unit4_stream%records(idx)%neqat
+      x      = mol_ws%unit4_stream%records(idx)%xyz(1)
+      y      = mol_ws%unit4_stream%records(idx)%xyz(2)
+      z      = mol_ws%unit4_stream%records(idx)%xyz(3)
+      stevec = mol_ws%unit4_stream%records(idx)%stevec
+      eval   = mol_ws%unit4_stream%records(idx)%eval
+      occ    = mol_ws%unit4_stream%records(idx)%occ
+      fock   = mol_ws%unit4_stream%records(idx)%fock
+      gamma  = mol_ws%unit4_stream%records(idx)%gamma
+      cpot2  = mol_ws%unit4_stream%records(idx)%cpot2
+      vfit2  = mol_ws%unit4_stream%records(idx)%vfit2
+      vcoef  = mol_ws%unit4_stream%records(idx)%vcoef
+      pkpot  = mol_ws%unit4_stream%records(idx)%pkpot
+      zpot2  = mol_ws%unit4_stream%records(idx)%zpot2
+      toten  = mol_ws%unit4_stream%records(idx)%toten
+      zzrep  = mol_ws%unit4_stream%records(idx)%zzrep
+      rmax   = mol_ws%unit4_stream%records(idx)%rmax
+    end if
+  end subroutine read_atom_record_ref
+
+  subroutine read_atom_record_equiv(unit_id, qflags, isym, ixyz, x, y, z, stevec, eval, occ, &
+                                    fock, gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmax)
+    integer(int32), intent(in) :: unit_id
+    integer(int32), intent(out) :: isym, ixyz
+    logical(kind=1), intent(out) :: qflags(8)
+    real(real64), intent(out) :: x, y, z, toten, zzrep, rmax
+    real(real64), intent(out) :: stevec(:,:,:), eval(:,:), occ(:,:), fock(:,:), gamma(:,:)
+    real(real64), intent(out) :: cpot2(:), vfit2(:), vcoef(:), pkpot(:,:,:), zpot2(:)
+
+    integer(int32) :: idx
+
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%pos = mol_ws%unit3_stream%pos + 1
+      idx = mol_ws%unit3_stream%pos
+      qflags = mol_ws%unit3_stream%records(idx)%qflags
+      isym   = mol_ws%unit3_stream%records(idx)%isym
+      ixyz   = mol_ws%unit3_stream%records(idx)%ixyz
+      x      = mol_ws%unit3_stream%records(idx)%xyz(1)
+      y      = mol_ws%unit3_stream%records(idx)%xyz(2)
+      z      = mol_ws%unit3_stream%records(idx)%xyz(3)
+      stevec = mol_ws%unit3_stream%records(idx)%stevec
+      eval   = mol_ws%unit3_stream%records(idx)%eval
+      occ    = mol_ws%unit3_stream%records(idx)%occ
+      fock   = mol_ws%unit3_stream%records(idx)%fock
+      gamma  = mol_ws%unit3_stream%records(idx)%gamma
+      cpot2  = mol_ws%unit3_stream%records(idx)%cpot2
+      vfit2  = mol_ws%unit3_stream%records(idx)%vfit2
+      vcoef  = mol_ws%unit3_stream%records(idx)%vcoef
+      pkpot  = mol_ws%unit3_stream%records(idx)%pkpot
+      zpot2  = mol_ws%unit3_stream%records(idx)%zpot2
+      toten  = mol_ws%unit3_stream%records(idx)%toten
+      zzrep  = mol_ws%unit3_stream%records(idx)%zzrep
+      rmax   = mol_ws%unit3_stream%records(idx)%rmax
+    else
+      mol_ws%unit4_stream%pos = mol_ws%unit4_stream%pos + 1
+      idx = mol_ws%unit4_stream%pos
+      qflags = mol_ws%unit4_stream%records(idx)%qflags
+      isym   = mol_ws%unit4_stream%records(idx)%isym
+      ixyz   = mol_ws%unit4_stream%records(idx)%ixyz
+      x      = mol_ws%unit4_stream%records(idx)%xyz(1)
+      y      = mol_ws%unit4_stream%records(idx)%xyz(2)
+      z      = mol_ws%unit4_stream%records(idx)%xyz(3)
+      stevec = mol_ws%unit4_stream%records(idx)%stevec
+      eval   = mol_ws%unit4_stream%records(idx)%eval
+      occ    = mol_ws%unit4_stream%records(idx)%occ
+      fock   = mol_ws%unit4_stream%records(idx)%fock
+      gamma  = mol_ws%unit4_stream%records(idx)%gamma
+      cpot2  = mol_ws%unit4_stream%records(idx)%cpot2
+      vfit2  = mol_ws%unit4_stream%records(idx)%vfit2
+      vcoef  = mol_ws%unit4_stream%records(idx)%vcoef
+      pkpot  = mol_ws%unit4_stream%records(idx)%pkpot
+      zpot2  = mol_ws%unit4_stream%records(idx)%zpot2
+      toten  = mol_ws%unit4_stream%records(idx)%toten
+      zzrep  = mol_ws%unit4_stream%records(idx)%zzrep
+      rmax   = mol_ws%unit4_stream%records(idx)%rmax
+    end if
+  end subroutine read_atom_record_equiv
+
+  !---------------------------------------------------------------------
+  ! In-Memory Element Stream Handlers (replacing Phatpsy.Elem files)
+  !---------------------------------------------------------------------
+  subroutine rewind_elem_stream(ielem)
+    integer(int32), intent(in) :: ielem
+    if (allocated(mol_ws%elem_stream)) then
+      if (ielem >= 1 .and. ielem <= size(mol_ws%elem_stream)) then
+        mol_ws%elem_stream(ielem)%pos = 0
+      end if
+    end if
+  end subroutine rewind_elem_stream
+
+  subroutine ensure_elem_stream_capacity(ielem)
+    integer(int32), intent(in) :: ielem
+    if (.not. allocated(mol_ws%elem_stream)) then
+      allocate(mol_ws%elem_stream(max(10, ielem)))
+    else if (ielem > size(mol_ws%elem_stream)) then
+      block
+        type(ElemStream), allocatable :: tmp(:)
+        integer(int32) :: old_sz
+        old_sz = size(mol_ws%elem_stream)
+        allocate(tmp(max(old_sz * 2, ielem)))
+        tmp(1:old_sz) = mol_ws%elem_stream
+        call move_alloc(tmp, mol_ws%elem_stream)
+      end block
+    end if
+  end subroutine ensure_elem_stream_capacity
+
+  subroutine write_elem_dims(ielem, nsto, msto, norb, nvterm)
+    integer(int32), intent(in) :: ielem, nsto, msto, norb, nvterm
+    call ensure_elem_stream_capacity(ielem)
+    mol_ws%elem_stream(ielem)%nsto   = nsto
+    mol_ws%elem_stream(ielem)%msto   = msto
+    mol_ws%elem_stream(ielem)%norb   = norb
+    mol_ws%elem_stream(ielem)%nvterm = nvterm
+  end subroutine write_elem_dims
+
+  subroutine read_elem_dims(ielem, nsto, msto, norb, nvterm)
+    integer(int32), intent(in) :: ielem
+    integer(int32), intent(out) :: nsto, msto, norb, nvterm
+    nsto   = mol_ws%elem_stream(ielem)%nsto
+    msto   = mol_ws%elem_stream(ielem)%msto
+    norb   = mol_ws%elem_stream(ielem)%norb
+    nvterm = mol_ws%elem_stream(ielem)%nvterm
+  end subroutine read_elem_dims
+
+  subroutine write_elem_basis(ielem, latom, nucz, n, l, eta, anorm)
+    integer(int32), intent(in) :: ielem, nucz
+    character(len=2), intent(in) :: latom
+    integer(int32), intent(in) :: n(:), l(:)
+    real(real64), intent(in) :: eta(:), anorm(:)
+
+    mol_ws%elem_stream(ielem)%latom = latom
+    mol_ws%elem_stream(ielem)%nucz  = nucz
+    mol_ws%elem_stream(ielem)%n     = n
+    mol_ws%elem_stream(ielem)%l     = l
+    mol_ws%elem_stream(ielem)%eta   = eta
+    mol_ws%elem_stream(ielem)%anorm = anorm
+  end subroutine write_elem_basis
+
+  subroutine read_elem_basis(ielem, latom, nucz, n, l, eta, anorm)
+    integer(int32), intent(in) :: ielem
+    character(len=2), intent(out) :: latom
+    integer(int32), intent(out) :: nucz
+    integer(int32), intent(out) :: n(:), l(:)
+    real(real64), intent(out) :: eta(:), anorm(:)
+
+    latom = mol_ws%elem_stream(ielem)%latom
+    nucz  = mol_ws%elem_stream(ielem)%nucz
+    n     = mol_ws%elem_stream(ielem)%n
+    l     = mol_ws%elem_stream(ielem)%l
+    eta   = mol_ws%elem_stream(ielem)%eta
+    anorm = mol_ws%elem_stream(ielem)%anorm
+  end subroutine read_elem_basis
+
+  subroutine write_elem_potentials(ielem, stovl, stkin, stpot, lv, mv, vexp)
+    integer(int32), intent(in) :: ielem
+    integer(int32), intent(in) :: lv(:), mv(:)
+    real(real64), intent(in) :: stovl(:), stkin(:), stpot(:,:), vexp(:)
+
+    mol_ws%elem_stream(ielem)%stovl = stovl
+    mol_ws%elem_stream(ielem)%stkin = stkin
+    mol_ws%elem_stream(ielem)%stpot = stpot
+    mol_ws%elem_stream(ielem)%lv    = lv
+    mol_ws%elem_stream(ielem)%mv    = mv
+    mol_ws%elem_stream(ielem)%vexp  = vexp
+  end subroutine write_elem_potentials
+
+  subroutine read_elem_potentials(ielem, stovl, stkin, stpot, lv, mv, vexp)
+    integer(int32), intent(in) :: ielem
+    integer(int32), intent(out) :: lv(:), mv(:)
+    real(real64), intent(out) :: stovl(:), stkin(:), stpot(:,:), vexp(:)
+
+    stovl = mol_ws%elem_stream(ielem)%stovl
+    stkin = mol_ws%elem_stream(ielem)%stkin
+    stpot = mol_ws%elem_stream(ielem)%stpot
+    lv    = mol_ws%elem_stream(ielem)%lv
+    mv    = mol_ws%elem_stream(ielem)%mv
+    vexp  = mol_ws%elem_stream(ielem)%vexp
+  end subroutine read_elem_potentials
+
+  subroutine write_elem_core_matrices(ielem, sthmat, ontran)
+    integer(int32), intent(in) :: ielem
+    real(real64), intent(in) :: sthmat(:), ontran(:,:)
+
+    mol_ws%elem_stream(ielem)%sthmat = sthmat
+    mol_ws%elem_stream(ielem)%ontran = ontran
+  end subroutine write_elem_core_matrices
+
+  subroutine read_elem_core_matrices(ielem, sthmat, ontran)
+    integer(int32), intent(in) :: ielem
+    real(real64), intent(out) :: sthmat(:), ontran(:,:)
+
+    sthmat = mol_ws%elem_stream(ielem)%sthmat
+    ontran = mol_ws%elem_stream(ielem)%ontran
+  end subroutine read_elem_core_matrices
 
 end module phatpsy_state_mod

@@ -145,10 +145,10 @@ contains
 
       do IELEMB = 1, nelemb
         IUNITB = IUNIT(11 + mod(IELEM + IELEMB - 1 - incr, NELEM))
-        read(IUNITB) NSTOB, MSTOB, NORBB, NVTRMB
+        call read_elem_dims(IUNITB - 10, NSTOB, MSTOB, NORBB, NVTRMB)
         M2STOB = mol_ws%index_arr(MSTOB) + MSTOB
-        if (JATOM == NATOM) rewind(IUNIT3)
-        if (.not. qskip) read(IUNIT3) MDFATB
+        if (JATOM == NATOM) call rewind_atom_stream(IUNIT3)
+        if (.not. qskip) call read_atom_stream_mdifat(IUNIT3, MDFATB)
         N2ORBB = mol_ws%index_arr(NORBB) + NORBB
 
         call run_bloop(na, la, etaa, anorm, zpot2a, cpot2a, stovla, stpota,   &
@@ -196,14 +196,13 @@ contains
     allocate(projec(MSTO, MSTO, ISPIN), vfit2a(NVTERM), vcoefa(NVTERM))
     allocate(scrat(MSTO, MSTO, 2))
 
-    read(IUNIT0) latoma, NUCZA, na, la, etaa, anorm
-    read(IUNIT0) stovla, stkina, stpota, lva, mva, vexpa
-    rewind(IUNIT0)
+    call read_elem_basis(IELEM, latoma, NUCZA, na, la, etaa, anorm)
+    call read_elem_potentials(IELEM, stovla, stkina, stpota, lva, mva, vexpa)
 
     do JDFATA = 1, MDIFAT
-      read(IUNIT3) QFLAGS, neqata, xa, ya, za, eveca, evala, occa, focka,     &
-                   gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, totena,    &
-                   zzrepa, rmaxa
+      call read_atom_record_ref(IUNIT3, QFLAGS, neqata, xa, ya, za, eveca, evala, occa, focka,     &
+                                gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, totena,    &
+                                zzrepa, rmaxa)
 
       call process_active_atom_a(latoma, JDFATA, neqata, .false.,             &
                                  xa, ya, za, totena, zzrepa, rmaxa,           &
@@ -212,15 +211,15 @@ contains
                                  vexpa, zpot2a, cpot2a, pkpota, projec,       &
                                  vfit2a, vcoefa, scrat, qrealy)
 
-      write(IUNIT4) QFLAGS, neqata, xa, ya, za, eveca, evala, occa, focka,    &
-                    gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, totena,   &
-                    zzrepa, rmaxa
+      call write_atom_record_ref(IUNIT4, QFLAGS, neqata, xa, ya, za, eveca, evala, occa, focka,    &
+                                 gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, totena,   &
+                                 zzrepa, rmaxa)
 
       if (neqata > 0) then
         do IEQATA = 1, neqata
-          read(IUNIT3) QFLAGS, isyma, ixyza, xa, ya, za, eveca, evala, occa,  &
-                       focka, gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, &
-                       totena, zzrepa, rmaxa
+          call read_atom_record_equiv(IUNIT3, QFLAGS, isyma, ixyza, xa, ya, za, eveca, evala, occa,  &
+                                      focka, gammaa, cpot2a, vfit2a, vcoefa, pkpota, zpot2a, &
+                                      totena, zzrepa, rmaxa)
           matoma = IEQATA * MDIFAT + JDFATA
 
           call process_active_atom_a(latoma, matoma, neqata, .true.,          &
@@ -230,9 +229,9 @@ contains
                                      vexpa, zpot2a, cpot2a, pkpota, projec,   &
                                      vfit2a, vcoefa, scrat, qrealy)
 
-          write(IUNIT4) QFLAGS, isyma, ixyza, xa, ya, za, eveca, evala, occa, &
-                        focka, gammaa, cpot2a, vfit2a, vcoefa, pkpota,        &
-                        zpot2a, totena, zzrepa, rmaxa
+          call write_atom_record_equiv(IUNIT4, QFLAGS, isyma, ixyza, xa, ya, za, eveca, evala, occa, &
+                                       focka, gammaa, cpot2a, vfit2a, vcoefa, pkpota,        &
+                                       zpot2a, totena, zzrepa, rmaxa)
         end do
       end if
     end do

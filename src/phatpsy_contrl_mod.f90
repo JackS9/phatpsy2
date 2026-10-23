@@ -85,9 +85,6 @@ contains
     QFIRST = (MXCYCL /= 0)
     QLAST  = (MXCYCL <= 1)
 
-    open(unit=IUNIT3, file='Phatpsy.Unit3', form='UNFORMATTED')
-    open(unit=IUNIT4, file='Phatpsy.Unit4', form='UNFORMATTED')
-
     elem_loop: do
       QNWBAS = (.not. QRSTRT)
       NSTO   = MXNSTO
@@ -106,13 +103,12 @@ contains
       if (QDEBUG) write(IUDUMP, 5000) IELEM
       if (IELEM > NELEM) call BOMB(7)
       IUNIT0 = IUNIT(IELEM + 10)
-      open(unit=IUNIT0, file='Phatpsy.Elem'//char(48 + IELEM), form='UNFORMATTED')
 
       if (.not. QNWBAS) write(IW, 6000) IUNIT0
       if (QNWBAS) then
-        write(IUNIT0) NSTO, MSTO, NORB, NVTERM
+        call write_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
       else
-        read(IUNIT0)  NSTO, MSTO, NORB, NVTERM
+        call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
       end if
       write(IW, 7000) NSTO, MSTO
       write(IW, 8000) NORB
@@ -124,7 +120,7 @@ contains
       if (NVTERM > 1) write(IW, 9000) NVTERM
       write(IW, 10000) 4
       call run_atomic_element(NRATOM, QREALY, eof_elem)
-      rewind(IUNIT0)
+      call rewind_elem_stream(IELEM)
 
       if (QATOM .or. IELEM >= NELEM) exit elem_loop
     end do elem_loop
@@ -155,8 +151,8 @@ contains
     end if
 
     write(IW, 11000)
-    rewind(IUNIT3)
-    if (.not. QATOM) rewind(IUNIT4)
+    call rewind_atom_stream(IUNIT3)
+    if (.not. QATOM) call rewind_atom_stream(IUNIT4)
     write(IW, 12000) IUNIT3
     call TIMOUT(-2)
     NELEM = IELEM
@@ -237,16 +233,16 @@ contains
     ! Run ALOOP across all elements
     do IELEM = 1, NELEM
       IUNIT0 = IUNIT(10 + IELEM)
-      read(IUNIT0) NSTO, MSTO, NORB, NVTERM
+      call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
       M2STO = mol_ws%index_arr(MSTO) + MSTO
-      read(IUNIT3) MDIFAT
+      call read_atom_stream_mdifat(IUNIT3, MDIFAT)
       N2ORB = mol_ws%index_arr(NORB) + NORB
-      write(IUNIT4) MDIFAT
+      call write_atom_stream_mdifat(IUNIT4, MDIFAT)
       call run_aloop_element(QREALY)
-      rewind(IUNIT0)
+      call rewind_elem_stream(IELEM)
     end do
 
-    mol_ws%stvab_pos = 0; rewind(IUNIT3); rewind(IUNIT4)
+    mol_ws%stvab_pos = 0; call rewind_atom_stream(IUNIT3); call rewind_atom_stream(IUNIT4)
     if (QPRINT) write(IW, 12000) IUNIT4
     ELECS(ISPIN) = ZERO
     ELECS(1)     = HALF * (ELSUM + ELDIF)
@@ -345,14 +341,14 @@ contains
 
     do IELEM = 1, NELEM
       IUNIT0 = IUNIT(IELEM + 10)
-      read(IUNIT0) NSTO, MSTO, NORB, NVTERM
+      call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
       M2STO = mol_ws%index_arr(MSTO) + MSTO
 
       if (QATOM) then
-        read(IUNIT3) MDIFAT
+        call read_atom_stream_mdifat(IUNIT3, MDIFAT)
       else
-        read(IUNIT4) MDIFAT
-        write(IUNIT3) MDIFAT
+        call read_atom_stream_mdifat(IUNIT4, MDIFAT)
+        call write_atom_stream_mdifat(IUNIT3, MDIFAT)
       end if
       N2ORB = mol_ws%index_arr(NORB) + NORB
 
@@ -363,11 +359,11 @@ contains
       call run_scf_element()
       deallocate(scf_1, scf_2, scf_3, scf_4, scf_5, scf_6, scf_7, &
                  scf_8, scf_9, scf_10, scf_11, scf_12, scf_13)
-      rewind(IUNIT0)
+      call rewind_elem_stream(IELEM)
     end do
 
-    rewind(IUNIT3)
-    if (.not. QATOM) rewind(IUNIT4)
+    call rewind_atom_stream(IUNIT3)
+    if (.not. QATOM) call rewind_atom_stream(IUNIT4)
     if (QATOM) then
       done_after_scf = .true.
       return

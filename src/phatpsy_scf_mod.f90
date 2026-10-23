@@ -91,25 +91,22 @@ contains
     allocate(pkpot_bak(M2STO, 6, ISPIN), aofock_bak(N2ORB, ISPIN), gamma_bak(NORB, ISPIN))
     allocate(vcoef_bak(NVTERM))
 
-    rewind(IUNIT0)
-
     !-------------------------------------------------------------------
     ! Loop over non-equivalent atoms (JDIFAT = 1..MDIFAT)
     !-------------------------------------------------------------------
     do jdifat = 1, MDIFAT
       call TIMOUT(0)
-      read(IUNIT0) NSTO, MSTO, NORB, NVTERM
-      read(IUNIT0) latom, nucz, n, l, eta, anorm
-      read(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
-      read(IUNIT0) sthmat, ontran
-      rewind(IUNIT0)
+      call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
+      call read_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
+      call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
+      call read_elem_core_matrices(IELEM, sthmat, ontran)
       stovl_bak  = stovl
       ontran_bak = ontran
 
       iunitx = merge(IUNIT3, IUNIT4, logical(QATOM))
-      read(iunitx) QFLAGS, neqat, x, y, z, stevec, eval, occ, aofock, gamma, &
-                   cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
-      if (QATOM) rewind(IUNIT3)
+      call read_atom_record_ref(iunitx, QFLAGS, neqat, x, y, z, stevec, eval, occ, aofock, gamma, &
+                                cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
+      if (QATOM) call rewind_atom_stream(IUNIT3)
 
       tke    = -toten
       te     = merge(0.0d0, toten, logical(QFIRST .and. .not. QRSTRT))
@@ -162,12 +159,11 @@ contains
             call DENMAT(stden(1,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
           end do
 
-          read(IUNIT0) NSTO, MSTO, NORB, NVTERM
-          read(IUNIT0) latom, nucz, n, l, eta, anorm
-          read(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
-          read(IUNIT0) sthmat, ontran
+          call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
+          call read_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
+          call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
+          call read_elem_core_matrices(IELEM, sthmat, ontran)
           call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
-          rewind(IUNIT0)
 
           do isp = 1, ISPIN
             do ij = 1, M2STO
@@ -330,9 +326,9 @@ contains
       TOTKE = TOTKE + tke
       ZZPOT = ZZPOT + zzrep / 2.0d0
 
-      if (QATOM) write(IUNIT3) MDIFAT
-      write(IUNIT3) QFLAGS, neqat, x, y, z, stevec, eval, occ, aofock, gamma, &
-                    cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
+      if (QATOM) call write_atom_stream_mdifat(IUNIT3, MDIFAT)
+      call write_atom_record_ref(IUNIT3, QFLAGS, neqat, x, y, z, stevec, eval, occ, aofock, gamma, &
+                                 cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
 
       !-----------------------------------------------------------------
       ! Loop over symmetry-equivalent atoms (IEQAT = 1..NEQAT)
@@ -351,8 +347,8 @@ contains
         zzrep0     = zzrep
 
         do ieqat = 1, neqat
-          read(IUNIT4) QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
-                       gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
+          call read_atom_record_equiv(IUNIT4, QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
+                                      gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
           stovl  = stovl_bak
           ontran = ontran_bak
           stevec = stevec_bak
@@ -373,12 +369,11 @@ contains
             do isp = 1, ISPIN
               call DENMAT(stden(1,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
             end do
-            read(IUNIT0) NSTO, MSTO, NORB, NVTERM
-            read(IUNIT0) latom, nucz, n, l, eta, anorm
-            read(IUNIT0) stovl, stkin, stpot, lv, mv, vexp
-            read(IUNIT0) sthmat, ontran
+            call read_elem_dims(IELEM, NSTO, MSTO, NORB, NVTERM)
+            call read_elem_basis(IELEM, latom, nucz, n, l, eta, anorm)
+            call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
+            call read_elem_core_matrices(IELEM, sthmat, ontran)
             call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
-            rewind(IUNIT0)
 
             do isp = 1, ISPIN
               ijorb = 0
@@ -437,8 +432,8 @@ contains
             matom = ieqat * MDIFAT + jdifat
             write(IW, 24000) latom, matom, IP
           end if
-          write(IUNIT3) QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
-                        gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx
+          call write_atom_record_equiv(IUNIT3, QFLAGS, isym, ixyz, x, y, z, stevec, eval, occ, aofock, &
+                                       gamma, cpot2, vfit2, vcoef, pkpot, zpot2, toten, zzrep, rmAx)
           if (ieqat < neqat) then
             stovl_bak  = stovl
             ontran_bak = ontran

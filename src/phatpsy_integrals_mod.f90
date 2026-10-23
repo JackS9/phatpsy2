@@ -273,7 +273,6 @@ contains
                           if (summu /= 0.0d0) then
                             ntei = ntei + 1
                             tei  = summu * stnorm_val
-                            call PUTTEI(tei, teibuf)
 
                             if (USE_IN_MEMORY_TEI .and. IELEM >= 1 .and. IELEM <= size(tei_cache)) then
                               if (ntei > size(tei_cache(IELEM)%val)) then
@@ -308,7 +307,6 @@ contains
     end do
 
     IAC = 0
-    call PUTTEI(tei, teibuf)
     if (USE_IN_MEMORY_TEI .and. IELEM >= 1 .and. IELEM <= size(tei_cache)) then
       tei_cache(IELEM)%ntei      = ntei
       tei_cache(IELEM)%populated = .true.
@@ -353,26 +351,8 @@ contains
             fx(icd_l, isp) = fx(icd_l, isp) - kcd_l * d(iab_l, isp) * tei
           end do
         end do
-        return
       end if
     end if
-
-    ! Legacy disk-buffered fallback via IUNIT0
-    call TEINDX(0, teibuf)
-    do
-      call GETTEI(tei, teibuf)
-      if (IAC == 0) exit
-      fac = KAC * (d(IBD, 1) + d(IBD, ISPIN)) * tei
-      fbd = KBD * (d(IAC, 1) + d(IAC, ISPIN)) * tei
-      do isp = 1, ISPIN
-        fc(IAC, isp) = fc(IAC, isp) + fac
-        fc(IBD, isp) = fc(IBD, isp) + fbd
-        fx(IAD, isp) = fx(IAD, isp) - KAD * d(IBC, isp) * tei
-        fx(IBC, isp) = fx(IBC, isp) - KBC * d(IAD, isp) * tei
-        fx(IAB, isp) = fx(IAB, isp) - KAB * d(ICD, isp) * tei
-        fx(ICD, isp) = fx(ICD, isp) - KCD * d(IAB, isp) * tei
-      end do
-    end do
   end subroutine run_fokmat
 
 end module phatpsy_integrals_mod

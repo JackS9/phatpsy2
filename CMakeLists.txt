@@ -31,6 +31,7 @@ set(REPLACED_LEGACY_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tinvit.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/trbak3.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eig.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/teindx.f"
 )
 
 # Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
