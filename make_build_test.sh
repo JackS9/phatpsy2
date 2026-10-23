@@ -4,6 +4,11 @@ set -e
 # Increase stack size limit for quantum chemical array evaluations
 ulimit -s unlimited 2>/dev/null || true
 
+# Prevent multi-threaded BLAS/LAPACK runtime stack overflow in OpenBLAS / OMP
+export OPENBLAS_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export OMP_STACKSIZE=1G
+
 # 1. Configure and build legacy baseline, modern CLI, and Python f2py extension
 PY_EXE=""
 if [ -f ".venv/bin/python3" ]; then
