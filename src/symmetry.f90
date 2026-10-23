@@ -5,6 +5,7 @@
 module symmetry
   use iso_fortran_env, only: real64, int32
   use state,           only: ALPHA_ANG, BETA_ANG
+  use angular,         only: gendc, dcoef
   implicit none
 
   private
@@ -117,8 +118,7 @@ contains
     real(real64), allocatable :: work(:)
     integer(int32) :: nfold, isp, iorb, isto, jsto, lq, llqp1, imlq, mlq, isig, isigma, nv, mv
     logical        :: qinvrt
-    real(real64), external :: dcoef
-    external               :: gendc, bomb
+    external               :: bomb
 
     if (isym == 0 .or. isym == 1) return
 

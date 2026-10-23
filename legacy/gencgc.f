@@ -173,7 +173,10 @@ C-----------------------------------------------------------------------
      X     LL+1)*(2*LL+3)))* CGCSCR(ILL+1,1)- DSQRT(DFLOAT((L1-M1-1)*
      X     (L1+M1-1))/DFLOAT((2*L1-3)*(2*L1-1)))* CGCSCR(ILL,1))*
      X     DSQRT(DFLOAT((2*L1-1)*(2*L1+1))/DFLOAT((L1-M1)*(L1+M1)))
-      CGC(NDXCG(MM,M1,M2,LL,L1,M2))=CG
+C     NOTE: Use L2TMP to avoid pass-by-reference argument aliasing with M2
+C     when ORDER is called within NDXCG.
+      L2TMP=M2
+      CGC(NDXCG(MM,M1,M2,LL,L1,L2TMP))=CG
    80 CGCSCR(ILL,1)=CG
       CGCSCR(ILL,2)=CG
    90 CONTINUE

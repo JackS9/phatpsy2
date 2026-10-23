@@ -1,6 +1,7 @@
 module integrals
   use iso_fortran_env, only: real64, int32
   use state
+  use angular, only: cgcoef
   implicit none
   private
   public :: run_oneint, run_twoint, run_fokmat, USE_IN_MEMORY_TEI, clear_tei_cache
@@ -51,7 +52,6 @@ contains
     integer(int32) :: iskip, jskip, i, j, k, ni, li, llip1, nj, lj, lljp1
     integer(int32) :: nk, mi, mli, ij, mjmx, mj, mlj, lk, mk
     real(real64)   :: etai, anormi, etaj, stnorm_val, vnorm, stovlx, stkinx, etak
-    real(real64), external :: CGCOEF
 
     stovl = 0.0d0
     stkin = 0.0d0
@@ -141,7 +141,6 @@ contains
     real(real64)   :: stnorm_val, summu, tei, fourpi
     real(real64),   allocatable :: tmp_val(:)
     integer(int32), allocatable :: tmp_idx(:,:), tmp_wgt(:,:)
-    real(real64), external :: CGCOEF
 
     fourpi = HALFPI(8)
     ntei   = 0

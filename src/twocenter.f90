@@ -7,6 +7,7 @@ module twocenter
   use state,           only: EXPMIN, NNMXM1, NABDIM, NSTO, NYLM, L3MX, NCGC, &
                              FACT, BINOM, HALF, ROOTPI, NVTRMB
   use elliptical,      only: absum, anmbnm, ogen
+  use angular,         only: dcoef, cgcoef
   implicit none
 
   real(real64), parameter :: PI    = 3.141592653589793238462643383279502884d0
@@ -162,7 +163,6 @@ contains
     integer(int32) :: madif, masum, ilamn, ilamx, k, lb, nb, mb, l2b
     integer(int32) :: ila, la, l2a, lmin, imlmx, iml, ml, iabsml, mlp1
     integer(int32) :: limi, limj, limij, nvterm
-    real(real64), external :: dcoef, cgcoef
 
     nvterm = NVTRMB
     rhalf  = half * rab

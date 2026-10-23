@@ -17,6 +17,7 @@ set(MODERN_F90_MODULES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/linalg.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/state.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/angular.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symmetry.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/elliptical.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/twocenter.f90"

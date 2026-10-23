@@ -5,6 +5,7 @@ module contrl
   use aloop,  only: run_aloop_element
   use scf,    only: run_scf_element
   use ewmo,   only: run_ewmo
+  use angular,only: gencgc
   implicit none
   public
 
