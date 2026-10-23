@@ -44,10 +44,10 @@ def test_atom_config_intrinsic_properties():
     assert a2.is_spin_down is True
     assert a2.is_virtual is True
     assert a2.symmetry_op == -1
-    assert a2.symmetry_axis == 100
+    assert a2.symmetry_axis == 1
     assert a2.symmetry is not None
     assert a2.symmetry.isym == -1
-    assert a2.symmetry.ixyz == 100
+    assert a2.symmetry.ixyz == 1
 
 
 def test_symmetry_helpers():
@@ -58,14 +58,14 @@ def test_symmetry_helpers():
     assert normalize_symmetry_op("C4") == 4
     assert normalize_symmetry_op(2) == 2
 
-    assert normalize_symmetry_axis("x") == 1
+    assert normalize_symmetry_axis("x") == 100
     assert normalize_symmetry_axis("y") == 10
-    assert normalize_symmetry_axis("z") == 100
+    assert normalize_symmetry_axis("z") == 1
 
     # Transformations
     p = [1.0, 2.0, 3.0]
     # Reflection across XY plane (z -> -z)
-    refl_z = apply_symmetry_operation(p, isym=-1, ixyz=100)
+    refl_z = apply_symmetry_operation(p, isym=-1, ixyz=1)
     assert np.allclose(refl_z, [1.0, 2.0, -3.0])
 
     # Inversion
@@ -73,7 +73,7 @@ def test_symmetry_helpers():
     assert np.allclose(inv, [-1.0, -2.0, -3.0])
 
     # 4-fold rotation around Z (90 deg CCW: [1, 2, 3] -> [-2, 1, 3])
-    c4_z = apply_symmetry_operation(p, isym=4, ixyz=100)
+    c4_z = apply_symmetry_operation(p, isym=4, ixyz=1)
     assert np.allclose(c4_z, [-2.0, 1.0, 3.0], atol=1e-5)
 
 
@@ -90,7 +90,7 @@ def test_permuted_atom_ordering_and_deck_generation():
             element="Ni",
             equivalent_to="Ni1",
             symmetry_op=-1,
-            symmetry_axis=100,
+            symmetry_axis=1,
             spin="down",
         ),
         AtomConfig(
@@ -114,8 +114,8 @@ def test_permuted_atom_ordering_and_deck_generation():
     stdin = deck.to_stdin_text()
     # Reference atom with NEQAT=1 must appear first
     assert "XYZ=0.00000,0.00000,1.50000, NEQAT=1" in stdin
-    # Equivalent atom with ISYM=-1, IXYZ=100 and QFLIP=T (since Ni2 is down and Ni1 is up)
-    assert "IXYZ=100, ISYM=-1, QFLIP=T" in stdin
+    # Equivalent atom with ISYM=-1, IXYZ=001 and QFLIP=T (since Ni2 is down and Ni1 is up)
+    assert "IXYZ=001, ISYM=-1, QFLIP=T" in stdin
 
 
 def test_resolve_coordinates_for_equivalent_atoms():
@@ -126,7 +126,7 @@ def test_resolve_coordinates_for_equivalent_atoms():
         element="Ni",
         equivalent_to="Ni1",
         symmetry_op=-1,
-        symmetry_axis=100,  # reflection through XY (z -> -z)
+        symmetry_axis=1,  # reflection through XY (z -> -z)
         spin="down",
     )
     deck = CalculationDeck(geometry=[a1, a2])

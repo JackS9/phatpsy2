@@ -14,13 +14,87 @@ from phatpsy.schema import (
     ElementConfig,
     SymmetrySpec,
 )
-from phatpsy.basis import BasisFunction
+from phatpsy.basis import BasisFunction, InitialOrbital
+
+
+def _parse_val_list(val_str: str) -> List[float]:
+    res = []
+    for token in val_str.replace(",", " ").split():
+        token = token.strip()
+        if not token:
+            continue
+        if "*" in token:
+            parts = token.split("*")
+            try:
+                count = int(parts[0])
+                v = float(parts[1].replace("D", "E").replace("d", "e"))
+                res.extend([v] * count)
+            except ValueError:
+                pass
+        else:
+            try:
+                res.append(float(token.replace("D", "E").replace("d", "e")))
+            except ValueError:
+                pass
+    return res
+
+
+def _parse_atorb_blocks(text: str) -> List[InitialOrbital]:
+    orbitals = []
+    atorb_matches = list(re.finditer(r"&ATORB\b(.*?)(?:/|&END)", text, re.IGNORECASE | re.DOTALL))
+    for i, m in enumerate(atorb_matches):
+        block = m.group(1)
+        eigvals: List[float] = []
+        occnos: List[float] = []
+        ncoef = 0
+
+        # Extract eigval
+        eig_m = re.search(r"EIGVAL\s*=\s*([0-9\.\-\*dDeE,\s]+?)(?:,?\s*[A-Za-z_]+\s*=|$)", block, re.IGNORECASE)
+        if eig_m:
+            eigvals = _parse_val_list(eig_m.group(1))
+
+        # Extract occno
+        occ_m = re.search(r"OCCNO\s*=\s*([0-9\.\-\*dDeE,\s]+?)(?:,?\s*[A-Za-z_]+\s*=|$)", block, re.IGNORECASE)
+        if occ_m:
+            occnos = _parse_val_list(occ_m.group(1))
+
+        # Extract ncoef
+        ncoef_m = re.search(r"NCOEF\s*=\s*(\d+)", block, re.IGNORECASE)
+        if ncoef_m:
+            ncoef = int(ncoef_m.group(1))
+
+        # Coefficients lines
+        coeffs = []
+        if ncoef > 0:
+            c_start = m.end()
+            c_end = atorb_matches[i + 1].start() if i + 1 < len(atorb_matches) else len(text)
+            coeff_chunk = text[c_start:c_end]
+            for line in coeff_chunk.splitlines():
+                line = line.strip()
+                if not line or line.startswith("&"):
+                    continue
+                parts = line.split()
+                if len(parts) >= 3:
+                    try:
+                        isto = int(parts[0])
+                        ml = int(parts[1])
+                        c1 = float(parts[2].replace("D", "E").replace("d", "e"))
+                        c2 = float(parts[3].replace("D", "E").replace("d", "e")) if len(parts) >= 4 else c1
+                        coeffs.append([isto, ml, c1, c2])
+                        if len(coeffs) >= ncoef:
+                            break
+                    except ValueError:
+                        continue
+
+        orbitals.append(InitialOrbital(eigval=eigvals, occno=occnos, coefficients=coeffs))
+    return orbitals
 
 
 def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
     """
     Parses a legacy PHATPSY .stdin file directly into a structured CalculationDeck,
-    extracting CTLINP controls, element definitions, basis functions, and atom coordinates.
+    extracting CTLINP controls, element definitions, basis functions, atom coordinates,
+    and initial atomic orbital parameters (&ATORB cards and coefficient matrices).
     """
     p = Path(file_path)
     with open(p, "r", errors="replace") as f:
@@ -103,11 +177,12 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
             functions=basis_funcs,
         )
 
-        atom_entries = re.finditer(r"&ATOM\s+(.*?)(&END|/)", block, re.IGNORECASE | re.DOTALL)
+        atom_entries = list(re.finditer(r"&ATOM\s+(.*?)(&END|/)", block, re.IGNORECASE | re.DOTALL))
         atom_count_for_elem = 0
         current_primary_atom: Optional[AtomConfig] = None
+        last_atom_in_elem: Optional[AtomConfig] = None
 
-        for atom_m in atom_entries:
+        for entry_idx, atom_m in enumerate(atom_entries):
             atom_str = atom_m.group(1)
             fixed = bool(re.search(r"QFIXED\s*=\s*[Tt]", atom_str))
             virtual = bool(re.search(r"QVIRTL\s*=\s*[Tt]", atom_str))
@@ -115,11 +190,25 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
             xyz_m = re.search(r"XYZ\s*=\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)", atom_str, re.IGNORECASE)
             symm_m = re.search(r"IXYZ\s*=\s*(\d+)", atom_str, re.IGNORECASE)
 
+            # Trailing text for this atom (between its &ATOM end and the next &ATOM start, or block end)
+            trailing_start = atom_m.end()
+            trailing_end = atom_entries[entry_idx + 1].start() if entry_idx + 1 < len(atom_entries) else len(block)
+            trailing_text = block[trailing_start:trailing_end]
+
             atom_count_for_elem += 1
             atom_id = f"{sym}{atom_count_for_elem}"
 
             if xyz_m:
                 xyz = [float(xyz_m.group(1)), float(xyz_m.group(2)), float(xyz_m.group(3))]
+                starting_orbs = _parse_atorb_blocks(trailing_text) or None
+                if starting_orbs:
+                    tot_alpha = sum(orb.occno[0] for orb in starting_orbs if len(orb.occno) > 0)
+                    tot_beta = sum(orb.occno[1] for orb in starting_orbs if len(orb.occno) > 1)
+                    if tot_beta > tot_alpha:
+                        spin_flip = True
+                    elif tot_alpha > tot_beta and not re.search(r"QFLIP\s*=\s*[Tt]", atom_str):
+                        spin_flip = False
+
                 p_atom = AtomConfig(
                     element=sym,
                     id=atom_id,
@@ -128,8 +217,10 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
                     virtual=virtual,
                     spin="down" if spin_flip else "up",
                     spin_flip=spin_flip,
+                    starting_orbitals=starting_orbs,
                 )
                 current_primary_atom = p_atom
+                last_atom_in_elem = p_atom
                 geometry.append(p_atom)
             elif symm_m:
                 ixyz = int(symm_m.group(1))
@@ -139,18 +230,16 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
                 qflip = (qflip_m.group(1).upper() == "T") if qflip_m else True
 
                 ref_id = current_primary_atom.id if current_primary_atom else None
-                ref_spin = current_primary_atom.spin if current_primary_atom else "up"
+                source_atom = last_atom_in_elem or current_primary_atom
+                ref_spin = source_atom.spin if source_atom and source_atom.spin else "up"
                 eq_spin = ("down" if ref_spin == "up" else "up") if qflip else ref_spin
 
-                # Calculate physical coordinates from reference atom if available
+                # Calculate physical coordinates from previous atom in symmetry chain (matching Fortran SYMXYZ: LAST = IATOM - 1)
                 from phatpsy.schema import apply_symmetry_operation
-                eq_xyz = (
-                    apply_symmetry_operation(current_primary_atom.xyz, isym=isym, ixyz=ixyz)
-                    if current_primary_atom
-                    else [0.0, 0.0, 0.0]
-                )
+                source_xyz = source_atom.xyz if source_atom else [0.0, 0.0, 0.0]
+                eq_xyz = apply_symmetry_operation(source_xyz, isym=isym, ixyz=ixyz)
 
-                geometry.append(AtomConfig(
+                eq_atom = AtomConfig(
                     element=sym,
                     id=atom_id,
                     xyz=eq_xyz,
@@ -162,7 +251,9 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
                     virtual=virtual,
                     spin_flip=qflip,
                     spin=eq_spin,
-                ))
+                )
+                last_atom_in_elem = eq_atom
+                geometry.append(eq_atom)
 
     return CalculationDeck(
         title=title,

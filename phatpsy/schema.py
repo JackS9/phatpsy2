@@ -17,20 +17,20 @@ from phatpsy.basis import get_element_basis, BasisFunction, ElementData
 def normalize_symmetry_axis(axis: Union[int, str, None]) -> Optional[int]:
     """
     Normalizes a symmetry axis identifier into the legacy Fortran mnemonic:
-    1 = X axis (or YZ plane reflection)
-    10 = Y axis (or XZ plane reflection)
-    100 = Z axis (or XY plane reflection)
+    1 = Z axis (or XY plane reflection, normal Z)
+    10 = Y axis (or XZ plane reflection, normal Y)
+    100 = X axis (or YZ plane reflection, normal X)
     """
     if axis is None:
         return None
     if isinstance(axis, int):
         return axis
     s = str(axis).strip().lower()
-    if s in ("1", "x", "axis_x", "001", "yz"):
+    if s in ("1", "z", "axis_z", "001", "xy"):
         return 1
     if s in ("10", "y", "axis_y", "010", "xz"):
         return 10
-    if s in ("100", "z", "axis_z", "xy"):
+    if s in ("100", "x", "axis_x", "100", "yz"):
         return 100
     try:
         return int(s)
@@ -74,72 +74,73 @@ def normalize_symmetry_op(op: Union[int, str, None]) -> Optional[int]:
 
 def apply_symmetry_operation(
     xyz: List[float],
-    isym: int = -1,
-    ixyz: int = 1,
+    isym: Union[int, str] = -1,
+    ixyz: Union[int, str] = 1,
 ) -> List[float]:
     """
     Transforms Cartesian coordinates [x, y, z] by a symmetry operation.
     Corresponds to legacy Fortran SYMXYZ logic:
     - isym = 1 or 0: Identity
-    - isym = -1: Pure reflection across the plane perpendicular to ixyz (1=X, 10=Y, 100=Z)
+    - isym = -1: Pure reflection across the plane perpendicular to ixyz (1=Z, 10=Y, 100=X)
     - isym = -2: Inversion through the origin
-    - isym = N (>0): N-fold rotation around axis ixyz
+    - isym = N (>0): N-fold rotation around axis ixyz (1=Z, 10=Y, 100=X)
     - isym = -N (< -2): N-fold roto-reflection
     """
-    if isym in (0, 1):
+    isym_norm = normalize_symmetry_op(isym) or 1
+    ixyz_norm = normalize_symmetry_axis(ixyz) or 1
+
+    if isym_norm in (0, 1):
         return [float(c) for c in xyz]
 
     x, y, z = float(xyz[0]), float(xyz[1]), float(xyz[2])
 
-    if isym == -2:
+    if isym_norm == -2:
         return [-x, -y, -z]
 
-    if isym == -1:
+    if isym_norm == -1:
         # Reflection through plane with normal along axis:
-        # ixyz == 1 (X normal, YZ plane): x -> -x
+        # ixyz == 100 (X normal, YZ plane): x -> -x
         # ixyz == 10 (Y normal, XZ plane): y -> -y
-        # ixyz == 100 (Z normal, XY plane): z -> -z
-        if ixyz == 1:
+        # ixyz == 1 (Z normal, XY plane): z -> -z
+        if ixyz_norm == 100:
             return [-x, y, z]
-        elif ixyz == 10:
+        elif ixyz_norm == 10:
             return [x, -y, z]
-        elif ixyz == 100:
+        else:  # ixyz == 1 or default Z
             return [x, y, -z]
-        else:
-            return [-x, y, z]
 
     # N-fold rotation or roto-reflection
-    nfold = abs(isym)
+    nfold = abs(isym_norm)
     angle = 2.0 * math.pi / float(nfold)
     cos_a = math.cos(angle)
     sin_a = math.sin(angle)
 
-    if ixyz == 1:
+    if ixyz_norm == 100:
         # Rotation around X axis
         xr = x
         yr = cos_a * y - sin_a * z
         zr = sin_a * y + cos_a * z
-    elif ixyz == 10:
+    elif ixyz_norm == 10:
         # Rotation around Y axis
         xr = cos_a * x + sin_a * z
         yr = y
         zr = -sin_a * x + cos_a * z
-    else:  # ixyz == 100 or default Z
+    else:  # ixyz == 1 or default Z
         # Rotation around Z axis
         xr = cos_a * x - sin_a * y
         yr = sin_a * x + cos_a * y
         zr = z
 
-    if isym < -2:
+    if isym_norm < -2:
         # Roto-reflection: rotate then reflect through plane perpendicular to axis
-        if ixyz == 1:
+        if ixyz_norm == 100:
             xr = -xr
-        elif ixyz == 10:
+        elif ixyz_norm == 10:
             yr = -yr
         else:
             zr = -zr
 
-    return [xr, yr, zr]
+    return [0.0 if abs(val) < 1e-12 else val for val in [xr, yr, zr]]
 
 
 @dataclass
@@ -231,6 +232,24 @@ class AtomConfig:
         elif self.spin_flip:
             self.spin = "down"
 
+        # 2. Reconcile / validate against starting_orbitals if present
+        if self.starting_orbitals:
+            net_spin = self.net_orbital_spin
+            if net_spin is not None and abs(net_spin) > 1e-6:
+                expected_spin = "up" if net_spin > 0 else "down"
+                if self.spin is not None and self.spin != expected_spin:
+                    atom_name = self.id or self.element
+                    tot_a = sum(orb.occno[0] for orb in self.starting_orbitals if len(orb.occno) > 0)
+                    tot_b = sum(orb.occno[1] for orb in self.starting_orbitals if len(orb.occno) > 1)
+                    raise ValueError(
+                        f"Conflicting spin specification for atom '{atom_name}': "
+                        f"explicit spin='{self.spin}', but starting_orbitals define net {expected_spin} spin "
+                        f"(alpha={tot_a:.2f}, beta={tot_b:.2f}, delta={net_spin:.2f})."
+                    )
+                elif self.spin is None:
+                    self.spin = expected_spin
+                    self.spin_flip = (expected_spin == "down")
+
         # 2. Synchronize legacy SymmetrySpec with modern symmetry_op / symmetry_axis
         if self.symmetry is not None:
             if self.symmetry_op is None:
@@ -255,6 +274,15 @@ class AtomConfig:
     @property
     def is_spin_up(self) -> bool:
         return self.spin == "up"
+
+    @property
+    def net_orbital_spin(self) -> Optional[float]:
+        """Returns sum(alpha_occ) - sum(beta_occ) across starting orbitals, if defined."""
+        if not self.starting_orbitals:
+            return None
+        tot_alpha = sum(orb.occno[0] for orb in self.starting_orbitals if len(orb.occno) > 0)
+        tot_beta = sum(orb.occno[1] for orb in self.starting_orbitals if len(orb.occno) > 1)
+        return tot_alpha - tot_beta
 
     @property
     def is_virtual(self) -> bool:
@@ -292,7 +320,7 @@ class AtomConfig:
         if self.spin:
             res["spin"] = self.spin
         elif self.spin_flip:
-            res["spin_flip"] = True
+            res["spin"] = "down"
         if self.embedded_state:
             if hasattr(self.embedded_state, "to_dict"):
                 res["embedded_state"] = self.embedded_state.to_dict()
@@ -323,6 +351,25 @@ class AtomConfig:
         else:
             emb = emb_data
 
+        starting_orbs = None
+        if "starting_orbitals" in data and data["starting_orbitals"]:
+            from phatpsy.basis import InitialOrbital
+            starting_orbs = [
+                (InitialOrbital.from_dict(o) if isinstance(o, dict) else o)
+                for o in data["starting_orbitals"]
+            ]
+            if spin_val is None:
+                tot_alpha = sum(orb.occno[0] for orb in starting_orbs if len(orb.occno) > 0)
+                tot_beta = sum(orb.occno[1] for orb in starting_orbs if len(orb.occno) > 1)
+                if tot_beta > tot_alpha:
+                    spin_val = "down"
+                    spin_flip_val = True
+                elif tot_alpha > tot_beta:
+                    spin_val = "up"
+
+        if spin_val is None and spin_flip_val:
+            spin_val = "down"
+
         return cls(
             element=data["element"].strip().capitalize(),
             id=data.get("id"),
@@ -337,7 +384,7 @@ class AtomConfig:
             spin_flip=spin_flip_val,
             spin=spin_val,
             embedded_state=emb,
-            starting_orbitals=data.get("starting_orbitals"),
+            starting_orbitals=starting_orbs,
         )
 
 
@@ -373,6 +420,33 @@ class ElementConfig:
             description=data.get("description"),
             functions=funcs,
         )
+
+
+def resolve_atom_coordinates(atoms: List[AtomConfig]) -> List[AtomConfig]:
+    """
+    Resolves unset [0, 0, 0] or duplicate coordinates on equivalent atoms by
+    applying their symmetry operations sequentially (matching Fortran SYMXYZ: LAST = IATOM - 1).
+    """
+    id_map = {a.id: a for a in atoms if a.id}
+    last_atom_by_elem: Dict[str, AtomConfig] = {}
+
+    for a in atoms:
+        has_sym = (a.equivalent_to is not None or a.symmetry is not None or a.symmetry_op is not None)
+        if has_sym:
+            op = a.symmetry_op if a.symmetry_op is not None else (a.symmetry.isym if a.symmetry else 1)
+            ax = a.symmetry_axis if a.symmetry_axis is not None else (a.symmetry.ixyz if a.symmetry else 1)
+            op_val = normalize_symmetry_op(op) or 1
+            ax_val = normalize_symmetry_axis(ax) or 1
+
+            if op_val not in (0, 1):
+                prev_atom = last_atom_by_elem.get(a.element)
+                ref = id_map.get(a.equivalent_to) if a.equivalent_to else None
+                source = prev_atom if prev_atom else ref
+
+                if source and (a.xyz == [0.0, 0.0, 0.0] or a.xyz == source.xyz):
+                    a.xyz = apply_symmetry_operation(source.xyz, isym=op_val, ixyz=ax_val)
+        last_atom_by_elem[a.element] = a
+    return atoms
 
 
 @dataclass
@@ -538,26 +612,11 @@ class CalculationDeck:
 
     def resolve_coordinates(self) -> "CalculationDeck":
         """
-        Resolves unset [0, 0, 0] coordinates on equivalent atoms by applying
-        their symmetry operation to their primary reference atom.
+        Resolves unset [0, 0, 0] or duplicate coordinates on equivalent atoms by
+        applying their symmetry operations sequentially (matching Fortran SYMXYZ: LAST = IATOM - 1).
         """
         self.ensure_atom_ids()
-        id_map = {a.id: a for a in self.geometry if a.id}
-        for a in self.geometry:
-            if (a.equivalent_to or a.symmetry is not None) and a.xyz == [0.0, 0.0, 0.0]:
-                ref = id_map.get(a.equivalent_to) if a.equivalent_to else None
-                if not ref:
-                    for prev in self.geometry:
-                        if prev is a:
-                            break
-                        if prev.element == a.element and prev.xyz != [0.0, 0.0, 0.0]:
-                            ref = prev
-                if ref:
-                    op = a.symmetry_op if a.symmetry_op is not None else (a.symmetry.isym if a.symmetry else -1)
-                    ax = a.symmetry_axis if a.symmetry_axis is not None else (a.symmetry.ixyz if a.symmetry else 1)
-                    op_val = normalize_symmetry_op(op) or -1
-                    ax_val = normalize_symmetry_axis(ax) or 1
-                    a.xyz = apply_symmetry_operation(ref.xyz, isym=op_val, ixyz=ax_val)
+        resolve_atom_coordinates(self.geometry)
         return self
 
     def to_stdin_text(self, include_coefficients: bool = True) -> str:
@@ -787,28 +846,44 @@ class CalculationDeck:
 
         elem_data = data.get("elements", {})
         elements = {k: ElementConfig.from_dict(v) for k, v in elem_data.items()}
-
-        return cls(title=title, control=control, geometry=geometry, elements=elements)
+        deck = cls(title=title, control=control, geometry=geometry, elements=elements)
+        deck.resolve_coordinates()
+        return deck
 
     @classmethod
     def from_yaml(cls, path_or_str: Union[str, Path]) -> "CalculationDeck":
         s = str(path_or_str)
-        if "\n" not in s and Path(s).is_file():
-            with open(Path(s), "r", encoding="utf-8") as f:
+        if "\n" not in s and (Path(s).is_file() or "/" in s or "\\" in s or s.endswith((".yaml", ".yml"))):
+            p = Path(s)
+            if not p.is_file():
+                raise FileNotFoundError(f"Calculation deck YAML file not found: {s}")
+            with open(p, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         else:
             data = yaml.safe_load(s)
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid YAML deck format: expected mapping/dictionary, got {type(data).__name__}")
         return cls.from_dict(data)
 
     @classmethod
     def from_json(cls, path_or_str: Union[str, Path]) -> "CalculationDeck":
         s = str(path_or_str)
-        if "\n" not in s and Path(s).is_file():
-            with open(Path(s), "r", encoding="utf-8") as f:
+        if "\n" not in s and (Path(s).is_file() or "/" in s or "\\" in s or s.endswith(".json")):
+            p = Path(s)
+            if not p.is_file():
+                raise FileNotFoundError(f"Calculation deck JSON file not found: {s}")
+            with open(p, "r", encoding="utf-8") as f:
                 data = json.load(f)
         else:
             data = json.loads(s)
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid JSON deck format: expected mapping/dictionary, got {type(data).__name__}")
         return cls.from_dict(data)
+
+    @classmethod
+    def from_stdin(cls, path_or_str: Union[str, Path]) -> "CalculationDeck":
+        from phatpsy.io import parse_stdin_to_deck
+        return parse_stdin_to_deck(path_or_str)
 
     @classmethod
     def from_geometry(

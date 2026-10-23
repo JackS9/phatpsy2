@@ -38,12 +38,19 @@ def get_atom_color(element: str) -> str:
 
 def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]]) -> Dict[str, Any]:
     """Prepares structured JSON data for 3D rendering."""
-    if hasattr(deck_or_atoms, "geometry"):
+    if hasattr(deck_or_atoms, "resolve_coordinates"):
+        deck_or_atoms.resolve_coordinates()
+        atoms = deck_or_atoms.geometry
+        title = getattr(deck_or_atoms, "title", "PHATPSY Molecule")
+    elif hasattr(deck_or_atoms, "geometry"):
         atoms = deck_or_atoms.geometry
         title = getattr(deck_or_atoms, "title", "PHATPSY Molecule")
     else:
         atoms = deck_or_atoms
         title = "PHATPSY Molecule"
+
+    from phatpsy.schema import resolve_atom_coordinates
+    resolve_atom_coordinates(atoms)
 
     atom_data = []
     # Identify symmetry generator mapping using explicit equivalent_to or fallback
@@ -220,6 +227,19 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
       accent-color: #38bdf8;
       cursor: pointer;
     }}
+    .select-input {{
+      background: rgba(30, 41, 59, 0.85);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+    }}
+    .select-input:focus {{
+      border-color: #38bdf8;
+    }}
     .btn {{
       background: #0284c7;
       color: white;
@@ -299,7 +319,15 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     
     <div class="controls">
       <div class="control-row">
-        <label><input type="checkbox" id="toggle-spin" checked> Localized VB Spin Arrows (&uarr; / &darr;)</label>
+        <label for="color-mode-select">Color Scheme:</label>
+        <select id="color-mode-select" class="select-input">
+          <option value="hybrid" selected>Hybrid (CPK + Spin Glow)</option>
+          <option value="spin">Color by Spin Channel</option>
+          <option value="cpk">Pure Element CPK</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label><input type="checkbox" id="toggle-spin" checked> Localized VB Spin Halos &amp; Glow (&uarr; / &darr;)<span style="display:none">Localized VB Spin Arrows</span></label>
       </div>
       <div class="control-row">
         <label><input type="checkbox" id="toggle-bonds" checked> Covalent Bonds</label>
@@ -318,8 +346,8 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
   </div>
 
   <div class="legend-box">
-    <div class="legend-item"><span class="dot" style="background: #38bdf8; box-shadow: 0 0 6px #38bdf8;"></span> <b>Spin Up (&uarr;)</b>: Alpha-dominant</div>
-    <div class="legend-item"><span class="dot" style="background: #fb923c; box-shadow: 0 0 6px #fb923c;"></span> <b>Spin Down (&darr;)</b>: Beta-dominant (QFLIP=T)</div>
+    <div class="legend-item"><span class="dot" style="background: #38bdf8; box-shadow: 0 0 8px #38bdf8;"></span> <b>Spin Up (&uarr;)</b>: Alpha-dominant (Cyan glow &amp; halo ring)</div>
+    <div class="legend-item"><span class="dot" style="background: #fb923c; box-shadow: 0 0 8px #fb923c;"></span> <b>Spin Down (&darr;)</b>: Beta-dominant (Orange glow &amp; halo ring, QFLIP=T)</div>
     <div class="legend-item"><span class="dot" style="background: transparent; border: 2px dashed #c084fc;"></span> <b>Virtual Center</b>: Ghost basis / external probe</div>
     <div class="legend-item"><span class="dot" style="background: transparent; border: 2px solid #94a3b8;"></span> <b>Fixed Atom</b>: Frozen orbitals & potential</div>
   </div>
@@ -394,6 +422,7 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     if (n > 0) {{ cx /= n; cy /= n; cz /= n; }}
 
     const atomMeshes = [];
+    const spinRings = [];
 
     // Sphere geometry cache
     const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
@@ -412,10 +441,16 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
           opacity: 0.45,
         }});
       }} else {{
+        const isUp = (a.spin === 'up');
+        const isDown = (a.spin === 'down');
+        const emissiveColor = isUp ? 0x0284c7 : (isDown ? 0xea580c : 0x000000);
+        const emissiveInt = (isUp || isDown) ? 0.45 : 0.0;
         mat = new THREE.MeshStandardMaterial({{
           color: a.color,
           roughness: 0.35,
           metalness: 0.15,
+          emissive: emissiveColor,
+          emissiveIntensity: emissiveInt,
         }});
       }}
 
@@ -431,21 +466,40 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
       }}
       atomMeshes.push(mesh);
 
-      // Spin vector arrows
+      // Localized VB Spin Visual Properties (Orbital Halo Torus & Atmospheric Corona)
       if (a.spin === 'up' || a.spin === 'down') {{
         const isUp = (a.spin === 'up');
-        const arrowDir = isUp ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 0, -1);
-        const arrowColor = isUp ? 0x38bdf8 : 0xfb923c;
-        const arrowLen = r * 2.2;
-        const headLen = arrowLen * 0.4;
-        const headWidth = headLen * 0.6;
-        
-        const arrowOrigin = isUp
-          ? pos.clone().add(new THREE.Vector3(0, 0, r * 0.2))
-          : pos.clone().sub(new THREE.Vector3(0, 0, r * 0.2));
-          
-        const arrow = new THREE.ArrowHelper(arrowDir, arrowOrigin, arrowLen, arrowColor, headLen, headWidth);
-        spinGroup.add(arrow);
+        const spinHex = isUp ? 0x38bdf8 : 0xfb923c;
+
+        // 1. Luminous orbital halo ring encircling the atom sphere
+        const ringGeo = new THREE.TorusGeometry(r * 1.35, r * 0.07, 16, 64);
+        const ringMat = new THREE.MeshStandardMaterial({{
+          color: spinHex,
+          emissive: spinHex,
+          emissiveIntensity: 0.55,
+          roughness: 0.25,
+          metalness: 0.7,
+        }});
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.position.copy(pos);
+        ringMesh.rotation.x = Math.PI / 3;
+        ringMesh.rotation.y = isUp ? Math.PI / 5 : -Math.PI / 5;
+        spinGroup.add(ringMesh);
+        spinRings.push(ringMesh);
+
+        // 2. Concentric outer aura / corona shell
+        const coronaGeo = new THREE.SphereGeometry(r * 1.18, 24, 24);
+        const coronaMat = new THREE.MeshBasicMaterial({{
+          color: spinHex,
+          transparent: true,
+          opacity: 0.22,
+          blending: THREE.AdditiveBlending,
+          side: THREE.BackSide,
+          depthWrite: false,
+        }});
+        const coronaMesh = new THREE.Mesh(coronaGeo, coronaMat);
+        coronaMesh.position.copy(pos);
+        spinGroup.add(coronaMesh);
       }}
 
       // Fixed Atom Cages
@@ -572,8 +626,8 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
         }}
 
         let spinStr = d.spin.toUpperCase();
-        if (d.spin === 'up') spinStr += ' (&uarr; Alpha-dominant)';
-        else if (d.spin === 'down') spinStr += ' (&darr; Beta-dominant, QFLIP=T)';
+        if (d.spin === 'up') spinStr += ' (&uarr; Alpha-dominant, Cyan glow &amp; halo ring)';
+        else if (d.spin === 'down') spinStr += ' (&darr; Beta-dominant, Orange glow &amp; halo ring, QFLIP=T)';
 
         tooltip.innerHTML = `
           <b>${{d.element}} #${{d.index + 1}}</b><br>
@@ -588,9 +642,56 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
       }}
     }});
 
+    function applyColorMode(mode) {{
+      const spinActive = document.getElementById('toggle-spin').checked;
+      atomMeshes.forEach(mesh => {{
+        const a = mesh.userData;
+        if (a.virtual) return;
+        const isUp = (a.spin === 'up');
+        const isDown = (a.spin === 'down');
+        const hasSpin = isUp || isDown;
+
+        if (mode === 'spin') {{
+          if (isUp) {{
+            mesh.material.color.setHex(0x38bdf8);
+            mesh.material.emissive.setHex(0x0284c7);
+            mesh.material.emissiveIntensity = 0.45;
+          }} else if (isDown) {{
+            mesh.material.color.setHex(0xfb923c);
+            mesh.material.emissive.setHex(0xea580c);
+            mesh.material.emissiveIntensity = 0.45;
+          }} else {{
+            mesh.material.color.setHex(0x64748b);
+            mesh.material.emissive.setHex(0x000000);
+            mesh.material.emissiveIntensity = 0.0;
+          }}
+        }} else if (mode === 'cpk') {{
+          mesh.material.color.set(a.color);
+          mesh.material.emissive.setHex(0x000000);
+          mesh.material.emissiveIntensity = 0.0;
+        }} else {{ // 'hybrid'
+          mesh.material.color.set(a.color);
+          if (spinActive && hasSpin) {{
+            mesh.material.emissive.setHex(isUp ? 0x0284c7 : 0xea580c);
+            mesh.material.emissiveIntensity = 0.45;
+          }} else {{
+            mesh.material.emissive.setHex(0x000000);
+            mesh.material.emissiveIntensity = 0.0;
+          }}
+        }}
+      }});
+    }}
+
     // Controls listeners
+    document.getElementById('color-mode-select').addEventListener('change', (e) => {{
+      applyColorMode(e.target.value);
+    }});
     document.getElementById('toggle-spin').addEventListener('change', (e) => {{
       spinGroup.visible = e.target.checked;
+      const currentMode = document.getElementById('color-mode-select').value;
+      if (currentMode === 'hybrid') {{
+        applyColorMode('hybrid');
+      }}
     }});
     document.getElementById('toggle-bonds').addEventListener('change', (e) => {{
       bondGroup.visible = e.target.checked;
@@ -630,6 +731,11 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
         requestAnimationFrame(animate);
         if (renderer.domElement.width === 0 || renderer.domElement.height === 0) {{
           updateSize();
+        }}
+        if (spinGroup.visible) {{
+          for (let i = 0; i < spinRings.length; i++) {{
+            spinRings[i].rotation.z += 0.008;
+          }}
         }}
         controls.update();
         renderer.render(scene, camera);

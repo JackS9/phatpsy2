@@ -18,15 +18,33 @@ geometry:
   - 0.0
   - 0.0
   - 1.034
+  id: N1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -15.6704
+    - -15.579
+  - eigval:
+    - -1.1606
+    - -0.727
+  - eigval:
+    - -0.5691
+    - 0.1912
+    occno:
+    - 1.0
+    - 0.0
+  - {}
+  - {}
 - element: N
   xyz:
   - 0.0
   - 0.0
-  - 0.0
-  symmetry:
-    ixyz: 1
-    isym: -1
-    qflip: true
+  - -1.034
+  id: N2
+  equivalent_to: N1
+  symmetry_op: -1
+  symmetry_axis: 1
+  spin: down
 elements:
   N:
     symbol: N

@@ -132,8 +132,14 @@ def test_generate_html_content(tmp_path):
     assert "three.min.js" in html_text
     assert "OrbitControls.js" in html_text
     assert "Localized VB Spin Arrows" in html_text
+    assert "Localized VB Spin Halos &amp; Glow" in html_text
+    assert "color-mode-select" in html_text
+    assert "TorusGeometry" in html_text
+    assert "ArrowHelper" not in html_text
     assert "Fixed Atom Cages" in html_text
     assert "Virtual (Ghost) Centers" in html_text
+    assert "0x38bdf8" in html_text  # Cyan spin up
+    assert "0xfb923c" in html_text  # Orange spin down
 
 
 def test_cli_view_and_auto_spin(tmp_path):

@@ -1,0 +1,118 @@
+title: '... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)'
+control:
+  spin_unrestricted: true
+  max_cycles: 50
+  convergence: 0.0005
+  time_limit: 360.0
+  charge_damp: 0.0
+  charge_accel: 1.0
+  potential_damp: 0.5
+  potential_accel: 1.0
+  pk_scale: 1.0
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - 1.034
+  id: N1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -15.625
+    - -15.625
+    occno:
+    - 1.0
+    - 1.0
+    coefficients:
+    - - 1
+      - 0
+      - 0.27
+      - 0.27
+    - - 2
+      - 0
+      - 0.74
+      - 0.74
+  - eigval:
+    - -0.943
+    - -0.943
+    occno:
+    - 1.0
+    - 1.0
+    coefficients:
+    - - 2
+      - 0
+      - -0.28
+      - -0.28
+    - - 3
+      - 0
+      - 0.73
+      - 0.73
+    - - 4
+      - 0
+      - 0.35
+      - 0.35
+  - eigval:
+    - -0.566
+    - -0.566
+    occno:
+    - 1.0
+    - 0.0
+    coefficients:
+    - - 5
+      - -1
+      - 0.29
+      - 0.29
+    - - 6
+      - -1
+      - 0.78
+      - 0.78
+  - eigval:
+    - -0.566
+    - -0.566
+    occno:
+    - 1.0
+    - 0.0
+  - eigval:
+    - -0.566
+    - -0.566
+    occno:
+    - 1.0
+    - 0.0
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - -1.034
+  id: N2
+  equivalent_to: N1
+  symmetry_op: -1
+  symmetry_axis: 1
+  spin: down
+elements:
+  N:
+    symbol: N
+    atomic_number: 7
+    description: 'CLEMENTI DZ-BASIS FOR NEUTRAL NITROGEN:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 8.49597
+    - n: 1
+      l: 0
+      zeta: 5.98644
+    - n: 2
+      l: 0
+      zeta: 2.26086
+    - n: 2
+      l: 0
+      zeta: 1.42457
+    - n: 2
+      l: 1
+      zeta: 3.24933
+    - n: 2
+      l: 1
+      zeta: 1.49924

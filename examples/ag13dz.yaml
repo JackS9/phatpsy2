@@ -1,0 +1,515 @@
+title: '... Ag13, R(Ag-Ag)=5.46  (DZ Basis)'
+control:
+  spin_unrestricted: true
+  max_cycles: 20
+  convergence: 0.0001
+  time_limit: 9999.0
+  charge_damp: 0.5
+  charge_accel: 1.0
+  potential_damp: 0.5
+  potential_accel: 1.0
+  pk_scale: 1.0
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: Ag
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: Ag1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -914.0
+    - -914.0
+    coefficients:
+    - - 1
+      - 0
+      - 0.86
+      - 0.86
+    - - 2
+      - 0
+      - 0.15
+      - 0.15
+    - - 3
+      - 0
+      - -0.22
+      - -0.22
+    - - 4
+      - 0
+      - 0.21
+      - 0.21
+  - eigval:
+    - -135.1
+    - -135.1
+    coefficients:
+    - - 1
+      - 0
+      - 0.02
+      - 0.02
+    - - 2
+      - 0
+      - 0.49
+      - 0.49
+    - - 3
+      - 0
+      - 0.71
+      - 0.71
+    - - 4
+      - 0
+      - -1.88
+      - -1.88
+  - eigval:
+    - -125.4
+    - -125.4
+    coefficients:
+    - - 5
+      - -1
+      - 0.13
+      - 0.13
+    - - 6
+      - -1
+      - 0.87
+      - 0.87
+  - eigval:
+    - -125.4
+    - -125.4
+  - eigval:
+    - -125.4
+    - -125.4
+  - eigval:
+    - -26.11
+    - -26.11
+    coefficients:
+    - - 1
+      - 0
+      - -0.01
+      - -0.01
+    - - 2
+      - 0
+      - -0.22
+      - -0.22
+    - - 3
+      - 0
+      - -2.15
+      - -2.15
+    - - 4
+      - 0
+      - 2.88
+      - 2.88
+    - - 7
+      - 0
+      - -0.06
+      - -0.06
+    - - 8
+      - 0
+      - -1.14
+      - -1.14
+  - eigval:
+    - -22.14
+    - -22.14
+    coefficients:
+    - - 5
+      - -1
+      - -0.03
+      - -0.03
+    - - 6
+      - -1
+      - -0.47
+      - -0.47
+    - - 9
+      - -1
+      - 0.6
+      - 0.6
+    - - 10
+      - -1
+      - 0.52
+      - 0.52
+  - eigval:
+    - -22.14
+    - -22.14
+  - eigval:
+    - -22.14
+    - -22.14
+  - eigval:
+    - -14.87
+    - -14.87
+    coefficients:
+    - - 11
+      - -2
+      - 0.25
+      - 0.25
+    - - 12
+      - -2
+      - 0.78
+      - 0.78
+  - eigval:
+    - -14.87
+    - -14.87
+  - eigval:
+    - -14.87
+    - -14.87
+  - eigval:
+    - -14.87
+    - -14.87
+  - eigval:
+    - -14.87
+    - -14.87
+  - eigval:
+    - -4.18
+    - -4.18
+    coefficients:
+    - - 1
+      - 0
+      - 0.0
+      - 0.0
+    - - 2
+      - 0
+      - -0.09
+      - -0.09
+    - - 3
+      - 0
+      - -0.93
+      - -0.93
+    - - 4
+      - 0
+      - 1.25
+      - 1.25
+    - - 7
+      - 0
+      - 0.03
+      - 0.03
+    - - 8
+      - 0
+      - -0.72
+      - -0.72
+    - - 13
+      - 0
+      - 0.78
+      - 0.78
+    - - 14
+      - 0
+      - 0.42
+      - 0.42
+  - eigval:
+    - -2.84
+    - -2.84
+    coefficients:
+    - - 5
+      - -1
+      - 0.01
+      - 0.01
+    - - 6
+      - -1
+      - 0.19
+      - 0.19
+    - - 9
+      - -1
+      - -0.24
+      - -0.24
+    - - 10
+      - -1
+      - -0.34
+      - -0.34
+    - - 15
+      - -1
+      - 0.71
+      - 0.71
+    - - 16
+      - -1
+      - 0.48
+      - 0.48
+  - eigval:
+    - -2.84
+    - -2.84
+  - eigval:
+    - -2.84
+    - -2.84
+  - eigval:
+    - -0.7
+    - -0.7
+    occno:
+    - 1.0
+    - 1.0
+    coefficients:
+    - - 11
+      - -2
+      - -0.09
+      - -0.09
+    - - 12
+      - -2
+      - -0.25
+      - -0.25
+    - - 17
+      - -2
+      - 0.58
+      - 0.58
+    - - 18
+      - -2
+      - 0.58
+      - 0.58
+  - eigval:
+    - -0.7
+    - -0.7
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.7
+    - -0.7
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.7
+    - -0.7
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.7
+    - -0.7
+    occno:
+    - 1.0
+    - 0.0
+  - eigval:
+    - -0.26
+    - -0.26
+    occno:
+    - 1.0
+    - 1.0
+    coefficients:
+    - - 1
+      - 0
+      - 0.0
+      - 0.0
+    - - 2
+      - 0
+      - 0.02
+      - 0.02
+    - - 3
+      - 0
+      - 0.17
+      - 0.17
+    - - 4
+      - 0
+      - -0.24
+      - -0.24
+    - - 7
+      - 0
+      - -0.02
+      - -0.02
+    - - 8
+      - 0
+      - 0.2
+      - 0.2
+    - - 13
+      - 0
+      - -0.27
+      - -0.27
+    - - 14
+      - 0
+      - -0.02
+      - -0.02
+    - - 19
+      - 0
+      - 0.55
+      - 0.55
+    - - 20
+      - 0
+      - 0.58
+      - 0.58
+- element: Ag
+  xyz:
+  - 5.46
+  - 0.0
+  - 0.0
+  id: Ag2
+  virtual: true
+  spin: down
+- element: Ag
+  xyz:
+  - 0.0
+  - 5.46
+  - 0.0
+  id: Ag3
+  equivalent_to: Ag2
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - -5.46
+  - 0.0
+  - 0.0
+  id: Ag4
+  equivalent_to: Ag2
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: down
+- element: Ag
+  xyz:
+  - 0.0
+  - -5.46
+  - 0.0
+  id: Ag5
+  equivalent_to: Ag2
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - 3.15
+  - 3.15
+  - 3.15
+  id: Ag6
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - -3.15
+  - 3.15
+  - 3.15
+  id: Ag7
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: down
+- element: Ag
+  xyz:
+  - -3.15
+  - -3.15
+  - 3.15
+  id: Ag8
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - 3.15
+  - -3.15
+  - 3.15
+  id: Ag9
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: down
+- element: Ag
+  xyz:
+  - 3.15
+  - -3.15
+  - -3.15
+  id: Ag10
+  equivalent_to: Ag6
+  symmetry_op: -1
+  symmetry_axis: 1
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - 3.15
+  - 3.15
+  - -3.15
+  id: Ag11
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: down
+- element: Ag
+  xyz:
+  - -3.15
+  - 3.15
+  - -3.15
+  id: Ag12
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: up
+- element: Ag
+  xyz:
+  - -3.15
+  - -3.15
+  - -3.15
+  id: Ag13
+  equivalent_to: Ag6
+  symmetry_op: 4
+  symmetry_axis: 1
+  virtual: true
+  spin: down
+elements:
+  Ag:
+    symbol: Ag
+    atomic_number: 47
+    description: 'Clementi DZ-Basis for neutral Silver:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 48.223
+    - n: 1
+      l: 0
+      zeta: 33.484
+    - n: 2
+      l: 0
+      zeta: 21.921
+    - n: 2
+      l: 0
+      zeta: 21.015
+    - n: 2
+      l: 1
+      zeta: 30.724
+    - n: 2
+      l: 1
+      zeta: 20.019
+    - n: 3
+      l: 0
+      zeta: 14.814
+    - n: 3
+      l: 0
+      zeta: 10.125
+    - n: 3
+      l: 1
+      zeta: 11.128
+    - n: 3
+      l: 1
+      zeta: 8.952
+    - n: 3
+      l: 2
+      zeta: 16.29
+    - n: 3
+      l: 2
+      zeta: 9.223
+    - n: 4
+      l: 0
+      zeta: 5.861
+    - n: 4
+      l: 0
+      zeta: 3.981
+    - n: 4
+      l: 1
+      zeta: 5.689
+    - n: 4
+      l: 1
+      zeta: 3.576
+    - n: 4
+      l: 2
+      zeta: 4.989
+    - n: 4
+      l: 2
+      zeta: 2.584
+    - n: 5
+      l: 0
+      zeta: 2.288
+    - n: 5
+      l: 0
+      zeta: 1.265

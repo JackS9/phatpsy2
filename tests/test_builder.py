@@ -268,3 +268,112 @@ def test_driver_run_symmetry_scf():
     # DZ basis gives -112.46 Hartree
     assert abs(res["total_energy"] - (-112.46)) < 1.0
 
+
+def test_parse_stdin_starting_orbitals_and_yaml_roundtrip(tmp_path):
+    from phatpsy import parse_stdin_to_deck
+    stdin_path = Path("examples/CO_ni_100.stdin")
+    assert stdin_path.exists()
+
+    deck = parse_stdin_to_deck(stdin_path)
+    # Check that primary atoms have their starting orbitals parsed
+    c1 = next(a for a in deck.geometry if a.id == "C1")
+    o1 = next(a for a in deck.geometry if a.id == "O1")
+    ni1 = next(a for a in deck.geometry if a.id == "Ni1")
+
+    assert c1.starting_orbitals is not None
+    assert len(c1.starting_orbitals) == 5
+    assert c1.spin == "up"
+    assert c1.spin_flip is False
+    assert c1.net_orbital_spin == 2.0
+
+    assert o1.starting_orbitals is not None
+    assert len(o1.starting_orbitals) == 5
+    assert o1.spin == "down"
+    assert o1.spin_flip is True
+    assert o1.net_orbital_spin == -2.0
+
+    assert ni1.starting_orbitals is not None
+    assert len(ni1.starting_orbitals) == 15
+    assert ni1.net_orbital_spin == 0.0
+
+    # Check Ni1 custom starting orbital coefficients
+    assert len(ni1.starting_orbitals[0].coefficients) == 15
+    assert ni1.starting_orbitals[0].coefficients[0][0] == 1  # isto=1
+    assert ni1.starting_orbitals[0].coefficients[0][1] == 0  # ml=0
+    assert abs(ni1.starting_orbitals[0].coefficients[0][2] - (-0.998911)) < 1e-4
+
+    # Check YAML serialization
+    yaml_text = deck.to_yaml()
+    assert "starting_orbitals:" in yaml_text
+    assert "eigval:" in yaml_text
+    assert "coefficients:" in yaml_text
+
+    # Check YAML round-trip reconstruction
+    deck_from_yaml = CalculationDeck.from_yaml(yaml_text)
+    ni1_rt = next(a for a in deck_from_yaml.geometry if a.id == "Ni1")
+    assert ni1_rt.starting_orbitals is not None
+    assert len(ni1_rt.starting_orbitals) == 15
+    assert len(ni1_rt.starting_orbitals[0].coefficients) == 15
+
+    o1_rt = next(a for a in deck_from_yaml.geometry if a.id == "O1")
+    assert o1_rt.spin == "down"
+    assert o1_rt.spin_flip is True
+    assert o1_rt.net_orbital_spin == -2.0
+
+    # Check stdin text compilation preserves NCOEF and &ATORB
+    stdin_compiled = deck_from_yaml.to_stdin_text()
+    assert "&ATORB" in stdin_compiled
+    assert "NCOEF=15" in stdin_compiled
+
+
+def test_conflicting_spin_and_starting_orbitals_raises_error():
+    from phatpsy.basis import InitialOrbital
+    from phatpsy.schema import AtomConfig, CalculationDeck
+
+    beta_excess_orbs = [
+        InitialOrbital(eigval=[-10.0, -10.0], occno=[1.0, 1.0]),
+        InitialOrbital(eigval=[-0.5, -0.5], occno=[0.0, 1.0]),  # Net beta / down
+    ]
+
+    # Explicit spin='up' conflicts with beta excess -> raises ValueError
+    with pytest.raises(ValueError, match="Conflicting spin specification.*explicit spin='up'"):
+        AtomConfig(
+            element="O",
+            id="O1",
+            spin="up",
+            starting_orbitals=beta_excess_orbs,
+        )
+
+    # Explicit spin='down' is consistent -> succeeds
+    atom_ok = AtomConfig(
+        element="O",
+        id="O1",
+        spin="down",
+        starting_orbitals=beta_excess_orbs,
+    )
+    assert atom_ok.spin == "down"
+
+    # spin omitted -> automatically deduced as 'down'
+    atom_auto = AtomConfig(
+        element="O",
+        id="O1",
+        starting_orbitals=beta_excess_orbs,
+    )
+    assert atom_auto.spin == "down"
+
+    # Conflicting YAML deck -> raises ValueError on from_yaml
+    conflicting_yaml = """
+title: "Conflicting Spin Test"
+control:
+  spin_unrestricted: true
+geometry:
+  - element: O
+    id: O1
+    spin: up
+    starting_orbitals:
+      - occno: [0.0, 1.0]
+"""
+    with pytest.raises(ValueError, match="Conflicting spin specification"):
+        CalculationDeck.from_yaml(conflicting_yaml)
+
+

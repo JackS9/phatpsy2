@@ -29,7 +29,28 @@ class BasisFunction:
 class InitialOrbital:
     eigval: List[float] = field(default_factory=list)
     occno: List[float] = field(default_factory=list)
-    coefficients: List[Tuple[int, int, float]] = field(default_factory=list)
+    coefficients: List[Any] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {}
+        if self.eigval:
+            d["eigval"] = [round(float(x), 6) for x in self.eigval]
+        if self.occno:
+            d["occno"] = [round(float(x), 6) for x in self.occno]
+        if self.coefficients:
+            d["coefficients"] = [
+                [int(c[0]), int(c[1])] + [round(float(x), 6) for x in c[2:]]
+                for c in self.coefficients
+            ]
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "InitialOrbital":
+        return cls(
+            eigval=[float(x) for x in data.get("eigval", [])],
+            occno=[float(x) for x in data.get("occno", [])],
+            coefficients=data.get("coefficients", []),
+        )
 
 
 @dataclass
