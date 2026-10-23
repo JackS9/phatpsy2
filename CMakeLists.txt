@@ -14,6 +14,7 @@ set(ALL_LEGACY_F_SOURCES ${RETAINED_UTILITY_F_SOURCES} ${OBSOLETE_LEGACY_F_SOURC
 
 # Modernized Fortran 2018 module sources (in dependency order)
 set(MODERN_F90_MODULES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/linalg.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/state.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/symmetry.f90"
