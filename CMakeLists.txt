@@ -7,43 +7,10 @@ enable_testing()
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-# 1. Collect all original FORTRAN 66/77 files in src/
-file(GLOB ALL_LEGACY_F_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.f")
-
-# 2. List the 10 legacy files replaced by Modern Fortran (.f90) modules
-set(REPLACED_LEGACY_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/main.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/contrl.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/atomic.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/aloop.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/bloop.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/scf.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/analys.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ewmo.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/fokmat.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/twoint.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/oneint.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/eispak.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/jacobi.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tred3.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/imtqlv.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tinvit.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/trbak3.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/eig.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/teindx.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/excite.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/symop.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/symxyz.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/genrot.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rbeta.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gensab.f"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/genvab.f"
-)
-
-# Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
-set(RETAINED_UTILITY_F_SOURCES ${ALL_LEGACY_F_SOURCES})
-list(REMOVE_ITEM RETAINED_UTILITY_F_SOURCES ${REPLACED_LEGACY_FILES})
+# 1. Active low-level utility FORTRAN files in src/ and obsolete routines in legacy/
+file(GLOB RETAINED_UTILITY_F_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.f")
+file(GLOB OBSOLETE_LEGACY_F_SOURCES  "${CMAKE_CURRENT_SOURCE_DIR}/legacy/*.f")
+set(ALL_LEGACY_F_SOURCES ${RETAINED_UTILITY_F_SOURCES} ${OBSOLETE_LEGACY_F_SOURCES})
 
 # Modernized Fortran 2018 module sources (in dependency order)
 set(MODERN_F90_MODULES
