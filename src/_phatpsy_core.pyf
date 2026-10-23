@@ -106,5 +106,38 @@ python module _phatpsy_core
             logical(kind=1) :: qnopop_ewmo
             logical :: use_lowdin_ewmo
         end module ewmo
+
+        module modelpot
+            use iso_fortran_env, only: real64, int32
+            subroutine genfac(fact, nfact)
+                integer(kind=int32) intent(in) :: nfact
+                real(kind=real64) intent(out), dimension(nfact) :: fact
+            end subroutine genfac
+            subroutine genbc(binom, nbinom, nrows, index_arr)
+                integer(kind=int32) intent(in) :: nbinom, nrows
+                integer(kind=int32) intent(in), dimension(nrows) :: index_arr
+                real(kind=real64) intent(out), dimension(nbinom) :: binom
+            end subroutine genbc
+            subroutine gennrm_default(plmnrm, fact, nplm, nfact, lmax, qrealy)
+                integer(kind=int32) intent(in) :: nplm, nfact, lmax
+                logical intent(in) :: qrealy
+                real(kind=real64) intent(in), dimension(nfact) :: fact
+                real(kind=real64) intent(out), dimension(nplm) :: plmnrm
+            end subroutine gennrm_default
+            subroutine intnrm(evec, projec, scrat, nbas, nvec, n2bas)
+                integer(kind=int32) intent(in) :: nbas, nvec, n2bas
+                real(kind=real64) intent(in), dimension(n2bas) :: projec
+                real(kind=real64) intent(in,out), dimension(nbas, nvec) :: evec
+                real(kind=real64) intent(out), dimension(nbas, nbas) :: scrat
+            end subroutine intnrm
+            subroutine dampv(epot2, pkpot, zpot2, vpot2, msto, m2sto, nvterm, ispin, vdamp)
+                integer(kind=int32) intent(in) :: msto, m2sto, nvterm, ispin
+                real(kind=real64) intent(in) :: vdamp
+                real(kind=real64) intent(in,out), dimension(m2sto, ispin) :: epot2
+                real(kind=real64) intent(in,out), dimension(m2sto, 4, ispin) :: pkpot
+                real(kind=real64) intent(in,out), dimension(m2sto) :: zpot2
+                real(kind=real64) intent(in,out), dimension(nvterm) :: vpot2
+            end subroutine dampv
+        end module modelpot
     end interface
 end python module _phatpsy_core
