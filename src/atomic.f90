@@ -2,6 +2,7 @@ module atomic
   use iso_fortran_env, only: real64, int32
   use state
   use lowdin, only: run_lowdin
+  use symmetry, only: symop, symxyz
   implicit none
   private
   public :: run_atomic_element

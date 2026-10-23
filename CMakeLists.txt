@@ -33,6 +33,9 @@ set(REPLACED_LEGACY_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eig.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/teindx.f"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/excite.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/symop.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/symxyz.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/genrot.f"
 )
 
 # Remaining low-level math/quadrature/utility .f files (gensab, genvab, lowdin, eispak, etc.)
@@ -43,6 +46,7 @@ list(REMOVE_ITEM RETAINED_UTILITY_F_SOURCES ${REPLACED_LEGACY_FILES})
 set(MODERN_F90_MODULES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lowdin.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/state.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/symmetry.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/integrals.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/analys.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/bloop.f90"

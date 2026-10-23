@@ -89,6 +89,8 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - *Retire/Delete:* Obsolete EISPAK/Jacobi diagonalizers, card-reader I/O, and scratch tape routines.
     - *Retain & Modernize:* Active mathematical kernels (e.g., `gensab`, `genvab`, `symop`, `symxyz`).
   - Convert retained routines using the `routine-modernization` skill:
+    - [x] **Symmetry module (`src/symmetry.f90`):** Modernize `symop.f`, `symxyz.f`, and `genrot.f` into clean free-form Fortran 2018 with `implicit none` and dynamic workspace allocation.
+    - [ ] **Matrix & Overlap generation:** Modernize `gensab.f`, `genvab.f`, and `rbeta.f`.
     - Convert fixed-form 72-column to free-form Fortran 2018.
     - Enforce `implicit none` and dynamic memory / assumed-shape arrays (`(:,:)`).
     - Eliminate legacy disk unit dependencies in favor of in-memory data structures.

@@ -2,6 +2,7 @@ module scf
   use iso_fortran_env, only: real64, int32
   use state
   use lowdin, only: run_lowdin
+  use symmetry, only: symop
   implicit none
   private
   public :: run_scf_element, USE_LAPACK_EIG, FOCK_MIX_ALPHA
