@@ -15,6 +15,7 @@ modern_n2.out
 # Build artifacts
 build/
 bin/
+site/
 
 # Python artifacts
 __pycache__/

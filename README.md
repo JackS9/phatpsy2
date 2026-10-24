@@ -107,6 +107,20 @@ jupyter notebook notebooks/phatpsy_driver_walkthrough.ipynb
 
 ---
 
+## User Manual & Documentation
+
+Comprehensive documentation, including the YAML input reference, CLI guide, Python API reference, and scientific methodology, is built with MkDocs Material:
+
+* **Online Manual:** [https://jacks9.github.io/phatpsy2/](https://jacks9.github.io/phatpsy2/)
+* **Build & Serve Locally:**
+  ```bash
+  pip install -r docs/requirements.txt
+  mkdocs serve
+  ```
+  Then navigate to `http://127.0.0.1:8000/`.
+
+---
+
 ## Repository Structure
 
 ```

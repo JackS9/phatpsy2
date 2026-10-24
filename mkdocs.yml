@@ -1,0 +1,121 @@
+site_name: PHATPSY 2.0
+site_description: User manual and reference for PHATPSY 2.0 — Projected Hamiltonian Approach to Polyatomic Systems
+site_url: https://jacks9.github.io/phatpsy2/
+repo_url: https://github.com/JackS9/phatpsy2
+repo_name: JackS9/phatpsy2
+edit_uri: edit/master/docs/
+
+validation:
+  nav:
+    omitted_files: info
+    not_found: warn
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: ignore
+
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - toc.follow
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - tools/docs_gen.py
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_signature_annotations: true
+            separate_signature: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - User Manual:
+      - user/index.md
+      - Getting Started:
+          - user/getting-started/install.md
+          - user/getting-started/tour.md
+          - user/getting-started/concepts.md
+      - YAML Input:
+          - user/yaml/overview.md
+          - user/yaml/examples.md
+          - user/yaml/reference.md
+      - Command Line:
+          - user/cli/index.md
+          - user/cli/recipes.md
+          - user/cli/reference.md
+      - Python API:
+          - user/python/setup-and-run.md
+          - user/python/results-and-analysis.md
+          - user/python/restarts-scans-optimization.md
+          - user/python/periodic-systems.md
+          - user/python/volumetric.md
+          - user/python/reference.md
+      - Practical Guidance:
+          - user/guide/troubleshooting.md
+  - Science:
+      - science/methodology_overview.md
+      - science/equation_mapping.md
+      - science/model_potentials.md
+  - Development:
+      - development/architecture.md
+      - development/validation_standards.md
