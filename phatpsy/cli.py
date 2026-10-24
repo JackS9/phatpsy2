@@ -257,9 +257,153 @@ def handle_opt(args):
     return 0
 
 
+def handle_supercell(args):
+    from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
+    from phatpsy.spin import BOHR_PER_ANGSTROM
+
+    repeat_str = args.repeat or ("2,2,2" if args.bulk else "2,2")
+    rep_parts = [int(p) for p in repeat_str.lower().replace("x", " ").replace(",", " ").split() if p]
+    if args.bulk:
+        if len(rep_parts) == 1:
+            repeat_3d = (rep_parts[0], rep_parts[0], rep_parts[0])
+        elif len(rep_parts) == 3:
+            repeat_3d = (rep_parts[0], rep_parts[1], rep_parts[2])
+        else:
+            repeat_3d = (2, 2, 2)
+    else:
+        if len(rep_parts) == 1:
+            repeat_2d = (rep_parts[0], rep_parts[0])
+        elif len(rep_parts) >= 2:
+            repeat_2d = (rep_parts[0], rep_parts[1])
+        else:
+            repeat_2d = (2, 2)
+
+    if args.bulk:
+        cell = PeriodicCell.bulk(
+            element=args.element,
+            crystal_structure=args.crystal,
+            a=args.lattice_constant,
+        )
+        cell = cell.build_supercell(repeat=repeat_3d, auto_spin=args.auto_spin)
+    else:
+        m_str = args.miller.replace(",", " ").replace("-", " -").strip()
+        m_parts = [int(p) for p in m_str.split() if p]
+        if len(m_parts) == 1 and len(m_str) == 3:
+            m_parts = [int(c) for c in m_str]
+        if len(m_parts) != 3:
+            sys.stderr.write(f"Error: Invalid Miller index '{args.miller}'. Expected 3 integers (e.g. '1,0,0' or '111').\n")
+            return 1
+        miller = (m_parts[0], m_parts[1], m_parts[2])
+
+        cell = build_slab(
+            element=args.element,
+            crystal_structure=args.crystal,
+            a=args.lattice_constant,
+            miller_index=miller,
+            layers=args.layers,
+            vacuum=args.vacuum,
+            repeat=repeat_2d,
+            fixed_layers=args.fixed_layers,
+            add_virtual_perimeter=args.virtual_perimeter,
+        )
+
+    if args.adsorbate:
+        cell = attach_adsorbate(
+            cell,
+            adsorbate=args.adsorbate,
+            site_type=args.site,
+            height=args.height,
+            tilt_deg=args.tilt,
+        )
+
+    out_path = Path(args.output) if args.output else None
+    out_suffix = out_path.suffix.lower() if out_path else None
+
+    fmt = (args.format or (out_suffix[1:] if out_suffix else "yaml")).lower()
+
+    if fmt == "poscar" or out_suffix == ".poscar":
+        content = cell.to_poscar()
+        if out_path:
+            out_path.write_text(content, encoding="utf-8")
+        else:
+            sys.stdout.write(content)
+    elif fmt == "cif" or out_suffix == ".cif":
+        content = cell.to_cif()
+        if out_path:
+            out_path.write_text(content, encoding="utf-8")
+        else:
+            sys.stdout.write(content)
+    elif fmt == "xyz" or out_suffix == ".xyz":
+        content = cell.to_xyz()
+        if out_path:
+            out_path.write_text(content, encoding="utf-8")
+        else:
+            sys.stdout.write(content)
+    else:
+        deck = cell.to_deck(basis=args.basis)
+        if fmt in ("stdin",) or out_suffix == ".stdin":
+            content = deck.to_stdin_text()
+            if out_path:
+                out_path.write_text(content, encoding="utf-8")
+            else:
+                sys.stdout.write(content)
+        elif fmt in ("json",) or out_suffix == ".json":
+            content = deck.to_json(out_path)
+            if not out_path:
+                sys.stdout.write(content)
+        else:
+            content = deck.to_yaml(out_path)
+            if not out_path:
+                sys.stdout.write(content)
+
+    if out_path:
+        a_aa = cell.lattice.a / BOHR_PER_ANGSTROM
+        b_aa = cell.lattice.b / BOHR_PER_ANGSTROM
+        c_aa = cell.lattice.c / BOHR_PER_ANGSTROM
+        sys.stderr.write(
+            f"PHATPSY: Generated {len(cell.atoms)} atoms ({a_aa:.3f} x {b_aa:.3f} x {c_aa:.3f} A) -> '{out_path}'\n"
+        )
+
+    if args.view:
+        from phatpsy.visualizer import visualize_deck
+        deck = cell.to_deck(basis=args.basis)
+        visualize_deck(deck, auto_open=not args.no_browser)
+
+    return 0
+
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+
+    # Handle 'supercell' or 'slab' command
+    if argv and argv[0] in ("supercell", "slab"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy supercell",
+            description="Generate 3D bulk supercells or oriented surface slabs with optional adsorbates."
+        )
+        parser.add_argument("-e", "--element", default="Ni", help="Chemical element (e.g. Ni, Cu, Ag, Pt, Fe, default: Ni)")
+        parser.add_argument("-c", "--crystal", default=None, help="Crystal structure ('fcc', 'bcc', 'diamond')")
+        parser.add_argument("-a", "--lattice-constant", type=float, default=None, help="Lattice constant in Angstroms")
+        parser.add_argument("--bulk", action="store_true", help="Generate 3D bulk supercell instead of surface slab")
+        parser.add_argument("-m", "--miller", default="1,0,0", help="Miller index for surface slab (e.g. '1,0,0', '1,1,1', '1,1,0')")
+        parser.add_argument("-l", "--layers", type=int, default=3, help="Number of atomic layers in slab (default: 3)")
+        parser.add_argument("-v", "--vacuum", type=float, default=15.0, help="Vacuum spacing above slab in Angstroms (default: 15.0)")
+        parser.add_argument("-r", "--repeat", default=None, help="Supercell replication (e.g. '2,2' or '2x2' or '2,2,2')")
+        parser.add_argument("-f", "--fixed-layers", type=int, default=1, help="Number of bottom layers frozen with QFIXED=T (default: 1)")
+        parser.add_argument("--virtual-perimeter", action="store_true", help="Add ghost/virtual coordination atoms around lateral boundary")
+        parser.add_argument("-s", "--auto-spin", action="store_true", help="Assign alternating-spin states (up/down)")
+        parser.add_argument("--adsorbate", default=None, help="Adsorbate molecule formula ('CO', 'NO', 'H2') or geometry file")
+        parser.add_argument("--site", choices=["top", "bridge", "hollow"], default="top", help="Adsorption site type (default: top)")
+        parser.add_argument("--height", type=float, default=2.0, help="Adsorbate vertical clearance above surface in Angstroms (default: 2.0)")
+        parser.add_argument("--tilt", type=float, default=0.0, help="Adsorbate tilt angle in degrees (default: 0.0)")
+        parser.add_argument("-b", "--basis", default="DZ", help="Basis set name for calculation deck export (default: DZ)")
+        parser.add_argument("--format", choices=["yaml", "stdin", "json", "poscar", "cif", "xyz"], default=None, help="Explicit output format")
+        parser.add_argument("-o", "--output", default=None, help="Output file path (.yaml, .json, .stdin, .poscar, .cif, .xyz)")
+        parser.add_argument("--view", action="store_true", help="Open interactive 3D WebGL visualization")
+        parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open web browser automatically when viewing")
+        args = parser.parse_args(argv[1:])
+        return handle_supercell(args)
 
     # Handle 'view' command
     if argv and argv[0] == "view":

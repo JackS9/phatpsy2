@@ -49,6 +49,13 @@ from phatpsy.optimize import (
     OptimizationResult,
     OptimizationStep,
 )
+from phatpsy.supercell import (
+    Lattice,
+    PeriodicAtom,
+    PeriodicCell,
+    build_slab,
+    attach_adsorbate,
+)
 
 __all__ = [
     "PhatpsyDriver",
@@ -88,5 +95,10 @@ __all__ = [
     "optimize_geometry",
     "OptimizationResult",
     "OptimizationStep",
+    "Lattice",
+    "PeriodicAtom",
+    "PeriodicCell",
+    "build_slab",
+    "attach_adsorbate",
 ]
 

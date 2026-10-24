@@ -31,12 +31,12 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 3. Structural Modeling & Graphical Visualization
 
-- [ ] **Graphical builder that can handle virtual, equivalent, spin-flipped, and symmetry-generated atoms**
-  - Interactive setup for complex surface clusters, symmetry generators, local spin assignments, and ghost/virtual coordination centers.
-- [ ] **Visualizer for embedded atoms and extended system (finite cluster or pseudo-periodic supercell)**
-  - Enhanced 3D rendering for embedded active sites within bulk/surface substrate environments.
-  - [ ] **Creating supercell for pseudo-periodic representation**
-    - Generate translationally replicated unit cells to model periodic surfaces and slabs.
+- [x] **Graphical builder that can handle virtual, equivalent, spin-flipped, and symmetry-generated atoms**
+  - Interactive setup for complex surface clusters, symmetry generators, local spin assignments, and ghost/virtual coordination centers (`phatpsy/builder.py`, `phatpsy/spin.py`, `phatpsy/visualizer.py`).
+- [x] **Visualizer for embedded atoms and extended system (finite cluster or pseudo-periodic supercell)**
+  - Enhanced 3D WebGL rendering with metallic cages for fixed substrate atoms, translucent wireframe spheres for virtual coordination centers, and alpha/beta spin polarization indicators.
+  - [x] **Creating supercell for pseudo-periodic representation**
+    - Generate translationally replicated unit cells to model periodic surfaces and slabs (`phatpsy/supercell.py`), supporting bulk elements (FCC, BCC, Diamond), oriented slabs ((100), (111), (110)), substrate layer freezing (`QFIXED=T`), virtual ghost coordination perimeters (`QVIRTL=T`), high-symmetry adsorbate placement (top, bridge, hollow), and multi-format exporters (POSCAR, CIF, XYZ, Deck). Accessible via Python API and CLI (`phatpsy supercell`).
 
 ---
 
