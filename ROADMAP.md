@@ -37,6 +37,12 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Enhanced 3D WebGL rendering with metallic cages for fixed substrate atoms, translucent wireframe spheres for virtual coordination centers, and alpha/beta spin polarization indicators.
   - [x] **Creating supercell for pseudo-periodic representation**
     - Generate translationally replicated unit cells to model periodic surfaces and slabs (`phatpsy/supercell.py`), supporting bulk elements (FCC, BCC, Diamond), oriented slabs ((100), (111), (110)), substrate layer freezing (`QFIXED=T`), virtual ghost coordination perimeters (`QVIRTL=T`), high-symmetry adsorbate placement (top, bridge, hollow), and multi-format exporters (POSCAR, CIF, XYZ, Deck). Accessible via Python API and CLI (`phatpsy supercell`).
+  - [x] **3D Volumetric Visualizations, Isosurfaces & Gaussian Cube Export**
+    - Native 3D spatial evaluation of molecular orbitals, total electron density, spin density, deformation density, and Poisson electrostatic potential (ESP) via 3D FFT convolution (`phatpsy/volumetric.py`).
+    - Watertight isosurface extraction via Marching Tetrahedra (`phatpsy/marching_cubes.py`) and property mapping onto isosurfaces with standard Red-White-Blue colormap (Red = negative/nucleophilic, White = neutral, Blue = positive/electrophilic).
+    - Dual-phase lobe rendering for orbitals and interactive WebGL controls in Three.js (`phatpsy/visualizer.py`).
+    - Full Gaussian Cube format (`.cube`) import and export compatible with VMD, PyMOL, Avogadro, ChimeraX, and Jmol. Accessible via Python API and CLI (`phatpsy cube`).
+
 
 ---
 

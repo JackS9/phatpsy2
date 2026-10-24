@@ -372,9 +372,88 @@ def handle_supercell(args):
     return 0
 
 
+def handle_cube(args):
+    in_path = Path(args.input_file)
+    deck = load_deck_from_arg(in_path)
+
+    driver = PhatpsyDriver()
+    res = driver.run_deck(deck)
+    if res is None:
+        sys.stderr.write("PHATPSY: Calculation failed or returned no results.\n")
+        return 1
+
+    from phatpsy.volumetric import compute_grid
+    from phatpsy.visualizer import visualize_grid
+
+    # Check property-colored density
+    property_grid = None
+    if args.esp and (args.density or not (args.mo or args.ao or args.spin_density or args.deformation)):
+        grid = compute_grid(res, grid_type="density", spacing=args.spacing, padding=args.padding)
+        property_grid = compute_grid(res, grid_type="esp", spacing=args.spacing, padding=args.padding)
+    elif args.ao:
+        grid = compute_grid(res, grid_type="ao", ao_index=args.ao, spacing=args.spacing, padding=args.padding)
+    elif args.mo:
+        grid = compute_grid(res, grid_type="mo", mo_index=args.mo, spacing=args.spacing, padding=args.padding)
+    elif args.spin_density:
+        grid = compute_grid(res, grid_type="spin_density", spacing=args.spacing, padding=args.padding)
+    elif args.deformation:
+        grid = compute_grid(res, grid_type="deformation", spacing=args.spacing, padding=args.padding)
+    elif args.esp:
+        grid = compute_grid(res, grid_type="esp", spacing=args.spacing, padding=args.padding)
+    else:
+        grid = compute_grid(res, grid_type="density", spacing=args.spacing, padding=args.padding)
+
+    out_path = Path(args.output) if args.output else None
+    if out_path and out_path.suffix.lower() == ".html":
+        visualize_grid(grid, isovalue=args.isovalue, property_grid=property_grid, output_path=out_path, auto_open=not args.no_browser)
+        sys.stderr.write(f"PHATPSY: Interactive 3D visualization saved to '{out_path}'\n")
+    elif out_path:
+        grid.to_cube(out_path)
+        sys.stderr.write(f"PHATPSY: Gaussian Cube exported to '{out_path}'\n")
+        sys.stderr.write(f"  Field:       {grid.title}\n")
+        sys.stderr.write(f"  Dimensions:  {grid.dimensions[0]} x {grid.dimensions[1]} x {grid.dimensions[2]}\n")
+        sys.stderr.write(f"  Integral:    {grid.integrate():12.6f}\n")
+    else:
+        tag = "esp_density" if property_grid else ("mo" + str(args.mo) if args.mo else ("ao" + str(args.ao) if args.ao else ("spin" if args.spin_density else ("deformation" if args.deformation else ("esp" if args.esp else "density")))))
+        cube_file = in_path.with_suffix(f".{tag}.cube")
+        grid.to_cube(cube_file)
+        sys.stderr.write(f"PHATPSY: Gaussian Cube exported to '{cube_file}'\n")
+        sys.stderr.write(f"  Field:       {grid.title}\n")
+        sys.stderr.write(f"  Dimensions:  {grid.dimensions[0]} x {grid.dimensions[1]} x {grid.dimensions[2]}\n")
+        sys.stderr.write(f"  Integral:    {grid.integrate():12.6f}\n")
+
+    if args.view:
+        visualize_grid(grid, isovalue=args.isovalue, property_grid=property_grid, auto_open=not args.no_browser)
+
+    return 0
+
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+
+    # Handle 'cube' command
+    if argv and argv[0] in ("cube", "grid", "volumetric"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy cube",
+            description="Evaluate 3D volumetric fields (orbitals, densities, ESP) and export Gaussian Cube files or interactive 3D visualizations."
+        )
+        parser.add_argument("input_file", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("--mo", type=int, default=None, help="Molecular orbital index (1-based) to evaluate")
+        parser.add_argument("--ao", type=int, default=None, help="Atomic orbital index (1-based) to evaluate")
+        parser.add_argument("--density", action="store_true", help="Evaluate total electron density rho(r)")
+        parser.add_argument("--spin-density", action="store_true", help="Evaluate spin density Delta rho_s(r)")
+        parser.add_argument("--deformation", action="store_true", help="Evaluate deformation/binding density Delta rho(r)")
+        parser.add_argument("--esp", action="store_true", help="Evaluate Molecular Electrostatic Potential (ESP/MEP)")
+        parser.add_argument("--isovalue", type=float, default=None, help="Isosurface contour value (default: auto)")
+        parser.add_argument("--spacing", type=float, default=0.2, help="Grid voxel spacing in Bohr (default: 0.2)")
+        parser.add_argument("--padding", type=float, default=3.0, help="Grid spatial padding around molecule in Bohr (default: 3.0)")
+        parser.add_argument("-o", "--output", default=None, help="Output path for Gaussian Cube file (.cube) or HTML viewer (.html)")
+        parser.add_argument("--view", action="store_true", help="Open interactive 3D WebGL visualization in browser")
+        parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open web browser automatically")
+        args = parser.parse_args(argv[1:])
+        return handle_cube(args)
+
 
     # Handle 'supercell' or 'slab' command
     if argv and argv[0] in ("supercell", "slab"):

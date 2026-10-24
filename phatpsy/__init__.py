@@ -28,7 +28,14 @@ from phatpsy.builder import (
 )
 from phatpsy.basis import get_element_basis, list_available_elements
 from phatpsy.spin import assign_alternating_spin
-from phatpsy.visualizer import visualize_deck, show_deck
+from phatpsy.visualizer import visualize_deck, show_deck, visualize_grid, show_grid
+from phatpsy.volumetric import (
+    VolumetricGrid,
+    compute_grid,
+    compute_esp_grid,
+    compute_deformation_density,
+)
+
 from phatpsy.state import CalculationState, EmbeddedAtomState
 from phatpsy.coords import (
     BondCoordinate,
@@ -82,6 +89,13 @@ __all__ = [
     "assign_alternating_spin",
     "visualize_deck",
     "show_deck",
+    "visualize_grid",
+    "show_grid",
+    "VolumetricGrid",
+    "compute_grid",
+    "compute_esp_grid",
+    "compute_deformation_density",
+
     "BondCoordinate",
     "AngleCoordinate",
     "DihedralCoordinate",

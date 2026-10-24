@@ -8,7 +8,8 @@ Provides color-coded 3D representations of:
 - Symmetry elements: Mirror planes (ISYM=-1), rotation axes (ISYM=N), inversion centers,
   and generator-to-equivalent connector lines.
 """
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Union, Any, Tuple
+
 from pathlib import Path
 import json
 import webbrowser
@@ -36,8 +37,222 @@ def get_atom_color(element: str) -> str:
     return CPK_COLORS.get(element.strip().upper(), "#A0A0A0")
 
 
-def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]]) -> Dict[str, Any]:
+Z_TO_ELEMENT: Dict[int, str] = {
+    1: "H", 2: "HE", 3: "LI", 4: "BE", 5: "B", 6: "C", 7: "N", 8: "O", 9: "F", 10: "NE",
+    11: "NA", 12: "MG", 13: "AL", 14: "SI", 15: "P", 16: "S", 17: "CL", 18: "AR",
+    19: "K", 20: "CA", 21: "SC", 22: "TI", 23: "V", 24: "CR", 25: "MN", 26: "FE",
+    27: "CO", 28: "NI", 29: "CU", 30: "ZN", 31: "GA", 32: "GE", 33: "AS", 34: "SE",
+    35: "BR", 36: "KR", 42: "MO", 46: "PD", 47: "AG", 78: "PT", 79: "AU",
+}
+
+
+def map_rwb_colors(values: Any, v_max: Optional[float] = None) -> Tuple[List[float], float]:
+    """
+    Maps 1D scalar property values onto a smooth Red-White-Blue RGB colormap:
+    - Red (< 0, electron-rich / nucleophilic / negative charge)
+    - White (~ 0, neutral)
+    - Blue (> 0, electron-deficient / electrophilic / positive charge)
+    """
+    import numpy as np
+    vals = np.asarray(values, dtype=np.float64)
+    if v_max is None or v_max <= 0:
+        if len(vals) > 0:
+            v_max = float(np.percentile(np.abs(vals), 98))
+            if v_max < 1e-6:
+                v_max = float(np.max(np.abs(vals)))
+        else:
+            v_max = 1.0
+        if v_max < 1e-6:
+            v_max = 1.0
+
+    norm_vals = np.clip(vals / v_max, -1.0, 1.0)
+    flat_colors: List[float] = []
+    for val in norm_vals:
+        if val < 0.0:
+            # Negative: White (1,1,1) -> Red (0.95, 0.15, 0.15)
+            u = -val
+            r = 1.0
+            g = 1.0 - 0.85 * u
+            b = 1.0 - 0.85 * u
+        else:
+            # Positive: White (1,1,1) -> Blue (0.15, 0.40, 0.95)
+            u = val
+            r = 1.0 - 0.85 * u
+            g = 1.0 - 0.60 * u
+            b = 1.0
+        flat_colors.extend([round(float(r), 4), round(float(g), 4), round(float(b), 4)])
+    return flat_colors, float(v_max)
+
+
+def generate_grid_visualization_data(
+    grid: Any,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+    title: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Extracts 3D isosurface meshes and generates visualization data for a VolumetricGrid.
+    """
+    import numpy as np
+    atom_data = []
+    atom_configs = []
+    atoms = getattr(grid, "atoms", [])
+    for idx, a in enumerate(atoms):
+        z_nuc = int(round(a.get("z", 1)))
+        elem = a.get("element", "X")
+        if elem == "X" or elem.upper().startswith("Z"):
+            elem = Z_TO_ELEMENT.get(z_nuc, elem)
+
+        xyz_bohr = a.get("xyz", [0.0, 0.0, 0.0])
+        x_bohr, y_bohr, z_bohr = xyz_bohr[0], xyz_bohr[1], xyz_bohr[2]
+        x_aa = x_bohr / BOHR_PER_ANGSTROM
+        y_aa = y_bohr / BOHR_PER_ANGSTROM
+        z_aa = z_bohr / BOHR_PER_ANGSTROM
+        r_bohr = get_covalent_radius_bohr(elem)
+        r_aa = r_bohr / BOHR_PER_ANGSTROM
+
+        atom_configs.append(AtomConfig(id=f"{elem}{idx+1}", element=elem, xyz=[x_bohr, y_bohr, z_bohr]))
+        atom_data.append({
+            "index": idx,
+            "id": f"{elem}{idx+1}",
+            "element": elem,
+            "equivalent_to": None,
+            "x": round(x_aa, 4),
+            "y": round(y_aa, 4),
+            "z": round(z_aa, 4),
+            "x_bohr": round(x_bohr, 4),
+            "y_bohr": round(y_bohr, 4),
+            "z_bohr": round(z_bohr, 4),
+            "radius": round(r_aa, 3),
+            "color": get_atom_color(elem),
+            "spin": "none",
+            "fixed": False,
+            "virtual": False,
+            "symmetry": None,
+        })
+
+    bond_data = []
+    if len(atom_configs) > 1:
+        adj = build_connectivity_graph(atom_configs, tolerance=1.25)
+        for i in range(len(atom_configs)):
+            for j in adj[i]:
+                if j > i:
+                    bond_data.append([i, j])
+
+
+    # Determine default isovalue if not provided
+    max_abs = float(np.max(np.abs(grid.data)))
+    if isovalue is None:
+        if max_abs > 1e-4:
+            if grid.min_value >= -1e-6:
+                isovalue = min(0.02, 0.05 * max_abs)
+            else:
+                isovalue = 0.15 * max_abs
+        else:
+            isovalue = 0.02
+
+    surfaces = []
+    v_max_prop = 0.0
+    has_prop = property_grid is not None
+
+    if property_grid is not None:
+        iso = abs(isovalue)
+        mesh = grid.extract_isosurface(iso, property_grid=property_grid)
+        v_bohr = mesh["vertices"]
+        if len(v_bohr) > 0:
+            v_aa = (v_bohr / BOHR_PER_ANGSTROM).tolist()
+            faces = mesh["faces"].tolist()
+            normals = mesh["normals"].tolist()
+            prop_vals = mesh.get("property_values", np.zeros(len(v_bohr)))
+            colors, v_max_prop = map_rwb_colors(prop_vals)
+            surfaces.append({
+                "name": f"Isosurface ({iso:.4f}) with {property_grid.title}",
+                "isovalue": iso,
+                "color": "#ffffff",
+                "opacity": 0.80,
+                "vertices": v_aa,
+                "faces": faces,
+                "normals": normals,
+                "colors": colors,
+            })
+    elif grid.min_value < -1e-5 and grid.max_value > 1e-5:
+        # Dual-phase orbital / deformation (+ and - lobes)
+        iso = abs(isovalue)
+        mesh_pos = grid.extract_isosurface(+iso)
+        if len(mesh_pos["vertices"]) > 0:
+            surfaces.append({
+                "name": f"Positive Phase (+{iso:.4f})",
+                "isovalue": +iso,
+                "color": "#00e5ff",
+                "opacity": 0.75,
+                "vertices": (mesh_pos["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "faces": mesh_pos["faces"].tolist(),
+                "normals": mesh_pos["normals"].tolist(),
+                "colors": None,
+            })
+        mesh_neg = grid.extract_isosurface(-iso)
+        if len(mesh_neg["vertices"]) > 0:
+            surfaces.append({
+                "name": f"Negative Phase (-{iso:.4f})",
+                "isovalue": -iso,
+                "color": "#ff9100",
+                "opacity": 0.75,
+                "vertices": (mesh_neg["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "faces": mesh_neg["faces"].tolist(),
+                "normals": mesh_neg["normals"].tolist(),
+                "colors": None,
+            })
+    else:
+        # Single envelope
+        iso = abs(isovalue)
+        mesh = grid.extract_isosurface(iso)
+        if len(mesh["vertices"]) > 0:
+            surfaces.append({
+                "name": f"Isosurface ({iso:.4f})",
+                "isovalue": iso,
+                "color": "#38bdf8",
+                "opacity": 0.65,
+                "vertices": (mesh["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "faces": mesh["faces"].tolist(),
+                "normals": mesh["normals"].tolist(),
+                "colors": None,
+            })
+
+    stats = {
+        "total_atoms": len(atom_data),
+        "spin_up": 0,
+        "spin_down": 0,
+        "virtual": 0,
+        "fixed": 0,
+        "grid_shape": list(grid.dimensions),
+        "voxel_volume": grid.voxel_volume,
+        "surfaces": len(surfaces),
+    }
+
+    return {
+        "title": title or getattr(grid, "title", "PHATPSY Volumetric Field"),
+        "field_type": "orbital" if (grid.min_value < -1e-5 and grid.max_value > 1e-5 and not has_prop) else "density",
+        "isovalue": isovalue,
+        "has_property": has_prop,
+        "property_title": getattr(property_grid, "title", "Property Field") if property_grid else None,
+        "v_max": v_max_prop,
+        "atoms": atom_data,
+        "bonds": bond_data,
+        "surfaces": surfaces,
+        "symmetry_planes": [],
+        "symmetry_axes": [],
+        "inversion_centers": [],
+        "stats": stats,
+    }
+
+
+def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
     """Prepares structured JSON data for 3D rendering."""
+    if isinstance(deck_or_atoms, dict) and "atoms" in deck_or_atoms:
+        return deck_or_atoms
+    if hasattr(deck_or_atoms, "data") and hasattr(deck_or_atoms, "voxel_steps"):
+        return generate_grid_visualization_data(deck_or_atoms)
+
     if hasattr(deck_or_atoms, "resolve_coordinates"):
         deck_or_atoms.resolve_coordinates()
         atoms = deck_or_atoms.geometry
@@ -51,6 +266,7 @@ def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomC
 
     from phatpsy.schema import resolve_atom_coordinates
     resolve_atom_coordinates(atoms)
+
 
     atom_data = []
     # Identify symmetry generator mapping using explicit equivalent_to or fallback
@@ -130,13 +346,24 @@ def generate_visualization_data(deck_or_atoms: Union[CalculationDeck, List[AtomC
     }
 
 
-def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title: Optional[str] = None) -> str:
+def generate_html(
+    deck_or_atoms: Any,
+    title: Optional[str] = None,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+) -> str:
     """Generates a complete, interactive standalone HTML5 WebGL viewer using Three.js."""
-    data = generate_visualization_data(deck_or_atoms)
+    if isinstance(deck_or_atoms, dict) and "atoms" in deck_or_atoms:
+        data = deck_or_atoms
+    elif hasattr(deck_or_atoms, "data") and hasattr(deck_or_atoms, "voxel_steps"):
+        data = generate_grid_visualization_data(deck_or_atoms, isovalue=isovalue, property_grid=property_grid, title=title)
+    else:
+        data = generate_visualization_data(deck_or_atoms)
     if title:
         data["title"] = title
 
     json_payload = json.dumps(data)
+
 
     html_template = f"""<!DOCTYPE html>
 <html lang="en">
@@ -311,13 +538,42 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     <h1>{data['title']}</h1>
     <div class="badge-bar">
       <span class="badge badge-blue">Total: {data['stats']['total_atoms']}</span>
-      <span class="badge badge-blue">Spin Up &uarr;: {data['stats']['spin_up']}</span>
-      <span class="badge badge-orange">Spin Down &darr;: {data['stats']['spin_down']}</span>
-      {f'<span class="badge badge-violet">Virtual: {data["stats"]["virtual"]}</span>' if data['stats']['virtual'] > 0 else ''}
-      {f'<span class="badge badge-gray">Fixed: {data["stats"]["fixed"]}</span>' if data['stats']['fixed'] > 0 else ''}
+      {f'<span class="badge badge-blue">Field: {data.get("field_type", "3D Grid").capitalize()}</span>' if data.get('surfaces') else ''}
+      {f'<span class="badge badge-violet">Iso: &plusmn;{data.get("isovalue", 0.02):.4f}</span>' if data.get('surfaces') else ''}
+      {f'<span class="badge badge-orange">Property: {data.get("property_title", "ESP")}</span>' if data.get('has_property') else ''}
+      {f'<span class="badge badge-blue">Spin Up &uarr;: {data["stats"]["spin_up"]}</span>' if data['stats'].get('spin_up', 0) > 0 else ''}
+      {f'<span class="badge badge-orange">Spin Down &darr;: {data["stats"]["spin_down"]}</span>' if data['stats'].get('spin_down', 0) > 0 else ''}
+      {f'<span class="badge badge-violet">Virtual: {data["stats"]["virtual"]}</span>' if data['stats'].get('virtual', 0) > 0 else ''}
+      {f'<span class="badge badge-gray">Fixed: {data["stats"]["fixed"]}</span>' if data['stats'].get('fixed', 0) > 0 else ''}
     </div>
     
     <div class="controls">
+      {'''
+      <div class="control-row">
+        <label><input type="checkbox" id="toggle-surfaces" checked> 3D Isosurface Envelope</label>
+      </div>
+      <div class="control-row">
+        <label for="surface-opacity">Mesh Opacity:</label>
+        <input type="range" id="surface-opacity" min="0.1" max="1.0" step="0.05" value="0.75" style="width: 120px; accent-color: #38bdf8; cursor: pointer;">
+      </div>
+      <div class="control-row">
+        <label><input type="checkbox" id="toggle-wireframe"> Wireframe Mode</label>
+      </div>
+      ''' if data.get('surfaces') else ''}
+      {f'''
+      <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px;">
+        <div style="font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px; display: flex; justify-content: space-between;">
+          <span>Mapped Property: <b style="color:#f1f5f9;">{data.get('property_title', 'ESP')}</b></span>
+          <span style="color:#38bdf8;">&plusmn;{data.get('v_max', 0.0):.3f} au</span>
+        </div>
+        <div style="height: 12px; border-radius: 4px; background: linear-gradient(90deg, #ef4444 0%, #ffffff 50%, #3b82f6 100%); border: 1px solid rgba(255,255,255,0.2);"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: #cbd5e1; margin-top: 3px;">
+          <span style="color: #f87171;">&minus;{data.get('v_max', 0.0):.2f} (Red/Nucleophilic)</span>
+          <span style="color: #e2e8f0;">0.0 (Neutral)</span>
+          <span style="color: #60a5fa;">&plus;{data.get('v_max', 0.0):.2f} (Blue/Electrophilic)</span>
+        </div>
+      </div>
+      ''' if data.get('has_property') else ''}
       <div class="control-row">
         <label for="color-mode-select">Color Scheme:</label>
         <select id="color-mode-select" class="select-input">
@@ -346,10 +602,22 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
   </div>
 
   <div class="legend-box">
+    {f'''
+    <div class="legend-item"><span class="dot" style="background: #ef4444; box-shadow: 0 0 6px #ef4444;"></span> <b>Red</b>: Negative / Electron-Rich (Nucleophilic)</div>
+    <div class="legend-item"><span class="dot" style="background: #ffffff; box-shadow: 0 0 6px #ffffff;"></span> <b>White</b>: Neutral Potential</div>
+    <div class="legend-item"><span class="dot" style="background: #3b82f6; box-shadow: 0 0 6px #3b82f6;"></span> <b>Blue</b>: Positive / Electron-Deficient (Electrophilic)</div>
+    ''' if data.get('has_property') else (
+      f'''
+      <div class="legend-item"><span class="dot" style="background: #00e5ff; box-shadow: 0 0 6px #00e5ff;"></span> <b>Positive Phase (+)</b>: +{data.get('isovalue', 0.02):.4f} au (Cyan)</div>
+      <div class="legend-item"><span class="dot" style="background: #ff9100; box-shadow: 0 0 6px #ff9100;"></span> <b>Negative Phase (-)</b>: -{data.get('isovalue', 0.02):.4f} au (Orange)</div>
+      ''' if data.get('field_type') == 'orbital' and data.get('surfaces') else ''
+    )}
+    {'''
     <div class="legend-item"><span class="dot" style="background: #38bdf8; box-shadow: 0 0 8px #38bdf8;"></span> <b>Spin Up (&uarr;)</b>: Alpha-dominant (Cyan glow &amp; halo ring)</div>
     <div class="legend-item"><span class="dot" style="background: #fb923c; box-shadow: 0 0 8px #fb923c;"></span> <b>Spin Down (&darr;)</b>: Beta-dominant (Orange glow &amp; halo ring, QFLIP=T)</div>
-    <div class="legend-item"><span class="dot" style="background: transparent; border: 2px dashed #c084fc;"></span> <b>Virtual Center</b>: Ghost basis / external probe</div>
-    <div class="legend-item"><span class="dot" style="background: transparent; border: 2px solid #94a3b8;"></span> <b>Fixed Atom</b>: Frozen orbitals & potential</div>
+    ''' if data['stats'].get('spin_up', 0) > 0 or data['stats'].get('spin_down', 0) > 0 else ''}
+    {f'<div class="legend-item"><span class="dot" style="background: transparent; border: 2px dashed #c084fc;"></span> <b>Virtual Center</b>: Ghost basis / external probe</div>' if data['stats'].get('virtual', 0) > 0 else ''}
+    {f'<div class="legend-item"><span class="dot" style="background: transparent; border: 2px solid #94a3b8;"></span> <b>Fixed Atom</b>: Frozen orbitals & potential</div>' if data['stats'].get('fixed', 0) > 0 else ''}
   </div>
 
   <div id="tooltip"></div>
@@ -406,6 +674,7 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     const symmetryGroup = new THREE.Group();
     const ghostGroup = new THREE.Group();
     const cageGroup = new THREE.Group();
+    const surfaceGroup = new THREE.Group();
 
     scene.add(atomGroup);
     scene.add(bondGroup);
@@ -413,6 +682,8 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     scene.add(symmetryGroup);
     scene.add(ghostGroup);
     scene.add(cageGroup);
+    scene.add(surfaceGroup);
+
 
     // Compute center of mass
     let cx = 0, cy = 0, cz = 0;
@@ -594,12 +865,78 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
       }}
     }});
 
+    // 3D Isosurface Meshes
+    if (MOL_DATA.surfaces && MOL_DATA.surfaces.length > 0) {{
+      MOL_DATA.surfaces.forEach(s => {{
+        if (!s.vertices || s.vertices.length === 0 || !s.faces || s.faces.length === 0) return;
+
+        const geom = new THREE.BufferGeometry();
+        const posArray = new Float32Array(s.vertices.length * 3);
+        for (let i = 0; i < s.vertices.length; i++) {{
+          posArray[i * 3]     = s.vertices[i][0] - cx;
+          posArray[i * 3 + 1] = s.vertices[i][1] - cy;
+          posArray[i * 3 + 2] = s.vertices[i][2] - cz;
+        }}
+        geom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+        if (s.normals && s.normals.length === s.vertices.length) {{
+          const normArray = new Float32Array(s.normals.length * 3);
+          for (let i = 0; i < s.normals.length; i++) {{
+            normArray[i * 3]     = s.normals[i][0];
+            normArray[i * 3 + 1] = s.normals[i][1];
+            normArray[i * 3 + 2] = s.normals[i][2];
+          }}
+          geom.setAttribute('normal', new THREE.BufferAttribute(normArray, 3));
+        }} else {{
+          geom.computeVertexNormals();
+        }}
+
+        const hasColors = (s.colors && s.colors.length === s.vertices.length * 3);
+        if (hasColors) {{
+          geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(s.colors), 3));
+        }}
+
+        const indexArray = new Uint32Array(s.faces.length * 3);
+        for (let i = 0; i < s.faces.length; i++) {{
+          indexArray[i * 3]     = s.faces[i][0];
+          indexArray[i * 3 + 1] = s.faces[i][1];
+          indexArray[i * 3 + 2] = s.faces[i][2];
+        }}
+        geom.setIndex(new THREE.BufferAttribute(indexArray, 1));
+
+        const mat = new THREE.MeshStandardMaterial({{
+          color: hasColors ? 0xffffff : (s.color || 0x38bdf8),
+          vertexColors: hasColors,
+          transparent: true,
+          opacity: s.opacity || 0.75,
+          roughness: 0.35,
+          metalness: 0.05,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }});
+
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.name = s.name;
+        surfaceGroup.add(mesh);
+      }});
+    }}
+
     // Initial camera position
     let maxDist = 3.0;
     atoms.forEach(a => {{
       const d = Math.sqrt((a.x - cx)**2 + (a.y - cy)**2 + (a.z - cz)**2);
       if (d > maxDist) maxDist = d;
     }});
+    if (MOL_DATA.surfaces) {{
+      MOL_DATA.surfaces.forEach(s => {{
+        if (s.vertices && s.vertices.length > 0) {{
+          for (let i = 0; i < s.vertices.length; i += 10) {{
+            const d = Math.sqrt((s.vertices[i][0] - cx)**2 + (s.vertices[i][1] - cy)**2 + (s.vertices[i][2] - cz)**2);
+            if (d > maxDist) maxDist = d;
+          }}
+        }}
+      }});
+    }}
     camera.position.set(maxDist * 2.2, maxDist * 1.8, maxDist * 2.5);
     camera.lookAt(0, 0, 0);
 
@@ -683,29 +1020,47 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
     }}
 
     // Controls listeners
-    document.getElementById('color-mode-select').addEventListener('change', (e) => {{
-      applyColorMode(e.target.value);
-    }});
-    document.getElementById('toggle-spin').addEventListener('change', (e) => {{
+    const elColorMode = document.getElementById('color-mode-select');
+    if (elColorMode) elColorMode.addEventListener('change', (e) => applyColorMode(e.target.value));
+
+    const elToggleSpin = document.getElementById('toggle-spin');
+    if (elToggleSpin) elToggleSpin.addEventListener('change', (e) => {{
       spinGroup.visible = e.target.checked;
-      const currentMode = document.getElementById('color-mode-select').value;
-      if (currentMode === 'hybrid') {{
-        applyColorMode('hybrid');
-      }}
+      if (elColorMode && elColorMode.value === 'hybrid') applyColorMode('hybrid');
     }});
-    document.getElementById('toggle-bonds').addEventListener('change', (e) => {{
-      bondGroup.visible = e.target.checked;
+
+    const elToggleBonds = document.getElementById('toggle-bonds');
+    if (elToggleBonds) elToggleBonds.addEventListener('change', (e) => {{ bondGroup.visible = e.target.checked; }});
+
+    const elToggleSymmetry = document.getElementById('toggle-symmetry');
+    if (elToggleSymmetry) elToggleSymmetry.addEventListener('change', (e) => {{ symmetryGroup.visible = e.target.checked; }});
+
+    const elToggleGhosts = document.getElementById('toggle-ghosts');
+    if (elToggleGhosts) elToggleGhosts.addEventListener('change', (e) => {{ ghostGroup.visible = e.target.checked; }});
+
+    const elToggleCages = document.getElementById('toggle-cages');
+    if (elToggleCages) elToggleCages.addEventListener('change', (e) => {{ cageGroup.visible = e.target.checked; }});
+
+    const elToggleSurfaces = document.getElementById('toggle-surfaces');
+    if (elToggleSurfaces) elToggleSurfaces.addEventListener('change', (e) => {{ surfaceGroup.visible = e.target.checked; }});
+
+    const elSurfaceOpacity = document.getElementById('surface-opacity');
+    if (elSurfaceOpacity) elSurfaceOpacity.addEventListener('input', (e) => {{
+      const val = parseFloat(e.target.value);
+      surfaceGroup.traverse(child => {{
+        if (child.isMesh && child.material) child.material.opacity = val;
+      }});
     }});
-    document.getElementById('toggle-symmetry').addEventListener('change', (e) => {{
-      symmetryGroup.visible = e.target.checked;
+
+    const elToggleWireframe = document.getElementById('toggle-wireframe');
+    if (elToggleWireframe) elToggleWireframe.addEventListener('change', (e) => {{
+      surfaceGroup.traverse(child => {{
+        if (child.isMesh && child.material) child.material.wireframe = e.target.checked;
+      }});
     }});
-    document.getElementById('toggle-ghosts').addEventListener('change', (e) => {{
-      ghostGroup.visible = e.target.checked;
-    }});
-    document.getElementById('toggle-cages').addEventListener('change', (e) => {{
-      cageGroup.visible = e.target.checked;
-    }});
-    document.getElementById('btn-reset').addEventListener('click', () => {{
+
+    const elBtnReset = document.getElementById('btn-reset');
+    if (elBtnReset) elBtnReset.addEventListener('click', () => {{
       camera.position.set(maxDist * 2.2, maxDist * 1.8, maxDist * 2.5);
       controls.target.set(0, 0, 0);
       controls.update();
@@ -750,22 +1105,28 @@ def generate_html(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], title
 
 
 def visualize_deck(
-    deck_or_atoms: Union[CalculationDeck, List[AtomConfig]],
+    deck_or_atoms: Any,
     output_path: Optional[Union[str, Path]] = None,
     auto_open: bool = False,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+    title: Optional[str] = None,
 ) -> str:
     """
-    Renders an interactive 3D WebGL visualization of the molecule or calculation deck.
+    Renders an interactive 3D WebGL visualization of the molecule, calculation deck, or volumetric grid.
 
     Args:
-        deck_or_atoms: CalculationDeck or list of AtomConfig objects.
+        deck_or_atoms: CalculationDeck, list of AtomConfig objects, or VolumetricGrid.
         output_path: Optional path to save the generated HTML file.
         auto_open: If True, opens the HTML file in the default web browser.
+        isovalue: Optional isosurface contour value if visualizing a VolumetricGrid.
+        property_grid: Optional property grid for vertex-color mapping (e.g. ESP).
+        title: Optional custom visualization title.
 
     Returns:
         The generated HTML content string.
     """
-    html_content = generate_html(deck_or_atoms)
+    html_content = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid)
 
     if output_path:
         out_file = Path(output_path)
@@ -784,7 +1145,34 @@ def visualize_deck(
     return html_content
 
 
-def show_deck(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], height: int = 600):
+def visualize_grid(
+    grid: Any,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+    output_path: Optional[Union[str, Path]] = None,
+    auto_open: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Convenience helper to render an interactive 3D WebGL visualization of a VolumetricGrid.
+    """
+    return visualize_deck(
+        grid,
+        output_path=output_path,
+        auto_open=auto_open,
+        isovalue=isovalue,
+        property_grid=property_grid,
+        title=title,
+    )
+
+
+def show_deck(
+    deck_or_atoms: Any,
+    height: int = 600,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+    title: Optional[str] = None,
+):
     """
     Displays the 3D interactive viewer inline inside a Jupyter notebook.
     """
@@ -794,7 +1182,7 @@ def show_deck(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], height: i
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
             from IPython.display import HTML
-            html_code = generate_html(deck_or_atoms)
+            html_code = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid)
             escaped_html = html.escape(html_code, quote=True)
             iframe_html = (
                 f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
@@ -806,3 +1194,23 @@ def show_deck(deck_or_atoms: Union[CalculationDeck, List[AtomConfig]], height: i
             return HTML(iframe_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_deck() in Jupyter notebooks.")
+
+
+def show_grid(
+    grid: Any,
+    isovalue: Optional[float] = None,
+    property_grid: Optional[Any] = None,
+    height: int = 600,
+    title: Optional[str] = None,
+):
+    """
+    Convenience helper to display a 3D volumetric isosurface inline inside a Jupyter notebook.
+    """
+    return show_deck(
+        grid,
+        height=height,
+        isovalue=isovalue,
+        property_grid=property_grid,
+        title=title,
+    )
+
