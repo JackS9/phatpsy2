@@ -188,7 +188,9 @@ module state
 
   type :: AtomStream
     integer(int32) :: pos = 0
-    integer(int32) :: mdifat = 0
+    integer(int32) :: mdifat_pos = 0
+    integer(int32) :: mdifat_count = 0
+    integer(int32), allocatable :: mdifat_arr(:)
     type(AtomRecord), allocatable :: records(:)
   end type AtomStream
 
@@ -396,8 +398,16 @@ contains
     if (allocated(mol_ws%unit4_stream%records)) deallocate(mol_ws%unit4_stream%records)
     allocate(mol_ws%unit3_stream%records(max(10, NATOM * 2)))
     allocate(mol_ws%unit4_stream%records(max(10, NATOM * 2)))
+    if (allocated(mol_ws%unit3_stream%mdifat_arr)) deallocate(mol_ws%unit3_stream%mdifat_arr)
+    if (allocated(mol_ws%unit4_stream%mdifat_arr)) deallocate(mol_ws%unit4_stream%mdifat_arr)
+    allocate(mol_ws%unit3_stream%mdifat_arr(max(10, NELEM * 4)))
+    allocate(mol_ws%unit4_stream%mdifat_arr(max(10, NELEM * 4)))
     mol_ws%unit3_stream%pos = 0
     mol_ws%unit4_stream%pos = 0
+    mol_ws%unit3_stream%mdifat_pos = 0
+    mol_ws%unit4_stream%mdifat_pos = 0
+    mol_ws%unit3_stream%mdifat_count = 0
+    mol_ws%unit4_stream%mdifat_count = 0
   end subroutine compute_derived_dimensions_and_allocate
 
   subroutine get_evalx(out_eval, n, nspin)
@@ -546,21 +556,75 @@ contains
   !---------------------------------------------------------------------
   subroutine rewind_atom_stream(unit_id)
     integer(int32), intent(in) :: unit_id
-    if (unit_id == IUNIT3) mol_ws%unit3_stream%pos = 0
-    if (unit_id == IUNIT4) mol_ws%unit4_stream%pos = 0
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%pos = 0
+      mol_ws%unit3_stream%mdifat_pos = 0
+    end if
+    if (unit_id == IUNIT4) then
+      mol_ws%unit4_stream%pos = 0
+      mol_ws%unit4_stream%mdifat_pos = 0
+    end if
   end subroutine rewind_atom_stream
 
   subroutine write_atom_stream_mdifat(unit_id, mdifat)
     integer(int32), intent(in) :: unit_id, mdifat
-    if (unit_id == IUNIT3) mol_ws%unit3_stream%mdifat = mdifat
-    if (unit_id == IUNIT4) mol_ws%unit4_stream%mdifat = mdifat
+    if (unit_id == IUNIT3) then
+      if (mol_ws%unit3_stream%pos == 0) then
+        mol_ws%unit3_stream%mdifat_count = 0
+        mol_ws%unit3_stream%mdifat_pos = 0
+      end if
+      mol_ws%unit3_stream%mdifat_count = mol_ws%unit3_stream%mdifat_count + 1
+      if (mol_ws%unit3_stream%mdifat_count > size(mol_ws%unit3_stream%mdifat_arr)) then
+        block
+          integer(int32), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit3_stream%mdifat_arr)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit3_stream%mdifat_arr
+          call move_alloc(tmp, mol_ws%unit3_stream%mdifat_arr)
+        end block
+      end if
+      mol_ws%unit3_stream%mdifat_arr(mol_ws%unit3_stream%mdifat_count) = mdifat
+    end if
+    if (unit_id == IUNIT4) then
+      if (mol_ws%unit4_stream%pos == 0) then
+        mol_ws%unit4_stream%mdifat_count = 0
+        mol_ws%unit4_stream%mdifat_pos = 0
+      end if
+      mol_ws%unit4_stream%mdifat_count = mol_ws%unit4_stream%mdifat_count + 1
+      if (mol_ws%unit4_stream%mdifat_count > size(mol_ws%unit4_stream%mdifat_arr)) then
+        block
+          integer(int32), allocatable :: tmp(:)
+          integer(int32) :: old_sz
+          old_sz = size(mol_ws%unit4_stream%mdifat_arr)
+          allocate(tmp(old_sz * 2))
+          tmp(1:old_sz) = mol_ws%unit4_stream%mdifat_arr
+          call move_alloc(tmp, mol_ws%unit4_stream%mdifat_arr)
+        end block
+      end if
+      mol_ws%unit4_stream%mdifat_arr(mol_ws%unit4_stream%mdifat_count) = mdifat
+    end if
   end subroutine write_atom_stream_mdifat
 
   subroutine read_atom_stream_mdifat(unit_id, mdifat)
     integer(int32), intent(in) :: unit_id
     integer(int32), intent(out) :: mdifat
-    if (unit_id == IUNIT3) mdifat = mol_ws%unit3_stream%mdifat
-    if (unit_id == IUNIT4) mdifat = mol_ws%unit4_stream%mdifat
+    if (unit_id == IUNIT3) then
+      mol_ws%unit3_stream%mdifat_pos = mol_ws%unit3_stream%mdifat_pos + 1
+      if (mol_ws%unit3_stream%mdifat_pos <= mol_ws%unit3_stream%mdifat_count) then
+        mdifat = mol_ws%unit3_stream%mdifat_arr(mol_ws%unit3_stream%mdifat_pos)
+      else
+        mdifat = 0
+      end if
+    end if
+    if (unit_id == IUNIT4) then
+      mol_ws%unit4_stream%mdifat_pos = mol_ws%unit4_stream%mdifat_pos + 1
+      if (mol_ws%unit4_stream%mdifat_pos <= mol_ws%unit4_stream%mdifat_count) then
+        mdifat = mol_ws%unit4_stream%mdifat_arr(mol_ws%unit4_stream%mdifat_pos)
+      else
+        mdifat = 0
+      end if
+    end if
   end subroutine read_atom_stream_mdifat
 
   subroutine write_atom_record_ref(unit_id, qflags, neqat, x, y, z, stevec, eval, occ, fock, &

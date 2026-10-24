@@ -20,6 +20,8 @@ bin/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.cube
+
 
 # Virtual environments
 .venv/
