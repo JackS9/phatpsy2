@@ -54,8 +54,8 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - Automatic Z-matrix generation and Cartesian NeRF reconstruction (`ZMatrix`), redundant internal coordinate transformations (`BondCoordinate`, `AngleCoordinate`, `DihedralCoordinate`), and analytical Wilson B-matrix evaluation (`InternalCoordinates.b_matrix`) in `phatpsy/coords.py`.
 - [x] **Geometry optimization**
   - Gradient-based (BFGS quasi-Newton with trust-region step clamping and Armijo backtracking line search) ground-state structure relaxation (`phatpsy/optimize.py`), supporting frozen/virtual centers and warm wavefunction restarts. Accessible via Python API (`optimize_geometry`) and CLI (`phatpsy opt`).
-- [ ] **Transition state searching**
-  - Saddle-point locating algorithms (e.g., Nudged Elastic Band (NEB) or Eigenvector Following).
+- [x] **Transition state searching**
+  - Climbing-Image Nudged Elastic Band (CI-NEB) algorithm with Henkelman-Jónsson improved tangents, decoupled spring/perpendicular forces, QuickMin optimizer, and climbing-image saddle point location (`phatpsy/neb.py`). Includes pathway energy profile plotting (`plot_pathway`), multi-frame XYZ trajectory export, interactive 3D WebGL pathway animation in Three.js (`visualize_pathway`, `show_pathway`), and full CLI integration (`phatpsy neb`).
 - [ ] **Reaction pathways (intrinsic and dynamic)**
   - Intrinsic Reaction Coordinate (IRC) tracing and dynamic steepest-descent trajectories.
 - [ ] **Molecular dynamics (MD)**

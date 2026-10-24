@@ -14,6 +14,7 @@ from pathlib import Path
 import json
 import webbrowser
 import tempfile
+import numpy as np
 
 from phatpsy.schema import CalculationDeck, AtomConfig, SymmetrySpec
 from phatpsy.spin import build_connectivity_graph, BOHR_PER_ANGSTROM, get_covalent_radius_bohr
@@ -1213,4 +1214,397 @@ def show_grid(
         property_grid=property_grid,
         title=title,
     )
+
+
+def generate_pathway_visualization_data(neb_result: Any) -> Dict[str, Any]:
+    """Extracts multi-frame pathway coordinates, bonds, and energies for 3D animation."""
+    images = neb_result.images
+    energies = neb_result.energies
+    ts_idx = getattr(neb_result, "transition_state_index", int(np.argmax(energies)))
+    e0 = energies[0]
+
+    frames = []
+    for i, deck in enumerate(images):
+        frame_data = generate_visualization_data(deck)
+        rel_kcal = (energies[i] - e0) * 627.509474
+        frames.append({
+            "index": i,
+            "energy": round(float(energies[i]), 8),
+            "rel_kcal": round(float(rel_kcal), 2),
+            "is_ts": (i == ts_idx),
+            "atoms": frame_data["atoms"],
+            "bonds": frame_data["bonds"],
+        })
+
+    barrier_fwd = getattr(neb_result, "barrier_forward_kcal", (energies[ts_idx] - e0) * 627.509474)
+    rxn_e = getattr(neb_result, "reaction_energy_kcal", (energies[-1] - e0) * 627.509474)
+
+    return {
+        "title": "NEB Reaction Pathway",
+        "num_frames": len(frames),
+        "ts_index": ts_idx,
+        "barrier_fwd_kcal": round(float(barrier_fwd), 2),
+        "reaction_e_kcal": round(float(rxn_e), 2),
+        "frames": frames,
+    }
+
+
+def generate_pathway_html(neb_result: Any, title: Optional[str] = None) -> str:
+    """Generates standalone HTML with interactive Three.js reaction pathway playback controls."""
+    data = generate_pathway_visualization_data(neb_result)
+    if title:
+        data["title"] = title
+    payload = json.dumps(data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data['title']} - PHATPSY 3D Pathway</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }}
+    #canvas-container {{
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }}
+    .ui-panel {{
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 380px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+    }}
+    .ui-panel h1 {{
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 6px;
+    }}
+    .badge-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }}
+    .badge {{
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }}
+    .badge-blue {{ background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }}
+    .badge-red {{ background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }}
+    .badge-green {{ background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }}
+    
+    .timeline-panel {{
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.90);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 14px 24px;
+      min-width: 480px;
+      max-width: 90vw;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 100;
+    }}
+    .timeline-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }}
+    .timeline-controls {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    .btn {{
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f8fafc;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    .btn:hover {{ background: #334155; border-color: rgba(255, 255, 255, 0.3); }}
+    .btn-primary {{ background: #2563eb; border-color: #3b82f6; }}
+    .btn-primary:hover {{ background: #1d4ed8; }}
+    .slider {{
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #334155;
+      outline: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }}
+    .slider::-webkit-slider-thumb {{
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="ui-panel">
+    <h1>{data['title']}</h1>
+    <div class="badge-bar">
+      <span class="badge badge-red">Ea: +{data['barrier_fwd_kcal']} kcal/mol</span>
+      <span class="badge badge-blue">ΔE: {data['reaction_e_kcal']:+.2f} kcal/mol</span>
+      <span class="badge badge-green">Images: {data['num_frames']}</span>
+    </div>
+  </div>
+
+  <div class="timeline-panel">
+    <div class="timeline-header">
+      <span id="frame-label" style="color:#38bdf8;">Image 0 / {data['num_frames'] - 1} (Reactant)</span>
+      <span id="energy-label" style="color:#94a3b8;">E = 0.000000 Hartree | ΔE = 0.00 kcal/mol</span>
+    </div>
+    <div class="timeline-controls">
+      <button class="btn btn-primary" id="play-btn">▶ Play</button>
+      <button class="btn" id="prev-btn">⏮</button>
+      <input type="range" min="0" max="{data['num_frames'] - 1}" value="0" class="slider" id="frame-slider">
+      <button class="btn" id="next-btn">⏭</button>
+    </div>
+  </div>
+
+  <script>
+    const data = {payload};
+    const frames = data.frames;
+    let currentFrameIdx = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambientLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.7);
+    dirLight1.position.set(20, 30, 20);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+    dirLight2.position.set(-20, -30, -20);
+    scene.add(dirLight2);
+
+    const sphereGeom = new THREE.SphereGeometry(1, 32, 32);
+    const cylGeom = new THREE.CylinderGeometry(1, 1, 1, 16);
+
+    const atomMeshes = [];
+    const bondMeshes = [];
+    const moleculeGroup = new THREE.Group();
+    scene.add(moleculeGroup);
+
+    // Build initial meshes using Frame 0
+    const frame0 = frames[0];
+    frame0.atoms.forEach(a => {{
+      const mat = new THREE.MeshStandardMaterial({{
+        color: new THREE.Color(a.color),
+        roughness: 0.3,
+        metalness: 0.2
+      }});
+      const mesh = new THREE.Mesh(sphereGeom, mat);
+      mesh.scale.setScalar(a.radius * 0.7);
+      mesh.position.set(a.x, a.y, a.z);
+      moleculeGroup.add(mesh);
+      atomMeshes.push(mesh);
+    }});
+
+    // Center camera on molecule bounding box
+    const box = new THREE.Box3().setFromObject(moleculeGroup);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 4);
+    camera.position.set(center.x, center.y, center.z + maxDim * 2.5);
+    controls.target.copy(center);
+    controls.update();
+
+    function updateBonds(bondList) {{
+      while (bondMeshes.length > 0) {{
+        const b = bondMeshes.pop();
+        moleculeGroup.remove(b);
+      }}
+      bondList.forEach(b => {{
+        const m1 = atomMeshes[b.atom1];
+        const m2 = atomMeshes[b.atom2];
+        if (!m1 || !m2) return;
+        const v1 = m1.position;
+        const v2 = m2.position;
+        const dist = v1.distanceTo(v2);
+        const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
+        const cyl = new THREE.Mesh(cylGeom, cylMat);
+        cyl.scale.set(b.radius || 0.12, dist, b.radius || 0.12);
+        cyl.position.copy(v1).add(v2).multiplyScalar(0.5);
+        cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v2.clone().sub(v1).normalize());
+        moleculeGroup.add(cyl);
+        bondMeshes.push(cyl);
+      }});
+    }}
+
+    function applyFrame(idx) {{
+      currentFrameIdx = idx;
+      const f = frames[idx];
+      f.atoms.forEach((a, i) => {{
+        if (atomMeshes[i]) {{
+          atomMeshes[i].position.set(a.x, a.y, a.z);
+        }}
+      }});
+      updateBonds(f.bonds);
+
+      const frameLabel = document.getElementById("frame-label");
+      const energyLabel = document.getElementById("energy-label");
+      const slider = document.getElementById("frame-slider");
+      slider.value = idx;
+
+      let tag = "";
+      if (idx === 0) tag = " (Reactant)";
+      else if (idx === frames.length - 1) tag = " (Product)";
+      else if (f.is_ts) tag = " (★ Transition State)";
+
+      frameLabel.textContent = `Image ${{idx}} / ${{frames.length - 1}}${{tag}}`;
+      frameLabel.style.color = f.is_ts ? "#ef4444" : (idx === 0 ? "#10b981" : "#38bdf8");
+      energyLabel.textContent = `E = ${{f.energy.toFixed(6)}} Hartree | ΔE = ${{f.rel_kcal >= 0 ? "+" : ""}}${{f.rel_kcal.toFixed(2)}} kcal/mol`;
+    }}
+
+    applyFrame(0);
+
+    const slider = document.getElementById("frame-slider");
+    slider.addEventListener("input", (e) => applyFrame(parseInt(e.target.value)));
+
+    const playBtn = document.getElementById("play-btn");
+    playBtn.addEventListener("click", () => {{
+      isPlaying = !isPlaying;
+      playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+      if (isPlaying) {{
+        playInterval = setInterval(() => {{
+          let next = (currentFrameIdx + 1) % frames.length;
+          applyFrame(next);
+        }}, 400);
+      }} else {{
+        clearInterval(playInterval);
+      }}
+    }});
+
+    document.getElementById("prev-btn").addEventListener("click", () => {{
+      if (currentFrameIdx > 0) applyFrame(currentFrameIdx - 1);
+    }});
+    document.getElementById("next-btn").addEventListener("click", () => {{
+      if (currentFrameIdx < frames.length - 1) applyFrame(currentFrameIdx + 1);
+    }});
+
+    window.addEventListener("resize", () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_pathway(
+    neb_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL reaction pathway slider and playback."""
+    html_content = generate_pathway_html(neb_result, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_reaction_pathway.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_pathway(neb_result: Any, height: int = 550, title: Optional[str] = None):
+    """Displays interactive 3D reaction pathway slider inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_pathway_html(neb_result, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_pathway() in Jupyter notebooks.")
 

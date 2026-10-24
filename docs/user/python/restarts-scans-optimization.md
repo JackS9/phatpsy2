@@ -148,3 +148,63 @@ The `OptimizationResult` stores intermediate steps with energies, gradients, and
 for step in opt_result.steps:
     print(f"Step {step.step_num:2d} | Energy: {step.energy:.6f} Eh | Grad Norm: {step.gradient_norm:.3e}")
 ```
+
+---
+
+## Transition State Searching (Climbing-Image NEB)
+
+To locate reaction transition states (first-order saddle points) and calculate activation energy barriers, PHATPSY 2.0 provides the **Climbing-Image Nudged Elastic Band (CI-NEB)** method via `neb_search()`:
+
+```python
+from phatpsy import neb_search, build_diatomic
+
+# 1. Define reactant and product states
+deck_reactant = build_diatomic("N", "N", bond_length=2.068, basis="DZ")
+deck_product = build_diatomic("N", "N", bond_length=2.800, basis="DZ")
+
+# 2. Run CI-NEB calculation across 7 pathway images
+neb_res = neb_search(
+    initial_deck=deck_reactant,
+    final_deck=deck_product,
+    num_images=7,
+    k_spring=0.1,        # Spring constant in Hartree/Bohr^2
+    max_iterations=40,
+    force_tol=0.003,     # Force threshold in Hartree/Bohr
+    climb=True,          # Inverts tangent force on highest image to locate exact saddle point
+    warm_restart=True,
+)
+
+print(f"NEB Converged      : {neb_res.converged}")
+print(f"Iterations         : {neb_res.num_iterations}")
+print(f"Forward Barrier    : {neb_res.barrier_forward_kcal:.2f} kcal/mol ({neb_res.barrier_forward:.6f} Eh)")
+print(f"Reverse Barrier    : {neb_res.barrier_reverse_kcal:.2f} kcal/mol")
+print(f"Reaction Energy    : {neb_res.reaction_energy_kcal:.2f} kcal/mol")
+print(f"Transition State   : Image {neb_res.transition_state_index}")
+
+# Transition state geometry as a new CalculationDeck
+ts_deck = neb_res.transition_state_deck
+ts_deck.to_yaml("transition_state.yaml")
+```
+
+### Reaction Profile Plotting
+
+Plot the potential energy reaction profile with automatic cubic-spline interpolation:
+
+```python
+# Plot in kcal/mol (default) or Hartree
+neb_res.plot_pathway("reaction_barrier.png")
+```
+
+### Interactive 3D Pathway Playback in Notebooks
+
+Scrub through reaction pathway images and watch animated bond rearrangements directly inside Jupyter cells:
+
+```python
+neb_res.show(height=550)
+```
+
+You can also export the reaction trajectory to multi-frame XYZ format:
+
+```python
+neb_res.save_xyz("reaction_pathway.xyz")
+```

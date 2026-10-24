@@ -203,3 +203,27 @@ python -m phatpsy opt input.yaml -o relaxed.yaml -p opt_trajectory.png
   * `--energy-tol <float>`: Convergence tolerance on energy change (default: $1.0 \times 10^{-5}$).
   * `-t`, `--trajectory`: Save all optimization trajectory steps to file.
   * `-p`, `--plot`: Plot energy and gradient convergence profiles.
+
+---
+
+### 10. `phatpsy neb` (aliases `ci-neb`, `path`)
+
+Finds transition states (saddle points) and calculates reaction activation energy barriers using the Climbing-Image Nudged Elastic Band (CI-NEB) method:
+
+```bash
+# Calculate minimum energy path and activation barrier between reactant and product
+python -m phatpsy neb reactant.yaml product.yaml -n 7 -o pathway.json --xyz pathway.xyz -p barrier.png --view
+```
+
+* **Pathway Flags:**
+  * `-n`, `--images <int>`: Total number of pathway images including endpoints (default: 7).
+  * `-k`, `--spring <float>`: Inter-image spring constant in Hartree/Bohr$^2$ (default: 0.1).
+  * `--max-iter <int>`: Maximum NEB optimization iterations (default: 40).
+  * `--force-tol <float>`: Force convergence tolerance in Hartree/Bohr (default: 0.003).
+  * `--no-climb`: Disable climbing image (runs standard NEB instead of CI-NEB).
+  * `--no-warm-restart`: Disable warm-restarting between image SCF calculations.
+* **Output Flags:**
+  * `-o`, `--output`: Save pathway JSON data (energies, barriers in kcal/mol, and geometries).
+  * `--xyz`: Save reaction pathway as a multi-frame standard XYZ trajectory.
+  * `-p`, `--plot`: Save reaction profile plot ($E$ vs. reaction coordinate).
+  * `--view`: Open an interactive 3D WebGL pathway viewer with playback controls and timeline slider in browser.

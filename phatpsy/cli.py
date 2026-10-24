@@ -257,6 +257,51 @@ def handle_opt(args):
     return 0
 
 
+def handle_neb(args):
+    from phatpsy.neb import neb_search
+
+    initial_deck = load_deck_from_arg(args.initial)
+    final_deck = load_deck_from_arg(args.final)
+
+    res = neb_search(
+        initial_deck=initial_deck,
+        final_deck=final_deck,
+        num_images=args.images,
+        k_spring=args.spring,
+        max_iterations=args.max_iter,
+        force_tol=args.force_tol,
+        climb=not args.no_climb,
+        warm_restart=not args.no_warm_restart,
+    )
+
+    print(f"Nudged Elastic Band {'Converged' if res.converged else 'Incomplete'}:")
+    print(f"  Iterations:       {res.num_iterations}")
+    print(f"  Images:           {len(res.images)}")
+    print(f"  Climbing Image:   {'Enabled' if res.climbing_image_enabled else 'Disabled'}")
+    print(f"  Transition State: Image {res.transition_state_index}")
+    print(f"  TS Energy:        {res.transition_state_energy:18.8f} Hartree")
+    print(f"  Forward Barrier:  {res.barrier_forward:18.8f} Hartree ({res.barrier_forward_kcal:8.2f} kcal/mol)")
+    print(f"  Reverse Barrier:  {res.barrier_reverse:18.8f} Hartree ({res.barrier_reverse_kcal:8.2f} kcal/mol)")
+    print(f"  Reaction Energy:  {res.reaction_energy:18.8f} Hartree ({res.reaction_energy_kcal:8.2f} kcal/mol)")
+
+    if args.output:
+        res.save_json(args.output)
+        print(f"  Saved JSON:       {args.output}")
+
+    if args.xyz:
+        res.save_xyz(args.xyz)
+        print(f"  Saved XYZ Path:   {args.xyz}")
+
+    if args.plot:
+        res.plot_pathway(output_path=args.plot)
+        print(f"  Saved Plot:       {args.plot}")
+
+    if args.view:
+        res.visualize(open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -570,6 +615,27 @@ def main(argv=None):
         parser.add_argument("--no-warm-restart", action="store_true", help="Disable warm-restarting between optimization steps")
         args = parser.parse_args(argv[1:])
         return handle_opt(args)
+
+    # Handle 'neb', 'ci-neb', or 'path' command
+    if argv and argv[0] in ("neb", "ci-neb", "path"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy neb",
+            description="Transition state searching and reaction pathway optimization using (Climbing-Image) Nudged Elastic Band."
+        )
+        parser.add_argument("initial", help="Reactant calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("final", help="Product calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("-n", "--images", type=int, default=7, help="Number of pathway images including endpoints (default: 7)")
+        parser.add_argument("-k", "--spring", type=float, default=0.1, help="Spring constant in Hartree/Bohr^2 (default: 0.1)")
+        parser.add_argument("--max-iter", type=int, default=40, help="Maximum NEB optimization iterations (default: 40)")
+        parser.add_argument("--force-tol", type=float, default=0.003, help="Force convergence tolerance in Hartree/Bohr (default: 0.003)")
+        parser.add_argument("--no-climb", action="store_true", help="Disable climbing image (use standard NEB instead of CI-NEB)")
+        parser.add_argument("--no-warm-restart", action="store_true", help="Disable warm-restarting between image SCF calculations")
+        parser.add_argument("-o", "--output", default=None, help="Output path for pathway JSON data")
+        parser.add_argument("--xyz", default=None, help="Output path for multi-frame XYZ trajectory")
+        parser.add_argument("-p", "--plot", default=None, help="Output path for reaction profile plot (.png, .pdf)")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL reaction pathway viewer in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_neb(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

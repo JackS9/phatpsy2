@@ -28,7 +28,14 @@ from phatpsy.builder import (
 )
 from phatpsy.basis import get_element_basis, list_available_elements
 from phatpsy.spin import assign_alternating_spin
-from phatpsy.visualizer import visualize_deck, show_deck, visualize_grid, show_grid
+from phatpsy.visualizer import (
+    visualize_deck,
+    show_deck,
+    visualize_grid,
+    show_grid,
+    visualize_pathway,
+    show_pathway,
+)
 from phatpsy.volumetric import (
     VolumetricGrid,
     compute_grid,
@@ -63,6 +70,14 @@ from phatpsy.supercell import (
     build_slab,
     attach_adsorbate,
 )
+from phatpsy.neb import (
+    neb_search,
+    interpolate_images,
+    calculate_tangents,
+    calculate_neb_forces,
+    NEBResult,
+    NEBImage,
+)
 
 __all__ = [
     "PhatpsyDriver",
@@ -91,6 +106,8 @@ __all__ = [
     "show_deck",
     "visualize_grid",
     "show_grid",
+    "visualize_pathway",
+    "show_pathway",
     "VolumetricGrid",
     "compute_grid",
     "compute_esp_grid",
@@ -114,5 +131,11 @@ __all__ = [
     "PeriodicCell",
     "build_slab",
     "attach_adsorbate",
+    "neb_search",
+    "interpolate_images",
+    "calculate_tangents",
+    "calculate_neb_forces",
+    "NEBResult",
+    "NEBImage",
 ]
 
