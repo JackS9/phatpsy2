@@ -208,3 +208,65 @@ You can also export the reaction trajectory to multi-frame XYZ format:
 ```python
 neb_res.save_xyz("reaction_pathway.xyz")
 ```
+
+---
+
+## Born-Oppenheimer Molecular Dynamics (BOMD)
+
+To investigate thermal vibrations, conformational exploration, and time-dependent dynamics, PHATPSY 2.0 provides **Born-Oppenheimer Molecular Dynamics (BOMD)** via `run_md()`:
+
+```python
+from phatpsy import run_md, build_diatomic
+
+# 1. Prepare initial geometry deck
+deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+
+# 2. Run NVE dynamics with 0.5 fs timestep at 300 K
+md_res = run_md(
+    deck=deck,
+    time_step_fs=0.5,
+    num_steps=100,
+    temperature_k=300.0,
+    ensemble="nve",           # "nve", "berendsen", "rescale", or "andersen"
+    remove_com_drift=True,    # Remove net center-of-mass linear momentum
+    seed=42,
+)
+
+print(f"Total time simulated: {md_res.total_time_fs:.1f} fs")
+print(f"Initial Total Energy: {md_res.initial_energy:.6f} Eh")
+print(f"Final Total Energy  : {md_res.final_energy:.6f} Eh")
+print(f"Energy Drift        : {md_res.energy_drift:.2e} Eh")
+print(f"Average Temperature : {md_res.average_temperature:.1f} ± {md_res.temperature_std:.1f} K")
+```
+
+### Thermodynamic Ensembles
+
+* **NVE (Microcanonical):** Standard symplectic Velocity Verlet integration without heat bath coupling. Conserves total Hamiltonian energy $E_{\text{tot}} = E_{\text{pot}} + E_{\text{kin}}$.
+* **Berendsen ($NVT$):** Weak-coupling velocity scaling with characteristic relaxation time `tau_fs` (e.g., `tau_fs=20.0`).
+* **Velocity Rescaling ($NVT$):** Instantaneous velocity scaling per time step to rigidly maintain target kinetic temperature.
+* **Andersen ($NVT$):** Stochastic thermal collisions with frequency `collision_freq` (default: 0.1 / fs).
+
+### Trajectory Analysis & Plotting
+
+Plot time series of potential energy, kinetic energy, total energy conservation, and instantaneous temperature:
+
+```python
+# Save dynamics profile plot
+md_res.plot_dynamics("md_trajectory.png")
+```
+
+### Interactive 3D Trajectory Playback in Jupyter Notebooks
+
+Render an interactive WebGL multi-frame trajectory player in Jupyter or HTML:
+
+```python
+# Interactive Three.js timeline player inside notebook cell
+md_res.show(height=550)
+
+# Or export standalone HTML viewer
+md_res.visualize("trajectory.html", open_browser=True)
+
+# Export standard multi-frame XYZ for external tools (VMD, PyMOL, Avogadro)
+md_res.save_xyz("trajectory.xyz")
+```
+

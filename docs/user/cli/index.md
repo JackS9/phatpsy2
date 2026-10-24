@@ -227,3 +227,29 @@ python -m phatpsy neb reactant.yaml product.yaml -n 7 -o pathway.json --xyz path
   * `--xyz`: Save reaction pathway as a multi-frame standard XYZ trajectory.
   * `-p`, `--plot`: Save reaction profile plot ($E$ vs. reaction coordinate).
   * `--view`: Open an interactive 3D WebGL pathway viewer with playback controls and timeline slider in browser.
+
+---
+
+### 11. `phatpsy md` (aliases `bomd`, `dynamics`)
+
+Executes Born-Oppenheimer Molecular Dynamics (BOMD) on the semi-empirical potential energy surface using a symplectic Velocity Verlet integrator:
+
+```bash
+# Run 100 steps of NVE Born-Oppenheimer dynamics at 300 K with 0.5 fs timestep
+python -m phatpsy md input.yaml -n 100 --dt 0.5 -T 300 -o trajectory.json --xyz trajectory.xyz -p dynamics.png --view
+```
+
+* **Dynamics Flags:**
+  * `-n`, `--steps <int>`: Total number of MD integration steps (default: 50).
+  * `--dt <float>`: Integration time step in femtoseconds (default: 0.5 fs).
+  * `-T`, `--temp <float>`: Target kinetic temperature in Kelvin (default: 300.0 K).
+  * `--thermostat {nve,berendsen,rescale,andersen}`: Thermodynamic ensemble control (default: `nve`).
+  * `--tau <float>`: Berendsen thermostat coupling time constant in femtoseconds (default: 20.0 fs).
+  * `--no-com-removal`: Retain initial center-of-mass linear momentum.
+  * `--seed <int>`: Random seed for reproducible Maxwell-Boltzmann velocity initialization.
+* **Output Flags:**
+  * `-o`, `--output`: Save structured trajectory JSON summary (energies, temperatures, coordinates, velocities, forces).
+  * `--xyz`: Save dynamics trajectory as a multi-frame standard XYZ file (compatible with VMD, PyMOL, Avogadro).
+  * `-p`, `--plot`: Generate time-evolution plots of potential, kinetic, total energy, and instantaneous temperature.
+  * `--view`: Open an interactive 3D WebGL trajectory player with play/pause, step-by-step scrubbing, FPS controls, and real-time energy readouts in Three.js.
+

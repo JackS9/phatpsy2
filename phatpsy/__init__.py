@@ -35,6 +35,8 @@ from phatpsy.visualizer import (
     show_grid,
     visualize_pathway,
     show_pathway,
+    visualize_trajectory,
+    show_trajectory,
 )
 from phatpsy.volumetric import (
     VolumetricGrid,
@@ -77,6 +79,13 @@ from phatpsy.neb import (
     calculate_neb_forces,
     NEBResult,
     NEBImage,
+)
+from phatpsy.md import (
+    run_md,
+    MDResult,
+    MDStep,
+    init_velocities,
+    get_atomic_mass_au,
 )
 
 __all__ = [
@@ -137,5 +146,12 @@ __all__ = [
     "calculate_neb_forces",
     "NEBResult",
     "NEBImage",
+    "run_md",
+    "MDResult",
+    "MDStep",
+    "init_velocities",
+    "get_atomic_mass_au",
+    "visualize_trajectory",
+    "show_trajectory",
 ]
 

@@ -58,8 +58,13 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Climbing-Image Nudged Elastic Band (CI-NEB) algorithm with Henkelman-Jónsson improved tangents, decoupled spring/perpendicular forces, QuickMin optimizer, and climbing-image saddle point location (`phatpsy/neb.py`). Includes pathway energy profile plotting (`plot_pathway`), multi-frame XYZ trajectory export, interactive 3D WebGL pathway animation in Three.js (`visualize_pathway`, `show_pathway`), and full CLI integration (`phatpsy neb`).
 - [ ] **Reaction pathways (intrinsic and dynamic)**
   - Intrinsic Reaction Coordinate (IRC) tracing and dynamic steepest-descent trajectories.
-- [ ] **Molecular dynamics (MD)**
-  - Born-Oppenheimer / direct molecular dynamics integration on the PHATPSY potential surface.
+- [x] **Molecular dynamics (MD)**
+  - Direct Born-Oppenheimer Molecular Dynamics (BOMD) on the PHATPSY semi-empirical potential energy surface (`phatpsy/md.py`).
+  - Symplectic Velocity Verlet integrator conserving phase-space volume and total energy.
+  - Comprehensive thermodynamic ensembles: Microcanonical ($NVE$), Berendsen weak-coupling thermostat ($NVT$), velocity rescaling ($NVT$), and stochastic Andersen collision thermostat ($NVT$).
+  - Full Maxwell-Boltzmann velocity initialization with center-of-mass linear momentum removal and support for fixed substrate constraints (`fixed=True`) and virtual coordination centers.
+  - Multi-frame XYZ trajectory export, structured JSON checkpointing, dynamics plotting (`plot_dynamics`), and interactive 3D WebGL trajectory player with timeline controls in Three.js (`visualize_trajectory`, `show_trajectory`).
+  - Full CLI integration (`phatpsy md` / `phatpsy bomd`).
 
 ---
 

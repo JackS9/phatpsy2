@@ -14,6 +14,7 @@ from pathlib import Path
 import json
 import webbrowser
 import tempfile
+import copy
 import numpy as np
 
 from phatpsy.schema import CalculationDeck, AtomConfig, SymmetrySpec
@@ -1607,4 +1608,425 @@ def show_pathway(neb_result: Any, height: int = 550, title: Optional[str] = None
             return HTML(iframe_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_pathway() in Jupyter notebooks.")
+
+
+def generate_trajectory_visualization_data(md_result: Any) -> Dict[str, Any]:
+    """Extracts multi-frame MD trajectory coordinates, bonds, energies, and temperatures for 3D animation."""
+    trajectory = md_result.trajectory
+    atoms_template = md_result.final_deck.atoms
+
+    frames = []
+    for s in trajectory:
+        frame_atoms = copy.deepcopy(atoms_template)
+        for i, pt in enumerate(s.coordinates):
+            frame_atoms[i].xyz = pt
+        adj = build_connectivity_graph(frame_atoms, tolerance=1.25)
+        bonds = []
+        for i in range(len(frame_atoms)):
+            for j in adj[i]:
+                if j > i:
+                    bonds.append([i, j])
+
+        atom_data = []
+        for a in frame_atoms:
+            atom_data.append({
+                "element": a.element,
+                "x": round(float(a.xyz[0]), 5),
+                "y": round(float(a.xyz[1]), 5),
+                "z": round(float(a.xyz[2]), 5),
+                "spin": a.spin,
+                "is_spin_up": a.is_spin_up,
+                "is_spin_down": a.is_spin_down,
+                "virtual": a.virtual,
+                "fixed": a.fixed,
+            })
+
+        frames.append({
+            "step": s.step,
+            "time_fs": round(float(s.time_fs), 3),
+            "potential_energy": round(float(s.potential_energy), 8),
+            "kinetic_energy": round(float(s.kinetic_energy), 8),
+            "total_energy": round(float(s.total_energy), 8),
+            "temperature": round(float(s.temperature), 2),
+            "virial_ratio": round(float(s.virial_ratio), 4),
+            "atoms": atom_data,
+            "bonds": bonds,
+        })
+
+    return {
+        "title": f"BOMD Trajectory ({md_result.ensemble.upper()})",
+        "ensemble": md_result.ensemble.upper(),
+        "num_frames": len(frames),
+        "time_step_fs": round(float(md_result.time_step_fs), 4),
+        "total_time_fs": round(float(md_result.total_time_fs), 4),
+        "avg_temperature": round(float(md_result.average_temperature), 2),
+        "energy_drift_kcal": round(float(md_result.energy_drift * 627.509474), 4),
+        "frames": frames,
+    }
+
+
+def generate_trajectory_html(md_result: Any, title: Optional[str] = None) -> str:
+    """Generates standalone HTML with interactive Three.js molecular dynamics trajectory playback controls."""
+    data = generate_trajectory_visualization_data(md_result)
+    if title:
+        data["title"] = title
+    payload = json.dumps(data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data['title']} - PHATPSY 3D Trajectory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }}
+    #canvas-container {{
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }}
+    .ui-panel {{
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 400px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+    }}
+    .ui-panel h1 {{
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 6px;
+    }}
+    .badge-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }}
+    .badge {{
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }}
+    .badge-blue {{ background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }}
+    .badge-orange {{ background: rgba(251, 146, 60, 0.2); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.4); }}
+    .badge-green {{ background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }}
+    
+    .timeline-panel {{
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(720px, calc(100vw - 40px));
+      background: rgba(15, 23, 42, 0.90);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 14px 20px;
+      box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    .timeline-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }}
+    .timeline-controls {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    .btn {{
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f8fafc;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    .btn:hover {{ background: #334155; border-color: rgba(255, 255, 255, 0.3); }}
+    .btn-primary {{ background: #2563eb; border-color: #3b82f6; }}
+    .btn-primary:hover {{ background: #1d4ed8; }}
+    .slider {{
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #334155;
+      outline: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }}
+    .slider::-webkit-slider-thumb {{
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="ui-panel">
+    <h1>{data['title']}</h1>
+    <div class="badge-bar">
+      <span class="badge badge-orange">Avg T: {data['avg_temperature']} K</span>
+      <span class="badge badge-blue">ΔE: {data['energy_drift_kcal']:+.3f} kcal/mol</span>
+      <span class="badge badge-green">Steps: {data['num_frames'] - 1} ({data['total_time_fs']} fs)</span>
+    </div>
+  </div>
+
+  <div class="timeline-panel">
+    <div class="timeline-header">
+      <span id="frame-label" style="color:#38bdf8;">Step 0 / {data['num_frames'] - 1} (t = 0.00 fs)</span>
+      <span id="metrics-label" style="color:#94a3b8;">T = 0.0 K | E_tot = 0.000000 Ha</span>
+    </div>
+    <div class="timeline-controls">
+      <button class="btn btn-primary" id="play-btn">▶ Play</button>
+      <button class="btn" id="prev-btn">⏮</button>
+      <input type="range" min="0" max="{data['num_frames'] - 1}" value="0" class="slider" id="frame-slider">
+      <button class="btn" id="next-btn">⏭</button>
+    </div>
+  </div>
+
+  <script>
+    const data = {payload};
+    const frames = data.frames;
+    let currentFrameIdx = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 10);
+
+    const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(10, 20, 15);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.3);
+    dirLight2.position.set(-10, -10, -10);
+    scene.add(dirLight2);
+
+    const moleculeGroup = new THREE.Group();
+    scene.add(moleculeGroup);
+
+    const sphereGeom = new THREE.SphereGeometry(1, 32, 32);
+    const cylGeom = new THREE.CylinderGeometry(1, 1, 1, 16);
+
+    const elemColors = {{
+      "H": 0xf8fafc, "C": 0x475569, "N": 0x3b82f6, "O": 0xef4444, "F": 0x22c55e,
+      "P": 0xf97316, "S": 0xeab308, "CL": 0x10b981, "NI": 0x10b981, "PT": 0xa855f7, "AG": 0xc084fc,
+      "AU": 0xf59e0b, "FE": 0xe11d48, "CU": 0xd97706
+    }};
+    const elemRadii = {{
+      "H": 0.35, "C": 0.65, "N": 0.60, "O": 0.58, "F": 0.55,
+      "P": 0.75, "S": 0.75, "CL": 0.72, "NI": 0.85, "PT": 0.90, "AG": 0.90
+    }};
+
+    const atomMeshes = [];
+    const bondMeshes = [];
+
+    const f0 = frames[0];
+    f0.atoms.forEach((a, idx) => {{
+      const el = a.element.toUpperCase();
+      const col = elemColors[el] || 0x38bdf8;
+      const rad = elemRadii[el] || 0.65;
+      const mat = new THREE.MeshStandardMaterial({{ color: col, roughness: 0.3, metalness: 0.2 }});
+      const mesh = new THREE.Mesh(sphereGeom, mat);
+      mesh.scale.set(rad, rad, rad);
+      mesh.position.set(a.x, a.y, a.z);
+      moleculeGroup.add(mesh);
+      atomMeshes.push(mesh);
+    }});
+
+    const box = new THREE.Box3().setFromObject(moleculeGroup);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 2.0);
+    camera.position.set(center.x, center.y, center.z + maxDim * 2.8);
+    controls.target.copy(center);
+    controls.update();
+
+    function updateBonds(bondList) {{
+      while (bondMeshes.length > 0) {{
+        const b = bondMeshes.pop();
+        moleculeGroup.remove(b);
+      }}
+      bondList.forEach(b => {{
+        const idx1 = Array.isArray(b) ? b[0] : b.atom1;
+        const idx2 = Array.isArray(b) ? b[1] : b.atom2;
+        const m1 = atomMeshes[idx1];
+        const m2 = atomMeshes[idx2];
+        if (!m1 || !m2) return;
+        const v1 = m1.position;
+        const v2 = m2.position;
+        const dist = v1.distanceTo(v2);
+        const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
+        const cyl = new THREE.Mesh(cylGeom, cylMat);
+        cyl.scale.set(0.12, dist, 0.12);
+        cyl.position.copy(v1).add(v2).multiplyScalar(0.5);
+        cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v2.clone().sub(v1).normalize());
+        moleculeGroup.add(cyl);
+        bondMeshes.push(cyl);
+      }});
+    }}
+
+    function applyFrame(idx) {{
+      currentFrameIdx = idx;
+      const f = frames[idx];
+      f.atoms.forEach((a, i) => {{
+        if (atomMeshes[i]) {{
+          atomMeshes[i].position.set(a.x, a.y, a.z);
+        }}
+      }});
+      updateBonds(f.bonds);
+
+      const frameLabel = document.getElementById("frame-label");
+      const metricsLabel = document.getElementById("metrics-label");
+      const slider = document.getElementById("frame-slider");
+      slider.value = idx;
+
+      frameLabel.textContent = `Step ${{f.step}} / ${{frames.length - 1}} (t = ${{f.time_fs.toFixed(2)}} fs)`;
+      metricsLabel.textContent = `T = ${{f.temperature.toFixed(1)}} K | E_tot = ${{f.total_energy.toFixed(6)}} Ha | -V/T = ${{f.virial_ratio.toFixed(3)}}`;
+    }}
+
+    applyFrame(0);
+
+    const slider = document.getElementById("frame-slider");
+    slider.addEventListener("input", (e) => applyFrame(parseInt(e.target.value)));
+
+    const playBtn = document.getElementById("play-btn");
+    playBtn.addEventListener("click", () => {{
+      isPlaying = !isPlaying;
+      playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+      if (isPlaying) {{
+        playInterval = setInterval(() => {{
+          let next = (currentFrameIdx + 1) % frames.length;
+          applyFrame(next);
+        }}, 80);
+      }} else {{
+        clearInterval(playInterval);
+      }}
+    }});
+
+    document.getElementById("prev-btn").addEventListener("click", () => {{
+      if (currentFrameIdx > 0) applyFrame(currentFrameIdx - 1);
+    }});
+    document.getElementById("next-btn").addEventListener("click", () => {{
+      if (currentFrameIdx < frames.length - 1) applyFrame(currentFrameIdx + 1);
+    }});
+
+    window.addEventListener("resize", () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_trajectory(
+    md_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL molecular dynamics trajectory player."""
+    html_content = generate_trajectory_html(md_result, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_md_trajectory.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_trajectory(md_result: Any, height: int = 550, title: Optional[str] = None):
+    """Displays interactive 3D molecular dynamics trajectory player inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_trajectory_html(md_result, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_trajectory() in Jupyter notebooks.")
+
 

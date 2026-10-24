@@ -302,6 +302,49 @@ def handle_neb(args):
     return 0
 
 
+def handle_md(args):
+    from phatpsy.md import run_md
+
+    deck = load_deck_from_arg(args.input)
+
+    res = run_md(
+        deck=deck,
+        time_step_fs=args.dt,
+        num_steps=args.steps,
+        temperature_k=args.temp,
+        ensemble=args.thermostat,
+        tau_fs=args.tau,
+        remove_com_drift=not args.no_com_removal,
+        warm_restart=not args.no_warm_restart,
+    )
+
+    print(f"Born-Oppenheimer Molecular Dynamics ({res.ensemble.upper()}):")
+    print(f"  Total Steps:      {res.num_steps} ({res.total_time_fs:.2f} fs)")
+    print(f"  Time Step (dt):   {res.time_step_fs:.3f} fs")
+    print(f"  Initial Energy:   {res.initial_energy:18.8f} Hartree ({res.initial_energy * 627.509474:.2f} kcal/mol)")
+    print(f"  Final Energy:     {res.final_energy:18.8f} Hartree ({res.final_energy * 627.509474:.2f} kcal/mol)")
+    print(f"  Energy Drift:     {res.energy_drift:18.8f} Hartree ({res.energy_drift * 627.509474:+.4f} kcal/mol)")
+    print(f"  Average Temp:     {res.average_temperature:8.2f} K (± {res.temperature_std:.2f} K)")
+    print(f"  Conserved E Std:  {res.conserved_energy_std:18.8f} Hartree ({res.conserved_energy_std * 627.509474:.4f} kcal/mol)")
+
+    if args.output:
+        res.save_json(args.output)
+        print(f"  Saved JSON:       {args.output}")
+
+    if args.xyz:
+        res.save_xyz(args.xyz)
+        print(f"  Saved Trajectory: {args.xyz}")
+
+    if args.plot:
+        res.plot_dynamics(output_path=args.plot)
+        print(f"  Saved Plot:       {args.plot}")
+
+    if args.view:
+        res.visualize(open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -636,6 +679,27 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL reaction pathway viewer in browser")
         args = parser.parse_args(argv[1:])
         return handle_neb(args)
+
+    # Handle 'md', 'bomd', or 'dynamics' command
+    if argv and argv[0] in ("md", "bomd", "dynamics"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy md",
+            description="Born-Oppenheimer Molecular Dynamics (BOMD) simulation on the PHATPSY potential energy surface."
+        )
+        parser.add_argument("input", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("-n", "--steps", type=int, default=50, help="Number of MD integration steps (default: 50)")
+        parser.add_argument("--dt", type=float, default=0.5, help="Integration time step in femtoseconds (default: 0.5 fs)")
+        parser.add_argument("-T", "--temp", type=float, default=300.0, help="Initial or target temperature in Kelvin (default: 300.0 K)")
+        parser.add_argument("--thermostat", default="nve", choices=["nve", "berendsen", "rescale", "andersen"], help="Ensemble / thermostat type (default: nve)")
+        parser.add_argument("--tau", type=float, default=50.0, help="Berendsen thermostat coupling time constant in fs (default: 50.0 fs)")
+        parser.add_argument("--no-com-removal", action="store_true", help="Disable center-of-mass linear velocity drift removal")
+        parser.add_argument("--no-warm-restart", action="store_true", help="Disable warm-restarting between successive time-step SCF calculations")
+        parser.add_argument("-o", "--output", default=None, help="Output path for trajectory JSON data")
+        parser.add_argument("--xyz", default=None, help="Output path for multi-frame XYZ trajectory")
+        parser.add_argument("-p", "--plot", default=None, help="Output path for energy and temperature dynamics plot image")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL trajectory playback player in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_md(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",
