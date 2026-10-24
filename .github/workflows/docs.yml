@@ -44,8 +44,8 @@ jobs:
           .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf
           .venv/bin/pip install -r docs/requirements.txt
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j$(nproc)
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$PWD/.venv/bin/python3
+          cmake --build build -j1
 
       - name: Build documentation with MkDocs
         run: |
