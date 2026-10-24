@@ -88,6 +88,42 @@ def test_cube_io_roundtrip():
     assert np.allclose(grid_parsed.data, grid_orig.data, atol=1e-4)
 
 
+def _small_cube_grid():
+    ax = np.linspace(-6, 6, 11)
+    X, Y, Z = np.meshgrid(ax, ax, ax, indexing="ij")
+    psi = evaluate_real_sto(X, Y, Z, (0.0, 0.0, 0.0), 1, 0, 0, 1.0, 2.0)
+    return VolumetricGrid(
+        data=psi,
+        origin=np.array([-6.0, -6.0, -6.0]),
+        voxel_steps=np.diag([ax[1] - ax[0]] * 3),
+        atoms=[{"element": "H", "xyz": (0.0, 0.0, 0.0)}],
+        title="test",
+    )
+
+
+def test_cube_roundtrip_from_text():
+    """from_cube(grid.to_cube()) must parse raw cube text, not treat it as a path."""
+    grid = _small_cube_grid()
+    parsed = VolumetricGrid.from_cube(grid.to_cube())
+    assert parsed.data.shape == grid.data.shape
+    assert np.max(np.abs(parsed.data - grid.data)) < 1e-5
+
+
+def test_cube_roundtrip_from_stringio_and_path(tmp_path):
+    """The StringIO, str-path and Path routes all still load identically."""
+    import io
+
+    grid = _small_cube_grid()
+    text = grid.to_cube()
+    cube_file = tmp_path / "g.cube"
+    cube_file.write_text(text, encoding="utf-8")
+
+    for src in (io.StringIO(text), str(cube_file), cube_file):
+        parsed = VolumetricGrid.from_cube(src)
+        assert parsed.data.shape == grid.data.shape
+        assert np.max(np.abs(parsed.data - grid.data)) < 1e-5
+
+
 def test_real_sto_basis_evaluation():
     """Validates spatial evaluation of real Slater-Type Orbitals (s, p, d)."""
     grid_pts = np.linspace(-3.0, 3.0, 31)

@@ -166,14 +166,24 @@ class VolumetricGrid:
         """
         Parses a standard Gaussian Cube file into a VolumetricGrid instance.
         """
-        if isinstance(source, (str, Path)) and Path(str(source)).is_file():
-            text = Path(str(source)).read_text(encoding="utf-8")
-        elif isinstance(source, str):
-            text = source
-        elif hasattr(source, "read"):
-            text = source.read()
-        else:
-            raise ValueError(f"Invalid cube source: {source}")
+        text = None
+        if isinstance(source, (str, Path)):
+            s = str(source)
+            # Cube text is multi-line and far longer than any filename limit; only
+            # probe the filesystem for strings that could plausibly be a path.
+            if "\n" not in s and len(s) < 1024:
+                try:
+                    if Path(s).is_file():
+                        text = Path(s).read_text(encoding="utf-8")
+                except OSError:
+                    text = None
+        if text is None:
+            if isinstance(source, str):
+                text = source
+            elif hasattr(source, "read"):
+                text = source.read()
+            else:
+                raise ValueError(f"Invalid cube source: {source}")
 
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if len(lines) < 6:
