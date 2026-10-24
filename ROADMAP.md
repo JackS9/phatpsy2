@@ -42,12 +42,12 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 4. Potential Energy Surfaces, Reaction Pathways & Dynamics
 
-- [ ] **Geometry scans (1D and 2D)**
-  - Automated rigid and relaxed 1D/2D potential energy surface (PES) mapping.
-  - [ ] **Generate internal coordinates from XYZ for geometry scans and MD**
-    - Implement automatic Z-matrix / redundant internal coordinate transformations (bonds, angles, dihedrals) from Cartesian inputs.
-- [ ] **Geometry optimization**
-  - Gradient-based (BFGS / conjugate gradient) ground-state structure relaxation.
+- [x] **Geometry scans (1D and 2D)**
+  - Automated rigid and relaxed 1D/2D potential energy surface (PES) mapping (`phatpsy/pes.py`) with warm restarts, virial theorem monitoring, curve/contour plotting, and JSON serialization. Accessible via Python API (`scan_1d`, `scan_2d`) and CLI (`phatpsy scan`).
+  - [x] **Generate internal coordinates from XYZ for geometry scans and MD**
+    - Automatic Z-matrix generation and Cartesian NeRF reconstruction (`ZMatrix`), redundant internal coordinate transformations (`BondCoordinate`, `AngleCoordinate`, `DihedralCoordinate`), and analytical Wilson B-matrix evaluation (`InternalCoordinates.b_matrix`) in `phatpsy/coords.py`.
+- [x] **Geometry optimization**
+  - Gradient-based (BFGS quasi-Newton with trust-region step clamping and Armijo backtracking line search) ground-state structure relaxation (`phatpsy/optimize.py`), supporting frozen/virtual centers and warm wavefunction restarts. Accessible via Python API (`optimize_geometry`) and CLI (`phatpsy opt`).
 - [ ] **Transition state searching**
   - Saddle-point locating algorithms (e.g., Nudged Elastic Band (NEB) or Eigenvector Following).
 - [ ] **Reaction pathways (intrinsic and dynamic)**

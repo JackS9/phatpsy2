@@ -456,6 +456,15 @@ class CalculationDeck:
     geometry: List[AtomConfig] = field(default_factory=list)
     elements: Dict[str, ElementConfig] = field(default_factory=dict)
 
+    @property
+    def atoms(self) -> List[AtomConfig]:
+        """Alias for self.geometry."""
+        return self.geometry
+
+    @atoms.setter
+    def atoms(self, val: List[AtomConfig]) -> None:
+        self.geometry = val
+
     def resolve_elements(self) -> Dict[str, ElementData]:
         """
         Resolves each atom's element data, pulling from the built-in library
