@@ -271,3 +271,43 @@ def test_cli_md(tmp_path, monkeypatch):
         data = json.load(f)
     assert data["ensemble"] == "nve"
     assert data["num_steps"] == 1
+
+
+def test_deck_without_atoms_property():
+    """Verify that run_md succeeds on deck objects that only have .geometry (no .atoms attribute)."""
+    class LegacyDeck:
+        def __init__(self, geometry, title, control, elements):
+            self.geometry = geometry
+            self.title = title
+            self.control = control
+            self.elements = elements
+
+        def resolve_elements(self):
+            return self._orig_deck.resolve_elements()
+
+        def to_stdin(self):
+            return self._orig_deck.to_stdin()
+
+        def to_stdin_text(self):
+            return self._orig_deck.to_stdin_text()
+
+    deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+    legacy_deck = LegacyDeck(deck.geometry, deck.title, deck.control, deck.elements)
+    legacy_deck._orig_deck = deck
+
+    # Verify that legacy_deck does NOT have 'atoms' attribute
+    assert not hasattr(legacy_deck, "atoms")
+    assert hasattr(legacy_deck, "geometry")
+
+    # Should run without raising AttributeError: 'CalculationDeck' object has no attribute 'atoms'
+    res = run_md(
+        deck=legacy_deck,
+        time_step_fs=0.5,
+        num_steps=1,
+        temperature_k=100.0,
+        ensemble="nve",
+        seed=1,
+    )
+    assert res.num_steps == 1
+    assert len(res.trajectory) == 2
+

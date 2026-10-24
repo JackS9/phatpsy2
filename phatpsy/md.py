@@ -173,7 +173,7 @@ class MDResult:
                     "fixed": bool(a.fixed),
                     "virtual": bool(a.virtual),
                 }
-                for a in self.final_deck.atoms
+                for a in (self.final_deck.geometry if hasattr(self.final_deck, "geometry") else self.final_deck.atoms)
             ],
         }
 
@@ -191,7 +191,8 @@ class MDResult:
         """
         p = Path(filepath)
         p.parent.mkdir(parents=True, exist_ok=True)
-        elements = [a.element for a in self.final_deck.atoms]
+        deck_atoms = self.final_deck.geometry if hasattr(self.final_deck, "geometry") else self.final_deck.atoms
+        elements = [a.element for a in deck_atoms]
         n_atoms = len(elements)
 
         lines: List[str] = []
@@ -415,7 +416,7 @@ def run_md(
 
     rng = np.random.default_rng(seed)
     current_deck = copy.deepcopy(deck)
-    atoms = current_deck.atoms
+    atoms = current_deck.geometry if hasattr(current_deck, "geometry") else current_deck.atoms
     n_atoms = len(atoms)
 
     # 1. Identify active degrees of freedom (non-fixed, non-virtual, non-symmetry)
@@ -445,7 +446,8 @@ def run_md(
         Returns (E_pot, virial_ratio, forces, state).
         """
         eval_deck = copy.deepcopy(current_deck)
-        for i, a in enumerate(eval_deck.atoms):
+        eval_deck_atoms = eval_deck.geometry if hasattr(eval_deck, "geometry") else eval_deck.atoms
+        for i, a in enumerate(eval_deck_atoms):
             a.xyz = [float(current_coords[i, 0]), float(current_coords[i, 1]), float(current_coords[i, 2])]
 
         state = driver.run_deck(eval_deck)
@@ -460,13 +462,15 @@ def run_md(
             for coord_idx in range(3):
                 # Displace +h
                 eval_p = copy.deepcopy(eval_deck)
-                eval_p.atoms[i].xyz[coord_idx] += h
+                atoms_p = eval_p.geometry if hasattr(eval_p, "geometry") else eval_p.atoms
+                atoms_p[i].xyz[coord_idx] += h
                 state_p = driver.run_deck(eval_p)
                 ep = float(state_p.total_energy)
 
                 # Displace -h
                 eval_m = copy.deepcopy(eval_deck)
-                eval_m.atoms[i].xyz[coord_idx] -= h
+                atoms_m = eval_m.geometry if hasattr(eval_m, "geometry") else eval_m.atoms
+                atoms_m[i].xyz[coord_idx] -= h
                 state_m = driver.run_deck(eval_m)
                 em = float(state_m.total_energy)
 
@@ -609,7 +613,8 @@ def run_md(
 
     # Construct final deck with relaxed coordinates
     final_deck = copy.deepcopy(current_deck)
-    for i, a in enumerate(final_deck.atoms):
+    final_atoms = final_deck.geometry if hasattr(final_deck, "geometry") else final_deck.atoms
+    for i, a in enumerate(final_atoms):
         a.xyz = [float(coords[i, 0]), float(coords[i, 1]), float(coords[i, 2])]
 
     return MDResult(

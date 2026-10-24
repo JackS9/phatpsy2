@@ -1613,7 +1613,8 @@ def show_pathway(neb_result: Any, height: int = 550, title: Optional[str] = None
 def generate_trajectory_visualization_data(md_result: Any) -> Dict[str, Any]:
     """Extracts multi-frame MD trajectory coordinates, bonds, energies, and temperatures for 3D animation."""
     trajectory = md_result.trajectory
-    atoms_template = md_result.final_deck.atoms
+    final_deck = md_result.final_deck
+    atoms_template = getattr(final_deck, "geometry", None) or getattr(final_deck, "atoms", None) or []
 
     frames = []
     for s in trajectory:
