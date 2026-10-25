@@ -864,6 +864,10 @@ class CalculationDeck:
         s = str(path_or_str)
         if "\n" not in s and (Path(s).is_file() or "/" in s or "\\" in s or s.endswith((".yaml", ".yml"))):
             p = Path(s)
+            if not p.is_file() and (Path.cwd().parent / s).is_file():
+                p = Path.cwd().parent / s
+            elif not p.is_file() and (Path(__file__).resolve().parent.parent / s).is_file():
+                p = Path(__file__).resolve().parent.parent / s
             if not p.is_file():
                 raise FileNotFoundError(f"Calculation deck YAML file not found: {s}")
             with open(p, "r", encoding="utf-8") as f:
@@ -879,6 +883,10 @@ class CalculationDeck:
         s = str(path_or_str)
         if "\n" not in s and (Path(s).is_file() or "/" in s or "\\" in s or s.endswith(".json")):
             p = Path(s)
+            if not p.is_file() and (Path.cwd().parent / s).is_file():
+                p = Path.cwd().parent / s
+            elif not p.is_file() and (Path(__file__).resolve().parent.parent / s).is_file():
+                p = Path(__file__).resolve().parent.parent / s
             if not p.is_file():
                 raise FileNotFoundError(f"Calculation deck JSON file not found: {s}")
             with open(p, "r", encoding="utf-8") as f:
@@ -891,8 +899,14 @@ class CalculationDeck:
 
     @classmethod
     def from_stdin(cls, path_or_str: Union[str, Path]) -> "CalculationDeck":
+        s = str(path_or_str)
+        p = Path(s)
+        if not p.is_file() and (Path.cwd().parent / s).is_file():
+            p = Path.cwd().parent / s
+        elif not p.is_file() and (Path(__file__).resolve().parent.parent / s).is_file():
+            p = Path(__file__).resolve().parent.parent / s
         from phatpsy.io import parse_stdin_to_deck
-        return parse_stdin_to_deck(path_or_str)
+        return parse_stdin_to_deck(p)
 
     @classmethod
     def from_geometry(
