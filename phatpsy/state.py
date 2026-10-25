@@ -333,6 +333,7 @@ class CalculationState(dict):
         control_overrides: Optional[Dict[str, Any]] = None,
         units: str = "bohr",
         use_embedded_orbitals: bool = True,
+        title: Optional[str] = None,
     ) -> Any:
         """
         Creates a new ready-to-run CalculationDeck warm-started from this calculation state.
@@ -360,9 +361,12 @@ class CalculationState(dict):
                     spin="down" if ea.net_spin < -0.01 else ("up" if ea.net_spin > 0.01 else None),
                 ))
             new_deck = CalculationDeck(
-                title="PHATPSY Warm Restart",
+                title=title or "PHATPSY Warm Restart",
                 geometry=geom,
             )
+
+        if title is not None:
+            new_deck.title = title
 
         # Update geometry if provided
         if new_geometry is not None:

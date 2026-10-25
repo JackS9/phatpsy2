@@ -106,6 +106,7 @@ class PhatpsyDriver:
         control_overrides=None,
         units="bohr",
         use_embedded_orbitals=True,
+        title=None,
         custom_damping_hook=None,
     ):
         """
@@ -128,6 +129,7 @@ class PhatpsyDriver:
             control_overrides=control_overrides,
             units=units,
             use_embedded_orbitals=use_embedded_orbitals,
+            title=title,
         )
         return self.run_deck(restart_deck, custom_damping_hook=custom_damping_hook)
 

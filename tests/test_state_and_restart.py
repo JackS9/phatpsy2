@@ -242,3 +242,16 @@ def test_override_reading_starting_orbitals_from_embedded_atom():
     state_override = driver.run_deck(new_deck)
     assert state_override.converged is True
     assert abs(state_override.virial_ratio - 2.0) < 0.05
+
+
+def test_create_restart_deck_with_title():
+    """Verify that CalculationState.create_restart_deck supports the title keyword argument."""
+    driver = PhatpsyDriver()
+    state = driver.run_file(EXAMPLE_N2)
+
+    restart_deck = state.create_restart_deck(
+        new_geometry=[("N", 0.0, 0.0, 1.05), ("N", 0.0, 0.0, -1.05)],
+        title="N2 Warm Restart (R = 2.10 Bohr)",
+    )
+    assert restart_deck.title == "N2 Warm Restart (R = 2.10 Bohr)"
+    assert len(restart_deck.geometry) == 2
