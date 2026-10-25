@@ -3682,3 +3682,559 @@ def show_dimer(
     except ImportError:
         raise RuntimeError("IPython is required to use show_dimer() in Jupyter notebooks.")
 
+
+# ==============================================================================
+# Electronic, Optical & Magnetic (EOM) 3D WebGL Visualizer
+# ==============================================================================
+
+def generate_eom_visualization_data(eom_result: Any) -> Dict[str, Any]:
+    """Serializes an EOMResult into structured JSON data for 3D Three.js visualization."""
+    res_dict = eom_result.to_dict() if hasattr(eom_result, "to_dict") else eom_result
+    deck = getattr(eom_result, "deck", None)
+    if deck is None:
+        deck_mock = CalculationDeck()
+    else:
+        deck_mock = deck
+
+    frame_vis = generate_visualization_data(deck_mock)
+
+    # Principal axes of static polarizability tensor
+    alpha_mat = np.array(
+        res_dict.get("polarizability", {}).get("static_tensor_au", np.eye(3)),
+        dtype=np.float64,
+    )
+    eigvals, eigvecs = np.linalg.eigh(alpha_mat)
+    idx_sort = np.argsort(eigvals)[::-1]
+    eigvals = eigvals[idx_sort]
+    eigvecs = eigvecs[:, idx_sort]
+
+    # Semi-axes in Angstroms: scale proportionally for clear visualization
+    radii_ang = [max(0.4, float(np.sqrt(max(0.1, ev)) * 0.529177 * 0.75)) for ev in eigvals]
+
+    return {
+        "title": "Electronic, Optical & Magnetic (EOM) Properties",
+        "atoms": frame_vis["atoms"],
+        "bonds": frame_vis["bonds"],
+        "dipole": res_dict.get("dipole_moment", {}),
+        "polarizability": res_dict.get("polarizability", {}),
+        "magnetic_susceptibility": res_dict.get("magnetic_susceptibility", {}),
+        "transitions": res_dict.get("transitions", []),
+        "ellipsoid": {
+            "radii_ang": radii_ang,
+            "eigenvectors": eigvecs.tolist(),
+            "eigenvalues_au": [float(ev) for ev in eigvals],
+        },
+    }
+
+
+def generate_eom_html(eom_result: Any, title: Optional[str] = None) -> str:
+    """Generates standalone HTML with interactive Three.js EOM properties visualizer."""
+    data = generate_eom_visualization_data(eom_result)
+    if title:
+        data["title"] = title
+    payload = json.dumps(data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data.get('title', 'PHATPSY 2.0 EOM Visualizer')}</title>
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f8fafc;
+      user-select: none;
+    }}
+    #canvas-container {{
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }}
+    .hud-panel {{
+      position: absolute;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      pointer-events: auto;
+    }}
+    #top-left-hud {{
+      top: 16px;
+      left: 16px;
+      width: 340px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }}
+    #bottom-right-hud {{
+      bottom: 16px;
+      right: 16px;
+      width: 440px;
+    }}
+    .title-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }}
+    .section-title {{
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #60a5fa;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }}
+    .metric-row {{
+      display: flex;
+      justify-content: space-between;
+      margin: 3px 0;
+      font-size: 12px;
+      color: #94a3b8;
+    }}
+    .metric-val {{
+      color: #f1f5f9;
+      font-weight: 600;
+      font-family: monospace;
+    }}
+    .toggle-row {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 12px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }}
+    .toggle-row input {{
+      cursor: pointer;
+      accent-color: #3b82f6;
+    }}
+    #uvvis-canvas {{
+      width: 100%;
+      height: 140px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      margin-top: 6px;
+      cursor: crosshair;
+    }}
+    #tooltip {{
+      position: absolute;
+      display: none;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #f8fafc;
+      pointer-events: none;
+      z-index: 100;
+      font-family: monospace;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="tooltip"></div>
+
+  <div id="top-left-hud" class="hud-panel">
+    <div class="title-row">
+      <span style="font-size:15px; font-weight:700;">EOM Response Properties</span>
+    </div>
+
+    <div class="section-title">1. Electric Dipole Moment</div>
+    <div class="metric-row">
+      <span>Magnitude:</span>
+      <span class="metric-val">{data.get('dipole', {}).get('magnitude_debye', 0.0):.4f} Debye</span>
+    </div>
+    <div class="metric-row">
+      <span>Magnitude (a.u.):</span>
+      <span class="metric-val">{data.get('dipole', {}).get('magnitude_au', 0.0):.6f} e·a₀</span>
+    </div>
+    <div class="metric-row">
+      <span>Vector (a.u.):</span>
+      <span class="metric-val">[{data.get('dipole', {}).get('total_au', [0,0,0])[0]:.2f}, {data.get('dipole', {}).get('total_au', [0,0,0])[1]:.2f}, {data.get('dipole', {}).get('total_au', [0,0,0])[2]:.2f}]</span>
+    </div>
+
+    <div class="section-title">2. Optical Polarizability</div>
+    <div class="metric-row">
+      <span>Mean Static (ᾱ):</span>
+      <span class="metric-val">{data.get('polarizability', {}).get('mean_static_ang3', 0.0):.4f} Å³</span>
+    </div>
+    <div class="metric-row">
+      <span>Mean Static (a.u.):</span>
+      <span class="metric-val">{data.get('polarizability', {}).get('mean_static_au', 0.0):.4f} a₀³</span>
+    </div>
+    <div class="metric-row">
+      <span>Anisotropy (Δα):</span>
+      <span class="metric-val">{data.get('polarizability', {}).get('anisotropy_au', 0.0):.4f} a₀³</span>
+    </div>
+
+    <div class="section-title">3. Magnetic Susceptibility</div>
+    <div class="metric-row">
+      <span>Mean Total (χ):</span>
+      <span class="metric-val">{data.get('magnetic_susceptibility', {}).get('mean_susceptibility_au', 0.0):.3e} a.u.</span>
+    </div>
+    <div class="metric-row">
+      <span>Molar (cgs):</span>
+      <span class="metric-val">{data.get('magnetic_susceptibility', {}).get('molar_susceptibility_cgs', 0.0)*1e6:.2f} × 10⁻⁶ cm³/mol</span>
+    </div>
+    <div class="metric-row">
+      <span>Curie Term:</span>
+      <span class="metric-val">{data.get('magnetic_susceptibility', {}).get('curie_scalar_au', 0.0):.3e} a.u.</span>
+    </div>
+
+    <div class="section-title" style="margin-top:14px;">3D Display Overlays</div>
+    <label class="toggle-row">
+      <input type="checkbox" id="chk-dipole" checked> Show Dipole Vector (Arrow)
+    </label>
+    <label class="toggle-row">
+      <input type="checkbox" id="chk-ellipsoid" checked> Show Polarizability Ellipsoid
+    </label>
+  </div>
+
+  <div id="bottom-right-hud" class="hud-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:13px; font-weight:700;">UV-Vis Absorption Spectrum</span>
+      <span style="font-size:11px; color:#94a3b8;">{len(data.get('transitions', []))} transitions</span>
+    </div>
+    <canvas id="uvvis-canvas" width="400" height="140"></canvas>
+    <div style="display:flex; justify-content:space-between; font-size:10px; color:#64748b; margin-top:2px;">
+      <span id="lbl-wmin">0 nm</span>
+      <span style="color:#94a3b8;">Wavelength (nm) / Hover for details</span>
+      <span id="lbl-wmax">100 nm</span>
+    </div>
+  </div>
+
+  <script>
+    const DATA = {payload};
+    const atoms = DATA.atoms || [];
+    const bonds = DATA.bonds || [];
+    const dipole = DATA.dipole || {{}};
+    const transitions = DATA.transitions || [];
+    const ellipsoid = DATA.ellipsoid || {{}};
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(5, 10, 7);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.4);
+    dirLight2.position.set(-5, -5, -5);
+    scene.add(dirLight2);
+
+    const molGroup = new THREE.Group();
+    scene.add(molGroup);
+
+    // Build molecular atoms & bonds
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+    atoms.forEach((a) => {{
+      const mat = new THREE.MeshStandardMaterial({{
+        color: parseInt(a.color.replace('#', '0x')),
+        roughness: 0.3,
+        metalness: 0.2
+      }});
+      const mesh = new THREE.Mesh(sphereGeo, mat);
+      mesh.scale.setScalar(a.radius);
+      mesh.position.set(a.xyz[0], a.xyz[1], a.xyz[2]);
+      molGroup.add(mesh);
+    }});
+
+    bonds.forEach((pair) => {{
+      const p1 = atoms[pair[0]].xyz;
+      const p2 = atoms[pair[1]].xyz;
+      const v1 = new THREE.Vector3(p1[0], p1[1], p1[2]);
+      const v2 = new THREE.Vector3(p2[0], p2[1], p2[2]);
+      const dist = v1.distanceTo(v2);
+      const cylGeo = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
+      const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
+      const bondMesh = new THREE.Mesh(cylGeo, cylMat);
+
+      const mid = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+      bondMesh.position.copy(mid);
+
+      const dir = new THREE.Vector3().subVectors(v2, v1).normalize();
+      const axis = new THREE.Vector3(0, 1, 0);
+      bondMesh.quaternion.setFromUnitVectors(axis, dir);
+
+      molGroup.add(bondMesh);
+    }});
+
+    // Center molecule
+    const box = new THREE.Box3().setFromObject(molGroup);
+    const center = box.getCenter(new THREE.Vector3());
+    molGroup.position.sub(center);
+
+    // 1. Dipole Arrow
+    const dipoleGroup = new THREE.Group();
+    scene.add(dipoleGroup);
+
+    const muVec = dipole.total_au || [0, 0, 0];
+    const muMag = dipole.magnitude_debye || 0.0;
+    if (muMag > 0.01) {{
+      const dir = new THREE.Vector3(muVec[0], muVec[1], muVec[2]).normalize();
+      const arrowLength = Math.max(1.0, Math.min(4.0, muMag * 0.8));
+      const arrowHelper = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), arrowLength, 0xf43f5e, 0.4, 0.25);
+      arrowHelper.line.material.linewidth = 3;
+      dipoleGroup.add(arrowHelper);
+    }}
+
+    // 2. Polarizability Ellipsoid
+    const ellipsoidGroup = new THREE.Group();
+    scene.add(ellipsoidGroup);
+
+    const radii = ellipsoid.radii_ang || [1.5, 1.5, 1.5];
+    const evecs = ellipsoid.eigenvectors || [[1,0,0],[0,1,0],[0,0,1]];
+
+    const ellGeo = new THREE.SphereGeometry(1, 32, 24);
+    const ellMat = new THREE.MeshStandardMaterial({{
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.2,
+      wireframe: false,
+      side: THREE.DoubleSide
+    }});
+    const ellMesh = new THREE.Mesh(ellGeo, ellMat);
+    ellMesh.scale.set(radii[0], radii[1], radii[2]);
+
+    // Apply orientation matrix
+    const rotMat = new THREE.Matrix4().set(
+      evecs[0][0], evecs[1][0], evecs[2][0], 0,
+      evecs[0][1], evecs[1][1], evecs[2][1], 0,
+      evecs[0][2], evecs[1][2], evecs[2][2], 0,
+      0, 0, 0, 1
+    );
+    ellMesh.applyMatrix4(rotMat);
+    ellipsoidGroup.add(ellMesh);
+
+    // Toggle Checkboxes
+    document.getElementById('chk-dipole').addEventListener('change', (e) => {{
+      dipoleGroup.visible = e.target.checked;
+    }});
+    document.getElementById('chk-ellipsoid').addEventListener('change', (e) => {{
+      ellipsoidGroup.visible = e.target.checked;
+    }});
+
+    // 3. UV-Vis Canvas Rendering & Tooltip
+    const canvas = document.getElementById('uvvis-canvas');
+    const ctx = canvas.getContext('2d');
+    const tooltip = document.getElementById('tooltip');
+
+    let wmin = 20.0;
+    let wmax = 120.0;
+    if (transitions.length > 0) {{
+      const validWls = transitions.filter(t => t.oscillator_strength > 1e-4).map(t => t.wavelength_nm);
+      if (validWls.length > 0) {{
+        wmin = Math.max(10.0, Math.floor(Math.min(...validWls) * 0.8));
+        wmax = Math.ceil(Math.max(...validWls) * 1.2);
+      }}
+    }}
+    document.getElementById('lbl-wmin').innerText = `${{Math.round(wmin)}} nm`;
+    document.getElementById('lbl-wmax').innerText = `${{Math.round(wmax)}} nm`;
+
+    function drawUVVis(highlightIdx = -1) {{
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (transitions.length === 0) return;
+
+      const maxF = Math.max(...transitions.map(t => t.oscillator_strength), 1e-4);
+
+      // Continuous Gaussian envelope
+      const nPts = 300;
+      const curve = [];
+      const sigma = (wmax - wmin) / 40.0;
+      let maxCurve = 1e-6;
+
+      for (let i = 0; i < nPts; i++) {{
+        const wl = wmin + (i / (nPts - 1)) * (wmax - wmin);
+        let val = 0.0;
+        transitions.forEach(t => {{
+          if (t.oscillator_strength > 1e-4) {{
+            const d = wl - t.wavelength_nm;
+            val += t.oscillator_strength * Math.exp(-0.5 * (d / sigma) * (d / sigma));
+          }}
+        }});
+        curve.push(val);
+        if (val > maxCurve) maxCurve = val;
+      }}
+
+      // Fill envelope
+      ctx.beginPath();
+      ctx.moveTo(10, h - 15);
+      curve.forEach((val, i) => {{
+        const x = 10 + (i / (nPts - 1)) * (w - 20);
+        const y = h - 15 - (val / maxCurve) * (h - 30);
+        ctx.lineTo(x, y);
+      }});
+      ctx.lineTo(w - 10, h - 15);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Stick transitions
+      transitions.forEach((t, idx) => {{
+        if (t.oscillator_strength > 1e-4 && t.wavelength_nm >= wmin && t.wavelength_nm <= wmax) {{
+          const x = 10 + ((t.wavelength_nm - wmin) / (wmax - wmin)) * (w - 20);
+          const stickH = (t.oscillator_strength / maxF) * (h - 35);
+          const y = h - 15 - stickH;
+
+          ctx.beginPath();
+          ctx.moveTo(x, h - 15);
+          ctx.lineTo(x, y);
+          ctx.lineWidth = (idx === highlightIdx) ? 3.0 : 1.5;
+          ctx.strokeStyle = (idx === highlightIdx) ? '#f43f5e' : 'rgba(244, 63, 94, 0.75)';
+          ctx.stroke();
+
+          if (idx === highlightIdx) {{
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#f43f5e';
+            ctx.fill();
+          }}
+        }}
+      }});
+    }}
+
+    drawUVVis();
+
+    canvas.addEventListener('mousemove', (e) => {{
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const frac = Math.max(0.0, Math.min(1.0, (mouseX - 10) / (canvas.width - 20)));
+      const hoverWl = wmin + frac * (wmax - wmin);
+
+      // Find closest transition within 5 nm
+      let closestIdx = -1;
+      let minDiff = 6.0;
+      transitions.forEach((t, idx) => {{
+        if (t.oscillator_strength > 1e-4) {{
+          const diff = Math.abs(t.wavelength_nm - hoverWl);
+          if (diff < minDiff) {{
+            minDiff = diff;
+            closestIdx = idx;
+          }}
+        }}
+      }});
+
+      if (closestIdx !== -1) {{
+        const t = transitions[closestIdx];
+        drawUVVis(closestIdx);
+        tooltip.style.display = 'block';
+        tooltip.style.left = `${{e.clientX + 12}}px`;
+        tooltip.style.top = `${{e.clientY - 28}}px`;
+        tooltip.innerHTML = `<strong>#${{t.index}} (${{t.spin}}) ${{t.from_orbital}} → ${{t.to_orbital}}</strong><br>λ = ${{t.wavelength_nm.toFixed(1)}} nm | ΔE = ${{t.energy_ev.toFixed(2)}} eV<br>f = ${{t.oscillator_strength.toFixed(4)}} | ||μ|| = ${{t.transition_dipole_norm_au.toFixed(3)}} a.u.`;
+      }} else {{
+        drawUVVis(-1);
+        tooltip.style.display = 'none';
+      }}
+    }});
+
+    canvas.addEventListener('mouseleave', () => {{
+      drawUVVis(-1);
+      tooltip.style.display = 'none';
+    }});
+
+    window.addEventListener('resize', () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_eom(
+    eom_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL EOM player."""
+    html_content = generate_eom_html(eom_result, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_eom_viewer.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_eom(
+    eom_result: Any,
+    height: int = 550,
+    title: Optional[str] = None,
+) -> Any:
+    """Displays interactive 3D EOM visualizer inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_eom_html(eom_result, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_eom() in Jupyter notebooks.")
+
+

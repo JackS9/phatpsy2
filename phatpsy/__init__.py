@@ -108,6 +108,14 @@ from phatpsy.dimer import (
     dimer_search,
     refine_neb_saddle,
 )
+from phatpsy.eom import (
+    compute_eom,
+    EOMResult,
+    ElectronicTransition,
+    DipoleMoment,
+    PolarizabilityTensor,
+    MagneticSusceptibility,
+)
 from phatpsy.visualizer import (
     visualize_vibrations,
     show_vibrations,
@@ -115,6 +123,10 @@ from phatpsy.visualizer import (
     show_irc,
     visualize_dimer,
     show_dimer,
+    visualize_eom,
+    show_eom,
+    generate_eom_html,
+    generate_eom_visualization_data,
 )
 
 __all__ = [
@@ -204,6 +216,16 @@ __all__ = [
     "refine_neb_saddle",
     "visualize_dimer",
     "show_dimer",
+    "compute_eom",
+    "EOMResult",
+    "ElectronicTransition",
+    "DipoleMoment",
+    "PolarizabilityTensor",
+    "MagneticSusceptibility",
+    "visualize_eom",
+    "show_eom",
+    "generate_eom_html",
+    "generate_eom_visualization_data",
 ]
 
 

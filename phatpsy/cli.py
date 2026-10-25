@@ -471,6 +471,46 @@ def handle_dimer(args):
     return 0
 
 
+def handle_eom(args):
+    in_path = Path(args.input)
+    deck = load_deck_from_arg(in_path)
+
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.eom import compute_eom
+    from phatpsy.visualizer import visualize_eom
+
+    probe_wls = None
+    if args.probe_wavelengths:
+        probe_wls = [float(w.strip()) for w in args.probe_wavelengths.split(",") if w.strip()]
+
+    driver = PhatpsyDriver(quiet=True)
+    eom_res = compute_eom(
+        deck=deck,
+        driver=driver,
+        grid_spacing=args.spacing,
+        temperature_k=args.temp,
+        dynamic_wavelengths=probe_wls,
+    )
+
+    print(eom_res.summary())
+
+    if args.output:
+        eom_res.save_json(args.output)
+        print(f"\n  Saved EOM JSON:       {args.output}")
+
+    if args.plot:
+        eom_res.plot_uvvis(output_path=args.plot)
+        print(f"  Saved UV-Vis Plot:    {args.plot}")
+
+    if args.html:
+        visualize_eom(eom_res, output_path=args.html, open_browser=args.view)
+        print(f"  Saved EOM Visualizer: {args.html}")
+    elif args.view:
+        visualize_eom(eom_res, open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -879,6 +919,23 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL Dimer visualizer in browser")
         args = parser.parse_args(argv[1:])
         return handle_dimer(args)
+
+    # Handle 'eom' command
+    if argv and argv[0] in ("eom", "properties"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy eom",
+            description="Electronic, Optical, and Magnetic (EOM) properties: Dipole moments, UV-Vis spectra, SOS polarizabilities, and magnetic susceptibilities."
+        )
+        parser.add_argument("input", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("-s", "--spacing", type=float, default=0.25, help="Grid spacing for multipole numerical integration in Bohr (default: 0.25)")
+        parser.add_argument("-T", "--temp", type=float, default=298.15, help="Temperature in Kelvin for Curie susceptibility (default: 298.15 K)")
+        parser.add_argument("--probe-wavelengths", default="589.3,632.8", help="Probe wavelengths in nm for dynamic polarizability (comma-separated, default: '589.3,632.8')")
+        parser.add_argument("-o", "--output", default=None, help="Output path for EOM JSON results")
+        parser.add_argument("-p", "--plot", default=None, help="Output path for UV-Vis spectrum plot image (.png, .pdf)")
+        parser.add_argument("--html", default=None, help="Output path for standalone 3D WebGL HTML visualizer")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL EOM visualizer in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_eom(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

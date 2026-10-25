@@ -322,4 +322,26 @@ python -m phatpsy dimer perturbed_ts.yaml -d 0.005 -n 40 --force-tol 1e-3 -o ts_
   * `--xyz`: Path to save multi-frame XYZ trajectory of the saddle-point refinement.
   * `--view`: Launch interactive 3D WebGL Three.js player with real-time curvature and energy convergence curves.
 
+---
+
+### 15. `phatpsy eom`
+
+Evaluates ground- and excited-state Electronic, Optical, and Magnetic (EOM) properties: permanent electric dipole moments, electronic excitations (UV-Vis absorption spectra with oscillator strengths $f_{\text{osc}}$), Sum-Over-States (SOS) static and dynamic optical polarizability tensors $\boldsymbol{\alpha}(\omega)$, and Langevin-Van Vleck diamagnetic, paramagnetic, and Curie magnetic susceptibility tensors $\boldsymbol{\chi}$:
+
+```bash
+# Evaluate EOM properties with JSON export, UV-Vis spectrum plot, and 3D WebGL viewer
+python -m phatpsy eom molecule.yaml --spacing 0.25 -o eom_results.json -p uvvis_spectrum.png --view
+```
+
+* **Calculation Flags:**
+  * `-s`, `--spacing <float>`: Grid spacing for numerical multipole integrations in Bohr (default: `0.25`).
+  * `-T`, `--temp <float>`: Temperature in Kelvin for Curie paramagnetism (default: `298.15` K).
+  * `--probe-wavelengths <str>`: Comma-separated list of probe wavelengths in nm for dynamic polarizability evaluation (default: `'589.3,632.8'`).
+* **Output & Visualization Flags:**
+  * `-o`, `--output <path>`: Path to write structured EOM JSON dataset (dipole, polarizability tensors, susceptibility, electronic transitions).
+  * `-p`, `--plot <path>`: Path to write simulated Gaussian-broadened UV-Vis absorption spectrum plot image (`.png`, `.pdf`).
+  * `--html <path>`: Path to save standalone 3D WebGL HTML visualizer.
+  * `--view`: Open interactive 3D WebGL EOM player in default browser.
+
+
 

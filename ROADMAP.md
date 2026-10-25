@@ -84,8 +84,13 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 5. Electronic, Optical & Magnetic (EOM) Properties
 
-- [ ] **EOM properties**
-  - Calculation and analysis of Electronic, Optical, and Magnetic (EOM) response properties: electronic excitation spectrum, transition dipole moments, optical polarizability tensors, and magnetic susceptibility.
+- [x] **EOM properties (`phatpsy.eom`)**
+  - **Permanent Electric Dipole Moment ($\boldsymbol{\mu}$)**: Nuclear and electronic dipole moments in atomic units ($e \cdot a_0$) and Debyes with automatic reference origin invariance (center of nuclear charge $\mathbf{R}_0$). Exact physical inversion symmetry verified for homonuclear systems ($N_2$ dipole magnitude $< 10^{-5}\text{ Debye}$).
+  - **Optical Polarizability Tensors ($\boldsymbol{\alpha}(\omega)$)**: Frequency-dependent dynamic polarizabilities and static polarizabilities $\boldsymbol{\alpha}(0)$ computed via Sum-Over-States (SOS) perturbation theory across occupied-to-virtual transitions, reporting full $3 \times 3$ tensors, isotropic mean polarizabilities (a.u. and $\text{Å}^3$), and optical anisotropies. Preserves transverse cylindrical symmetry ($\alpha_{xx} = \alpha_{yy}$) and normal/anomalous dispersion.
+  - **Magnetic Susceptibility Tensors ($\boldsymbol{\chi}$)**: Langevin-Van Vleck diamagnetic response from electronic second moments, Van Vleck temperature-independent paramagnetism from orbital angular momentum operators $\hat{\mathbf{L}} = -i(\mathbf{r} \times \nabla)$, and Curie paramagnetism for open-shell systems ($S > 0$), reported in atomic units and cgs molar susceptibility ($\text{cm}^3/\text{mol}$).
+  - **Electronic Excitations & Simulated UV-Vis Spectroscopy**: Single-particle excitation energies ($\Delta E$), absorption wavelengths ($\lambda = hc/\Delta E$), transition dipole moments ($\boldsymbol{\mu}_{ia} = \langle \psi_i | \mathbf{r} | \psi_a \rangle$), dimensionless oscillator strengths ($f_{\text{osc}} = \frac{2}{3} \Delta E \|\boldsymbol{\mu}_{ia}\|^2$), and continuous Gaussian-broadened absorption spectra with stick transition plotting (`plot_uvvis`).
+  - **Interactive 3D WebGL Visualizer**: Embedded Three.js player (`visualize_eom`, `show_eom`) rendering molecular structure, permanent dipole vector arrow, polarizability ellipsoid oriented along principal eigenvectors, and interactive UV-Vis spectrum HUD with orbital transition assignment tooltips.
+  - **CLI Subcommand**: `phatpsy eom` for command-line property evaluation, JSON export, UV-Vis plotting, and 3D HTML viewer generation.
 
 ---
 

@@ -56,6 +56,7 @@ PHATPSY 2.0 uses spin-unrestricted Extended Wheeler/Hartree-Fock formulations (U
 | **Refine saddle points via Dimer method** | [Dimer Saddle Refinement](python/restarts-scans-optimization.md#transition-state-refinement-dimer-method-dimer-over-rfo) | `phatpsy dimer`, `dimer_search()`, `refine_neb_saddle()` |
 | **Trace Intrinsic Reaction Coordinates (IRC)** | [Reaction Pathways & IRC](python/restarts-scans-optimization.md#intrinsic-reaction-coordinate-irc-pathway-tracing) | `phatpsy irc`, `compute_irc()` |
 | **Calculate vibrational frequencies & thermochemistry** | [Vibrations & Thermochemistry](python/restarts-scans-optimization.md#harmonic-vibrational-frequency-analysis-thermochemistry) | `phatpsy freq`, `compute_vibrations()` |
+| **Calculate EOM properties (dipole, polarizability, UV-Vis, susceptibility)** | [EOM Properties](python/restarts-scans-optimization.md#electronic-optical-magnetic-eom-properties) | `phatpsy eom`, `compute_eom()` |
 | **Run Born-Oppenheimer Molecular Dynamics (BOMD)** | [Molecular Dynamics](python/restarts-scans-optimization.md#born-oppenheimer-molecular-dynamics-bomd) | `phatpsy md`, `run_md()` |
 | **Interactive work in Jupyter Notebooks** | [Python Notebook Setup](python/setup-and-run.md) | `PhatpsyDriver`, `CalculationDeck` |
 | **Diagnose SCF convergence failures** | [Troubleshooting Guide](guide/troubleshooting.md) | Damping, `separate_atoms_first_cycle` |

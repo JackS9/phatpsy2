@@ -508,5 +508,69 @@ dimer_res.show(height=520)
 dimer_res.visualize("dimer_refinement.html", open_browser=True)
 ```
 
+---
+
+## Electronic, Optical & Magnetic (EOM) Properties
+
+The `phatpsy.eom` module evaluates ground- and excited-state electromagnetic response properties:
+
+### 1. Permanent Electric Dipole Moment ($\boldsymbol{\mu}$)
+Computes the nuclear and electronic dipole moments in atomic units ($e \cdot a_0$) and Debyes ($1\text{ a.u.} = 2.541746\text{ Debye}$):
+$$\boldsymbol{\mu}_{\text{nuc}} = \sum_A Z_A (\mathbf{R}_A - \mathbf{R}_0), \quad \boldsymbol{\mu}_{\text{elec}} = \int (\mathbf{r} - \mathbf{R}_0) \rho(\mathbf{r}) d^3r$$
+where $\mathbf{R}_0 = \sum_A Z_A \mathbf{R}_A / \sum_A Z_A$ is the center of nuclear charge, ensuring origin invariance for neutral systems. For homonuclear diatomics (such as $N_2$), $\boldsymbol{\mu} \equiv \mathbf{0}$ by inversion symmetry.
+
+### 2. Optical Polarizability Tensors ($\boldsymbol{\alpha}(\omega)$)
+Evaluates dynamic and static polarizabilities using second-order Sum-Over-States (SOS) perturbation theory:
+$$\alpha_{jk}(\omega) = \sum_{i \in \text{occ}} \sum_{a \in \text{vir}} \frac{2 \Delta E_{ia}}{\Delta E_{ia}^2 - \omega^2} \langle \psi_i | r_j | \psi_a \rangle \langle \psi_a | r_k | \psi_i \rangle$$
+reporting the full $3 \times 3$ tensor, mean polarizability $\bar{\alpha} = \frac{1}{3}\text{Tr}(\boldsymbol{\alpha})$ in atomic units ($a_0^3$) and $\text{\AA}^3$ ($1\text{ a.u.} = 0.148185\text{ \AA}^3$), and optical anisotropy $\gamma^2$.
+
+### 3. Magnetic Susceptibility Tensors ($\boldsymbol{\chi}$)
+Evaluates the three fundamental contributions to magnetic susceptibility:
+1. **Langevin-Van Vleck Diamagnetic Susceptibility**:
+   $$\chi_{jk}^{\text{dia}} = -\frac{1}{4c^2} \langle r^2 \delta_{jk} - r_j r_k \rangle$$
+2. **Van Vleck Temperature-Independent Paramagnetic Susceptibility**:
+   $$\chi_{jk}^{\text{para}} = \frac{1}{2c^2} \sum_{i \in \text{occ}} \sum_{a \in \text{vir}} \frac{1}{\Delta E_{ia}} \text{Re}\left( \langle \psi_i | \hat{L}_j | \psi_a \rangle \langle \psi_a | \hat{L}_k | \psi_i \rangle \right)$$
+   where $\hat{\mathbf{L}} = -i(\mathbf{r} \times \nabla)$ is the orbital angular momentum operator.
+3. **Curie Paramagnetism** for open-shell systems ($S > 0$):
+   $$\chi^{\text{Curie}} = \frac{g_e^2 \mu_B^2 S(S+1)}{3 k_B T}$$
+
+### 4. UV-Vis Absorption Spectroscopy & Oscillator Strengths
+Computes single-particle excitation energies $\Delta E_{ia} = \varepsilon_a - \varepsilon_i$, wavelengths $\lambda = hc/\Delta E$, transition dipole moments $\boldsymbol{\mu}_{ia} = \langle \psi_i | \mathbf{r} | \psi_a \rangle$, and dimensionless oscillator strengths:
+$$f_{ia} = \frac{2}{3} \Delta E_{ia} \|\boldsymbol{\mu}_{ia}\|^2$$
+with continuous simulated Gaussian absorption profile generation and stick transition plotting (`plot_uvvis`).
+
+### Python Example
+
+```python
+from phatpsy.builder import build_diatomic
+from phatpsy.driver import PhatpsyDriver
+from phatpsy.eom import compute_eom
+
+driver = PhatpsyDriver(quiet=True)
+deck = build_diatomic("N", "N", 2.068, basis="SZ", spin_flip=True, units="bohr")
+
+eom_res = compute_eom(
+    deck=deck,
+    driver=driver,
+    grid_spacing=0.25,
+    dynamic_wavelengths=[589.3, 1064.0],
+    temperature_k=298.15,
+    quiet=True,
+)
+
+# Text summary report
+print(eom_res.summary())
+
+# Save structured JSON
+eom_res.save_json("eom_results.json")
+
+# Plot simulated UV-Vis absorption spectrum with sticks
+eom_res.plot_uvvis("uvvis_spectrum.png", wmin_nm=100.0, wmax_nm=700.0)
+
+# Embedded 3D Three.js WebGL visualizer with dipole arrow, polarizability ellipsoid, and UV-Vis HUD
+eom_res.show(height=550)
+```
+
+
 
 
