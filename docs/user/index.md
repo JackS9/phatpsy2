@@ -51,7 +51,10 @@ PHATPSY 2.0 uses spin-unrestricted Extended Wheeler/Hartree-Fock formulations (U
 | **Run batch jobs via the CLI** | [Command Line Overview](cli/index.md) | `phatpsy input.yaml -o results.json` |
 | **Construct a crystal slab or surface** | [Periodic Systems](python/periodic-systems.md) | `phatpsy supercell`, `build_slab()` |
 | **Calculate & visualize 3D orbitals or density** | [3D Volumetric Fields](python/volumetric.md) | `phatpsy cube`, `compute_grid()`, `show_grid()` |
-| **Run potential energy scans (PES)** | [Scans & Optimizations](python/restarts-scans-optimization.md) | `phatpsy scan`, `scan_1d()`, `scan_2d()` |
-| **Optimize molecular geometry** | [Geometry Optimization](python/restarts-scans-optimization.md) | `phatpsy opt`, `optimize_geometry()` |
+| **Optimize molecular geometry** | [Geometry Optimization](python/restarts-scans-optimization.md#geometry-optimization-optimize_geometry) | `phatpsy opt`, `optimize_geometry()` |
+| **Calculate vibrational frequencies & thermochemistry** | [Vibrations & Thermochemistry](python/restarts-scans-optimization.md#harmonic-vibrational-frequency-analysis-thermochemistry) | `phatpsy freq`, `compute_vibrations()` |
 | **Interactive work in Jupyter Notebooks** | [Python Notebook Setup](python/setup-and-run.md) | `PhatpsyDriver`, `CalculationDeck` |
 | **Diagnose SCF convergence failures** | [Troubleshooting Guide](guide/troubleshooting.md) | Damping, `separate_atoms_first_cycle` |
+
+
+

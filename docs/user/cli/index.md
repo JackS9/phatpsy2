@@ -253,3 +253,26 @@ python -m phatpsy md input.yaml -n 100 --dt 0.5 -T 300 -o trajectory.json --xyz 
   * `-p`, `--plot`: Generate time-evolution plots of potential, kinetic, total energy, and instantaneous temperature.
   * `--view`: Open an interactive 3D WebGL trajectory player with play/pause, step-by-step scrubbing, FPS controls, and real-time energy readouts in Three.js.
 
+---
+
+### 12. `phatpsy freq` (aliases `vib`, `vibrations`)
+
+Computes numerical Cartesian second derivatives (Hessian matrix), projects out rigid-body translation and rotation via the Eckart operator, solves for harmonic vibrational normal modes ($\text{cm}^{-1}$), and evaluates Rigid-Rotor Harmonic Oscillator (RRHO) ideal-gas thermochemistry:
+
+```bash
+# Calculate harmonic vibrational frequencies and thermochemistry at 298.15 K and 1 atm
+python -m phatpsy freq relaxed.yaml -s 0.005 -m forward -T 298.15 -P 1.0 -o vibrations.json --view
+```
+
+* **Vibrational Analysis Flags:**
+  * `-s`, `--step <float>`: Cartesian coordinate displacement step in Bohrs for finite difference evaluation (default: `0.005` Bohr).
+  * `-m`, `--method {central,forward}`: Finite-difference stencil. `central` uses central differences for all terms ($O(h^2)$ precision); `forward` uses central for diagonal and forward cross-difference for off-diagonal (fast, $1 + 2M + M(M-1)/2$ SCF evaluations). Default: `central`.
+  * `--no-project`: Disable translational and rotational Eckart projection operator. (Note: projection is automatically bypassed when fixed substrate atoms are present).
+* **Thermochemistry Flags:**
+  * `-T`, `--temp <float>`: Reference temperature in Kelvin for statistical thermochemistry (default: `298.15` K).
+  * `-P`, `--pressure <float>`: Reference pressure in standard atmospheres (default: `1.0` atm).
+* **Output & Visualization Flags:**
+  * `-o`, `--output`: Path to write complete vibrational results and thermochemistry JSON dataset.
+  * `--view`: Launch an interactive 3D WebGL normal mode animation player in your browser with real-time sinusoidal harmonic oscillation, amplitude control slider, speed control, play/pause, and vector displacement arrows in Three.js.
+
+

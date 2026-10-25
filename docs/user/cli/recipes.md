@@ -86,8 +86,6 @@ for res in decks/*_res.json; do
 done
 ```
 
----
-
 ## Recipe 5: Pure JSON Pipeline over Stdin/Stdout
 
 Integrate PHATPSY directly into Unix data pipelines without touching disk:
@@ -95,3 +93,23 @@ Integrate PHATPSY directly into Unix data pipelines without touching disk:
 ```bash
 cat examples/n2.yaml | python -m phatpsy - --json-stdout | jq '.total_energy'
 ```
+
+
+---
+
+## Recipe 6: Harmonic Vibrational Frequency & Thermochemical Report
+
+Relax a structure to a stationary point, compute its full Cartesian Hessian and normal vibrational modes, verify whether it is a true local minimum ($N_{\text{imag}} = 0$) or a transition state ($N_{\text{imag}} = 1$), and output Gibbs free energy $G(298.15\text{ K})$:
+
+```bash
+# 1. Relax geometry using BFGS
+python -m phatpsy opt molecule.yaml -o relaxed.yaml
+
+# 2. Compute harmonic frequencies and standard thermochemistry
+python -m phatpsy freq relaxed.yaml -T 298.15 -P 1.0 -o vibrations.json --view
+
+# 3. Extract Zero-Point Energy (ZPVE) and Gibbs Free Energy from JSON
+echo "ZPVE (kcal/mol): $(jq '.thermochemistry.zero_point_energy_kcal' vibrations.json)"
+echo "Gibbs Free Energy (Hartree): $(jq '.thermochemistry.total_gibbs_free_energy_g_t' vibrations.json)"
+```
+

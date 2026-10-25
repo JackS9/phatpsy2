@@ -270,3 +270,100 @@ md_res.visualize("trajectory.html", open_browser=True)
 md_res.save_xyz("trajectory.xyz")
 ```
 
+---
+
+## Harmonic Vibrational Frequency Analysis & Thermochemistry
+
+PHATPSY 2.0 provides full second-derivative potential curvature analysis, normal mode evaluation, and ideal-gas statistical thermochemistry via the [`phatpsy.vibrations`](file:///Users/jacksmith/phatpsy2/phatpsy/vibrations.py) module.
+
+### Core Methodology
+
+1. **Numerical Cartesian Hessian Matrix ($\mathbf{H}$):**
+   $$\mathbf{H}_{i, j} = \frac{\partial^2 E}{\partial X_i \partial X_j}$$
+   Evaluated via numerical finite differences across active coordinate degrees of freedom (preserving constraints for frozen atoms and ghost centers).
+   - `method="central"`: Full central difference across all diagonal and off-diagonal cross terms ($O(h^2)$ precision).
+   - `method="forward"`: Central differences on diagonal elements and forward cross-difference on off-diagonal elements ($1 + 2M + M(M-1)/2$ SCF calculations, fast).
+
+2. **Eckart Translational & Rotational Projection:**
+   Rigid-body translations ($T_x, T_y, T_z$) and infinitesimal rotations ($R_x, R_y, R_z$) are decoupled from the mass-weighted Cartesian Hessian $\mathcal{H}_{i, j}^{\text{mw}} = \frac{\mathbf{H}_{i, j}}{\sqrt{M_A M_B}}$ using the projection operator:
+   $$\mathbf{P} = \mathbf{I}_{3N} - \mathbf{D}_{\text{TR}} \mathbf{D}_{\text{TR}}^T, \quad \mathcal{H}_{\text{proj}} = \mathbf{P} \mathcal{H}^{\text{mw}} \mathbf{P}$$
+   where $N_{\text{TR}} = 5$ for linear rotors and $N_{\text{TR}} = 6$ for non-linear rotors. (When fixed substrate atoms are present, projection is automatically skipped because the substrate breaks translational and rotational invariance).
+
+3. **Normal Modes & Frequencies:**
+   Diagonalization of $\mathcal{H}_{\text{proj}}$ yields eigenvalues $\lambda_k$ (in $\text{Hartree}/(\text{Bohr}^2 \cdot \text{amu})$):
+   - **Harmonic Frequency ($\text{cm}^{-1}$):**
+     $$\tilde{\nu}_k = 5140.487144 \times \sqrt{\lambda_k}$$
+     If $\lambda_k < 0$, the mode is an **imaginary frequency** ($\tilde{\nu}_k < 0$, `is_imaginary=True`), indicating negative potential curvature.
+   - **Reduced Mass ($\mu_k$):** $\mu_k = \frac{1}{\sum_{A, \alpha} Q_{A\alpha, k}^2 / M_A}$ in amu.
+   - **Force Constant ($k_k$):** $k_k = \lambda_k \cdot \mu_k \times 15.568931$ in $\text{mDyne}/\text{Å}$.
+   - **Stationary Point Classification:**
+     - $N_{\text{imag}} = 0$: Local Potential Minimum (`vib_res.is_minimum == True`)
+     - $N_{\text{imag}} = 1$: First-Order Saddle Point / Transition State (`vib_res.is_transition_state == True`)
+
+4. **Rigid-Rotor Harmonic Oscillator (RRHO) Thermochemistry:**
+   Evaluates standard gas-phase thermodynamic partition functions at temperature $T$ and pressure $P$:
+   - **Zero-Point Vibrational Energy (ZPVE):** $\text{ZPVE} = \frac{1}{2} \sum_{k, \tilde{\nu}_k > 0} h c \tilde{\nu}_k$.
+   - **Internal Thermal Energy ($U_{\text{therm}}$):** $E_{\text{trans}} + E_{\text{rot}} + E_{\text{vib}}$.
+   - **Thermal Enthalpy ($H_{\text{therm}}$):** $U_{\text{therm}} + RT$.
+   - **Entropy ($S(T)$):** Sackur-Tetrode translational entropy $S_{\text{trans}}$, rotational entropy $S_{\text{rot}}$ (accounting for rotational symmetry number $\sigma$), vibrational entropy $S_{\text{vib}}$, and electronic spin degeneracy $S_{\text{elec}} = R \ln(2S + 1)$.
+   - **Thermodynamic Potentials:**
+     - Internal Energy at 0 K: $U_0 = E_{\text{elec}} + \text{ZPVE}$
+     - Internal Energy at $T$: $U(T) = E_{\text{elec}} + U_{\text{therm}}$
+     - Enthalpy at $T$: $H(T) = E_{\text{elec}} + H_{\text{therm}}$
+     - Gibbs Free Energy at $T$: $G(T) = H(T) - T \cdot S(T)$
+   - **Constant-Volume Heat Capacity ($C_v$):** $C_{v, \text{trans}} + C_{v, \text{rot}} + C_{v, \text{vib}}$.
+
+### Python Workflow Example
+
+```python
+from phatpsy import PhatpsyDriver, CalculationDeck, compute_vibrations
+
+# 1. Load calculation deck (relaxed stationary point)
+driver = PhatpsyDriver(quiet=True)
+deck = CalculationDeck.from_yaml("relaxed_molecule.yaml")
+
+# 2. Run harmonic vibrational frequency and thermochemical analysis
+vib_res = compute_vibrations(
+    deck=deck,
+    driver=driver,
+    step_size=0.005,      # Finite-difference step in Bohr
+    method="forward",     # "central" (O(h^2)) or "forward" (fast)
+    project_tr=True,      # Project out translation and rotation
+    temperature_k=298.15, # Reference temperature in K
+    pressure_atm=1.0,     # Reference pressure in atm
+    quiet=True,
+)
+
+# 3. Print formatted report table
+print(vib_res.summary())
+
+# 4. Check stationary point type
+if vib_res.is_minimum:
+    print("Structure is confirmed as a true local energy minimum!")
+elif vib_res.is_transition_state:
+    imag_mode = vib_res.imaginary_modes[0]
+    print(f"Confirmed transition state! Imaginary frequency: {imag_mode.frequency_cm:.2f} cm^-1")
+
+# 5. Inspect thermochemistry
+thermo = vib_res.thermochemistry
+print(f"Zero-Point Energy (ZPVE)  : {thermo.zero_point_energy_kcal:.4f} kcal/mol")
+print(f"Standard Entropy S(298 K) : {thermo.entropy_cal_mol_k['total']:.3f} cal/(mol·K)")
+print(f"Gibbs Free Energy G(298 K): {thermo.total_gibbs_free_energy_g_t:.8f} Hartree")
+
+# 6. Save structured results to JSON
+vib_res.save_json("vibrations_results.json")
+```
+
+### Interactive 3D Normal Mode Animation
+
+Inspect normal mode vibrations in 3D with interactive real-time WebGL harmonic animation in Three.js:
+
+```python
+# Render interactive Three.js normal mode widget inside Jupyter notebook
+vib_res.show(mode_index=1, amplitude=0.5, height=520)
+
+# Export standalone HTML visualization with timeline and vector cones
+vib_res.visualize("normal_modes.html", open_browser=True)
+```
+
+
