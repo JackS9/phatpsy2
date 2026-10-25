@@ -259,7 +259,7 @@ def parse_coordinate_spec(coord_spec: Any) -> Tuple[str, Any]:
 def modify_deck_geometry(deck: CalculationDeck, coord_type: str, indices: Tuple[int, ...], value: float) -> CalculationDeck:
     """Returns a new CalculationDeck with the specified internal coordinate modified."""
     new_deck = copy.deepcopy(deck)
-    atoms = new_deck.atoms
+    atoms = new_deck.geometry if hasattr(new_deck, "geometry") else new_deck.atoms
 
     if coord_type == "bond":
         a1, a2 = indices
@@ -271,7 +271,10 @@ def modify_deck_geometry(deck: CalculationDeck, coord_type: str, indices: Tuple[
     else:
         raise ValueError(f"Unsupported coordinate type: {coord_type}")
 
-    new_deck.atoms = new_atoms
+    if hasattr(new_deck, "geometry"):
+        new_deck.geometry = new_atoms
+    else:
+        new_deck.atoms = new_atoms
     return new_deck
 
 
@@ -282,6 +285,7 @@ def scan_1d(
     driver: Optional[PhatpsyDriver] = None,
     warm_restart: bool = True,
     coord_name: Optional[str] = None,
+    quiet: bool = True,
 ) -> PESScan1DResult:
     """
     Performs an automated 1D Potential Energy Surface (PES) coordinate scan.
@@ -293,19 +297,21 @@ def scan_1d(
         driver: PhatpsyDriver instance (creates a new one if None).
         warm_restart: Whether to seed subsequent geometries with converged states.
         coord_name: Optional label for the coordinate.
+        quiet: Whether to suppress verbose Fortran convergence output (default: True).
 
     Returns:
         PESScan1DResult containing energies, virial ratios, minimum point, and states.
     """
     if driver is None:
-        driver = PhatpsyDriver()
+        driver = PhatpsyDriver(quiet=quiet)
 
     c_type, c_indices = parse_coordinate_spec(coordinate)
+    deck_atoms = deck.geometry if hasattr(deck, "geometry") else deck.atoms
     if coord_name is None:
         if c_type == "bond":
-            coord_name = f"Bond R({deck.atoms[c_indices[0]].element}{c_indices[0]+1}-{deck.atoms[c_indices[1]].element}{c_indices[1]+1})"
+            coord_name = f"Bond R({deck_atoms[c_indices[0]].element}{c_indices[0]+1}-{deck_atoms[c_indices[1]].element}{c_indices[1]+1})"
         elif c_type == "angle":
-            coord_name = f"Angle A({deck.atoms[c_indices[0]].element}{c_indices[0]+1}-{deck.atoms[c_indices[1]].element}{c_indices[1]+1}-{deck.atoms[c_indices[2]].element}{c_indices[2]+1})"
+            coord_name = f"Angle A({deck_atoms[c_indices[0]].element}{c_indices[0]+1}-{deck_atoms[c_indices[1]].element}{c_indices[1]+1}-{deck_atoms[c_indices[2]].element}{c_indices[2]+1})"
         else:
             coord_name = f"{c_type}_{c_indices}"
 
@@ -318,13 +324,14 @@ def scan_1d(
 
     for val in values:
         current_deck = modify_deck_geometry(deck, c_type, c_indices, val)
+        curr_atoms = current_deck.geometry if hasattr(current_deck, "geometry") else current_deck.atoms
 
         # Warm restart if previous state is available
         if warm_restart and last_state is not None and last_state.converged:
-            new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in current_deck.atoms]
+            new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in curr_atoms]
             current_deck = last_state.create_restart_deck(new_geometry=new_geom)
 
-        state = driver.run_deck(current_deck)
+        state = driver.run_deck(current_deck, quiet=quiet)
         energies.append(float(state.total_energy))
         virials.append(float(state.virial_ratio))
         converged.append(bool(state.converged))
@@ -374,12 +381,13 @@ def scan_2d(
     warm_restart: bool = True,
     coord1_name: Optional[str] = None,
     coord2_name: Optional[str] = None,
+    quiet: bool = True,
 ) -> PESScan2DResult:
     """
     Performs an automated 2D grid Potential Energy Surface (PES) coordinate scan.
     """
     if driver is None:
-        driver = PhatpsyDriver()
+        driver = PhatpsyDriver(quiet=quiet)
 
     c1_type, c1_indices = parse_coordinate_spec(coord1)
     c2_type, c2_indices = parse_coordinate_spec(coord2)
@@ -399,12 +407,13 @@ def scan_2d(
 
         for v2 in values2:
             deck_v1_v2 = modify_deck_geometry(deck_v1, c2_type, c2_indices, v2)
+            curr_atoms = deck_v1_v2.geometry if hasattr(deck_v1_v2, "geometry") else deck_v1_v2.atoms
 
             if warm_restart and last_state is not None and last_state.converged:
-                new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in deck_v1_v2.atoms]
+                new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in curr_atoms]
                 deck_v1_v2 = last_state.create_restart_deck(new_geometry=new_geom)
 
-            state = driver.run_deck(deck_v1_v2)
+            state = driver.run_deck(deck_v1_v2, quiet=quiet)
             row_e.append(float(state.total_energy))
             row_v.append(float(state.virial_ratio))
 

@@ -400,6 +400,7 @@ def neb_search(
     climb: bool = True,
     warm_restart: bool = True,
     callback: Optional[Callable[[int, List[float], float], None]] = None,
+    quiet: bool = True,
 ) -> NEBResult:
     """
     Performs Nudged Elastic Band (NEB) or Climbing-Image NEB (CI-NEB) transition state search.
@@ -417,17 +418,18 @@ def neb_search(
         climb: If True, enables Climbing-Image NEB to drive highest-energy image to saddle point.
         warm_restart: Whether to seed successive SCF evaluations with previous wavefunctions.
         callback: Optional callback func(iteration, energies, max_force).
+        quiet: Whether to suppress verbose Fortran output (default: True).
 
     Returns:
         NEBResult with full pathway, transition state, and barrier metrics.
     """
     if driver is None:
-        driver = PhatpsyDriver()
+        driver = PhatpsyDriver(quiet=quiet)
 
     # 1. Generate initial interpolated images
     images = interpolate_images(initial_deck, final_deck, num_images=num_images)
     n_images = len(images)
-    ref_atoms = images[0].atoms
+    ref_atoms = images[0].geometry if hasattr(images[0], "geometry") else images[0].atoms
 
     # Identify unfrozen degrees of freedom (non-fixed, non-virtual)
     free_indices = [
@@ -454,15 +456,19 @@ def neb_search(
     image_states: List[Optional[CalculationState]] = [None] * n_images
 
     def evaluate_image(img_idx: int, x: np.ndarray) -> Tuple[float, CalculationState]:
-        current_atoms = unpack_coords(x, images[img_idx].atoms)
+        img_atoms = images[img_idx].geometry if hasattr(images[img_idx], "geometry") else images[img_idx].atoms
+        current_atoms = unpack_coords(x, img_atoms)
         deck_eval = copy.deepcopy(images[img_idx])
-        deck_eval.atoms = current_atoms
+        if hasattr(deck_eval, "geometry"):
+            deck_eval.geometry = current_atoms
+        else:
+            deck_eval.atoms = current_atoms
 
         if warm_restart and image_states[img_idx] is not None and image_states[img_idx].converged:
             new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in current_atoms]
             deck_eval = image_states[img_idx].create_restart_deck(new_geometry=new_geom)
 
-        state = driver.run_deck(deck_eval)
+        state = driver.run_deck(deck_eval, quiet=quiet)
         if state.converged:
             image_states[img_idx] = state
         return float(state.total_energy), state

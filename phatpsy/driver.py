@@ -1,3 +1,4 @@
+from typing import Optional, Union, Dict, Any, List
 import numpy as np
 import _phatpsy_core as core
 
@@ -13,17 +14,35 @@ if hasattr(core, "analys") and not hasattr(core, "phatpsy_analys_mod"):
 if hasattr(core, "integrals") and not hasattr(core, "phatpsy_integrals_mod"):
     core.phatpsy_integrals_mod = core.integrals
 
+from contextlib import contextmanager
+import os
+
+@contextmanager
+def silence_stdout():
+    """Context manager to suppress C/Fortran stdout (file descriptor 1)."""
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    saved_stdout = os.dup(1)
+    os.dup2(devnull, 1)
+    try:
+        yield
+    finally:
+        os.dup2(saved_stdout, 1)
+        os.close(saved_stdout)
+        os.close(devnull)
+
+
 class PhatpsyDriver:
     """Hybrid Python orchestrator replacing main.f and contrl.f."""
 
-    def __init__(self):
+    def __init__(self, quiet: bool = False):
+        self.quiet = quiet
         core.state.init_block_data_and_defaults()
 
-    def run_deck(self, deck, custom_damping_hook=None):
+    def run_deck(self, deck, custom_damping_hook=None, quiet: Optional[bool] = None):
         """
         Run PHATPSY calculation directly from a CalculationDeck object.
         """
-        import os
+        is_quiet = self.quiet if quiet is None else quiet
         stdin_text = deck.to_stdin_text()
         saved_stdin_fd = os.dup(0)
         r_pipe, w_pipe = os.pipe()
@@ -31,7 +50,11 @@ class PhatpsyDriver:
             os.write(w_pipe, stdin_text.encode("utf-8"))
             os.close(w_pipe)
             os.dup2(r_pipe, 0)
-            return self.run_from_stdin(custom_damping_hook=custom_damping_hook, deck=deck)
+            if is_quiet:
+                with silence_stdout():
+                    return self.run_from_stdin(custom_damping_hook=custom_damping_hook, deck=deck)
+            else:
+                return self.run_from_stdin(custom_damping_hook=custom_damping_hook, deck=deck)
         finally:
             os.dup2(saved_stdin_fd, 0)
             os.close(saved_stdin_fd)

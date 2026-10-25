@@ -386,6 +386,7 @@ def run_md(
     initial_velocities: Optional[np.ndarray] = None,
     seed: Optional[int] = None,
     callback: Optional[Callable[[int, MDStep], None]] = None,
+    quiet: bool = True,
 ) -> MDResult:
     """
     Executes Born-Oppenheimer Molecular Dynamics (BOMD) simulation on a molecular system.
@@ -407,12 +408,13 @@ def run_md(
         initial_velocities: Optional pre-defined velocities array of shape (N_atoms, 3) in a.u.
         seed: Optional random number seed for Maxwell-Boltzmann velocity sampling.
         callback: Optional hook callback(step_index, md_step) called at each step.
+        quiet: Whether to suppress verbose Fortran output (default: True).
 
     Returns:
         MDResult containing the complete trajectory, energy conservation metrics, and final deck.
     """
     if driver is None:
-        driver = PhatpsyDriver()
+        driver = PhatpsyDriver(quiet=quiet)
 
     rng = np.random.default_rng(seed)
     current_deck = copy.deepcopy(deck)
@@ -450,7 +452,7 @@ def run_md(
         for i, a in enumerate(eval_deck_atoms):
             a.xyz = [float(current_coords[i, 0]), float(current_coords[i, 1]), float(current_coords[i, 2])]
 
-        state = driver.run_deck(eval_deck)
+        state = driver.run_deck(eval_deck, quiet=quiet)
         e0 = float(state.total_energy)
         virial = float(state.virial_ratio)
 
@@ -464,14 +466,14 @@ def run_md(
                 eval_p = copy.deepcopy(eval_deck)
                 atoms_p = eval_p.geometry if hasattr(eval_p, "geometry") else eval_p.atoms
                 atoms_p[i].xyz[coord_idx] += h
-                state_p = driver.run_deck(eval_p)
+                state_p = driver.run_deck(eval_p, quiet=quiet)
                 ep = float(state_p.total_energy)
 
                 # Displace -h
                 eval_m = copy.deepcopy(eval_deck)
                 atoms_m = eval_m.geometry if hasattr(eval_m, "geometry") else eval_m.atoms
                 atoms_m[i].xyz[coord_idx] -= h
-                state_m = driver.run_deck(eval_m)
+                state_m = driver.run_deck(eval_m, quiet=quiet)
                 em = float(state_m.total_energy)
 
                 # Gradient g = (ep - em) / (2 * h), Force F = -g

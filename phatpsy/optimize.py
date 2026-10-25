@@ -117,6 +117,7 @@ def optimize_geometry(
     finite_diff_step: float = 0.005,
     step_limit: float = 0.15,
     warm_restart: bool = True,
+    quiet: bool = True,
 ) -> OptimizationResult:
     """
     Optimizes molecular geometry to locate ground-state energy minima using BFGS quasi-Newton relaxation.
@@ -130,15 +131,16 @@ def optimize_geometry(
         finite_diff_step: Coordinate displacement step for numerical gradient (Bohr).
         step_limit: Maximum displacement permitted per step (trust-region clamp).
         warm_restart: Whether to seed successive steps with converged wavefunctions.
+        quiet: Whether to suppress verbose Fortran output (default: True).
 
     Returns:
         OptimizationResult with trajectory and optimized deck.
     """
     if driver is None:
-        driver = PhatpsyDriver()
+        driver = PhatpsyDriver(quiet=quiet)
 
     current_deck = copy.deepcopy(deck)
-    atoms = current_deck.atoms
+    atoms = current_deck.geometry if hasattr(current_deck, "geometry") else current_deck.atoms
     n_atoms = len(atoms)
 
     # Identify free (unfrozen) coordinate degrees of freedom
@@ -146,7 +148,7 @@ def optimize_geometry(
     free_indices = [i for i, a in enumerate(atoms) if not a.fixed and not a.virtual and a.symmetry is None]
     if not free_indices:
         # All atoms fixed; return initial state
-        state = driver.run_deck(current_deck)
+        state = driver.run_deck(current_deck, quiet=quiet)
         step0 = OptimizationStep(0, state.total_energy, state.virial_ratio, 0.0, [a.xyz for a in atoms])
         return OptimizationResult(True, state.total_energy, state.total_energy, 0.0, 0, [step0], current_deck, state)
 
@@ -170,13 +172,16 @@ def optimize_geometry(
         nonlocal last_state
         test_atoms = unpack_free_coords(x, atoms)
         test_deck = copy.deepcopy(current_deck)
-        test_deck.atoms = test_atoms
+        if hasattr(test_deck, "geometry"):
+            test_deck.geometry = test_atoms
+        else:
+            test_deck.atoms = test_atoms
 
         if warm_restart and last_state is not None and last_state.converged:
             new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in test_atoms]
             test_deck = last_state.create_restart_deck(new_geometry=new_geom)
 
-        state = driver.run_deck(test_deck)
+        state = driver.run_deck(test_deck, quiet=quiet)
         if state.converged:
             last_state = state
         return float(state.total_energy), state

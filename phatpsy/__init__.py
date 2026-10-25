@@ -4,7 +4,7 @@ PHATPSY: A Projected Hamiltonian Approach to Polyatomic Systems.
 Modernized Python API and driver.
 """
 
-from phatpsy.driver import PhatpsyDriver
+from phatpsy.driver import PhatpsyDriver, silence_stdout
 from phatpsy.diis import DIISAccelerator
 from phatpsy.ewmo import solve_ewmo_propagator, unpack_symmetric
 from phatpsy.io import (
@@ -90,6 +90,7 @@ from phatpsy.md import (
 
 __all__ = [
     "PhatpsyDriver",
+    "silence_stdout",
     "CalculationState",
     "EmbeddedAtomState",
     "DIISAccelerator",
