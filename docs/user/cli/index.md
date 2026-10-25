@@ -298,4 +298,28 @@ python -m phatpsy irc ts_molecule.yaml -s 0.1 -n 40 --direction both -o irc.json
   * `-p`, `--plot`: Path to save 2D reaction coordinate profile plot image $\Delta E(s)$ vs. $s$.
   * `--view`: Launch interactive 3D WebGL Three.js reaction path playback player with continuous reaction coordinate scrubbing and live energy readouts.
 
+---
+
+### 14. `phatpsy dimer`
+
+Refines approximate transition states located by Climbing-Image NEB to high-precision first-order saddle points using the Heyden/Bell gradient-only Dimer algorithm (3 to 4 gradient evaluations per cycle, no full Cartesian Hessian required):
+
+```bash
+# Refine transition state directly from a CI-NEB calculation result JSON:
+python -m phatpsy dimer neb_results.json -d 0.005 -n 40 --force-tol 1e-3 -o ts_refined.json --xyz dimer_traj.xyz --view
+
+# Or perform single-ended saddle search directly from a molecular geometry:
+python -m phatpsy dimer perturbed_ts.yaml -d 0.005 -n 40 --force-tol 1e-3 -o ts_refined.json --view
+```
+
+* **Dimer Algorithm Flags:**
+  * `-d`, `--dimer-dist <float>`: Dimer separation $\Delta R$ in Bohr (default: `0.005` Bohr, calibrated against SCF numerical noise).
+  * `-n`, `--max-cycles <int>`: Maximum dimer translation cycles (default: `40`).
+  * `--force-tol <float>`: Effective saddle force convergence threshold $\|F_{\text{eff}}\|$ in $\text{Hartree}/\text{Bohr}$ (default: `1e-3`).
+  * `--rot-tol <float>`: Rotational torque convergence threshold $\|F_R^\perp\|$ (default: `1e-3`).
+* **Output & Visualization Flags:**
+  * `-o`, `--output`: Path to write structured Dimer refinement JSON (energies, curvature $C$, effective forces, trajectory).
+  * `--xyz`: Path to save multi-frame XYZ trajectory of the saddle-point refinement.
+  * `--view`: Launch interactive 3D WebGL Three.js player with real-time curvature and energy convergence curves.
+
 

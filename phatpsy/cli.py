@@ -415,6 +415,62 @@ def handle_irc(args):
     return 0
 
 
+def handle_dimer(args):
+    in_path = Path(args.input)
+
+    is_neb_json = False
+    if in_path.suffix.lower() == ".json":
+        try:
+            with open(in_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "transition_state_index" in data and "images" in data:
+                is_neb_json = True
+        except Exception:
+            pass
+
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.dimer import dimer_search, refine_neb_saddle
+
+    driver = PhatpsyDriver(quiet=True)
+
+    if is_neb_json:
+        dimer_res = refine_neb_saddle(
+            neb_result=in_path,
+            driver=driver,
+            dimer_dist=args.dimer_dist,
+            max_cycles=args.max_cycles,
+            force_tol=args.force_tol,
+            rot_tol=args.rot_tol,
+            quiet=True,
+        )
+    else:
+        deck = load_deck_from_arg(in_path)
+        dimer_res = dimer_search(
+            deck=deck,
+            driver=driver,
+            dimer_dist=args.dimer_dist,
+            max_cycles=args.max_cycles,
+            force_tol=args.force_tol,
+            rot_tol=args.rot_tol,
+            quiet=True,
+        )
+
+    print(dimer_res.summary())
+
+    if args.output:
+        dimer_res.save_json(args.output)
+        print(f"\n  Saved Dimer JSON:       {args.output}")
+
+    if args.xyz:
+        dimer_res.save_xyz(args.xyz)
+        print(f"  Saved Trajectory XYZ:   {args.xyz}")
+
+    if args.view:
+        dimer_res.visualize(open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -806,6 +862,23 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL IRC visualizer in browser")
         args = parser.parse_args(argv[1:])
         return handle_irc(args)
+
+    # Handle 'dimer' command
+    if argv and argv[0] == "dimer":
+        parser = argparse.ArgumentParser(
+            prog="phatpsy dimer",
+            description="Dimer transition-state refinement (Heyden/Bell gradient-only algorithm)."
+        )
+        parser.add_argument("input", help="Input calculation deck (.yaml, .json, .stdin, .xyz) or NEB result JSON (.json)")
+        parser.add_argument("-d", "--dimer-dist", type=float, default=0.005, help="Dimer separation Delta R in Bohr (default: 0.005)")
+        parser.add_argument("-n", "--max-cycles", type=int, default=40, help="Maximum dimer translation cycles (default: 40)")
+        parser.add_argument("--force-tol", type=float, default=1e-3, help="Effective force norm convergence threshold in Hartree/Bohr (default: 1e-3)")
+        parser.add_argument("--rot-tol", type=float, default=1e-3, help="Rotational torque convergence threshold (default: 1e-3)")
+        parser.add_argument("-o", "--output", default=None, help="Output path for Dimer JSON dataset")
+        parser.add_argument("--xyz", default=None, help="Output path for multi-frame XYZ trajectory")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL Dimer visualizer in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_dimer(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

@@ -438,4 +438,75 @@ irc_res.show(height=520)
 irc_res.visualize("irc_pathway.html", open_browser=True)
 ```
 
+---
+
+## Transition-State Refinement: Dimer Method (Dimer-over-RFO)
+
+Because PHATPSY calculates numerical finite-difference gradients and does not construct analytic Hessians, traditional Hessian-based partitioned Rational Function Optimization (P-RFO) is computationally prohibitive ($O(3N)$ or $(3N)^2$ SCF evaluations per step) and fragile against numerical SCF noise.
+
+PHATPSY 2.0 adopts the **Dimer method** (Heyden/Bell variant) for transition-state refinement:
+
+### Mathematical Formulation
+The dimer consists of two images $\mathbf{R}_1 = \mathbf{R} + \Delta R \cdot \mathbf{N}$ and $\mathbf{R}_2 = \mathbf{R} - \Delta R \cdot \mathbf{N}$ centered at $\mathbf{R}$ with orientation unit vector $\mathbf{N}$ ($\|\mathbf{N}\| = 1$) and half-separation $\Delta R = 0.005\ \text{Bohr}$.
+
+1. **Center Force**: $\mathbf{F}_0 = -\nabla V(\mathbf{R})$.
+2. **Rotational Torque**: Evaluating $\mathbf{F}_1 = -\nabla V(\mathbf{R}_1)$ and $\mathbf{F}_2 = -\nabla V(\mathbf{R}_2)$, the rotational force is $\mathbf{F}_R = \frac{1}{2}(\mathbf{F}_1 - \mathbf{F}_2)$. The torque acting perpendicular to $\mathbf{N}$ is:
+   $$\mathbf{F}_R^\perp = \mathbf{F}_R - (\mathbf{F}_R \cdot \mathbf{N})\mathbf{N}$$
+3. **Analytical Fourier Rotation**: If $\|\mathbf{F}_R^\perp\| > \text{tol}_{\text{rot}}$, a trial rotation by $\Delta \theta$ along $\mathbf{\Theta} = \mathbf{F}_R^\perp / \|\mathbf{F}_R^\perp\|$ requires only one additional gradient evaluation $\mathbf{F}_1^{\text{trial}}$ (with $\mathbf{F}_2^{\text{trial}} \approx 2\mathbf{F}_0 - \mathbf{F}_1^{\text{trial}}$). The optimal rotation angle $\phi = \frac{1}{2}\arctan(B/A)$ is determined analytically with guaranteed minimum curvature $C$.
+4. **Effective Translation Force**: When curvature $C < 0$, the force along the minimum-curvature mode is inverted:
+   $$\mathbf{F}_{\text{eff}} = \mathbf{F}_0 - 2(\mathbf{F}_0 \cdot \mathbf{N})\mathbf{N}$$
+   When $C \ge 0$, the dimer climbs uphill along $\mathbf{N}$ ($\mathbf{F}_{\text{eff}} = -(\mathbf{F}_0 \cdot \mathbf{N})\mathbf{N}$) to escape local minimum basins.
+5. **QuickMin Translation**: The center $\mathbf{R}$ steps along $\mathbf{F}_{\text{eff}}$ using projected velocity damping.
+
+### Finite-Difference Step Size vs. Noise Floor Calibration
+Numerical tests on $N_2$ characterize the SCF noise floor:
+- Finite-difference gradient step size: $h = 0.001\ \text{Bohr}$ yields numerically stable central differences ($g_z = 0.0906$) immune to roundoff noise below $10^{-4}\ \text{Bohr}$ and anharmonic distortion above $0.005\ \text{Bohr}$.
+- Dimer separation: $\Delta R = 0.005\ \text{Bohr}$ sits at the center of the curvature plateau ($C = 47.3\ \text{Hartree/Bohr}^2$ across $\Delta R \in [0.001, 0.010]$ with $0.2\%$ variance).
+
+### Python API
+
+```python
+from phatpsy.driver import PhatpsyDriver
+from phatpsy.schema import CalculationDeck
+from phatpsy.neb import neb_search
+from phatpsy.dimer import refine_neb_saddle, dimer_search
+
+driver = PhatpsyDriver(quiet=True)
+
+# 1. Handoff from CI-NEB (polishes climbing image to exact saddle precision)
+neb_res = neb_search(
+    initial_deck=deck_reactant,
+    final_deck=deck_product,
+    driver=driver,
+    num_images=7,
+)
+
+dimer_res = refine_neb_saddle(
+    neb_result=neb_res,
+    driver=driver,
+    dimer_dist=0.005,
+    max_cycles=30,
+    force_tol=1e-3,
+)
+
+# 2. Single-ended search from a displaced/perturbed geometry
+dimer_single = dimer_search(
+    deck=deck_guess,
+    driver=driver,
+    dimer_dist=0.005,
+    max_cycles=40,
+    force_tol=1e-3,
+)
+
+# View structured report
+print(dimer_res.summary())
+
+# Interactive 3D WebGL Three.js trajectory player in Jupyter
+dimer_res.show(height=520)
+
+# Export standalone HTML
+dimer_res.visualize("dimer_refinement.html", open_browser=True)
+```
+
+
 

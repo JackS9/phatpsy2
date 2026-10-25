@@ -3194,3 +3194,491 @@ def show_irc(
             return HTML(iframe_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_irc() in Jupyter notebooks.")
+
+
+# ==============================================================================
+# Dimer Transition-State Refinement 3D WebGL Visualizer
+# ==============================================================================
+
+def generate_dimer_visualization_data(dimer_result: Any) -> Dict[str, Any]:
+    """Serializes a DimerResult into structured JSON data for 3D Three.js visualization."""
+    res_dict = dimer_result.to_dict() if hasattr(dimer_result, "to_dict") else dimer_result
+    saddle_deck = getattr(dimer_result, "saddle_deck", None)
+    if saddle_deck is not None:
+        atoms_ref = saddle_deck.geometry
+    else:
+        atoms_ref = []
+
+    traj = res_dict.get("trajectory", [])
+
+    frames = []
+    for i, s in enumerate(traj):
+        coords_raw = s.get("coordinates", [])
+        atom_list = []
+        for idx, c in enumerate(coords_raw):
+            el = atoms_ref[idx].element if idx < len(atoms_ref) else "X"
+            fixed = atoms_ref[idx].fixed if idx < len(atoms_ref) else False
+            virtual = atoms_ref[idx].virtual if idx < len(atoms_ref) else False
+            atom_list.append(
+                AtomConfig(
+                    element=el,
+                    xyz=c,
+                    fixed=fixed,
+                    virtual=virtual,
+                )
+            )
+        deck_mock = CalculationDeck(geometry=atom_list)
+        frame_vis = generate_visualization_data(deck_mock)
+
+        frames.append({
+            "index": i,
+            "step": s.get("step", i + 1),
+            "energy": round(float(s.get("energy", 0.0)), 8),
+            "curvature": round(float(s.get("curvature", 0.0)), 4),
+            "force_eff_norm": round(float(s.get("force_eff_norm", 0.0)), 6),
+            "rot_torque_norm": round(float(s.get("rot_torque_norm", 0.0)), 6),
+            "orientation": s.get("orientation", []),
+            "atoms": frame_vis["atoms"],
+            "bonds": frame_vis["bonds"],
+        })
+
+    return {
+        "title": "Dimer Transition-State Refinement",
+        "converged": res_dict.get("converged", False),
+        "saddle_energy": round(float(res_dict.get("saddle_energy", 0.0)), 8),
+        "initial_energy": round(float(res_dict.get("initial_energy", 0.0)), 8),
+        "final_curvature": round(float(res_dict.get("final_curvature", 0.0)), 4),
+        "num_cycles": res_dict.get("num_cycles", len(frames)),
+        "num_evals": res_dict.get("num_gradient_evals", 0),
+        "frames": frames,
+    }
+
+
+def generate_dimer_html(dimer_result: Any, title: Optional[str] = None) -> str:
+    """Generates standalone HTML with interactive Three.js Dimer refinement trajectory player."""
+    data = generate_dimer_visualization_data(dimer_result)
+    if title:
+        data["title"] = title
+    payload = json.dumps(data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data.get('title', 'PHATPSY 2.0 Dimer Visualizer')}</title>
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f8fafc;
+      user-select: none;
+    }}
+    #canvas-container {{
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }}
+    .hud-panel {{
+      position: absolute;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      pointer-events: auto;
+    }}
+    #top-left-hud {{
+      top: 16px;
+      left: 16px;
+      max-width: 340px;
+    }}
+    #bottom-control-bar {{
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 80%;
+      max-width: 720px;
+      padding: 12px 20px;
+    }}
+    .title-row {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .badge-conv {{ background: rgba(34, 197, 94, 0.25); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }}
+    .badge-run  {{ background: rgba(234, 179, 8, 0.25); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.4); }}
+    .metric-row {{
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0;
+      font-size: 13px;
+      color: #94a3b8;
+    }}
+    .metric-val {{
+      color: #f1f5f9;
+      font-weight: 600;
+      font-family: monospace;
+    }}
+    .controls-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }}
+    .btn-group {{
+      display: flex;
+      gap: 8px;
+    }}
+    button {{
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    button:hover {{
+      background: #475569;
+      border-color: rgba(255, 255, 255, 0.3);
+    }}
+    button.primary {{
+      background: #2563eb;
+      border-color: #3b82f6;
+    }}
+    button.primary:hover {{
+      background: #1d4ed8;
+    }}
+    .slider-container {{
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    input[type=range] {{
+      flex: 1;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }}
+    #profile-canvas {{
+      width: 100%;
+      height: 90px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      margin-top: 10px;
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="top-left-hud" class="hud-panel">
+    <div class="title-row">
+      <span style="font-size:16px; font-weight:700;">Dimer Saddle Refinement</span>
+      <span class="badge {'badge-conv' if data.get('converged') else 'badge-run'}">
+        {'CONVERGED' if data.get('converged') else 'INCOMPLETE'}
+      </span>
+    </div>
+    <div class="metric-row">
+      <span>Current Cycle:</span>
+      <span id="metric-cycle" class="metric-val">1 / {len(data.get('frames', []))}</span>
+    </div>
+    <div class="metric-row">
+      <span>Total Energy:</span>
+      <span id="metric-energy" class="metric-val">-- Hartree</span>
+    </div>
+    <div class="metric-row">
+      <span>Curvature (C):</span>
+      <span id="metric-curv" class="metric-val">-- Ha/Bohr²</span>
+    </div>
+    <div class="metric-row">
+      <span>Effective Force:</span>
+      <span id="metric-force" class="metric-val">-- Ha/Bohr</span>
+    </div>
+    <div class="metric-row">
+      <span>Grad Evaluations:</span>
+      <span class="metric-val">{data.get('num_evals', 0)}</span>
+    </div>
+
+    <canvas id="profile-canvas" width="300" height="90"></canvas>
+  </div>
+
+  <div id="bottom-control-bar" class="hud-panel">
+    <div class="controls-row">
+      <div class="btn-group">
+        <button id="btn-play" class="primary">▶ Play</button>
+        <button id="btn-prev">⏮ Prev</button>
+        <button id="btn-next">Next ⏭</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <div class="slider-container">
+        <span style="font-size:12px; color:#94a3b8;">Cycle</span>
+        <input type="range" id="cycle-slider" min="0" max="{max(0, len(data.get('frames', [])) - 1)}" value="0" step="1">
+        <span id="slider-label" style="font-size:12px; font-family:monospace; min-width:32px;">0</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DATA = {payload};
+    const frames = DATA.frames || [];
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(5, 10, 7);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.4);
+    dirLight2.position.set(-5, -5, -5);
+    scene.add(dirLight2);
+
+    const molGroup = new THREE.Group();
+    scene.add(molGroup);
+
+    let atomMeshes = [];
+    let bondMeshes = [];
+
+    function buildFrame(frameIdx) {{
+      while (molGroup.children.length > 0) {{
+        const obj = molGroup.children[0];
+        molGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+      }}
+      atomMeshes = [];
+      bondMeshes = [];
+
+      if (!frames || frames.length === 0) return;
+      const frame = frames[frameIdx];
+
+      const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+
+      frame.atoms.forEach((a) => {{
+        const mat = new THREE.MeshStandardMaterial({{
+          color: parseInt(a.color.replace('#', '0x')),
+          roughness: 0.3,
+          metalness: 0.2
+        }});
+        const mesh = new THREE.Mesh(sphereGeo, mat);
+        mesh.scale.setScalar(a.radius);
+        mesh.position.set(a.xyz[0], a.xyz[1], a.xyz[2]);
+        molGroup.add(mesh);
+        atomMeshes.push(mesh);
+      }});
+
+      if (frame.bonds) {{
+        frame.bonds.forEach((pair) => {{
+          const p1 = frame.atoms[pair[0]].xyz;
+          const p2 = frame.atoms[pair[1]].xyz;
+          const v1 = new THREE.Vector3(p1[0], p1[1], p1[2]);
+          const v2 = new THREE.Vector3(p2[0], p2[1], p2[2]);
+          const dist = v1.distanceTo(v2);
+          const cylGeo = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
+          const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
+          const bondMesh = new THREE.Mesh(cylGeo, cylMat);
+
+          const mid = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+          bondMesh.position.copy(mid);
+
+          const dir = new THREE.Vector3().subVectors(v2, v1).normalize();
+          const axis = new THREE.Vector3(0, 1, 0);
+          bondMesh.quaternion.setFromUnitVectors(axis, dir);
+
+          molGroup.add(bondMesh);
+          bondMeshes.push(bondMesh);
+        }});
+      }}
+
+      // Center molecule
+      const box = new THREE.Box3().setFromObject(molGroup);
+      const center = box.getCenter(new THREE.Vector3());
+      molGroup.position.sub(center);
+
+      // Update HUD
+      document.getElementById('metric-cycle').innerText = `${{frame.step}} / ${{frames.length}}`;
+      document.getElementById('metric-energy').innerText = `${{frame.energy.toFixed(8)}} Ha`;
+      document.getElementById('metric-curv').innerText = `${{frame.curvature.toFixed(4)}}`;
+      document.getElementById('metric-force').innerText = `${{frame.force_eff_norm.toFixed(6)}}`;
+      document.getElementById('slider-label').innerText = `${{frameIdx}}`;
+      document.getElementById('cycle-slider').value = frameIdx;
+
+      drawProfile(frameIdx);
+    }}
+
+    function drawProfile(currentIdx) {{
+      const cvs = document.getElementById('profile-canvas');
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (frames.length < 2) return;
+
+      const energies = frames.map(f => f.energy);
+      const minE = Math.min(...energies);
+      const maxE = Math.max(...energies);
+      const spanE = (maxE - minE) || 1e-6;
+
+      // Draw Energy Curve
+      ctx.beginPath();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+
+      frames.forEach((f, idx) => {{
+        const x = (idx / (frames.length - 1)) * (w - 20) + 10;
+        const y = h - 15 - ((f.energy - minE) / spanE) * (h - 30);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }});
+      ctx.stroke();
+
+      // Current cycle marker
+      const curX = (currentIdx / (frames.length - 1)) * (w - 20) + 10;
+      const curY = h - 15 - ((frames[currentIdx].energy - minE) / spanE) * (h - 30);
+      ctx.beginPath();
+      ctx.arc(curX, curY, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#f43f5e';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }}
+
+    let currentFrame = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    function setFrame(idx) {{
+      currentFrame = Math.max(0, Math.min(frames.length - 1, idx));
+      buildFrame(currentFrame);
+    }}
+
+    document.getElementById('cycle-slider').addEventListener('input', (e) => {{
+      setFrame(parseInt(e.target.value));
+    }});
+
+    const btnPlay = document.getElementById('btn-play');
+    btnPlay.addEventListener('click', () => {{
+      isPlaying = !isPlaying;
+      btnPlay.innerText = isPlaying ? '⏸ Pause' : '▶ Play';
+      if (isPlaying) {{
+        playInterval = setInterval(() => {{
+          currentFrame = (currentFrame + 1) % frames.length;
+          setFrame(currentFrame);
+        }}, 250);
+      }} else {{
+        clearInterval(playInterval);
+      }}
+    }});
+
+    document.getElementById('btn-prev').addEventListener('click', () => setFrame(currentFrame - 1));
+    document.getElementById('btn-next').addEventListener('click', () => setFrame(currentFrame + 1));
+    document.getElementById('btn-reset').addEventListener('click', () => setFrame(0));
+
+    window.addEventListener('resize', () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+
+    setFrame(0);
+    animate();
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_dimer(
+    dimer_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL Dimer refinement player."""
+    html_content = generate_dimer_html(dimer_result, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_dimer_trajectory.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_dimer(
+    dimer_result: Any,
+    height: int = 550,
+    title: Optional[str] = None,
+) -> Any:
+    """Displays interactive 3D Dimer refinement visualizer inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_dimer_html(dimer_result, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_dimer() in Jupyter notebooks.")
+

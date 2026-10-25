@@ -100,11 +100,21 @@ from phatpsy.irc import (
     IRCResult,
     IRCPoint,
 )
+from phatpsy.dimer import (
+    MullerBrownSurface,
+    DimerStep,
+    DimerResult,
+    dimer_optimize_vector,
+    dimer_search,
+    refine_neb_saddle,
+)
 from phatpsy.visualizer import (
     visualize_vibrations,
     show_vibrations,
     visualize_irc,
     show_irc,
+    visualize_dimer,
+    show_dimer,
 )
 
 __all__ = [
@@ -186,6 +196,14 @@ __all__ = [
     "IRCPoint",
     "visualize_irc",
     "show_irc",
+    "MullerBrownSurface",
+    "DimerStep",
+    "DimerResult",
+    "dimer_optimize_vector",
+    "dimer_search",
+    "refine_neb_saddle",
+    "visualize_dimer",
+    "show_dimer",
 ]
 
 
