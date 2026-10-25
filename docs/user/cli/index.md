@@ -275,4 +275,27 @@ python -m phatpsy freq relaxed.yaml -s 0.005 -m forward -T 298.15 -P 1.0 -o vibr
   * `-o`, `--output`: Path to write complete vibrational results and thermochemistry JSON dataset.
   * `--view`: Launch an interactive 3D WebGL normal mode animation player in your browser with real-time sinusoidal harmonic oscillation, amplitude control slider, speed control, play/pause, and vector displacement arrows in Three.js.
 
+---
+
+### 13. `phatpsy irc`
+
+Traces the Intrinsic Reaction Coordinate (IRC) from a transition state along mass-weighted steepest descent ($\mathbf{x}_i = \sqrt{M_i}\mathbf{r}_i$, $d\mathbf{x}/ds = -\mathbf{g}_x / \|\mathbf{g}_x\|$) down to reactant and product local minima:
+
+```bash
+# Trace full reaction pathway from transition state in both directions
+python -m phatpsy irc ts_molecule.yaml -s 0.1 -n 40 --direction both -o irc.json --xyz irc.xyz --view
+```
+
+* **Integration Flags:**
+  * `-s`, `--step <float>`: Arc length integration step size $\Delta s$ in $\text{amu}^{1/2} \cdot \text{Bohr}$ (default: `0.1`).
+  * `-n`, `--max-steps <int>`: Maximum integration steps per branch (default: `40`).
+  * `--direction {both,forward,reverse}`: Reaction coordinate integration branch (`both` traces reactant and product branches; default: `both`).
+  * `--grad-tol <float>`: Cartesian gradient norm convergence threshold in $\text{Hartree}/\text{Bohr}$ (default: `1e-3`).
+  * `--diff-step <float>`: Coordinate displacement step in Bohr for numerical gradient evaluations (default: `0.005`).
+* **Output & Visualization Flags:**
+  * `-o`, `--output`: Path to write structured IRC results JSON (energies, arc lengths $s$, barrier heights, coordinates).
+  * `--xyz`: Path to save multi-frame XYZ trajectory of the complete reaction pathway.
+  * `-p`, `--plot`: Path to save 2D reaction coordinate profile plot image $\Delta E(s)$ vs. $s$.
+  * `--view`: Launch interactive 3D WebGL Three.js reaction path playback player with continuous reaction coordinate scrubbing and live energy readouts.
+
 

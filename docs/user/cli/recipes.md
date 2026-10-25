@@ -113,3 +113,25 @@ echo "ZPVE (kcal/mol): $(jq '.thermochemistry.zero_point_energy_kcal' vibrations
 echo "Gibbs Free Energy (Hartree): $(jq '.thermochemistry.total_gibbs_free_energy_g_t' vibrations.json)"
 ```
 
+---
+
+## Recipe 7: Intrinsic Reaction Coordinate (IRC) Reaction Pathway Tracing
+
+Trace the minimum energy reaction pathway from a transition state saddle point down to the reactant and product minima along mass-weighted steepest descent, extracting forward and reverse activation energy barriers:
+
+```bash
+# 1. Locate transition state using Climbing-Image NEB
+python -m phatpsy neb reactant.yaml product.yaml -n 7 --climbing -o neb_pathway.json
+
+# 2. Extract highest-energy saddle point deck and verify single imaginary frequency
+python -m phatpsy freq ts_candidate.yaml -m forward -o ts_vib.json
+
+# 3. Trace IRC reaction path in both directions from the transition state
+python -m phatpsy irc ts_candidate.yaml -s 0.1 -n 40 --direction both -o irc_path.json --xyz irc_path.xyz --plot irc_profile.png --view
+
+# 4. Extract activation barriers and net reaction energy
+echo "Forward Barrier (kcal/mol): $(jq '.barrier_forward_kcal' irc_path.json)"
+echo "Reverse Barrier (kcal/mol): $(jq '.barrier_reverse_kcal' irc_path.json)"
+echo "Reaction Energy (kcal/mol): $(jq '.reaction_energy_kcal' irc_path.json)"
+```
+

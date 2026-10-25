@@ -366,4 +366,76 @@ vib_res.show(mode_index=1, amplitude=0.5, height=520)
 vib_res.visualize("normal_modes.html", open_browser=True)
 ```
 
+---
+
+## Intrinsic Reaction Coordinate (IRC) Pathway Tracing
+
+Once a transition state (first-order saddle point with $N_{\text{imag}} = 1$) has been identified by CI-NEB and verified by vibrational frequency analysis, the **Intrinsic Reaction Coordinate (IRC)** connects the transition state with the corresponding reactant and product energy minima.
+
+The [`phatpsy.irc`](file:///Users/jacksmith/phatpsy2/phatpsy/irc.py) module computes the mass-weighted steepest descent reaction pathway:
+
+$$\mathbf{x}_i = \sqrt{M_i} \mathbf{r}_i, \quad \frac{d\mathbf{x}(s)}{ds} = - \frac{\mathbf{g}_x}{\|\mathbf{g}_x\|}$$
+
+where $s$ is the reaction coordinate arc length (in $\text{amu}^{1/2} \cdot \text{Bohr}$), and $\mathbf{g}_{x, i} = \mathbf{g}_{r, i} / \sqrt{M_i}$ is the mass-weighted gradient.
+
+### Reaction Path Methodology
+
+1. **Transition Vector Initiation:**
+   The transition state is a stationary point ($\mathbf{g} = 0$). The path is initiated by displacing along the normalized transition normal mode vector corresponding to the imaginary frequency ($\mathbf{Q}_{\text{imag}}$):
+   $$\mathbf{x}_0^\pm = \mathbf{x}_{\text{TS}} \pm \Delta s_0 \frac{\mathbf{q}_{\text{imag}}}{\|\mathbf{q}_{\text{imag}}\|}$$
+   where positive ($+$) traces the forward (product) branch and negative ($-$) traces the reverse (reactant) branch.
+2. **Mass-Weighted Steepest Descent Integration:**
+   Steps along normalized mass-weighted descent direction $\mathbf{u} = -\mathbf{g}_x / \|\mathbf{g}_x\|$ with adaptive backtracking line search to ensure monotonic potential energy reduction down to the local minimum ($\|\mathbf{g}\| \le \text{tol}$ or $\Delta E \le \text{tol}$).
+3. **Activation Barriers & Thermochemistry:**
+   - **Forward Activation Barrier:** $\Delta E_f^\ddagger = E_{\text{TS}} - E_{\text{reactant}}$ (kcal/mol)
+   - **Reverse Activation Barrier:** $\Delta E_r^\ddagger = E_{\text{TS}} - E_{\text{product}}$ (kcal/mol)
+   - **Reaction Energy:** $\Delta E_{\text{rxn}} = E_{\text{product}} - E_{\text{reactant}}$ (kcal/mol)
+
+### Python Workflow Example
+
+```python
+from phatpsy import PhatpsyDriver, CalculationDeck, compute_irc
+
+driver = PhatpsyDriver(quiet=True)
+deck_ts = CalculationDeck.from_yaml("ts_molecule.yaml")
+
+# Trace IRC in both directions (reactant and product branches)
+irc_res = compute_irc(
+    deck=deck_ts,
+    driver=driver,
+    step_size=0.1,        # Arc length step size in amu^(1/2) * Bohr
+    max_steps=40,         # Maximum integration steps per branch
+    direction="both",     # "both", "forward", or "reverse"
+    grad_tol=1e-3,        # Convergence gradient norm in Hartree / Bohr
+    quiet=True,
+)
+
+# Print formatted summary table of pathway points and barriers
+print(irc_res.summary())
+
+# Access key reaction energetics
+print(f"Forward Barrier (dE_f): {irc_res.barrier_forward_kcal:.2f} kcal/mol")
+print(f"Reverse Barrier (dE_r): {irc_res.barrier_reverse_kcal:.2f} kcal/mol")
+print(f"Reaction Energy (dE_rxn): {irc_res.reaction_energy_kcal:+.2f} kcal/mol")
+
+# Export structured JSON and multi-frame XYZ trajectory
+irc_res.save_json("irc_results.json")
+irc_res.save_xyz("irc_trajectory.xyz")
+
+# Plot 2D energy profile along the reaction coordinate
+irc_res.plot_pathway("irc_profile.png")
+```
+
+### Interactive 3D Reaction Pathway Animation
+
+Scrub through the reaction pathway in 3D WebGL with synchronized energy cards in Three.js:
+
+```python
+# Display interactive widget inside Jupyter Notebook
+irc_res.show(height=520)
+
+# Export standalone HTML visualization with playback controls
+irc_res.visualize("irc_pathway.html", open_browser=True)
+```
+
 

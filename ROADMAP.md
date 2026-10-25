@@ -56,8 +56,12 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Gradient-based (BFGS quasi-Newton with trust-region step clamping and Armijo backtracking line search) ground-state structure relaxation (`phatpsy/optimize.py`), supporting frozen/virtual centers and warm wavefunction restarts. Accessible via Python API (`optimize_geometry`) and CLI (`phatpsy opt`).
 - [x] **Transition state searching**
   - Climbing-Image Nudged Elastic Band (CI-NEB) algorithm with Henkelman-Jónsson improved tangents, decoupled spring/perpendicular forces, QuickMin optimizer, and climbing-image saddle point location (`phatpsy/neb.py`). Includes pathway energy profile plotting (`plot_pathway`), multi-frame XYZ trajectory export, interactive 3D WebGL pathway animation in Three.js (`visualize_pathway`, `show_pathway`), and full CLI integration (`phatpsy neb`).
-- [ ] **Reaction pathways (intrinsic and dynamic)**
-  - Intrinsic Reaction Coordinate (IRC) tracing and dynamic steepest-descent trajectories.
+- [x] **Reaction pathways (intrinsic and dynamic)**
+  - Intrinsic Reaction Coordinate (IRC) path integration along mass-weighted steepest descent ($\mathbf{x}_i = \sqrt{M_i}\mathbf{r}_i$, $d\mathbf{x}/ds = -\mathbf{g}_x/\|\mathbf{g}_x\|$) in `phatpsy/irc.py`.
+  - Transition state initiation along positive and negative directions of imaginary normal mode displacement ($\mathbf{Q}_{\text{imag}}$) to connect transition states with reactant and product minima.
+  - Forward and reverse activation barrier calculation ($\Delta E_f^\ddagger$, $\Delta E_r^\ddagger$) and reaction energy ($\Delta E_{\text{rxn}}$).
+  - Multi-frame XYZ trajectory export, structured JSON checkpointing, 2D reaction coordinate profile plotting (`plot_pathway`), and interactive 3D WebGL Three.js playback player with reaction coordinate scrubbing (`visualize_irc`, `show_irc`).
+  - Full CLI integration (`phatpsy irc`).
 - [x] **Molecular dynamics (MD)**
   - Direct Born-Oppenheimer Molecular Dynamics (BOMD) on the PHATPSY semi-empirical potential energy surface (`phatpsy/md.py`).
   - Symplectic Velocity Verlet integrator conserving phase-space volume and total energy.

@@ -95,9 +95,16 @@ from phatpsy.vibrations import (
     NormalMode,
     Thermochemistry,
 )
+from phatpsy.irc import (
+    compute_irc,
+    IRCResult,
+    IRCPoint,
+)
 from phatpsy.visualizer import (
     visualize_vibrations,
     show_vibrations,
+    visualize_irc,
+    show_irc,
 )
 
 __all__ = [
@@ -174,6 +181,11 @@ __all__ = [
     "Thermochemistry",
     "visualize_vibrations",
     "show_vibrations",
+    "compute_irc",
+    "IRCResult",
+    "IRCPoint",
+    "visualize_irc",
+    "show_irc",
 ]
 
 

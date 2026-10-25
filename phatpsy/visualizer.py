@@ -2686,4 +2686,511 @@ def show_vibrations(
         raise RuntimeError("IPython is required to use show_vibrations() in Jupyter notebooks.")
 
 
+# ==============================================================================
+# Intrinsic Reaction Coordinate (IRC) 3D Pathway Visualizer
+# ==============================================================================
 
+def generate_irc_visualization_data(irc_result: Any) -> Dict[str, Any]:
+    """Extracts multi-frame IRC coordinates, bonds, energies, and barrier data for 3D animation."""
+    points = irc_result.points
+    ts_energy = float(irc_result.ts_energy)
+
+    frames = []
+    for i, pt in enumerate(points):
+        atom_list = [
+            AtomConfig(
+                element=a["element"],
+                xyz=a["xyz"],
+                fixed=a.get("fixed", False),
+                virtual=a.get("virtual", False),
+            )
+            for a in pt.geometry
+        ]
+        deck_mock = CalculationDeck(geometry=atom_list)
+        frame_vis = generate_visualization_data(deck_mock)
+
+        frames.append({
+            "index": i,
+            "step": pt.step,
+            "direction": pt.direction,
+            "s": round(float(pt.s), 4),
+            "energy": round(float(pt.energy), 8),
+            "rel_kcal": round(float(pt.delta_energy_kcal), 2),
+            "is_ts": (pt.direction == "ts"),
+            "atoms": frame_vis["atoms"],
+            "bonds": frame_vis["bonds"],
+        })
+
+    return {
+        "title": "Intrinsic Reaction Coordinate (IRC) Pathway",
+        "num_frames": len(frames),
+        "ts_energy": round(ts_energy, 8),
+        "barrier_fwd_kcal": round(float(irc_result.barrier_forward_kcal), 2),
+        "barrier_rev_kcal": round(float(irc_result.barrier_reverse_kcal), 2),
+        "reaction_e_kcal": round(float(irc_result.reaction_energy_kcal), 2),
+        "frames": frames,
+    }
+
+
+def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
+    """Generates standalone HTML with interactive Three.js IRC pathway playback controls."""
+    data = generate_irc_visualization_data(irc_result)
+    if title:
+        data["title"] = title
+    payload = json.dumps(data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data.get('title', 'PHATPSY 2.0 IRC Visualizer')}</title>
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f8fafc;
+      user-select: none;
+    }}
+    #canvas-container {{
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }}
+    .hud-panel {{
+      position: absolute;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      pointer-events: auto;
+    }}
+    #top-left-hud {{
+      top: 16px;
+      left: 16px;
+      max-width: 320px;
+    }}
+    #bottom-control-bar {{
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 80%;
+      max-width: 720px;
+      padding: 12px 20px;
+    }}
+    .title-row {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .badge-fwd {{ background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }}
+    .badge-rev {{ background: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }}
+    .badge-ts  {{ background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }}
+    .metric-row {{
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0;
+      font-size: 13px;
+      color: #94a3b8;
+    }}
+    .metric-val {{
+      color: #f1f5f9;
+      font-weight: 600;
+      font-family: monospace;
+    }}
+    .controls-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }}
+    .btn-group {{
+      display: flex;
+      gap: 8px;
+    }}
+    button {{
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    button:hover {{
+      background: #475569;
+      border-color: rgba(255, 255, 255, 0.3);
+    }}
+    button.primary {{
+      background: #2563eb;
+      border-color: #3b82f6;
+    }}
+    button.primary:hover {{
+      background: #1d4ed8;
+    }}
+    .slider-container {{
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }}
+    input[type=range] {{
+      width: 100%;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }}
+    .slider-labels {{
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #64748b;
+      font-family: monospace;
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="top-left-hud" class="hud-panel">
+    <div class="title-row">
+      <span style="font-size:14px; font-weight:700;">IRC Pathway</span>
+      <span id="state-badge" class="badge badge-ts">TS</span>
+    </div>
+    <div class="metric-row">
+      <span>Point / Frame:</span>
+      <span id="frame-val" class="metric-val">1 / {data['num_frames']}</span>
+    </div>
+    <div class="metric-row">
+      <span>Reaction Coord (s):</span>
+      <span id="s-val" class="metric-val">0.0000</span>
+    </div>
+    <div class="metric-row">
+      <span>Total Energy:</span>
+      <span id="energy-val" class="metric-val">{data['ts_energy']:.6f} Ha</span>
+    </div>
+    <div class="metric-row">
+      <span>Relative Energy:</span>
+      <span id="rel-kcal-val" class="metric-val">0.00 kcal/mol</span>
+    </div>
+    <hr style="border:0; border-top:1px solid rgba(255,255,255,0.08); margin:8px 0;">
+    <div class="metric-row">
+      <span>Forward Barrier (ΔE_f^‡):</span>
+      <span class="metric-val">{data['barrier_fwd_kcal']} kcal/mol</span>
+    </div>
+    <div class="metric-row">
+      <span>Reverse Barrier (ΔE_r^‡):</span>
+      <span class="metric-val">{data['barrier_rev_kcal']} kcal/mol</span>
+    </div>
+    <div class="metric-row">
+      <span>Reaction Energy (ΔE_rxn):</span>
+      <span class="metric-val">{data['reaction_e_kcal']:+.2f} kcal/mol</span>
+    </div>
+  </div>
+
+  <div id="bottom-control-bar" class="hud-panel">
+    <div class="controls-row">
+      <div class="btn-group">
+        <button id="btn-prev">◀ Step</button>
+        <button id="btn-play" class="primary">▶ Play</button>
+        <button id="btn-next">Step ▶</button>
+      </div>
+
+      <div class="slider-container">
+        <input type="range" id="frame-slider" min="0" max="{data['num_frames'] - 1}" value="0" step="1">
+        <div class="slider-labels">
+          <span>Reactant Minimum</span>
+          <span>Transition State (s=0)</span>
+          <span>Product Minimum</span>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12px; color:#94a3b8;">Speed:</span>
+        <input type="range" id="speed-slider" min="1" max="30" value="10" style="width:70px;">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ircData = {payload};
+    const frames = ircData.frames;
+    const numFrames = frames.length;
+
+    let currentFrameIdx = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let speedFps = 10;
+
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Ambient and directional lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(20, 40, 30);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x90b0ff, 0.4);
+    dirLight2.position.set(-20, -20, -20);
+    scene.add(dirLight2);
+
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+    const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 16);
+
+    let atomMeshes = [];
+    let bondMeshes = [];
+    let com = new THREE.Vector3(0, 0, 0);
+
+    // Compute Center of Mass across all frames
+    let sumX = 0, sumY = 0, sumZ = 0, count = 0;
+    frames.forEach(fr => {{
+      fr.atoms.forEach(a => {{
+        sumX += a.xyz[0]; sumY += a.xyz[1]; sumZ += a.xyz[2];
+        count++;
+      }});
+    }});
+    if (count > 0) {{
+      com.set(sumX / count, sumY / count, sumZ / count);
+    }}
+
+    function initFrame(frameIdx) {{
+      atomMeshes.forEach(m => scene.remove(m));
+      bondMeshes.forEach(m => scene.remove(m));
+      atomMeshes = [];
+      bondMeshes = [];
+
+      const fr = frames[frameIdx];
+
+      // Create Atoms
+      fr.atoms.forEach(a => {{
+        const r = a.radius || 0.4;
+        const col = parseInt(a.color.replace("#", "0x"), 16);
+        let mat;
+        if (a.is_virtual) {{
+          mat = new THREE.MeshBasicMaterial({{ color: col, wireframe: true }});
+        }} else {{
+          mat = new THREE.MeshStandardMaterial({{ color: col, roughness: 0.3, metalness: 0.2 }});
+        }}
+        const mesh = new THREE.Mesh(sphereGeo, mat);
+        mesh.scale.set(r, r, r);
+        mesh.position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+        scene.add(mesh);
+        atomMeshes.push(mesh);
+      }});
+
+      // Create Bonds
+      fr.bonds.forEach(b => {{
+        const a1 = fr.atoms[b.atom1];
+        const a2 = fr.atoms[b.atom2];
+        const p1 = new THREE.Vector3(a1.xyz[0] - com.x, a1.xyz[1] - com.y, a1.xyz[2] - com.z);
+        const p2 = new THREE.Vector3(a2.xyz[0] - com.x, a2.xyz[1] - com.y, a2.xyz[2] - com.z);
+
+        const dist = p1.distanceTo(p2);
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+        const bMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.5, metalness: 0.1 }});
+        const bMesh = new THREE.Mesh(cylGeo, bMat);
+        bMesh.scale.set(0.08, dist, 0.08);
+        bMesh.position.copy(mid);
+        bMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
+        scene.add(bMesh);
+        bondMeshes.push({{ mesh: bMesh, atom1: b.atom1, atom2: b.atom2 }});
+      }});
+
+      updateHUD(frameIdx);
+    }}
+
+    function updatePositions(frameIdx) {{
+      const fr = frames[frameIdx];
+      fr.atoms.forEach((a, i) => {{
+        if (atomMeshes[i]) {{
+          atomMeshes[i].position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+        }}
+      }});
+
+      bondMeshes.forEach(bm => {{
+        const a1 = fr.atoms[bm.atom1];
+        const a2 = fr.atoms[bm.atom2];
+        const p1 = new THREE.Vector3(a1.xyz[0] - com.x, a1.xyz[1] - com.y, a1.xyz[2] - com.z);
+        const p2 = new THREE.Vector3(a2.xyz[0] - com.x, a2.xyz[1] - com.y, a2.xyz[2] - com.z);
+        const dist = p1.distanceTo(p2);
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+        bm.mesh.scale.set(0.08, dist, 0.08);
+        bm.mesh.position.copy(mid);
+        bm.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
+      }});
+
+      updateHUD(frameIdx);
+    }}
+
+    function updateHUD(frameIdx) {{
+      const fr = frames[frameIdx];
+      document.getElementById("frame-slider").value = frameIdx;
+      document.getElementById("frame-val").innerText = (frameIdx + 1) + " / " + numFrames;
+      document.getElementById("s-val").innerText = (fr.s >= 0 ? "+" : "") + fr.s.toFixed(4) + " amu½·Bohr";
+      document.getElementById("energy-val").innerText = fr.energy.toFixed(6) + " Ha";
+      document.getElementById("rel-kcal-val").innerText = (fr.rel_kcal >= 0 ? "+" : "") + fr.rel_kcal.toFixed(2) + " kcal/mol";
+
+      const badge = document.getElementById("state-badge");
+      if (fr.is_ts) {{
+        badge.innerText = "TS (Saddle)";
+        badge.className = "badge badge-ts";
+      }} else if (fr.s < 0) {{
+        badge.innerText = "Reactant Branch";
+        badge.className = "badge badge-rev";
+      }} else {{
+        badge.innerText = "Product Branch";
+        badge.className = "badge badge-fwd";
+      }}
+    }}
+
+    // Playback engine
+    function setFrame(idx) {{
+      currentFrameIdx = Math.max(0, Math.min(numFrames - 1, idx));
+      updatePositions(currentFrameIdx);
+    }}
+
+    function togglePlay() {{
+      isPlaying = !isPlaying;
+      const btn = document.getElementById("btn-play");
+      if (isPlaying) {{
+        btn.innerText = "⏸ Pause";
+        btn.classList.remove("primary");
+        playInterval = setInterval(() => {{
+          currentFrameIdx = (currentFrameIdx + 1) % numFrames;
+          updatePositions(currentFrameIdx);
+        }}, 1000 / speedFps);
+      }} else {{
+        btn.innerText = "▶ Play";
+        btn.classList.add("primary");
+        if (playInterval) clearInterval(playInterval);
+      }}
+    }}
+
+    document.getElementById("btn-play").addEventListener("click", togglePlay);
+    document.getElementById("btn-prev").addEventListener("click", () => {{
+      if (isPlaying) togglePlay();
+      setFrame(currentFrameIdx - 1);
+    }});
+    document.getElementById("btn-next").addEventListener("click", () => {{
+      if (isPlaying) togglePlay();
+      setFrame(currentFrameIdx + 1);
+    }});
+    document.getElementById("frame-slider").addEventListener("input", (e) => {{
+      if (isPlaying) togglePlay();
+      setFrame(parseInt(e.target.value));
+    }});
+    document.getElementById("speed-slider").addEventListener("input", (e) => {{
+      speedFps = parseInt(e.target.value);
+      if (isPlaying) {{
+        clearInterval(playInterval);
+        playInterval = setInterval(() => {{
+          currentFrameIdx = (currentFrameIdx + 1) % numFrames;
+          updatePositions(currentFrameIdx);
+        }}, 1000 / speedFps);
+      }}
+    }});
+
+    // Initialize 3D scene
+    initFrame(0);
+    camera.position.set(0, 5, 12);
+    controls.update();
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+
+    window.addEventListener("resize", () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_irc(
+    irc_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL IRC reaction pathway player."""
+    html_content = generate_irc_html(irc_result, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_irc_pathway.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_irc(
+    irc_result: Any,
+    height: int = 550,
+    title: Optional[str] = None,
+) -> Any:
+    """Displays interactive 3D IRC reaction pathway visualizer inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_irc_html(irc_result, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_irc() in Jupyter notebooks.")

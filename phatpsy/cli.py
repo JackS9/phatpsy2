@@ -376,6 +376,45 @@ def handle_vibrations(args):
     return 0
 
 
+def handle_irc(args):
+    in_path = Path(args.input)
+    deck = load_deck_from_arg(in_path)
+
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.irc import compute_irc
+
+    driver = PhatpsyDriver(quiet=True)
+    irc_res = compute_irc(
+        deck=deck,
+        driver=driver,
+        step_size=args.step,
+        max_steps=args.max_steps,
+        direction=args.direction,
+        grad_tol=args.grad_tol,
+        finite_diff_step=args.diff_step,
+        quiet=True,
+    )
+
+    print(irc_res.summary())
+
+    if args.output:
+        irc_res.save_json(args.output)
+        print(f"\n  Saved IRC JSON:       {args.output}")
+
+    if args.xyz:
+        irc_res.save_xyz(args.xyz)
+        print(f"  Saved IRC Trajectory: {args.xyz}")
+
+    if args.plot:
+        irc_res.plot_pathway(output_path=args.plot)
+        print(f"  Saved Pathway Plot:   {args.plot}")
+
+    if args.view:
+        irc_res.visualize(open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -748,6 +787,25 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL normal mode visualizer in browser")
         args = parser.parse_args(argv[1:])
         return handle_vibrations(args)
+
+    # Handle 'irc' command
+    if argv and argv[0] == "irc":
+        parser = argparse.ArgumentParser(
+            prog="phatpsy irc",
+            description="Intrinsic Reaction Coordinate (IRC) pathway tracing along mass-weighted steepest descent."
+        )
+        parser.add_argument("input", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("-s", "--step", type=float, default=0.1, help="Arc length integration step size in amu^(1/2)*Bohr (default: 0.1)")
+        parser.add_argument("-n", "--max-steps", type=int, default=40, help="Maximum steps per branch (default: 40)")
+        parser.add_argument("--direction", default="both", choices=["both", "forward", "reverse"], help="Integration direction (default: both)")
+        parser.add_argument("--grad-tol", type=float, default=1e-3, help="Cartesian gradient norm convergence threshold (default: 1e-3)")
+        parser.add_argument("--diff-step", type=float, default=0.005, help="Displacement step for numerical gradient (default: 0.005)")
+        parser.add_argument("-o", "--output", default=None, help="Output path for IRC JSON dataset")
+        parser.add_argument("--xyz", default=None, help="Output path for multi-frame XYZ trajectory")
+        parser.add_argument("-p", "--plot", default=None, help="Output path for reaction coordinate profile plot image")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL IRC visualizer in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_irc(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

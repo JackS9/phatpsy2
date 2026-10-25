@@ -52,7 +52,10 @@ PHATPSY 2.0 uses spin-unrestricted Extended Wheeler/Hartree-Fock formulations (U
 | **Construct a crystal slab or surface** | [Periodic Systems](python/periodic-systems.md) | `phatpsy supercell`, `build_slab()` |
 | **Calculate & visualize 3D orbitals or density** | [3D Volumetric Fields](python/volumetric.md) | `phatpsy cube`, `compute_grid()`, `show_grid()` |
 | **Optimize molecular geometry** | [Geometry Optimization](python/restarts-scans-optimization.md#geometry-optimization-optimize_geometry) | `phatpsy opt`, `optimize_geometry()` |
+| **Search transition states via CI-NEB** | [Reaction Pathways & NEB](python/restarts-scans-optimization.md#transition-state-searching-climbing-image-neb) | `phatpsy neb`, `neb_search()` |
+| **Trace Intrinsic Reaction Coordinates (IRC)** | [Reaction Pathways & IRC](python/restarts-scans-optimization.md#intrinsic-reaction-coordinate-irc-pathway-tracing) | `phatpsy irc`, `compute_irc()` |
 | **Calculate vibrational frequencies & thermochemistry** | [Vibrations & Thermochemistry](python/restarts-scans-optimization.md#harmonic-vibrational-frequency-analysis-thermochemistry) | `phatpsy freq`, `compute_vibrations()` |
+| **Run Born-Oppenheimer Molecular Dynamics (BOMD)** | [Molecular Dynamics](python/restarts-scans-optimization.md#born-oppenheimer-molecular-dynamics-bomd) | `phatpsy md`, `run_md()` |
 | **Interactive work in Jupyter Notebooks** | [Python Notebook Setup](python/setup-and-run.md) | `PhatpsyDriver`, `CalculationDeck` |
 | **Diagnose SCF convergence failures** | [Troubleshooting Guide](guide/troubleshooting.md) | Damping, `separate_atoms_first_cycle` |
 

@@ -853,12 +853,16 @@ def compute_vibrations(
     modes: List[NormalMode] = []
     vib_freqs_for_thermo: List[float] = []
 
-    # Identify TR modes by eigenvalue proximity to zero if projected
-    tr_indices = set(range(n_tr)) if (project_tr and not has_fixed_atoms) else set()
+    # Identify TR modes by eigenvalue proximity to zero if projected (smallest absolute eigenvalues)
+    if project_tr and not has_fixed_atoms and n_tr > 0:
+        abs_evals = np.abs(evals)
+        tr_indices = set(np.argsort(abs_evals)[:n_tr])
+    else:
+        tr_indices = set()
 
     for k in range(dim):
         lam = float(evals[k])
-        is_tr = (k in tr_indices) or (abs(lam) < 1e-7 and project_tr and not has_fixed_atoms)
+        is_tr = (k in tr_indices)
 
         if is_tr:
             freq = 0.0
