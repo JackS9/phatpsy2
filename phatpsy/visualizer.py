@@ -162,9 +162,9 @@ def generate_grid_visualization_data(
         mesh = grid.extract_isosurface(iso, property_grid=property_grid)
         v_bohr = mesh["vertices"]
         if len(v_bohr) > 0:
-            v_aa = (v_bohr / BOHR_PER_ANGSTROM).tolist()
+            v_aa = np.round(v_bohr / BOHR_PER_ANGSTROM, 3).tolist()
             faces = mesh["faces"].tolist()
-            normals = mesh["normals"].tolist()
+            normals = np.round(mesh["normals"], 3).tolist()
             prop_vals = mesh.get("property_values", np.zeros(len(v_bohr)))
             colors, v_max_prop = map_rwb_colors(prop_vals)
             surfaces.append({
@@ -187,9 +187,9 @@ def generate_grid_visualization_data(
                 "isovalue": +iso,
                 "color": "#00e5ff",
                 "opacity": 0.75,
-                "vertices": (mesh_pos["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "vertices": np.round(mesh_pos["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
                 "faces": mesh_pos["faces"].tolist(),
-                "normals": mesh_pos["normals"].tolist(),
+                "normals": np.round(mesh_pos["normals"], 3).tolist(),
                 "colors": None,
             })
         mesh_neg = grid.extract_isosurface(-iso)
@@ -199,9 +199,9 @@ def generate_grid_visualization_data(
                 "isovalue": -iso,
                 "color": "#ff9100",
                 "opacity": 0.75,
-                "vertices": (mesh_neg["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "vertices": np.round(mesh_neg["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
                 "faces": mesh_neg["faces"].tolist(),
-                "normals": mesh_neg["normals"].tolist(),
+                "normals": np.round(mesh_neg["normals"], 3).tolist(),
                 "colors": None,
             })
     else:
@@ -214,9 +214,9 @@ def generate_grid_visualization_data(
                 "isovalue": iso,
                 "color": "#38bdf8",
                 "opacity": 0.65,
-                "vertices": (mesh["vertices"] / BOHR_PER_ANGSTROM).tolist(),
+                "vertices": np.round(mesh["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
                 "faces": mesh["faces"].tolist(),
-                "normals": mesh["normals"].tolist(),
+                "normals": np.round(mesh["normals"], 3).tolist(),
                 "colors": None,
             })
 

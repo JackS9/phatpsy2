@@ -228,6 +228,12 @@ def marching_cubes(
     vertices = np.array(all_verts, dtype=np.float64)
     faces = np.array(all_faces, dtype=np.int32)
 
+    # Deduplicate coincident vertices across neighboring tetrahedra to produce indexed geometry
+    if len(vertices) > 0:
+        _, unique_idx, inv = np.unique(np.round(vertices, decimals=5), axis=0, return_index=True, return_inverse=True)
+        vertices = vertices[unique_idx]
+        faces = inv[faces]
+
     # Compute face normals and area-weighted vertex normals
     v0 = vertices[faces[:, 0]]
     v1 = vertices[faces[:, 1]]
