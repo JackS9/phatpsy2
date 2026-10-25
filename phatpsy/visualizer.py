@@ -2031,3 +2031,659 @@ def show_trajectory(md_result: Any, height: int = 550, title: Optional[str] = No
         raise RuntimeError("IPython is required to use show_trajectory() in Jupyter notebooks.")
 
 
+# ==============================================================================
+# Harmonic Vibrations & Normal Mode 3D WebGL Visualizer
+# ==============================================================================
+
+def generate_vibrations_visualization_data(vib_result: Any) -> Dict[str, Any]:
+    """
+    Serializes a VibrationResult into structured JSON data for 3D WebGL Three.js visualization.
+    """
+    res_dict = vib_result.to_dict() if hasattr(vib_result, "to_dict") else vib_result
+
+    raw_atoms = res_dict.get("atoms", [])
+    raw_modes = res_dict.get("modes", [])
+
+    bohr_to_ang = 0.529177210903
+
+    atoms_data = []
+    coords_ang = []
+    for idx, a in enumerate(raw_atoms):
+        elem = a.get("element", "X").strip().upper()
+        xyz_bohr = a.get("xyz", [0.0, 0.0, 0.0])
+        xyz_ang = [round(float(c) * bohr_to_ang, 4) for c in xyz_bohr]
+        coords_ang.append(xyz_ang)
+
+        cov_r_bohr = get_covalent_radius_bohr(elem)
+        radius_ang = max(0.25, round(cov_r_bohr * bohr_to_ang * 0.45, 3))
+
+        atoms_data.append({
+            "index": idx,
+            "element": elem,
+            "id": a.get("id", f"{elem}{idx + 1}"),
+            "xyz": xyz_ang,
+            "color": get_atom_color(elem),
+            "radius": radius_ang,
+            "mass": a.get("mass_amu", 12.0),
+            "fixed": a.get("fixed", False),
+            "virtual": a.get("virtual", False),
+        })
+
+    # Molecular bonds via covalent radii threshold
+    bonds = []
+    n_atoms = len(raw_atoms)
+    for i in range(n_atoms):
+        elem_i = raw_atoms[i].get("element", "X")
+        r_i = get_covalent_radius_bohr(elem_i) * bohr_to_ang
+        p_i = np.array(coords_ang[i])
+        for j in range(i + 1, n_atoms):
+            elem_j = raw_atoms[j].get("element", "X")
+            r_j = get_covalent_radius_bohr(elem_j) * bohr_to_ang
+            p_j = np.array(coords_ang[j])
+            dist = float(np.linalg.norm(p_i - p_j))
+            if 0.4 < dist < 1.25 * (r_i + r_j):
+                bonds.append([i, j])
+
+    # Convert normal modes displacements to Ångström
+    modes_data = []
+    for m in raw_modes:
+        disp_bohr = m.get("displacements", [])
+        disp_ang = [
+            [round(float(c) * bohr_to_ang, 5) for c in atom_disp]
+            for atom_disp in disp_bohr
+        ]
+        modes_data.append({
+            "index": m.get("index", 1),
+            "frequency_cm": round(float(m.get("frequency_cm", 0.0)), 2),
+            "is_imaginary": bool(m.get("is_imaginary", False)),
+            "reduced_mass_amu": round(float(m.get("reduced_mass_amu", 1.0)), 4),
+            "force_constant_mdyne_a": round(float(m.get("force_constant_mdyne_a", 0.0)), 4),
+            "is_tr_mode": bool(m.get("is_tr_mode", False)),
+            "displacements": disp_ang,
+        })
+
+    return {
+        "title": "PHATPSY 2.0 Normal Mode Vibrations",
+        "num_atoms": n_atoms,
+        "num_modes": len(modes_data),
+        "num_imaginary": res_dict.get("num_imaginary", 0),
+        "is_transition_state": res_dict.get("is_transition_state", False),
+        "is_minimum": res_dict.get("is_minimum", True),
+        "atoms": atoms_data,
+        "bonds": bonds,
+        "modes": modes_data,
+        "thermochemistry": res_dict.get("thermochemistry"),
+    }
+
+
+def generate_vibrations_html(
+    vib_result: Any,
+    mode_index: Optional[int] = None,
+    amplitude: float = 0.5,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Renders standalone modern HTML with interactive 3D WebGL normal mode animation and vector cones.
+    """
+    data = generate_vibrations_visualization_data(vib_result)
+    if title:
+        data["title"] = title
+
+    payload = json.dumps(data)
+
+    # Initial default mode: first non-TR mode or mode_index
+    default_mode_idx = 0
+    if mode_index is not None:
+        default_mode_idx = max(0, min(len(data["modes"]) - 1, mode_index - 1))
+    else:
+        # Find first genuine vibrational mode
+        for idx, m in enumerate(data["modes"]):
+            if not m.get("is_tr_mode", False):
+                default_mode_idx = idx
+                break
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{data['title']}</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }}
+    #canvas-container {{ width: 100%; height: 100%; }}
+    .ui-panel {{
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 14px 18px;
+      z-index: 10;
+      max-width: 380px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }}
+    .ui-panel h1 {{
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }}
+    .badge-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }}
+    .badge-green {{ background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }}
+    .badge-red {{ background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }}
+    .badge-blue {{ background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }}
+    .badge-purple {{ background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }}
+
+    .info-card {{
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 14px 18px;
+      z-index: 10;
+      min-width: 260px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }}
+    .info-card h2 {{
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }}
+    .metric-row {{
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 0.82rem;
+    }}
+    .metric-label {{ color: #94a3b8; }}
+    .metric-val {{ font-weight: 600; color: #f1f5f9; }}
+
+    .controls-panel {{
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 12px 20px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 580px;
+      max-width: 90vw;
+      box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.7);
+    }}
+    .controls-row {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    .select-dropdown {{
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      flex: 1;
+    }}
+    .select-dropdown:hover {{ border-color: #38bdf8; }}
+    .btn {{
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .btn:hover {{ background: #334155; border-color: rgba(255, 255, 255, 0.3); }}
+    .btn-primary {{ background: #2563eb; border-color: #3b82f6; }}
+    .btn-primary:hover {{ background: #1d4ed8; }}
+    .btn-active {{ background: #0284c7; border-color: #38bdf8; }}
+    .slider {{
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #334155;
+      outline: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }}
+    .slider::-webkit-slider-thumb {{
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }}
+    .slider-label {{
+      font-size: 0.75rem;
+      color: #94a3b8;
+      min-width: 95px;
+    }}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="ui-panel">
+    <h1>{data['title']}</h1>
+    <div class="badge-bar">
+      <span class="badge badge-blue">{data['num_atoms']} Atoms</span>
+      <span class="badge badge-purple">{data['num_modes']} Normal Modes</span>
+      <span class="badge {'badge-green' if data['num_imaginary'] == 0 else 'badge-red'}">
+        {data['num_imaginary']} Imaginary ({'Local Minimum' if data['num_imaginary'] == 0 else ('Transition State' if data['num_imaginary'] == 1 else 'Higher-Order Saddle')})
+      </span>
+    </div>
+  </div>
+
+  <div class="info-card">
+    <h2>Active Mode Details</h2>
+    <div class="metric-row">
+      <span class="metric-label">Frequency:</span>
+      <span class="metric-val" id="mode-freq" style="color:#38bdf8;">-- cm⁻¹</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Force Constant:</span>
+      <span class="metric-val" id="mode-force">-- mDyne/Å</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Reduced Mass:</span>
+      <span class="metric-val" id="mode-mass">-- amu</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Mode Character:</span>
+      <span class="metric-val" id="mode-char" style="color:#4ade80;">--</span>
+    </div>
+  </div>
+
+  <div class="controls-panel">
+    <div class="controls-row">
+      <label for="mode-select" style="font-size:0.8rem; font-weight:600; color:#94a3b8;">Normal Mode:</label>
+      <select id="mode-select" class="select-dropdown"></select>
+      <button class="btn btn-primary" id="play-btn">⏸ Pause</button>
+      <button class="btn btn-active" id="vectors-btn">🏹 Vectors: ON</button>
+    </div>
+    <div class="controls-row">
+      <span class="slider-label" id="amp-label">Amplitude: {amplitude:.2f} Å</span>
+      <input type="range" min="0" max="150" value="{int(amplitude * 100)}" class="slider" id="amp-slider">
+      <span class="slider-label" id="speed-label" style="min-width:70px; margin-left:10px;">Speed: 1.0x</span>
+      <input type="range" min="20" max="300" value="100" class="slider" id="speed-slider">
+    </div>
+  </div>
+
+  <script>
+    const data = {payload};
+    const atoms = data.atoms;
+    const bonds = data.bonds;
+    const modes = data.modes;
+
+    let activeModeIdx = {default_mode_idx};
+    let isPlaying = true;
+    let showVectors = true;
+    let amplitude = {amplitude};
+    let speed = 1.0;
+    let animPhase = 0.0;
+
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 8);
+
+    const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight1.position.set(10, 20, 15);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.35);
+    dirLight2.position.set(-10, -10, -10);
+    scene.add(dirLight2);
+
+    const moleculeGroup = new THREE.Group();
+    scene.add(moleculeGroup);
+    const vectorsGroup = new THREE.Group();
+    scene.add(vectorsGroup);
+
+    // Compute center of mass to center the molecule in view
+    let com = new THREE.Vector3(0, 0, 0);
+    atoms.forEach(a => {{
+      com.add(new THREE.Vector3(a.xyz[0], a.xyz[1], a.xyz[2]));
+    }});
+    com.divideScalar(atoms.length || 1);
+
+    // Build atom sphere meshes
+    const atomMeshes = [];
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+
+    atoms.forEach(a => {{
+      const mat = new THREE.MeshPhongMaterial({{
+        color: new THREE.Color(a.color),
+        shininess: 90,
+        specular: 0x444444,
+      }});
+      const mesh = new THREE.Mesh(sphereGeo, mat);
+      mesh.scale.set(a.radius, a.radius, a.radius);
+      mesh.position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+      moleculeGroup.add(mesh);
+      atomMeshes.push(mesh);
+    }});
+
+    // Build bond cylinders
+    const bondMeshes = [];
+    const cylGeo = new THREE.CylinderGeometry(0.1, 0.1, 1, 16);
+
+    bonds.forEach(([i, j]) => {{
+      const mat = new THREE.MeshPhongMaterial({{
+        color: 0x94a3b8,
+        shininess: 70,
+        specular: 0x222222,
+      }});
+      const mesh = new THREE.Mesh(cylGeo, mat);
+      moleculeGroup.add(mesh);
+      bondMeshes.push({{ mesh, i, j }});
+    }});
+
+    function updateBonds() {{
+      bondMeshes.forEach(b => {{
+        const p1 = atomMeshes[b.i].position;
+        const p2 = atomMeshes[b.j].position;
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        const len = p1.distanceTo(p2);
+        b.mesh.position.copy(mid);
+        b.mesh.scale.set(1, len, 1);
+        b.mesh.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3().subVectors(p2, p1).normalize()
+        );
+      }});
+    }}
+
+    // Vector arrows for active normal mode
+    let arrowHelpers = [];
+
+    function rebuildVectorArrows() {{
+      // Remove old arrows
+      while (vectorsGroup.children.length > 0) {{
+        vectorsGroup.remove(vectorsGroup.children[0]);
+      }}
+      arrowHelpers = [];
+
+      if (!showVectors || activeModeIdx < 0 || activeModeIdx >= modes.length) return;
+
+      const m = modes[activeModeIdx];
+      const disps = m.displacements;
+
+      atoms.forEach((a, idx) => {{
+        const d = disps[idx];
+        const dir = new THREE.Vector3(d[0], d[1], d[2]);
+        const len = dir.length();
+        if (len > 1e-4) {{
+          dir.normalize();
+          const arrowLen = Math.max(0.2, len * amplitude * 2.2);
+          const arrowColor = m.is_imaginary ? 0xf87171 : 0xfacc15;
+          const headLen = Math.min(arrowLen * 0.35, 0.35);
+          const headWidth = headLen * 0.55;
+          const arrow = new THREE.ArrowHelper(dir, atomMeshes[idx].position, arrowLen, arrowColor, headLen, headWidth);
+          vectorsGroup.add(arrow);
+          arrowHelpers.push({{ arrow, idx, dir, len }});
+        }}
+      }});
+    }}
+
+    function updateVectorArrowPositions() {{
+      arrowHelpers.forEach(item => {{
+        item.arrow.position.copy(atomMeshes[item.idx].position);
+      }});
+    }}
+
+    // UI elements & Mode selection
+    const modeSelect = document.getElementById("mode-select");
+    const modeFreq = document.getElementById("mode-freq");
+    const modeForce = document.getElementById("mode-force");
+    const modeMass = document.getElementById("mode-mass");
+    const modeChar = document.getElementById("mode-char");
+
+    modes.forEach((m, idx) => {{
+      const opt = document.createElement("option");
+      opt.value = idx;
+      let label = `Mode ${{m.index}}: ${{m.frequency_cm.toFixed(1)}} cm⁻¹`;
+      if (m.is_tr_mode) {{
+        label += " (Translation/Rotation)";
+      }} else if (m.is_imaginary) {{
+        label += " (Imaginary / Saddle)";
+      }}
+      opt.textContent = label;
+      if (idx === activeModeIdx) opt.selected = true;
+      modeSelect.appendChild(opt);
+    }});
+
+    function updateModeCard() {{
+      if (activeModeIdx < 0 || activeModeIdx >= modes.length) return;
+      const m = modes[activeModeIdx];
+      modeFreq.textContent = `${{m.frequency_cm.toFixed(2)}} cm⁻¹${{m.is_imaginary ? " (i)" : ""}}`;
+      modeFreq.style.color = m.is_imaginary ? "#f87171" : "#38bdf8";
+
+      modeForce.textContent = `${{m.force_constant_mdyne_a.toFixed(4)}} mDyne/Å`;
+      modeMass.textContent = `${{m.reduced_mass_amu.toFixed(4)}} amu`;
+
+      if (m.is_tr_mode) {{
+        modeChar.textContent = "Translation / Rotation";
+        modeChar.style.color = "#94a3b8";
+      }} else if (m.is_imaginary) {{
+        modeChar.textContent = "Transition State (Saddle Point)";
+        modeChar.style.color = "#f87171";
+      }} else {{
+        modeChar.textContent = "Harmonic Vibration (Bound Minimum)";
+        modeChar.style.color = "#4ade80";
+      }}
+    }}
+
+    modeSelect.addEventListener("change", (e) => {{
+      activeModeIdx = parseInt(e.target.value);
+      animPhase = 0.0;
+      updateModeCard();
+      rebuildVectorArrows();
+    }});
+
+    const playBtn = document.getElementById("play-btn");
+    playBtn.addEventListener("click", () => {{
+      isPlaying = !isPlaying;
+      playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+      if (!isPlaying) {{
+        // Reset atoms to equilibrium position
+        atoms.forEach((a, idx) => {{
+          atomMeshes[idx].position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+        }});
+        updateBonds();
+        updateVectorArrowPositions();
+      }}
+    }});
+
+    const vectorsBtn = document.getElementById("vectors-btn");
+    vectorsBtn.addEventListener("click", () => {{
+      showVectors = !showVectors;
+      vectorsBtn.textContent = `🏹 Vectors: ${{showVectors ? "ON" : "OFF"}}`;
+      vectorsBtn.className = showVectors ? "btn btn-active" : "btn";
+      rebuildVectorArrows();
+    }});
+
+    const ampSlider = document.getElementById("amp-slider");
+    const ampLabel = document.getElementById("amp-label");
+    ampSlider.addEventListener("input", (e) => {{
+      amplitude = parseFloat(e.target.value) / 100.0;
+      ampLabel.textContent = `Amplitude: ${{amplitude.toFixed(2)}} Å`;
+      rebuildVectorArrows();
+    }});
+
+    const speedSlider = document.getElementById("speed-slider");
+    const speedLabel = document.getElementById("speed-label");
+    speedSlider.addEventListener("input", (e) => {{
+      speed = parseFloat(e.target.value) / 100.0;
+      speedLabel.textContent = `Speed: ${{speed.toFixed(1)}}x`;
+    }});
+
+    // Initialize display
+    updateModeCard();
+    updateBonds();
+    rebuildVectorArrows();
+
+    // Adjust camera distance to fit molecule
+    let maxDist = 1.0;
+    atoms.forEach(a => {{
+      const d = new THREE.Vector3(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z).length();
+      if (d > maxDist) maxDist = d;
+    }});
+    camera.position.set(0, 0, Math.max(5, maxDist * 3.2));
+    controls.update();
+
+    // Animation loop
+    function animate() {{
+      requestAnimationFrame(animate);
+
+      if (isPlaying && activeModeIdx >= 0 && activeModeIdx < modes.length) {{
+        animPhase += 0.06 * speed;
+        const sinFactor = Math.sin(animPhase);
+        const disps = modes[activeModeIdx].displacements;
+
+        atoms.forEach((a, idx) => {{
+          const d = disps[idx];
+          const x = (a.xyz[0] - com.x) + sinFactor * amplitude * d[0];
+          const y = (a.xyz[1] - com.y) + sinFactor * amplitude * d[1];
+          const z = (a.xyz[2] - com.z) + sinFactor * amplitude * d[2];
+          atomMeshes[idx].position.set(x, y, z);
+        }});
+
+        updateBonds();
+        updateVectorArrowPositions();
+      }}
+
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+
+    window.addEventListener("resize", () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+  </script>
+</body>
+</html>
+"""
+    return html
+
+
+def visualize_vibrations(
+    vib_result: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    open_browser: bool = False,
+    mode_index: Optional[int] = None,
+    amplitude: float = 0.5,
+    title: Optional[str] = None,
+) -> str:
+    """Renders standalone HTML with interactive 3D WebGL normal mode player."""
+    html_content = generate_vibrations_html(vib_result, mode_index=mode_index, amplitude=amplitude, title=title)
+    if output_path:
+        out_file = Path(output_path)
+    elif open_browser:
+        temp_dir = Path(tempfile.gettempdir())
+        out_file = temp_dir / "phatpsy_vibrations.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if open_browser:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_vibrations(
+    vib_result: Any,
+    mode_index: Optional[int] = None,
+    amplitude: float = 0.5,
+    height: int = 550,
+    title: Optional[str] = None,
+) -> Any:
+    """Displays interactive 3D normal mode vibrational visualizer inside Jupyter notebooks."""
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_vibrations_html(vib_result, mode_index=mode_index, amplitude=amplitude, title=title)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_vibrations() in Jupyter notebooks.")
+
+
+

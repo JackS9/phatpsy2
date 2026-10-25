@@ -65,6 +65,15 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - Full Maxwell-Boltzmann velocity initialization with center-of-mass linear momentum removal and support for fixed substrate constraints (`fixed=True`) and virtual coordination centers.
   - Multi-frame XYZ trajectory export, structured JSON checkpointing, dynamics plotting (`plot_dynamics`), and interactive 3D WebGL trajectory player with timeline controls in Three.js (`visualize_trajectory`, `show_trajectory`).
   - Full CLI integration (`phatpsy md` / `phatpsy bomd`).
+- [x] **Harmonic vibrational frequency analysis & thermochemistry**
+  - Full numerical Cartesian Hessian matrix evaluation (`phatpsy/vibrations.py`) with central and forward finite differences.
+  - Mass-weighted Cartesian Hessian and Eckart translational & rotational projection operator ($\mathbf{P} = \mathbf{I} - \mathbf{D}_{\text{TR}}\mathbf{D}_{\text{TR}}^T$) to cleanly decouple zero-frequency rigid-body modes.
+  - Harmonic vibrational frequencies ($\text{cm}^{-1}$), reduced masses ($\mu_k$ in amu), force constants ($k_k$ in $\text{mDyne}/\text{Å}$), and Cartesian normal mode displacement vectors ($\mathbf{Q}_k$).
+  - Automatic saddle-point / transition state classification ($N_{\text{imag}} = 1$).
+  - Complete ideal-gas / Rigid-Rotor Harmonic Oscillator (RRHO) statistical thermochemistry: Zero-Point Vibrational Energy (ZPVE), thermal internal energy $U(T)$, enthalpy $H(T)$, entropy $S(T)$ (Sackur-Tetrode translation, rotational, vibrational, electronic), Gibbs free energy $G(T) = H(T) - T \cdot S(T)$, and constant-volume heat capacity $C_v(T)$.
+  - Interactive 3D WebGL Three.js normal mode player with sinusoidal harmonic animation, play/pause, amplitude slider, speed control, and vector displacement arrows (`visualize_vibrations`, `show_vibrations`).
+  - Full CLI integration (`phatpsy freq` / `phatpsy vib` / `phatpsy vibrations`).
+
 
 ---
 

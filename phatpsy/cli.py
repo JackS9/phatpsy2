@@ -345,6 +345,37 @@ def handle_md(args):
     return 0
 
 
+def handle_vibrations(args):
+    in_path = Path(args.input)
+    deck = load_deck_from_arg(in_path)
+
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.vibrations import compute_vibrations
+
+    driver = PhatpsyDriver(quiet=True)
+    vib_res = compute_vibrations(
+        deck=deck,
+        driver=driver,
+        step_size=args.step,
+        method=args.method,
+        project_tr=not args.no_project,
+        temperature_k=args.temp,
+        pressure_atm=args.pressure,
+        quiet=True,
+    )
+
+    print(vib_res.summary())
+
+    if args.output:
+        vib_res.save_json(args.output)
+        print(f"\n  Saved Vibrations JSON: {args.output}")
+
+    if args.view:
+        vib_res.visualize(open_browser=True)
+
+    return 0
+
+
 def handle_supercell(args):
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
@@ -700,6 +731,23 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL trajectory playback player in browser")
         args = parser.parse_args(argv[1:])
         return handle_md(args)
+
+    # Handle 'freq', 'vib', or 'vibrations' command
+    if argv and argv[0] in ("freq", "vib", "vibrations"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy freq",
+            description="Harmonic vibrational frequency analysis, normal modes, and RRHO ideal-gas thermochemistry."
+        )
+        parser.add_argument("input", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
+        parser.add_argument("-s", "--step", type=float, default=0.005, help="Cartesian displacement step in Bohr (default: 0.005)")
+        parser.add_argument("-m", "--method", default="central", choices=["central", "forward"], help="Finite difference stencil (default: central)")
+        parser.add_argument("-T", "--temp", type=float, default=298.15, help="Thermochemistry temperature in Kelvin (default: 298.15 K)")
+        parser.add_argument("-P", "--pressure", type=float, default=1.0, help="Thermochemistry pressure in atmospheres (default: 1.0 atm)")
+        parser.add_argument("--no-project", action="store_true", help="Disable translational/rotational Eckart projection")
+        parser.add_argument("-o", "--output", default=None, help="Output path for vibration results JSON data")
+        parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL normal mode visualizer in browser")
+        args = parser.parse_args(argv[1:])
+        return handle_vibrations(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

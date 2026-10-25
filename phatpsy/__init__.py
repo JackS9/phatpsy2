@@ -87,6 +87,18 @@ from phatpsy.md import (
     init_velocities,
     get_atomic_mass_au,
 )
+from phatpsy.vibrations import (
+    compute_vibrations,
+    compute_hessian,
+    compute_thermochemistry,
+    VibrationResult,
+    NormalMode,
+    Thermochemistry,
+)
+from phatpsy.visualizer import (
+    visualize_vibrations,
+    show_vibrations,
+)
 
 __all__ = [
     "PhatpsyDriver",
@@ -154,5 +166,14 @@ __all__ = [
     "get_atomic_mass_au",
     "visualize_trajectory",
     "show_trajectory",
+    "compute_vibrations",
+    "compute_hessian",
+    "compute_thermochemistry",
+    "VibrationResult",
+    "NormalMode",
+    "Thermochemistry",
+    "visualize_vibrations",
+    "show_vibrations",
 ]
+
 
