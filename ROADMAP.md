@@ -77,10 +77,10 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ---
 
-## 5. Excited States & Molecular Properties
+## 5. Electronic, Optical & Magnetic (EOM) Properties
 
 - [ ] **EOM properties**
-  - Equation-of-Motion (EOM) formalisms for excitation energies, transition dipole moments, and response properties.
+  - Calculation and analysis of Electronic, Optical, and Magnetic (EOM) response properties: electronic excitation spectrum, transition dipole moments, optical polarizability tensors, and magnetic susceptibility.
 
 ---
 
