@@ -358,8 +358,11 @@ def compute_eom(
 
     coords = np.asarray(res["atom_coordinates"], dtype=np.float64)  # (3, natom)
     natom = coords.shape[1]
-    raw_charges = np.asarray(res["atom_charges"], dtype=np.float64).flatten()
-    charges = raw_charges[:natom]
+    atom_charges_arr = np.asarray(res["atom_charges"], dtype=np.float64)
+    if atom_charges_arr.ndim == 2:
+        charges = atom_charges_arr[0, :natom]
+    else:
+        charges = atom_charges_arr[:natom]
     binfo = res["basis_info"]
     mstot = res["mstot"]
     norbt = res["norbt"]

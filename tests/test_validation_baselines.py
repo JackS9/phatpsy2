@@ -80,6 +80,7 @@ def test_co_frozen_baseline():
     r_exp = ref["experimental_geometry"]["r_expt_bohr"]
     deck = build_diatomic("C", "O", r_exp, basis="SZ", spin_flip=True, units="bohr")
     deck.control.pk_scale = 1.0
+    deck.control.use_diis = True
     res = driver.run_deck(deck)
     eom = compute_eom(deck, driver=driver, quiet=True)
 
@@ -87,15 +88,10 @@ def test_co_frozen_baseline():
     ref_dip = ref["experimental_geometry"]["permanent_dipole_debye"]
 
     assert res.converged is True
-    assert (
-        math.isclose(res.total_energy, ref_e, abs_tol=tol_e)
-        or math.isclose(res.total_energy, -110.651667, abs_tol=tol_e)
-    ), f"CO Total Energy deviation: current {res.total_energy:.6f} vs expected {ref_e:.6f}"
-    assert (
-        math.isclose(eom.dipole.magnitude_debye, ref_dip, abs_tol=tol_dip)
-        or math.isclose(eom.dipole.magnitude_debye, 0.0133, abs_tol=tol_dip)
-        or eom.dipole.magnitude_debye >= 0.0
-    ), (
+    assert math.isclose(res.total_energy, ref_e, abs_tol=tol_e), (
+        f"CO Total Energy deviation: current {res.total_energy:.6f} vs expected {ref_e:.6f}"
+    )
+    assert math.isclose(eom.dipole.magnitude_debye, ref_dip, abs_tol=tol_dip), (
         f"CO Dipole deviation: current {eom.dipole.magnitude_debye:.4f} vs frozen {ref_dip:.4f}"
     )
 
