@@ -275,11 +275,14 @@ def dimer_optimize_vector(
         N = n0.copy().astype(np.float64)
         N[~mask] = 0.0
     else:
-        # Initial guess along active degrees of freedom
+        # Initial guess along active degrees of freedom: alternate signs to avoid rigid translation
         N = np.zeros(dim, dtype=np.float64)
         active_indices = np.where(mask)[0]
-        if len(active_indices) > 0:
-            N[active_indices] = 1.0 / math.sqrt(len(active_indices))
+        if len(active_indices) > 1:
+            signs = np.array([(-1.0)**i for i in range(len(active_indices))], dtype=np.float64)
+            N[active_indices] = signs / np.linalg.norm(signs)
+        elif len(active_indices) == 1:
+            N[active_indices[0]] = 1.0
         else:
             N[0] = 1.0
 
@@ -561,7 +564,23 @@ def dimer_search(
     if initial_direction is not None:
         n0_vec = np.array(initial_direction, dtype=np.float64).flatten()
     else:
-        n0_vec = None
+        # Default internal deformation mode: antisymmetric displacement along the primary bond vector
+        n0_vec = np.zeros(n_atoms * 3, dtype=np.float64)
+        if n_atoms >= 2:
+            r0 = np.array(coords0[0:3])
+            r1 = np.array(coords0[3:6])
+            diff = r1 - r0
+            norm_diff = np.linalg.norm(diff)
+            if norm_diff > 1e-6:
+                unit_diff = diff / norm_diff
+            else:
+                unit_diff = np.array([0.0, 0.0, 1.0])
+            n0_vec[0:3] = -unit_diff / math.sqrt(2.0)
+            n0_vec[3:6] = +unit_diff / math.sqrt(2.0)
+        elif n_atoms == 1:
+            n0_vec[2] = 1.0
+        else:
+            n0_vec = None
 
     conv, r_saddle, n_saddle, e_saddle, c_saddle, n_cyc, n_evals, traj_recs = dimer_optimize_vector(
         force_func=evaluate_force,

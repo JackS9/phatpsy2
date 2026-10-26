@@ -2974,7 +2974,9 @@ def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
     let sumX = 0, sumY = 0, sumZ = 0, count = 0;
     frames.forEach(fr => {{
       fr.atoms.forEach(a => {{
-        sumX += a.xyz[0]; sumY += a.xyz[1]; sumZ += a.xyz[2];
+        sumX += (a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0));
+        sumY += (a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0));
+        sumZ += (a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0));
         count++;
       }});
     }});
@@ -3002,17 +3004,30 @@ def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
         }}
         const mesh = new THREE.Mesh(sphereGeo, mat);
         mesh.scale.set(r, r, r);
-        mesh.position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+        const ax = (a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0));
+        const ay = (a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0));
+        const az = (a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0));
+        mesh.position.set(ax - com.x, ay - com.y, az - com.z);
         scene.add(mesh);
         atomMeshes.push(mesh);
       }});
 
       // Create Bonds
       fr.bonds.forEach(b => {{
-        const a1 = fr.atoms[b.atom1];
-        const a2 = fr.atoms[b.atom2];
-        const p1 = new THREE.Vector3(a1.xyz[0] - com.x, a1.xyz[1] - com.y, a1.xyz[2] - com.z);
-        const p2 = new THREE.Vector3(a2.xyz[0] - com.x, a2.xyz[1] - com.y, a2.xyz[2] - com.z);
+        const idx1 = (b.atom1 !== undefined ? b.atom1 : b[0]);
+        const idx2 = (b.atom2 !== undefined ? b.atom2 : b[1]);
+        const a1 = fr.atoms[idx1];
+        const a2 = fr.atoms[idx2];
+        const p1 = new THREE.Vector3(
+          (a1.x !== undefined ? a1.x : (a1.xyz ? a1.xyz[0] : 0)) - com.x,
+          (a1.y !== undefined ? a1.y : (a1.xyz ? a1.xyz[1] : 0)) - com.y,
+          (a1.z !== undefined ? a1.z : (a1.xyz ? a1.xyz[2] : 0)) - com.z
+        );
+        const p2 = new THREE.Vector3(
+          (a2.x !== undefined ? a2.x : (a2.xyz ? a2.xyz[0] : 0)) - com.x,
+          (a2.y !== undefined ? a2.y : (a2.xyz ? a2.xyz[1] : 0)) - com.y,
+          (a2.z !== undefined ? a2.z : (a2.xyz ? a2.xyz[2] : 0)) - com.z
+        );
 
         const dist = p1.distanceTo(p2);
         const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
@@ -3023,7 +3038,7 @@ def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
         bMesh.position.copy(mid);
         bMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
         scene.add(bMesh);
-        bondMeshes.push({{ mesh: bMesh, atom1: b.atom1, atom2: b.atom2 }});
+        bondMeshes.push({{ mesh: bMesh, atom1: idx1, atom2: idx2 }});
       }});
 
       updateHUD(frameIdx);
@@ -3033,15 +3048,26 @@ def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
       const fr = frames[frameIdx];
       fr.atoms.forEach((a, i) => {{
         if (atomMeshes[i]) {{
-          atomMeshes[i].position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
+          const ax = (a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0));
+          const ay = (a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0));
+          const az = (a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0));
+          atomMeshes[i].position.set(ax - com.x, ay - com.y, az - com.z);
         }}
       }});
 
       bondMeshes.forEach(bm => {{
         const a1 = fr.atoms[bm.atom1];
         const a2 = fr.atoms[bm.atom2];
-        const p1 = new THREE.Vector3(a1.xyz[0] - com.x, a1.xyz[1] - com.y, a1.xyz[2] - com.z);
-        const p2 = new THREE.Vector3(a2.xyz[0] - com.x, a2.xyz[1] - com.y, a2.xyz[2] - com.z);
+        const p1 = new THREE.Vector3(
+          (a1.x !== undefined ? a1.x : (a1.xyz ? a1.xyz[0] : 0)) - com.x,
+          (a1.y !== undefined ? a1.y : (a1.xyz ? a1.xyz[1] : 0)) - com.y,
+          (a1.z !== undefined ? a1.z : (a1.xyz ? a1.xyz[2] : 0)) - com.z
+        );
+        const p2 = new THREE.Vector3(
+          (a2.x !== undefined ? a2.x : (a2.xyz ? a2.xyz[0] : 0)) - com.x,
+          (a2.y !== undefined ? a2.y : (a2.xyz ? a2.xyz[1] : 0)) - com.y,
+          (a2.z !== undefined ? a2.z : (a2.xyz ? a2.xyz[2] : 0)) - com.z
+        );
         const dist = p1.distanceTo(p2);
         const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
 
@@ -3497,17 +3523,30 @@ def generate_dimer_html(dimer_result: Any, title: Optional[str] = None) -> str:
         }});
         const mesh = new THREE.Mesh(sphereGeo, mat);
         mesh.scale.setScalar(a.radius);
-        mesh.position.set(a.xyz[0], a.xyz[1], a.xyz[2]);
+        const ax = (a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0));
+        const ay = (a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0));
+        const az = (a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0));
+        mesh.position.set(ax, ay, az);
         molGroup.add(mesh);
         atomMeshes.push(mesh);
       }});
 
       if (frame.bonds) {{
         frame.bonds.forEach((pair) => {{
-          const p1 = frame.atoms[pair[0]].xyz;
-          const p2 = frame.atoms[pair[1]].xyz;
-          const v1 = new THREE.Vector3(p1[0], p1[1], p1[2]);
-          const v2 = new THREE.Vector3(p2[0], p2[1], p2[2]);
+          const idx1 = (pair.atom1 !== undefined ? pair.atom1 : pair[0]);
+          const idx2 = (pair.atom2 !== undefined ? pair.atom2 : pair[1]);
+          const a1 = frame.atoms[idx1];
+          const a2 = frame.atoms[idx2];
+          const v1 = new THREE.Vector3(
+            (a1.x !== undefined ? a1.x : (a1.xyz ? a1.xyz[0] : 0)),
+            (a1.y !== undefined ? a1.y : (a1.xyz ? a1.xyz[1] : 0)),
+            (a1.z !== undefined ? a1.z : (a1.xyz ? a1.xyz[2] : 0))
+          );
+          const v2 = new THREE.Vector3(
+            (a2.x !== undefined ? a2.x : (a2.xyz ? a2.xyz[0] : 0)),
+            (a2.y !== undefined ? a2.y : (a2.xyz ? a2.xyz[1] : 0)),
+            (a2.z !== undefined ? a2.z : (a2.xyz ? a2.xyz[2] : 0))
+          );
           const dist = v1.distanceTo(v2);
           const cylGeo = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
           const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
@@ -3964,15 +4003,28 @@ def generate_eom_html(eom_result: Any, title: Optional[str] = None) -> str:
       }});
       const mesh = new THREE.Mesh(sphereGeo, mat);
       mesh.scale.setScalar(a.radius);
-      mesh.position.set(a.xyz[0], a.xyz[1], a.xyz[2]);
+      const ax = (a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0));
+      const ay = (a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0));
+      const az = (a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0));
+      mesh.position.set(ax, ay, az);
       molGroup.add(mesh);
     }});
 
     bonds.forEach((pair) => {{
-      const p1 = atoms[pair[0]].xyz;
-      const p2 = atoms[pair[1]].xyz;
-      const v1 = new THREE.Vector3(p1[0], p1[1], p1[2]);
-      const v2 = new THREE.Vector3(p2[0], p2[1], p2[2]);
+      const idx1 = (pair.atom1 !== undefined ? pair.atom1 : pair[0]);
+      const idx2 = (pair.atom2 !== undefined ? pair.atom2 : pair[1]);
+      const a1 = atoms[idx1];
+      const a2 = atoms[idx2];
+      const v1 = new THREE.Vector3(
+        (a1.x !== undefined ? a1.x : (a1.xyz ? a1.xyz[0] : 0)),
+        (a1.y !== undefined ? a1.y : (a1.xyz ? a1.xyz[1] : 0)),
+        (a1.z !== undefined ? a1.z : (a1.xyz ? a1.xyz[2] : 0))
+      );
+      const v2 = new THREE.Vector3(
+        (a2.x !== undefined ? a2.x : (a2.xyz ? a2.xyz[0] : 0)),
+        (a2.y !== undefined ? a2.y : (a2.xyz ? a2.xyz[1] : 0)),
+        (a2.z !== undefined ? a2.z : (a2.xyz ? a2.xyz[2] : 0))
+      );
       const dist = v1.distanceTo(v2);
       const cylGeo = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
       const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});

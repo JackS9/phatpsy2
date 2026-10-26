@@ -531,6 +531,9 @@ def compute_irc(
                 converged = True
                 break
 
+        if g_norm <= grad_tol:
+            converged = True
+
         return branch_points, converged
 
     # 4. Execute Branches
