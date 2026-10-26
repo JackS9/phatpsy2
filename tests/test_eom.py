@@ -218,7 +218,6 @@ def test_co_permanent_dipole_and_origin_invariance():
     # Centered at origin along z
     deck_co = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
     deck_co.control.pk_scale = 1.0
-    deck_co.control.use_diis = True
     eom_co = compute_eom(deck_co, driver=driver, quiet=True)
 
     # 1. Permanent dipole and axial symmetry
@@ -233,7 +232,6 @@ def test_co_permanent_dipole_and_origin_invariance():
     shift = np.array([1.5, -2.2, 3.7])
     deck_shifted = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
     deck_shifted.control.pk_scale = 1.0
-    deck_shifted.control.use_diis = True
     for atom in deck_shifted.geometry:
         atom.xyz = [atom.xyz[i] + shift[i] for i in range(3)]
 
@@ -241,9 +239,9 @@ def test_co_permanent_dipole_and_origin_invariance():
     dip_shifted = eom_shifted.dipole
 
     # Magnitude and Cartesian vector components must match within 3D grid voxel quadrature precision
-    assert math.isclose(dip.magnitude_debye, dip_shifted.magnitude_debye, abs_tol=0.01)
+    assert math.isclose(dip.magnitude_debye, dip_shifted.magnitude_debye, abs_tol=0.001)
     for c1, c2 in zip(dip.total_debye, dip_shifted.total_debye):
-        assert math.isclose(c1, c2, abs_tol=0.01)
+        assert math.isclose(c1, c2, abs_tol=0.001)
 
 
 def test_water_nonlinear_dipole_and_polarizability():

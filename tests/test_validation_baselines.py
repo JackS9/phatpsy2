@@ -80,7 +80,6 @@ def test_co_frozen_baseline():
     r_exp = ref["experimental_geometry"]["r_expt_bohr"]
     deck = build_diatomic("C", "O", r_exp, basis="SZ", spin_flip=True, units="bohr")
     deck.control.pk_scale = 1.0
-    deck.control.use_diis = True
     res = driver.run_deck(deck)
     eom = compute_eom(deck, driver=driver, quiet=True)
 

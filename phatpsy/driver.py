@@ -203,7 +203,6 @@ class PhatpsyDriver:
                         if np.sum(acc_charges) > 0:
                             acc_charges = acc_charges * (np.sum(curr_charges) / np.sum(acc_charges))
                         chg[1, :] = acc_charges
-                        chg[2, :] = chg[0, :] - acc_charges
                         state.set_charge(chg)
                     prev_charges = curr_charges
 
