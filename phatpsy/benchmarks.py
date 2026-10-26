@@ -58,7 +58,7 @@ def evaluate_n2_benchmark(
 
     # Compute vibration at experimental geometry
     vib = compute_vibrations(deck, driver=d, step_size=0.005, method="central", quiet=True)
-    freqs = [m.frequency_cm for m in vib.modes if m.frequency_cm > 10.0]
+    freqs = [abs(m.frequency_cm) for m in vib.modes if abs(m.frequency_cm) > 10.0]
     calc_freq = freqs[-1] if freqs else 0.0
 
     delta_freq = calc_freq - 2358.57
@@ -95,7 +95,7 @@ def evaluate_co_benchmark(
     calc_dipole = float(eom.dipole.magnitude_debye)
 
     vib = compute_vibrations(deck, driver=d, step_size=0.005, method="central", quiet=True)
-    freqs = [m.frequency_cm for m in vib.modes if m.frequency_cm > 10.0]
+    freqs = [abs(m.frequency_cm) for m in vib.modes if abs(m.frequency_cm) > 10.0]
     calc_freq = freqs[-1] if freqs else 0.0
 
     return {

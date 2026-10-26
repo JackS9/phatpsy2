@@ -44,13 +44,27 @@ The fitting must reproduce both short-range nuclear physics and long-range elect
 
 ---
 
-## 3. Modernized Fitting Implementation via LAPACK
+## 3. Modernized Fitting Implementation via LAPACK SVD (`DGELSD`)
 
 In the legacy code (`src/analys.f`), the constrained linear system was solved using custom matrix inversion and heuristic pivots.
 
-In **PHATPSY 2.0** ([`src/phatpsy_analys_mod.f90`](../../src/phatpsy_analys_mod.f90)), the fitting is solved as an overdetermined linear least-squares problem with equality/penalty constraints using standard LAPACK:
+In **PHATPSY 2.0** ([`src/analys.f90`](../../src/analys.f90)), the fitting is solved as a rank-deficient or ill-conditioned linear least-squares problem using standard LAPACK singular value decomposition (SVD):
 ```fortran
-call dgels('N', m_rows, n_cols, 1, fit_matrix, lda, rhs_vector, ldb, work, lwork, info)
+call DGELSD(nfit, nfit, 1, a_full, nfit, rhs, nfit, s_svd, 1.0d-10, &
+            rank, work, lwork, iwork, info)
 ```
-- **Stability:** QR factorization with Householder reflections avoids the numerical instability of forming the normal equations ($A^T A$).
+- **Stability:** Minimum-norm SVD solution avoids the severe numerical instability of near-singular overlap matrices for diffuse STO bases.
+- **Analytical Cusp Constraints:** Enforces exact nuclear cusp ($Z_p(0) = Z - N_{\text{core}}$) and derivative slope ($(dZ_p/dr)_{r=0} = -2 Z (Z - N_{\text{core}})$).
+- **Dynamic STO Exponent Optimization:** Screening exponents $\{\zeta_k^B\}$ are refined via gradient optimization, retiring fixed tables.
 - **In-Memory Storage:** The fitting grid and matrices are allocated dynamically in heap memory (`mol_ws`), removing all scratch disk files.
+
+---
+
+## 4. Spherically Symmetric DFT Exchange Kernels
+
+In addition to Hartree-Fock exchange fitting, PHATPSY 2.0 incorporates modern density functional exchange kernels in [`src/exchange_dft.f90`](../../src/exchange_dft.f90) and [`phatpsy/exchange_dft.py`](../../phatpsy/exchange_dft.py):
+- **Local Slater Exchange:** $V_X^{\text{LDA}}(\rho) = -\alpha \frac{3}{2} \left(\frac{3}{\pi} \rho(r)\right)^{1/3}$
+- **Becke 1988 (B88) Gradient Correction:** $F_x^{\text{B88}}(s) = 1 + \frac{\beta s^2}{1 + 6\beta s \sinh^{-1}(s)}$
+- **Perdew-Burke-Ernzerhof (PBE) GGA:** $F_x^{\text{PBE}}(s) = 1 + \kappa - \frac{\kappa}{1 + \mu s^2 / \kappa}$
+
+Radial integrals over STO basis functions are evaluated using Gauss-Legendre quadrature ($N=64$ nodes on $[0, \infty)$) with $< 10^{-11}\text{ Ha}$ analytical precision. Exposed via `ControlConfig(exchange_kernel="slater"|"becke88"|"pbe")`.

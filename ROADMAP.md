@@ -6,12 +6,24 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ## 1. Scientific Methodology & Physics Kernels
 
-- [ ] **Improve TF Potential fitting**
-  - Refine non-linear and linear least-squares parameterization of atomic Thomas-Fermi-Dirac model potentials ($Z_p(r)$, Coulomb, and exchange potentials).
-- [ ] **Improve handling of energy-dependence in PK potential**
-  - Advance the approximation for energy-dependent Phillips-Kleinman pseudopotentials used for atom-atom partitioning and interatomic Pauli exclusion.
-- [ ] **Improve charge equilibration after EWMO**
-  - Develop robust Mulliken/Lowdin population analysis and iterative charge-equilibration schemes following Extended Wolfsberg-Helmholtz Molecular Orbital initializations.
+- [x] **Improve TF Potential fitting [COMPLETED]**
+  - **LAPACK Constrained Cusp Fitting (`DGELSD`):** Upgraded model potential parameterization in [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90) from heuristic matrix inversion to singular value decomposition (SVD) with analytical nuclear cusp conditions ($Z_p(0) = Z - N_{\text{core}}$, $(dZ_p/dr)_{r=0} = -2 Z (Z - N_{\text{core}})$), Poisson charge conservation, and valence matching.
+  - **Dynamic STO Exponent Optimization:** Self-consistent gradient optimization of screening radial exponents $\{\zeta_k\}$, eliminating fixed empirical table lookups.
+  - **Modern DFT Exchange Kernels:** Spherically symmetric radial quadrature evaluation of local Slater exchange ($\rho^{1/3}$), Becke88 gradient-corrected exchange, and Perdew-Burke-Ernzerhof (PBE) GGA exchange in [`src/exchange_dft.f90`](file:///Users/jacksmith/phatpsy2/src/exchange_dft.f90) and [`phatpsy/exchange_dft.py`](file:///Users/jacksmith/phatpsy2/phatpsy/exchange_dft.py) hooked into atomic SCF via `ControlConfig(exchange_kernel=...)`.
+- [x] **Improve handling of energy-dependence in PK potential [COMPLETED]**
+  - **Theoretical Lock `PKSCAL = 1.0`:** Eliminated arbitrary empirical scaling knobs ($0.40$ / $0.80$).
+  - **Energy-Dependent Phillips-Kleinman Operator $V_{\text{PK}}(E)$:** Implemented dynamic valence eigenvalue projection in [`src/scf.f90`](file:///Users/jacksmith/phatpsy2/src/scf.f90) using reference valence level ($E_{\text{ref}} \approx -0.22\text{ Ha}$), stabilizing 12-coordinated bulk metals ($\text{Ni}_{13}$ FCC cluster) without core over-repulsion.
+  - **Symmetrized Core Projection:** Reformulated non-local projection into symmetric matrix form preserving exact Hermiticity and physical virial ratios ($-V/T \approx 2.0$).
+- [x] **Improve charge equilibration after EWMO [COMPLETED]**
+  - **Symmetrically Orthogonalized Löwdin Population Analysis:** Implemented `lowdin_pop` in [`src/density.f90`](file:///Users/jacksmith/phatpsy2/src/density.f90) ($\mathbf{P}_{\text{Lowdin}} = \mathbf{S}^{1/2}\mathbf{D}\mathbf{S}^{1/2}$), guaranteeing non-negative gross populations and strictly physical electron counts.
+  - **Pulay DIIS Charge Acceleration:** Added built-in Direct Inversion in the Iterative Subspace in [`phatpsy/driver.py`](file:///Users/jacksmith/phatpsy2/phatpsy/driver.py) (`use_diis=True`) with total charge renormalization, suppressing charge-sloshing oscillations in polar heteronuclear systems ($\text{CO}$).
+  - **Global Fermi Level ($\mu$) Equilibration:** Implemented `solve_fermi_level` in [`src/ewmo.f90`](file:///Users/jacksmith/phatpsy2/src/ewmo.f90) via hybrid Newton-Raphson/bisection under Fermi-Dirac distribution, guaranteeing exact particle conservation ($< 10^{-11}$) across degenerate d-bands and metallic clusters.
+- [x] **Subsystem Energy Partitioning & Granular Diagnostics [COMPLETED]**
+  - **ONIOM / DFT-in-DFT Physical Partitioning:** Implemented rigorous subsystem energy decomposition in [`phatpsy/subsystem.py`](file:///Users/jacksmith/phatpsy2/phatpsy/subsystem.py): $E_{\text{total}} = E_{\text{cluster}} + E_{\text{env}}^{\text{bulk}} + E_{\text{embed}}$ with frozen bulk references ($-1502.565\text{ Ha/atom}$ for $\text{Ni}$), Clementi & Roetti / Thakkar isolated atomic references, and exact energy conservation ($< 10^{-12}\text{ Ha}$).
+  - **Granular Per-Cycle Diagnostics:** Real-time tracking of Phillips-Kleinman penalty energy ($dE_{\text{PK}}$), Coulomb fitting RMS, exchange fitting RMS, charge transfer ($\Delta Q$), and virial theorem in [`src/state.f90`](file:///Users/jacksmith/phatpsy2/src/state.f90) and `CalculationState.cycle_history`.
+- [x] **Benchmark Validation & Parameter Retirement [COMPLETED]**
+  - **Layer B Experimental Benchmarks:** Built validation suite in [`phatpsy/benchmarks.py`](file:///Users/jacksmith/phatpsy2/phatpsy/benchmarks.py) evaluating error vectors against NIST CCCBDB, CRC Handbook, Herzberg, and Somorjai & Li across bond lengths, frequencies, dipoles, bulk stability, and surface chemisorption ($E_{\text{ads}}$).
+  - **Retirement of Legacy Empirical Knobs:** Replaced manual damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) with self-consistent first-principles defaults via `ControlConfig.first_principles()`.
 
 ---
 

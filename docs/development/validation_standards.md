@@ -68,7 +68,18 @@ Documented in [`data/validation_baselines/experimental_benchmarks.json`](../../d
 
 ---
 
-## 5. Numerical Tolerances & Update Rule
+---
+
+## 5. Benchmark Validation Engine & Error Vector Evaluation
+
+Phase 5 establishes an automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](../../phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](../../tests/test_benchmarks.py):
+- Compares calculated values under `ControlConfig.first_principles(pk_scale=1.0)` against external Layer B literature (NIST CCCBDB, CRC Handbook, Somorjai & Li).
+- Reports quantitative error vectors on bond lengths ($\Delta R_e$), harmonic vibrational frequencies ($\Delta \omega_e$), permanent dipole moments ($\Delta \mu$), virial theorem compliance ($-V/T \to 2.0$), and chemisorption energy ($E_{\text{ads}}$).
+- Formally retires empirical damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) in favor of self-consistent Pulay DIIS, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization.
+
+---
+
+## 6. Numerical Tolerances & Update Rule
 
 | Metric | Tolerance | Rationale |
 | :--- | :--- | :--- |
@@ -87,7 +98,7 @@ All reference files in `data/validation_baselines/` are **frozen**. In accordanc
 
 ---
 
-## 6. Test Execution Instructions
+## 7. Test Execution Instructions
 
 Run the full automated test suite using pytest:
 ```bash
@@ -96,4 +107,10 @@ Run the full automated test suite using pytest:
 
 # Run specifically the frozen validation baseline tests
 PYTHONPATH=. .venv/bin/pytest tests/test_validation_baselines.py -v
+
+# Run the Layer B benchmark validation suite
+PYTHONPATH=. .venv/bin/pytest tests/test_benchmarks.py -v
+
+# Generate benchmark summary table directly
+PYTHONPATH=. .venv/bin/python -m phatpsy.benchmarks
 ```

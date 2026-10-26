@@ -128,3 +128,50 @@ def my_damping_hook(cycle, delta_e, current_damp):
 
 res = driver.run_deck(deck, custom_damping_hook=my_damping_hook)
 ```
+
+---
+
+## First-Principles Modern Execution & Subsystem Decomposition
+
+### 1. First-Principles Control (`ControlConfig.first_principles`)
+
+To run under theoretical unit scaling (`PKSCAL = 1.0`) with Pulay DIIS charge acceleration, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization (retiring empirical manual damping knobs):
+
+```python
+from phatpsy.schema import ControlConfig
+
+# Standard first-principles configuration
+deck.control = ControlConfig.first_principles(
+    pk_scale=1.0,
+    use_diis=True,
+    use_constrained_fit=True,
+    use_dynamic_exponents=True,
+    exchange_kernel="pbe",  # "hartree-fock" | "slater" | "becke88" | "pbe"
+)
+```
+
+### 2. Granular Per-Cycle Diagnostics
+
+Each cycle's physical metrics are automatically recorded in `res.cycle_history`:
+
+```python
+for cycle_info in res.cycle_history:
+    print(
+        f"Cycle {cycle_info['cycle']}: E={cycle_info['total_energy']:.6f} Ha, "
+        f"-V/T={cycle_info['virial_ratio']:.4f}, PK_penalty={cycle_info['pk_penalty']:.4e}, "
+        f"RMS_Coulomb={cycle_info['rms_coulomb']:.4e}, Charge_transfer={cycle_info['charge_transfer']:.4e}"
+    )
+```
+
+### 3. Subsystem Energy Decomposition (ONIOM Parity)
+
+For chemisorption surfaces, metal slabs, and complex active-site clusters:
+
+```python
+decomp = res.subsystem_decomposition
+print(f"Total Energy:       {decomp.energy_total:.6f} Ha")
+print(f"Active Cluster:     {decomp.energy_cluster:.6f} Ha")
+print(f"Bulk Environment:   {decomp.energy_environment:.6f} Ha")
+print(f"Embedding Energy:   {decomp.energy_embedding:.6f} Ha")
+print(f"Excess Energy:      {decomp.energy_excess:.6f} Ha")
+```
