@@ -1,0 +1,28 @@
+{
+  "system": "CO_Ni9_100",
+  "description": "Top-site CO chemisorption on 9-atom Ni(100) cluster: adsorption energy and embedding",
+  "geometry": {
+    "r_co_bohr": 2.13,
+    "r_nic_bohr": 3.59,
+    "adsorption_site": "top"
+  },
+  "total_energy_hartree": -13587.749181148225,
+  "virial_ratio": 1.9972680144516908,
+  "converged": true,
+  "scf_cycles": 25,
+  "chemisorption_energetics": {
+    "co_isolated_energy_hartree": -100.87485447663961,
+    "ni9_substrate_energy_hartree": -13528.795372026698,
+    "co_ni9_complex_energy_hartree": -13587.749181148225,
+    "adsorption_energy_hartree": 41.92104535511238,
+    "adsorption_energy_kcal_mol": 26305.833249741216
+  },
+  "oniom_embedding_partitioning": {
+    "adsorbate_active": [
+      "C1",
+      "O1"
+    ],
+    "surface_cluster": "Ni9 (1 top + 4 layer-1 + 4 layer-2)",
+    "substrate_frozen_layers_present": false
+  }
+}

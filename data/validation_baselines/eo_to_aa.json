@@ -1,0 +1,19 @@
+{
+  "system": "EO_to_AA",
+  "description": "Polyatomic 7-atom 24-electron isomerization via CI-NEB",
+  "reactant_eo_energy_hartree": -151.91693477594313,
+  "product_aa_energy_hartree": -154.3504235817732,
+  "reaction_energy_kcal_mol": -1527.036127057628,
+  "climbing_image_enabled": true,
+  "transition_state_index": 2,
+  "transition_state_energy_hartree": -146.08351708660084,
+  "barrier_forward_kcal_mol": 3660.5248658614805,
+  "barrier_reverse_kcal_mol": 3706.9910676297773,
+  "neb_profile_energies_hartree": [
+    -151.91693477594313,
+    -152.04292667055984,
+    -146.08351708660084,
+    -149.1544247337028,
+    -151.99098338189023
+  ]
+}

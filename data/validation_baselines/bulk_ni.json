@@ -1,0 +1,22 @@
+{
+  "system": "Bulk_Ni13",
+  "description": "Self-consistent bulk Ni atom in 1st coordination shell (Z=12 nearest neighbors) with local cubic symmetry",
+  "coordination_number": 12,
+  "nearest_neighbor_distance_bohr": 4.71,
+  "total_energy_hartree": -19539.106088787838,
+  "virial_ratio": 2.0006603093369226,
+  "converged": true,
+  "scf_cycles": 25,
+  "central_atom": {
+    "id": "Ni1",
+    "net_charge": -0.0001,
+    "local_spin_sz": 1.0,
+    "starting_4s_eigenvalue_hartree": -0.223
+  },
+  "default_controls": {
+    "charge_damp": 0.5,
+    "potential_damp": 0.5,
+    "pk_scale": 0.0,
+    "convergence": 0.0001
+  }
+}

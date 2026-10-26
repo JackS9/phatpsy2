@@ -1,0 +1,34 @@
+{
+  "manifest_version": "1.0.0",
+  "title": "PHATPSY 2.0 Pre-\u00a71 Frozen Validation Baselines",
+  "description": "Frozen reference outputs establishing baseline accuracy prior to Section 1 methodology changes (TF potential fitting, energy-dependent PK pseudopotential, EWMO charge equilibration).",
+  "frozen_at_utc": "2026-10-26T02:53:57.040341+00:00",
+  "git_commit": "986ffa40ba8590754d517d1533dc0ff7c902c432",
+  "methodology_version": "PHATPSY 2.0 Core (Fortran 2018 / LAPACK, Clean Standard Defaults)",
+  "default_model_parameters": {
+    "charge_damp": 0.5,
+    "potential_damp": 0.5,
+    "pk_scale": 0.0,
+    "convergence": 0.0001,
+    "virial_tolerance": 0.05
+  },
+  "tolerances": {
+    "total_energy_hartree": 0.001,
+    "virial_ratio": 0.05,
+    "harmonic_frequency_cm": 10.0,
+    "dipole_moment_debye": 0.05,
+    "polarizability_bohr3": 0.1,
+    "barrier_kcal_mol": 1.0
+  },
+  "systems": [
+    "n2.json",
+    "co.json",
+    "h2o.json",
+    "eo_to_aa.json",
+    "bulk_ni.json",
+    "ni_slab_3layer.json",
+    "co_ni9.json",
+    "experimental_benchmarks.json"
+  ],
+  "update_rule": "These baseline outputs are frozen. Any modification requires an explicit numerical-deviation report documenting the scientific rationale and citing the relevant dissertation section, per AGENTS.md \u00a73 Rule 2."
+}

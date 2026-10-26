@@ -1,0 +1,23 @@
+{
+  "system": "CO",
+  "description": "Heteronuclear polar benchmark: permanent dipole, polarizability, and harmonic frequency",
+  "internuclear_distance_bohr": 2.132,
+  "total_energy_hartree": -100.87485447663961,
+  "virial_ratio": 2.0086435516963035,
+  "converged": true,
+  "scf_cycles": 100,
+  "permanent_dipole_debye": 2.483876950122049,
+  "dipole_vector_debye": [
+    -8.359438284052715e-15,
+    -3.8129056383502986e-16,
+    -2.483876950122049
+  ],
+  "harmonic_frequency_cm": -7682.385496539106,
+  "polarizability_tensor_diag": [
+    12.450803616347038,
+    14.142673483296647,
+    0.8726190158622212
+  ],
+  "mean_polarizability_bohr3": 9.155365371835302,
+  "irc_mass_weighting_ratio": 1.154135595777642
+}

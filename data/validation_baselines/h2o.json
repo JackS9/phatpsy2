@@ -1,0 +1,30 @@
+{
+  "system": "H2O",
+  "description": "Non-linear C2v triatomic: 3 Eckart vibrational modes, dipole, and anisotropic polarizability",
+  "geometry": {
+    "r_oh_bohr": 1.81,
+    "angle_hoh_deg": 104.5
+  },
+  "total_energy_hartree": -76.88371846256132,
+  "virial_ratio": 2.004115360998867,
+  "converged": true,
+  "scf_cycles": 100,
+  "dipole_moment_debye": 4.922985929554681,
+  "dipole_vector_debye": [
+    4.500583586543778e-16,
+    -1.3545144899040907e-14,
+    -4.922985929554681
+  ],
+  "vibrational_frequencies_cm": [
+    -9395.889213532155,
+    -6090.1646966253575,
+    3012.433999005748
+  ],
+  "num_eckart_projected_zero_modes": 6,
+  "thermochemistry": {
+    "zpve_kcal_mol": 4.306490601270359,
+    "entropy_rotational_cal_mol_k": 7.261652880241529,
+    "entropy_total_cal_mol_k": 41.87067493398038,
+    "gibbs_free_energy_g_t_hartree": -76.89344508801199
+  }
+}

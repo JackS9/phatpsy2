@@ -1,0 +1,22 @@
+{
+  "system": "N2",
+  "description": "Homonuclear anchor: ground-state energy, vibrations, and EOM properties",
+  "internuclear_distance_bohr": 2.068,
+  "total_energy_hartree": -109.56558480079536,
+  "virial_ratio": 2.012380275081926,
+  "converged": true,
+  "scf_cycles": 100,
+  "harmonic_frequency_cm": -1726.3013706136342,
+  "thermochemistry": {
+    "zpve_kcal_mol": 0.0,
+    "enthalpy_h_t_hartree": -109.56228015375822,
+    "gibbs_free_energy_g_t_hartree": -109.58401598887164,
+    "entropy_cal_mol_k": 45.74691416726283
+  },
+  "eom_properties": {
+    "first_excitation_ev": 45.37710701647004,
+    "first_oscillator_strength": 0.41723400418041023,
+    "mean_polarizability_bohr3": 10.632543948641583,
+    "dipole_moment_debye": 2.0282957529356105e-14
+  }
+}

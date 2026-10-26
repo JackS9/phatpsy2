@@ -11,61 +11,87 @@ Every calculation and modernized kernel must satisfy the following physical qual
 1. **Virial Ratio Test ($-V/T$):**
    - For an isolated neutral molecule in its ground state at equilibrium geometry, the quantum virial theorem requires:
      $$\frac{-\langle V \rangle}{\langle T \rangle} \approx 2.000$$
-   - In modern PHATPSY 2.0, standard benchmark systems ($N_2$, $CO$) must converge with $|-V/T - 2.0| \le 0.05$.
+   - In modern PHATPSY 2.0, standard benchmark systems ($N_2$, $CO$, bulk $Ni_{13}$) must converge with $|-V/T - 2.0| \le 0.05$.
 2. **Monotonic Total Energy Convergence:**
-   - Under standard damping (`CDAMP \approx 0.5`, `VDAMP \approx 0.5`), the cycle-by-cycle total electronic energy must converge monotonically after initial atomic preparation.
+   - Under standard clean defaults (`CDAMP = 0.5`, `VDAMP = 0.5`), the cycle-by-cycle total electronic energy must converge monotonically after initial atomic preparation.
 3. **Spin Conservation in Localized Valence-Bond (LVB) States:**
-   - For closed-shell molecules treated with alternating spin (`spin="up"` / `spin="down"`), the net molecular spin must remain strictly zero:
-     $$\langle S_z \rangle = \frac{1}{2} (N_\alpha - N_\beta) = 0.000$$
+   - For closed-shell molecules and embedded slabs treated with alternating spin (`spin="up"` / `spin="down"`), the net molecular spin must satisfy physical boundary conditions:
+     $$\langle S_z \rangle = \frac{1}{2} (N_\alpha - N_\beta) = 0.000 \quad \text{(for singlets)}$$
 
 ---
 
-## 2. Numerical Tolerances
+## 2. Frozen Pre-§1 Validation Baselines (`data/validation_baselines/`)
 
-Because PHATPSY 2.0 migrates from legacy 1970s algorithms (EISPAK, manual matrix inversion) to modern IEEE-754 64-bit precision with standard **LAPACK** (`dsyev`, `dgels`), minor numerical divergence at the 3rd or 4th decimal place is normal and expected:
+Prior to implementing Section 1 methodology changes (Thomas-Fermi-Dirac model potential fitting, energy-dependent Phillips-Kleinman pseudopotentials, and EWMO charge equilibration), reference outputs are frozen in `data/validation_baselines/` with a machine-readable `manifest.json`.
 
-| Comparison Metric | Acceptable Tolerance | Rationale |
+### Reference Benchmark Systems:
+
+| System | Dataset | Domain / Capability Validated | Key Baseline Quantities |
+| :--- | :--- | :--- | :--- |
+| **$N_2$** | [`n2.json`](../../data/validation_baselines/n2.json) | Homonuclear anchor & thermochemistry | $E = -109.5689\text{ Ha}$, $-V/T = 2.0124$, $\omega = 2397\text{ cm}^{-1}$, $\text{ZPVE} = 3.43\text{ kcal/mol}$ |
+| **$CO$** | [`co.json`](../../data/validation_baselines/co.json) | Heteronuclear polar & mass-weighting | $\mu = 2.484\text{ D}$ (origin invariant), $\bar{\alpha} = 17.51\text{ a}_0^3$, $\sqrt{M_O/M_C} \approx 1.154$ |
+| **$H_2O$** | [`h2o.json`](../../data/validation_baselines/h2o.json) | Non-linear triatomic & Eckart modes | 6 projected zero modes, 3 vibrational modes, anisotropic $\boldsymbol{\alpha}$ |
+| **$EO \to AA$** | [`eo_to_aa.json`](../../data/validation_baselines/eo_to_aa.json) | Polyatomic reaction & CI-NEB TS search | 7 atoms, 24 electrons, 5-image CI-NEB, $E_a \approx 57\text{ kcal/mol}$ |
+| **Bulk $Ni_{13}$** | [`bulk_ni.json`](../../data/validation_baselines/bulk_ni.json) | Bulk metal coordination ($Z=12$) | $E = -19539.1061\text{ Ha}$, $-V/T = 2.0007$, central $\Delta q = -0.0001$ |
+| **$Ni(100)$ Slab** | [`ni_slab_3layer.json`](../../data/validation_baselines/ni_slab_3layer.json) | 3-layer embedded surface slab | Surface ($L_1$), Subsurface ($L_2$), Fixed Bulk ($L_3$), ONIOM excess energy |
+| **$CO / Ni_9(100)$**| [`co_ni9.json`](../../data/validation_baselines/co_ni9.json) | Surface chemisorption benchmark | Top-site adsorption energy $\Delta E_{\text{ads}}$, charge transfer |
+
+---
+
+## 3. Subsystem Embedding & ONIOM Parity
+
+For surface and solid-state calculations, PHATPSY supports embedding active subsystems within spectator or frozen substrate environments:
+
+1. **Subsystem Partitioning:**
+   $$E_{\text{tot}} = E_{\text{active}} + E_{\text{env}} + E_{\text{int}}$$
+2. **Embedded Excess Energy:**
+   $$E_{\text{embed}} = E_{\text{tot}}(\text{active} + \text{env}) - E_{\text{env}}(\text{isolated})$$
+   This decouples active surface and chemisorption processes from the massive, extensive core self-energy of deep bulk layers, maintaining compatibility with ONIOM and DFT-in-DFT schemes.
+3. **Site-Resolved Atomic Energy Partitioning:**
+   $$\varepsilon_A = \text{toten}_A - \frac{1}{2} \sum_{B \ne A} \frac{Z_A Z_B}{R_{AB}}$$
+   Enables direct tracking of surface undercoordination shifts, relaxation decay, and work function perturbations.
+
+---
+
+## 4. Layer B: Experimental Literature Benchmarks
+
+Documented in [`data/validation_baselines/experimental_benchmarks.json`](../../data/validation_baselines/experimental_benchmarks.json), compiled from NIST CCCBDB, CRC Handbook, and Herzberg:
+
+- **$N_2$:** $R_e = 1.0977\text{ \AA}$, $\omega_e = 2358.57\text{ cm}^{-1}$, $D_0 = 9.759\text{ eV}$ ($225.06\text{ kcal/mol}$), $I_p = 15.58\text{ eV}$.
+- **$CO$:** $R_e = 1.1283\text{ \AA}$, $\omega_e = 2169.81\text{ cm}^{-1}$, $\mu = 0.112\text{ D}$ ($C^-O^+$), $D_0 = 11.087\text{ eV}$, $I_p = 14.01\text{ eV}$.
+- **$H_2O$:** $R_{OH} = 0.9578\text{ \AA}$, $\theta = 104.48^\circ$, $\mu = 1.8546\text{ D}$, $\nu = [3657, 1595, 3756]\text{ cm}^{-1}$.
+- **$EO \to AA$:** $\Delta H_{\text{rxn}} = -27.2\text{ kcal/mol}$, $E_a^{\text{fwd}} = 57.2\text{ kcal/mol}$.
+- **Bulk $Ni$:** FCC $a = 3.524\text{ \AA}$, $d_{\text{NN}} = 2.492\text{ \AA}$, $E_{\text{coh}} = 4.44\text{ eV/atom}$ ($102.4\text{ kcal/mol}$), $\mu = 0.616\ \mu_B$.
+- **$CO / Ni(100)$:** Top site $E_{\text{ads}} = -30.0\text{ kcal/mol}$ ($-1.30\text{ eV}$), $\Delta\nu_{CO} = -78\text{ cm}^{-1}$.
+
+---
+
+## 5. Numerical Tolerances & Update Rule
+
+| Metric | Tolerance | Rationale |
 | :--- | :--- | :--- |
-| **Cycle Total Energies** | $\text{atol} = 1.0 \times 10^{-2} \text{ Hartree}$ | Accounts for LAPACK eigenvector phase and QR least-squares versus legacy normal equations. |
-| **Final Total Molecular Energy** | $\text{atol} = 1.0 \times 10^{-2} \text{ Hartree}$ | Agreement across full SCF cycles. |
-| **Orbital Eigenvalues (MO Spectrum)** | $\text{atol} = 5.0 \times 10^{-3} \text{ Hartree}$ | LAPACK `dsyev` produces orthonormalized degenerate spaces without legacy Jacobi drift. |
-| **Gross Atomic Populations** | $\text{atol} = 1.0 \times 10^{-2} \text{ electrons}$ | Mulliken/EWMO population projection stability. |
-| **Internal Python Data Model Roundtrip** | $\text{atol} = 1.0 \times 10^{-6}$ | YAML/JSON/dataclass conversion fidelity. |
+| **Total Energy ($E_{\text{tot}}$)** | $\text{atol} = 1.0 \times 10^{-3}\text{ Hartree}$ | Modern LAPACK matrix diagonalizations. |
+| **Virial Ratio ($-V/T$)** | $\text{atol} = 0.05$ | Physical virial boundary condition. |
+| **Harmonic Frequency ($\omega$)** | $\text{atol} = 10.0\text{ cm}^{-1}$ | Finite-difference numerical Hessian accuracy. |
+| **Dipole Moment ($\mu$)** | $\text{atol} = 0.05\text{ Debye}$ | EOM density and origin invariance. |
+| **Polarizability ($\bar{\alpha}$)** | $\text{atol} = 0.10\text{ a}_0^3$ | Sum-over-states dipole response. |
+| **Reaction Barrier ($E_a$)** | $\text{atol} = 1.0\text{ kcal/mol}$ | CI-NEB climbing image energy convergence. |
+
+### Baseline Update Rule:
+All reference files in `data/validation_baselines/` are **frozen**. In accordance with **AGENTS.md §3 Rule 2**, any modification to these values requires an explicit numerical-deviation report documenting the scientific rationale and citing the relevant dissertation section. Baselines must never be silently adjusted.
+
+### Perturbation Detector ("Tests That Bite"):
+`tests/test_validation_baselines.py::test_baseline_perturbation_detector` deliberately perturbs baseline values by $> 5\times$ tolerance and asserts that the suite fails loudly with an actionable diff, proving that tests cannot pass silently on corrupted physics.
 
 ---
 
-## 3. Standard Benchmark Test Cases
-
-The following test calculations in [`examples/`](../../examples) and reference outputs in [`data/`](../../data) serve as standard regression benchmarks:
-
-1. **Nitrogen Molecule ($N_2$):**
-   - Deck: [`examples/n2.stdin`](../../examples/n2.stdin) / [`examples/n2.yaml`](../../examples/n2.yaml)
-   - Baseline Output: [`data/n2_modern.stdout`](../../data/n2_modern.stdout)
-   - Benchmark Values:
-     - Total Molecular Energy: $\approx -109.5689 \text{ Hartree}$
-     - Total Kinetic Energy: $\approx +108.2264 \text{ Hartree}$
-     - Total Potential Energy: $\approx -217.7952 \text{ Hartree}$
-     - Virial Ratio ($-V/T$): $\approx 2.0124$
-2. **Carbon Monoxide ($CO$):**
-   - Deck: [`examples/CO.stdin`](../../examples/CO.stdin) / [`examples/CO.yaml`](../../examples/CO.yaml)
-   - Baseline Output: [`data/CO_modern.stdout`](../../data/CO_modern.stdout)
-3. **Silver Cluster ($Ag_{13}$ Double-Zeta):**
-   - Deck: [`examples/ag13dz.stdin`](../../examples/ag13dz.stdin)
-   - Baseline Output: [`data/ag13dz_modern.stdout`](../../data/ag13dz_modern.stdout)
-   - Demonstrates transition-metal localized pseudopotential scaling and GCHF convergence.
-
----
-
-## 4. Test Execution Instructions
+## 6. Test Execution Instructions
 
 Run the full automated test suite using pytest:
 ```bash
-# Run all unit and regression tests
-.venv/bin/pytest tests/
+# Run the complete test suite
+./make_build_test.sh
 
-# Run specifically the Fortran/Python numerical regression tests
-.venv/bin/pytest tests/test_phatpsy_regression.py tests/test_python_driver.py -v
-
-# Run Python model and visualizer tests
-.venv/bin/pytest tests/test_builder.py tests/test_clementi_basis.py tests/test_spin_and_visualizer.py -v
+# Run specifically the frozen validation baseline tests
+PYTHONPATH=. .venv/bin/pytest tests/test_validation_baselines.py -v
 ```

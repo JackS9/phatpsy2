@@ -1,0 +1,41 @@
+{
+  "system": "Ni_Slab_3Layer",
+  "description": "3-layer Ni(100) embedded slab: Surface (L1), Subsurface (L2), Fixed Bulk (L3)",
+  "lattice_constant_bohr": 6.652,
+  "interlayer_spacing_bohr": 3.326,
+  "total_energy_hartree": -4553.528142360442,
+  "virial_ratio": 2.0522784691190155,
+  "converged": true,
+  "scf_cycles": 14,
+  "oniom_embedding_partitioning": {
+    "active_subsystem": [
+      "Ni_surf (L1)",
+      "Ni_sub (L2)"
+    ],
+    "environment_subsystem": [
+      "Ni_bulk_fixed (L3)"
+    ],
+    "isolated_environment_energy_hartree": -0.00012496923452685126,
+    "embedded_excess_energy_hartree": -4553.528017391208
+  },
+  "layer_properties": {
+    "surface_layer_1": {
+      "id": "Ni_surf",
+      "z_bohr": 0.0,
+      "spin": "up",
+      "fixed": false
+    },
+    "subsurface_layer_2": {
+      "id": "Ni_sub",
+      "z_bohr": -3.326,
+      "spin": "down",
+      "fixed": false
+    },
+    "bulk_fixed_layer_3": {
+      "id": "Ni_bulk_fixed",
+      "z_bohr": -6.652,
+      "spin": "up",
+      "fixed": true
+    }
+  }
+}
