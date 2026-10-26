@@ -352,7 +352,11 @@ contains
         if (QMODVO) then
           smax   = real(NATOM - 1, real64)
           hole   = 1.0d0 - occ(iorb, isp)
-          screen = merge(log(ELSUM / sumocc) / smax, 0.0d0, NATOM > 1)
+          if ((NATOM > 1) .and. (sumocc > 0.0d0) .and. (ELSUM > 0.0d0)) then
+            screen = log(ELSUM / sumocc) / smax
+          else
+            screen = 0.0d0
+          end if
           schole = hole * exp(-screen * proj)
           echf   = echf * (sumocc - schole) / sumocc
           el2    = ELSUM - sumocc
@@ -360,7 +364,7 @@ contains
 
           charg(isp) = ASUM(occ(1, isp), NORB, 1)
           screen = 0.0d0
-          if ((NATOM > 1) .and. (charg(isp) /= 0.0d0)) then
+          if ((NATOM > 1) .and. (charg(isp) > 0.0d0) .and. (ELECS(isp) > 0.0d0)) then
             screen = log(ELECS(isp) / charg(isp)) / smax
           end if
           schole = hole * exp(-screen * proj)

@@ -722,17 +722,13 @@ class CalculationDeck:
         if not ctrl.use_pseudometric or ctrl.pk_energy != 0.0:
             lines.append(f"  QPSMET={'T' if ctrl.use_pseudometric else 'F'}, PKE={ctrl.pk_energy:.4f},")
 
-        if ctrl.use_constrained_fit:
-            lines.append("  QCSTFT=T,")
-
-        if ctrl.use_global_fermi:
-            lines.append("  QGFERM=T,")
+        lines.append(f"  QCSTFT={'T' if ctrl.use_constrained_fit else 'F'},")
+        lines.append(f"  QGFERM={'T' if ctrl.use_global_fermi else 'F'},")
 
         if ctrl.fermi_temperature is not None:
             lines.append(f"  THETA={ctrl.fermi_temperature:.2f},")
 
-        if ctrl.use_dynamic_exponents:
-            lines.append("  QDYNEX=T,")
+        lines.append(f"  QDYNEX={'T' if ctrl.use_dynamic_exponents else 'F'},")
 
         if ctrl.exchange_kernel.lower() not in ("hf", "hartree-fock"):
             kernel_map = {
@@ -747,6 +743,8 @@ class CalculationDeck:
             lines.append("  QDFTEX=T,")
             lines.append(f"  EXCH_TYPE={k_type},")
             lines.append(f"  EXCH_ALPHA={ctrl.exchange_alpha:.6f},")
+        else:
+            lines.append("  QDFTEX=F,")
 
         # Append any extra namelist keys
         for k, v in ctrl.extra_namelist.items():

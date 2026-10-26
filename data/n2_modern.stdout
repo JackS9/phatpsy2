@@ -1,4 +1,3 @@
-                                                                                 
 
 
                          ---------------------------------------------------- 
@@ -834,4 +833,4 @@ ATOMIC ORBITALS OVER MOLECULAR BASIS...
     9    0.541236    0.840866    0.000000    0.000000
    10    0.000000    0.000000    0.911259    0.411834
 
- ... IT TOOK    0.01 SECONDS TO COMPUTE 2-CENTER INTEGRALS ...
+ ... IT TOOK    0.02 SECONDS TO COMPUTE 2-CENTER INTEGRALS ...

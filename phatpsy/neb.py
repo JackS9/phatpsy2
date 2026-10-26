@@ -591,17 +591,26 @@ def neb_search(
         diff = np.linalg.norm(x_coords[i] - x_coords[i - 1])
         path_distances.append(float(path_distances[-1] + diff))
 
-    # Identify Transition State (highest energy along converged pathway)
-    ts_idx = int(np.argmax(energies))
+    # Identify Transition State (highest energy along pathway, prioritizing intermediate images)
+    if n_images > 2:
+        intermediate_energies = energies[1:-1]
+        valid_indices = [idx for idx, e in enumerate(intermediate_energies, start=1) if not math.isnan(e)]
+        if valid_indices:
+            ts_idx = max(valid_indices, key=lambda idx: energies[idx])
+        else:
+            ts_idx = n_images // 2
+    else:
+        ts_idx = int(np.nanargmax(energies)) if not all(math.isnan(e) for e in energies) else 0
+
     ts_deck = images[ts_idx]
     ts_energy = energies[ts_idx]
 
     e_reactant = energies[0]
     e_product = energies[-1]
 
-    barrier_fwd = max(0.0, ts_energy - e_reactant)
-    barrier_rev = max(0.0, ts_energy - e_product)
-    rxn_e = e_product - e_reactant
+    barrier_fwd = max(0.0, ts_energy - e_reactant) if (not math.isnan(ts_energy) and not math.isnan(e_reactant)) else 0.0
+    barrier_rev = max(0.0, ts_energy - e_product) if (not math.isnan(ts_energy) and not math.isnan(e_product)) else 0.0
+    rxn_e = (e_product - e_reactant) if (not math.isnan(e_product) and not math.isnan(e_reactant)) else 0.0
 
     return NEBResult(
         converged=converged,

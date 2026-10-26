@@ -427,8 +427,12 @@ contains
       eof_reached = .true.
       return
     end if
-    if (QTRACE) write(9, *) TITLE
-    write(IW, *) TITLE
+    QCSTFT     = .false.
+    QGFERM     = .false.
+    QDYNEX     = .false.
+    QDFTEX     = .false.
+    EXCH_TYPE  = 1
+    EXCH_ALPHA = 2.0d0 / 3.0d0
 
     read(IR, nml=CTLINP, iostat=ios)
     if (ios < 0) then
