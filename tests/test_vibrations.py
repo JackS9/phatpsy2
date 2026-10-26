@@ -10,7 +10,7 @@ import copy
 import numpy as np
 import pytest
 
-from phatpsy.builder import build_diatomic
+from phatpsy.builder import build_diatomic, build_molecule
 from phatpsy.schema import CalculationDeck, AtomConfig
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.cli import main as cli_main
@@ -313,3 +313,51 @@ def test_vibrations_cli(tmp_path):
         data = json.load(f)
     assert data["num_atoms"] == 2
     assert data["num_vibrational_modes"] == 1
+
+
+def test_nonlinear_triatomic_vibrational_frequencies():
+    """
+    Verify full Cartesian Hessian construction, 6-mode Eckart projection (N_tr = 6),
+    and RRHO thermochemistry on non-linear triatomic water (H2O).
+    """
+    driver = PhatpsyDriver(quiet=True)
+    r = 1.81  # Bohr
+    half_angle = np.radians(104.5 / 2.0)
+    o = [0.0, 0.0, 0.0]
+    h1 = [0.0, r * np.sin(half_angle), r * np.cos(half_angle)]
+    h2 = [0.0, -r * np.sin(half_angle), r * np.cos(half_angle)]
+
+    deck_h2o = build_molecule(
+        geometry=[("O", o), ("H", h1), ("H", h2)],
+        basis={"O": "SZ", "H": "THAKKAR"},
+        title="Water H2O Vibrations",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
+
+    # Forward finite-difference Hessian is fast and validates the 3N-6 = 3 projection
+    vib_res = compute_vibrations(
+        deck=deck_h2o,
+        driver=driver,
+        step_size=0.01,
+        method="forward",
+        quiet=True,
+    )
+
+    # 3 atoms -> 9 total degrees of freedom
+    assert len(vib_res.modes) == 9
+
+    # Exactly 6 modes must have near-zero frequency from translation/rotation projection
+    zero_modes = [m for m in vib_res.modes if math.isclose(m.frequency_cm, 0.0, abs_tol=1e-3)]
+    assert len(zero_modes) == 6
+
+    # 3 vibrational modes remaining (symmetric stretch, asymmetric stretch, bend)
+    vib_modes = [m for m in vib_res.modes if not math.isclose(m.frequency_cm, 0.0, abs_tol=1e-3)]
+    assert len(vib_modes) == 3
+
+    # RRHO Thermochemistry should have non-zero rotational entropy and ZPVE
+    thermo = vib_res.thermochemistry
+    assert thermo.zero_point_energy_kcal > 0.0
+    assert thermo.entropy_cal_mol_k["rotation"] > 0.0
+    assert thermo.total_gibbs_free_energy_g_t < 0.0
+

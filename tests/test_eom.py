@@ -15,7 +15,7 @@ import math
 import numpy as np
 import pytest
 
-from phatpsy.builder import build_diatomic
+from phatpsy.builder import build_diatomic, build_molecule
 from phatpsy.schema import CalculationDeck
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.cli import main as cli_main
@@ -207,3 +207,73 @@ def test_eom_cli_execution(tmp_path):
     assert json_out.exists()
     assert plot_out.exists()
     assert html_out.exists()
+
+
+def test_co_permanent_dipole_and_origin_invariance():
+    """
+    Verify that heteronuclear CO (C_inf_v) exhibits a genuine non-zero permanent dipole
+    and that the computed dipole moment is strictly invariant under arbitrary coordinate translation.
+    """
+    driver = PhatpsyDriver(quiet=True)
+    # Centered at origin along z
+    deck_co = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
+    eom_co = compute_eom(deck_co, driver=driver, quiet=True)
+
+    # 1. Non-zero permanent dipole
+    dip = eom_co.dipole
+    assert dip.magnitude_debye > 1.0
+    assert math.isclose(dip.magnitude_debye, 2.484, rel_tol=0.05)
+    # Orientation along bond axis (z)
+    assert abs(dip.total_debye[2]) > 2.0
+    assert abs(dip.total_debye[0]) < 1e-4
+    assert abs(dip.total_debye[1]) < 1e-4
+
+    # 2. Origin-invariance under arbitrary 3D translation: R -> R + delta_R
+    shift = np.array([1.5, -2.2, 3.7])
+    deck_shifted = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
+    for atom in deck_shifted.geometry:
+        atom.xyz = [atom.xyz[i] + shift[i] for i in range(3)]
+
+    eom_shifted = compute_eom(deck_shifted, driver=driver, quiet=True)
+    dip_shifted = eom_shifted.dipole
+
+    # Magnitude and Cartesian vector components must match
+    assert math.isclose(dip.magnitude_debye, dip_shifted.magnitude_debye, abs_tol=1e-4)
+    for c1, c2 in zip(dip.total_debye, dip_shifted.total_debye):
+        assert math.isclose(c1, c2, abs_tol=1e-4)
+
+
+def test_water_nonlinear_dipole_and_polarizability():
+    """
+    Verify that non-linear C2v water (H2O) exhibits a non-axial permanent dipole
+    and an anisotropic static optical polarizability tensor (alpha_xx != alpha_yy != alpha_zz).
+    """
+    driver = PhatpsyDriver(quiet=True)
+    r = 1.81  # Bohr
+    half_angle = np.radians(104.5 / 2.0)
+    o = [0.0, 0.0, 0.0]
+    h1 = [0.0, r * np.sin(half_angle), r * np.cos(half_angle)]
+    h2 = [0.0, -r * np.sin(half_angle), r * np.cos(half_angle)]
+
+    deck_h2o = build_molecule(
+        geometry=[("O", o), ("H", h1), ("H", h2)],
+        basis={"O": "SZ", "H": "THAKKAR"},
+        title="Water H2O",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
+    eom_h2o = compute_eom(deck_h2o, driver=driver, quiet=True)
+
+    # Permanent dipole oriented along the molecular C2 symmetry axis (z)
+    dip = eom_h2o.dipole
+    assert dip.magnitude_debye > 1.0
+    assert abs(dip.total_debye[2]) > 1.0
+    assert abs(dip.total_debye[0]) < 1e-4
+
+    # Anisotropic static polarizability tensor
+    pol = eom_h2o.polarizability
+    diag = np.diag(pol.static_tensor)
+    assert pol.mean_static_ang3 > 0.05
+    # Asymmetry across axes in a non-linear molecule
+    assert pol.anisotropy_au > 0.0
+

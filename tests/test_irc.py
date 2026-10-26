@@ -13,6 +13,7 @@ import pytest
 
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.schema import CalculationDeck
+from phatpsy.builder import build_diatomic
 from phatpsy.md import ATOMIC_MASSES_AMU, HARTREE_TO_KCAL, BOHR_TO_ANGSTROM
 from phatpsy.vibrations import NormalMode
 from phatpsy.irc import IRCPoint, IRCResult, compute_irc
@@ -271,3 +272,51 @@ def test_cli_irc(driver):
         with open(out_json) as f:
             data = json.load(f)
         assert data["num_points"] >= 3
+
+
+def test_co_irc_heteronuclear_mass_weighting(driver):
+    """
+    Verify that Intrinsic Reaction Coordinate (IRC) steepest descent on heteronuclear CO
+    satisfies the mass-weighting condition dz_C / dz_O = -sqrt(M_O / M_C) in mass-weighted space.
+    """
+    deck = build_diatomic("C", "O", 2.20, basis="SZ", spin_flip=True)
+    m_c = ATOMIC_MASSES_AMU["C"]
+    m_o = ATOMIC_MASSES_AMU["O"]
+
+    # Initial transition vector in mass-weighted coordinates along z
+    dz_c = 1.0 / math.sqrt(m_c)
+    dz_o = -1.0 / math.sqrt(m_o)
+    norm = math.sqrt(dz_c**2 + dz_o**2)
+    disp = [[0.0, 0.0, dz_c / norm], [0.0, 0.0, dz_o / norm]]
+
+    mode = NormalMode(
+        index=1,
+        frequency_cm=-1200.0,
+        force_constant_mdyne_a=10.0,
+        reduced_mass_amu=(m_c * m_o) / (m_c + m_o),
+        displacements=disp,
+        is_imaginary=True,
+    )
+
+    res = compute_irc(
+        deck=deck,
+        driver=driver,
+        normal_mode=mode,
+        step_size=0.05,
+        max_steps=2,
+        direction="forward",
+        quiet=True,
+    )
+
+    assert res.num_points >= 2
+    p_ts = res.points[0]
+    p_fwd1 = res.points[1]
+
+    delta_z_c = p_fwd1.geometry[0]["xyz"][2] - p_ts.geometry[0]["xyz"][2]
+    delta_z_o = p_fwd1.geometry[1]["xyz"][2] - p_ts.geometry[1]["xyz"][2]
+
+    # Asymmetric mass-weighting ratio: lighter C atom moves farther by sqrt(M_O / M_C)
+    actual_ratio = abs(delta_z_c / delta_z_o)
+    expected_ratio = math.sqrt(m_o / m_c)
+    assert math.isclose(actual_ratio, expected_ratio, rel_tol=1e-3)
+

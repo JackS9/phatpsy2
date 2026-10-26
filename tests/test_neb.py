@@ -10,7 +10,7 @@ import math
 import numpy as np
 
 from phatpsy.schema import AtomConfig, CalculationDeck, ControlConfig
-from phatpsy.builder import build_diatomic
+from phatpsy.builder import build_diatomic, build_molecule
 from phatpsy.neb import (
     interpolate_images,
     calculate_tangents,
@@ -258,3 +258,70 @@ def test_cli_neb(tmp_path):
     assert out_json.exists()
     assert out_xyz.exists()
     assert out_plot.exists()
+
+
+def test_neb_molecular_eo_to_aa_isomerization():
+    """
+    Verify CI-NEB pathway initialization and force evaluation on the non-linear,
+    polyatomic isomerization of Ethylene Oxide (c-C2H4O) to Acetaldehyde (CH3CHO).
+    """
+    from phatpsy.driver import PhatpsyDriver
+
+    geom_eo = [
+        ("C", [1.39, 0.00, -0.73]),
+        ("C", [-1.39, 0.00, -0.73]),
+        ("O", [0.00, 0.00, 1.56]),
+        ("H", [2.30, 1.72, -1.18]),
+        ("H", [2.30, -1.72, -1.18]),
+        ("H", [-2.30, 1.72, -1.18]),
+        ("H", [-2.30, -1.72, -1.18]),
+    ]
+
+    geom_aa = [
+        ("C", [2.70, -0.90, 0.00]),
+        ("C", [0.00, 0.00, 0.00]),
+        ("O", [0.00, 2.29, 0.00]),
+        ("H", [3.75, 0.75, 0.00]),
+        ("H", [2.85, -2.00, 1.65]),
+        ("H", [2.85, -2.00, -1.65]),
+        ("H", [-1.75, -1.05, 0.00]),
+    ]
+
+    deck_r = build_molecule(
+        geom_eo,
+        basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
+        title="Ethylene Oxide (Reactant)",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
+    deck_p = build_molecule(
+        geom_aa,
+        basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
+        title="Acetaldehyde (Product)",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
+
+    driver = PhatpsyDriver(quiet=True)
+    res = neb_search(
+        initial_deck=deck_r,
+        final_deck=deck_p,
+        driver=driver,
+        num_images=5,
+        max_iterations=2,
+        climb=True,
+        quiet=True,
+    )
+
+    # 5 images along 7-atom reaction coordinate
+    assert len(res.images) == 5
+    assert res.num_iterations >= 1
+    assert res.climbing_image_enabled is True
+    assert 0 < res.transition_state_index < 4
+    assert res.barrier_forward_kcal is not None
+
+    # Verify trajectory structures export
+    d = res.to_dict()
+    assert len(d["images"]) == 5
+    assert d["climbing_image_enabled"] is True
+
