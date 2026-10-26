@@ -1,22 +1,32 @@
 {
   "system": "N2",
-  "description": "Homonuclear anchor: ground-state energy, vibrations, and EOM properties",
-  "internuclear_distance_bohr": 2.068,
-  "total_energy_hartree": -109.56558480079536,
-  "virial_ratio": 2.012380275081926,
-  "converged": true,
-  "scf_cycles": 100,
-  "harmonic_frequency_cm": -1726.3013706136342,
-  "thermochemistry": {
-    "zpve_kcal_mol": 0.0,
-    "enthalpy_h_t_hartree": -109.56228015375822,
-    "gibbs_free_energy_g_t_hartree": -109.58401598887164,
-    "entropy_cal_mol_k": 45.74691416726283
+  "basis_set": "DZ",
+  "description": "Homonuclear anchor in Double-Zeta STO basis with theoretical PKSCAL=1.0",
+  "experimental_geometry": {
+    "r_expt_bohr": 2.068,
+    "total_energy_hartree": -108.35712222037928,
+    "virial_ratio": 1.9513795327941394,
+    "converged": true,
+    "scf_cycles": 100
+  },
+  "relaxed_equilibrium_geometry": {
+    "r_opt_bohr": 1.99029853515625,
+    "total_energy_hartree": -108.66618528668259,
+    "virial_ratio": 1.9626858305333934,
+    "harmonic_frequency_cm": 218302.40815175584,
+    "zpve_kcal_mol": 312.0789598213629,
+    "enthalpy_h_t_hartree": -108.1655511605645,
+    "gibbs_free_energy_g_t_hartree": -108.18721467619395
   },
   "eom_properties": {
-    "first_excitation_ev": 45.37710701647004,
-    "first_oscillator_strength": 0.41723400418041023,
-    "mean_polarizability_bohr3": 10.632543948641583,
-    "dipole_moment_debye": 2.0282957529356105e-14
+    "first_excitation_ev": 33.08508603199017,
+    "first_oscillator_strength": 0.32472567124565593,
+    "mean_polarizability_bohr3": 5.518927870949022,
+    "dipole_moment_debye": 5.906510488233094e-15
+  },
+  "delta_vs_experiment": {
+    "delta_r_bohr": -0.0841014648437497,
+    "delta_frequency_cm": 215943.83815175583,
+    "note": "Static V_PK over-repulsion shifts minimum; energy-dependent V_PK(E) in \u00a71.2 targets elimination of this shift without empirical PKSCAL tuning."
   }
 }

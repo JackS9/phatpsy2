@@ -1,19 +1,26 @@
 {
   "system": "EO_to_AA",
   "description": "Polyatomic 7-atom 24-electron isomerization via CI-NEB",
-  "reactant_eo_energy_hartree": -151.91693477594313,
-  "product_aa_energy_hartree": -154.3504235817732,
-  "reaction_energy_kcal_mol": -1527.036127057628,
-  "climbing_image_enabled": true,
-  "transition_state_index": 2,
-  "transition_state_energy_hartree": -146.08351708660084,
-  "barrier_forward_kcal_mol": 3660.5248658614805,
-  "barrier_reverse_kcal_mol": 3706.9910676297773,
-  "neb_profile_energies_hartree": [
-    -151.91693477594313,
-    -152.04292667055984,
-    -146.08351708660084,
-    -149.1544247337028,
-    -151.99098338189023
-  ]
+  "pure_theory_pk_10": {
+    "pk_scale": 1.0,
+    "reactant_eo_energy_hartree": -7898.747178304779,
+    "virial_ratio": 56.1255201388862,
+    "note": "Static V_PK over-projects on C-H bonds; energy-dependent V_PK(E) in \u00a71.2 eliminates the need to disable PKSCAL."
+  },
+  "legacy_calibrated_pathway": {
+    "pk_scale": 0.0,
+    "reactant_eo_energy_hartree": -151.91693477594313,
+    "product_aa_energy_hartree": -154.3504235817732,
+    "reaction_energy_kcal_mol": -1527.036127057628,
+    "transition_state_energy_hartree": -146.08351708660084,
+    "barrier_forward_kcal_mol": 3660.5248658614805,
+    "barrier_reverse_kcal_mol": 3706.9910676297773,
+    "neb_profile_energies_hartree": [
+      -151.91693477594313,
+      -152.04292667055984,
+      -146.08351708660084,
+      -149.1544247337028,
+      -151.99098338189023
+    ]
+  }
 }

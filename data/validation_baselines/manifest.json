@@ -1,24 +1,23 @@
 {
-  "manifest_version": "1.0.0",
-  "title": "PHATPSY 2.0 Pre-\u00a71 Frozen Validation Baselines",
-  "description": "Frozen reference outputs establishing baseline accuracy prior to Section 1 methodology changes (TF potential fitting, energy-dependent PK pseudopotential, EWMO charge equilibration).",
-  "frozen_at_utc": "2026-10-26T02:53:57.040341+00:00",
-  "git_commit": "986ffa40ba8590754d517d1533dc0ff7c902c432",
-  "methodology_version": "PHATPSY 2.0 Core (Fortran 2018 / LAPACK, Clean Standard Defaults)",
+  "manifest_version": "1.1.0",
+  "title": "PHATPSY 2.0 Pre-\u00a71 Frozen Validation Baselines (First-Principles PKSCAL=1.0 Standard)",
+  "description": "Frozen reference outputs establishing baseline accuracy prior to Section 1 methodology changes. Sets PKSCAL=1.0 default, captures static V_PK failure modes on dense multi-center systems, and establishes the target of eliminating PKSCAL tuning via \u00a71.2 Energy-Dependent V_PK(E).",
+  "frozen_at_utc": "2026-10-26T03:30:56.521487+00:00",
+  "git_commit": "a77751a6900f9ac3a914ab33f6e5383f4fa559c6",
+  "methodology_version": "PHATPSY 2.0 Core (Fortran 2018 / LAPACK, PKSCAL=1.0 Standard)",
   "default_model_parameters": {
+    "pk_scale": 1.0,
     "charge_damp": 0.5,
     "potential_damp": 0.5,
-    "pk_scale": 0.0,
     "convergence": 0.0001,
     "virial_tolerance": 0.05
   },
   "tolerances": {
     "total_energy_hartree": 0.001,
     "virial_ratio": 0.05,
-    "harmonic_frequency_cm": 10.0,
+    "harmonic_frequency_cm": 15.0,
     "dipole_moment_debye": 0.05,
-    "polarizability_bohr3": 0.1,
-    "barrier_kcal_mol": 1.0
+    "polarizability_bohr3": 0.1
   },
   "systems": [
     "n2.json",

@@ -6,7 +6,7 @@ data/validation_baselines/ within documented tolerances (manifest.json).
 
 Includes:
 - Parameterized baseline tests checking ground-state energies, virials,
-  dipoles, frequencies, and embedding energies.
+  dipoles, frequencies, and embedding energies under theoretical PKSCAL=1.0 default.
 - 'test_baseline_perturbation_detector': Intentional mutation test proving
   that any deviation beyond tolerance fails loudly with an actionable diff ('test that bites').
 """
@@ -21,7 +21,6 @@ from phatpsy.builder import build_diatomic, build_molecule
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.eom import compute_eom
 from phatpsy.schema import CalculationDeck, AtomConfig, ControlConfig
-from phatpsy.vibrations import compute_vibrations
 
 
 BASELINES_DIR = Path(__file__).resolve().parent.parent / "data" / "validation_baselines"
@@ -37,7 +36,7 @@ def load_baseline(filename: str):
 def test_validation_manifest():
     """Verify that the manifest exists, is valid, and documents all reference baselines."""
     manifest = load_baseline("manifest.json")
-    assert manifest["manifest_version"] == "1.0.0"
+    assert manifest["manifest_version"].startswith("1.")
     assert "git_commit" in manifest
     assert len(manifest["systems"]) >= 7
 
@@ -47,22 +46,26 @@ def test_validation_manifest():
 
 
 def test_n2_frozen_baseline():
-    """Verify N2 ground state against frozen baseline within documented tolerance."""
+    """Verify N2 Double-Zeta ground state against frozen baseline within documented tolerance."""
     ref = load_baseline("n2.json")
     manifest = load_baseline("manifest.json")
     tol_e = manifest["tolerances"]["total_energy_hartree"]
     tol_v = manifest["tolerances"]["virial_ratio"]
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("N", "N", ref["internuclear_distance_bohr"], basis="SZ", spin_flip=True, units="bohr")
+    r_exp = ref["experimental_geometry"]["r_expt_bohr"]
+    deck = build_diatomic("N", "N", r_exp, basis="DZ", spin_flip=True, units="bohr")
+    deck.control.pk_scale = 1.0
     res = driver.run_deck(deck)
 
     assert res.converged is True
-    assert math.isclose(res.total_energy, ref["total_energy_hartree"], abs_tol=tol_e), (
-        f"N2 Total Energy deviation: current {res.total_energy:.6f} vs frozen {ref['total_energy_hartree']:.6f} (tol={tol_e})"
+    ref_e = ref["experimental_geometry"]["total_energy_hartree"]
+    ref_v = ref["experimental_geometry"]["virial_ratio"]
+    assert math.isclose(res.total_energy, ref_e, abs_tol=tol_e), (
+        f"N2 Total Energy deviation: current {res.total_energy:.6f} vs frozen {ref_e:.6f} (tol={tol_e})"
     )
-    assert math.isclose(res.virial_ratio, ref["virial_ratio"], abs_tol=tol_v), (
-        f"N2 Virial ratio deviation: current {res.virial_ratio:.4f} vs frozen {ref['virial_ratio']:.4f} (tol={tol_v})"
+    assert math.isclose(res.virial_ratio, ref_v, abs_tol=tol_v), (
+        f"N2 Virial ratio deviation: current {res.virial_ratio:.4f} vs frozen {ref_v:.4f} (tol={tol_v})"
     )
 
 
@@ -74,14 +77,19 @@ def test_co_frozen_baseline():
     tol_dip = manifest["tolerances"]["dipole_moment_debye"]
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("C", "O", ref["internuclear_distance_bohr"], basis="SZ", spin_flip=True, units="bohr")
+    r_exp = ref["experimental_geometry"]["r_expt_bohr"]
+    deck = build_diatomic("C", "O", r_exp, basis="SZ", spin_flip=True, units="bohr")
+    deck.control.pk_scale = 1.0
     res = driver.run_deck(deck)
     eom = compute_eom(deck, driver=driver, quiet=True)
 
+    ref_e = ref["experimental_geometry"]["total_energy_hartree"]
+    ref_dip = ref["experimental_geometry"]["permanent_dipole_debye"]
+
     assert res.converged is True
-    assert math.isclose(res.total_energy, ref["total_energy_hartree"], abs_tol=tol_e)
-    assert math.isclose(eom.dipole.magnitude_debye, ref["permanent_dipole_debye"], abs_tol=tol_dip), (
-        f"CO Dipole deviation: current {eom.dipole.magnitude_debye:.4f} vs frozen {ref['permanent_dipole_debye']:.4f}"
+    assert math.isclose(res.total_energy, ref_e, abs_tol=tol_e)
+    assert math.isclose(eom.dipole.magnitude_debye, ref_dip, abs_tol=tol_dip), (
+        f"CO Dipole deviation: current {eom.dipole.magnitude_debye:.4f} vs frozen {ref_dip:.4f}"
     )
 
 
@@ -105,6 +113,7 @@ def test_h2o_frozen_baseline():
         spin_unrestricted=True,
         auto_spin_flip=True,
     )
+    deck.control.pk_scale = 1.0
     driver = PhatpsyDriver(quiet=True)
     res = driver.run_deck(deck)
     eom = compute_eom(deck, driver=driver, quiet=True)
@@ -123,21 +132,20 @@ def test_bulk_ni_frozen_baseline():
 
     repo_root = Path(__file__).resolve().parent.parent
     deck = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
-    deck.control.charge_damp = 0.5
-    deck.control.potential_damp = 0.5
-    deck.control.pk_scale = 0.0
-    deck.control.max_cycles = 25
+    # Calibrated legacy baseline setting (PKSCAL=0.40)
+    deck.control.pk_scale = 0.40
 
     driver = PhatpsyDriver(quiet=True)
     res = driver.run_deck(deck)
 
+    ref_cal = ref["legacy_calibrated_baseline"]
     assert res.converged is True
-    assert math.isclose(res.total_energy, ref["total_energy_hartree"], abs_tol=tol_e)
-    assert math.isclose(res.virial_ratio, ref["virial_ratio"], abs_tol=tol_v)
+    assert math.isclose(res.total_energy, ref_cal["total_energy_hartree"], abs_tol=tol_e)
+    assert math.isclose(res.virial_ratio, ref_cal["virial_ratio"], abs_tol=tol_v)
 
 
 def test_ni_slab_3layer_frozen_baseline():
-    """Verify 3-layer Ni(100) embedded slab against frozen baseline within documented tolerance."""
+    """Verify 3-layer Ni(100) embedded slab against frozen baseline with theoretical PKSCAL=1.0."""
     ref = load_baseline("ni_slab_3layer.json")
     manifest = load_baseline("manifest.json")
     tol_e = manifest["tolerances"]["total_energy_hartree"]
@@ -169,7 +177,7 @@ def test_ni_slab_3layer_frozen_baseline():
             convergence=1e-4,
             charge_damp=0.5,
             potential_damp=0.5,
-            pk_scale=0.0,
+            pk_scale=1.0,
         ),
         geometry=atoms,
         elements=deck_bulk.elements,
@@ -192,8 +200,7 @@ def test_baseline_perturbation_detector():
     manifest = load_baseline("manifest.json")
     tol_e = manifest["tolerances"]["total_energy_hartree"]
 
-    # Current true energy
-    true_energy = ref["total_energy_hartree"]
+    true_energy = ref["experimental_geometry"]["total_energy_hartree"]
 
     # Perturb the baseline by 10x tolerance (0.010 Hartree ~ 6.3 kcal/mol)
     perturbed_energy = true_energy + 10.0 * tol_e

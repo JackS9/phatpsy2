@@ -1,22 +1,28 @@
 {
   "system": "Bulk_Ni13",
-  "description": "Self-consistent bulk Ni atom in 1st coordination shell (Z=12 nearest neighbors) with local cubic symmetry",
+  "description": "Self-consistent bulk Ni atom in 1st coordination shell (Z=12 nearest neighbors)",
   "coordination_number": 12,
   "nearest_neighbor_distance_bohr": 4.71,
-  "total_energy_hartree": -19539.106088787838,
-  "virial_ratio": 2.0006603093369226,
-  "converged": true,
-  "scf_cycles": 25,
-  "central_atom": {
-    "id": "Ni1",
-    "net_charge": -0.0001,
-    "local_spin_sz": 1.0,
-    "starting_4s_eigenvalue_hartree": -0.223
+  "pure_theory_pk_10": {
+    "pk_scale": 1.0,
+    "total_energy_hartree": -42069245508.50842,
+    "virial_ratio": 2156391.835184399,
+    "note": "Static V_PK summed over 12 neighbors causes core over-repulsion; \u00a71.2 energy-dependent V_PK(E) eliminates need for empirical PKSCAL=0.4 tuning."
   },
-  "default_controls": {
-    "charge_damp": 0.5,
-    "potential_damp": 0.5,
-    "pk_scale": 0.0,
-    "convergence": 0.0001
+  "legacy_calibrated_baseline": {
+    "pk_scale": 0.4,
+    "total_energy_hartree": -19533.345006934192,
+    "virial_ratio": 1.9992110502594789,
+    "converged": true,
+    "scf_cycles": 20,
+    "central_atom": {
+      "id": "Ni1",
+      "net_charge": -0.0012,
+      "local_spin_sz": 1.0,
+      "starting_4s_eigenvalue_hartree": -0.223
+    }
+  },
+  "cohesive_reference": {
+    "bulk_cohesive_energy_per_atom_hartree": -1502.5650005333994
   }
 }

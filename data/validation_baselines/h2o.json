@@ -1,30 +1,33 @@
 {
   "system": "H2O",
-  "description": "Non-linear C2v triatomic: 3 Eckart vibrational modes, dipole, and anisotropic polarizability",
+  "description": "Non-linear C2v triatomic with theoretical PKSCAL=1.0",
   "geometry": {
     "r_oh_bohr": 1.81,
     "angle_hoh_deg": 104.5
   },
-  "total_energy_hartree": -76.88371846256132,
-  "virial_ratio": 2.004115360998867,
+  "total_energy_hartree": -76.92391169257779,
+  "virial_ratio": 2.002780664028922,
   "converged": true,
-  "scf_cycles": 100,
-  "dipole_moment_debye": 4.922985929554681,
+  "scf_cycles": 22,
+  "dipole_moment_debye": 5.2248619505325005,
   "dipole_vector_debye": [
-    4.500583586543778e-16,
-    -1.3545144899040907e-14,
-    -4.922985929554681
+    -1.7354170636425568e-15,
+    -2.2010860460941476e-14,
+    -5.2248619505325005
   ],
   "vibrational_frequencies_cm": [
-    -9395.889213532155,
-    -6090.1646966253575,
-    3012.433999005748
+    -122188.18538217207,
+    -112138.719605759,
+    95811.77990142151
   ],
   "num_eckart_projected_zero_modes": 6,
   "thermochemistry": {
-    "zpve_kcal_mol": 4.306490601270359,
+    "zpve_kcal_mol": 136.9698156947633,
     "entropy_rotational_cal_mol_k": 7.261652880241529,
-    "entropy_total_cal_mol_k": 41.87067493398038,
-    "gibbs_free_energy_g_t_hartree": -76.89344508801199
+    "entropy_total_cal_mol_k": 41.870659928422604,
+    "gibbs_free_energy_g_t_hartree": -76.72222585195715
+  },
+  "delta_vs_experiment": {
+    "delta_dipole_debye": 3.3702619505325004
   }
 }
