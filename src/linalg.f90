@@ -544,8 +544,55 @@ contains
         end if
         if (remain < smax) exit
       end do
-      if (.not. found_half) iorder(jmax) = i
+      if (.not. found_half) then
+        if (jmax >= 1 .and. jmax <= nvec) then
+          if (iorder(jmax) == 0) then
+            iorder(jmax) = i
+          else
+            ! jmax already taken, find first free slot
+            do j = 1, nvec
+              if (iorder(j) == 0) then
+                iorder(j) = i
+                exit
+              end if
+            end do
+          end if
+        end if
+      end if
     end do
+
+    ! Ensure iorder is a strict, valid permutation of 1..nvec
+    block
+      logical :: seen(nvec)
+      seen = .false.
+      do i = 1, nvec
+        if (iorder(i) >= 1 .and. iorder(i) <= nvec) then
+          if (seen(iorder(i))) then
+            ! Duplicate detected - invalid permutation: cancel reordering
+            qnword = .false.
+            do j = 1, nvec
+              iorder(j) = j
+            end do
+            return
+          end if
+          seen(iorder(i)) = .true.
+        else
+          ! Unassigned or out-of-bounds: cancel reordering
+          qnword = .false.
+          do j = 1, nvec
+            iorder(j) = j
+          end do
+          return
+        end if
+      end do
+      if (.not. all(seen)) then
+        qnword = .false.
+        do j = 1, nvec
+          iorder(j) = j
+        end do
+        return
+      end if
+    end block
   end subroutine maxovl
 
   !---------------------------------------------------------------------

@@ -250,7 +250,13 @@ contains
             stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)
             call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
                         stovl, MSTO, M2STO, NORB, qnword)
-            if (qnword) call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
+            if (qnword) then
+              if (any(abs(occ(1:NORB, isp) - occ(iorder(1:NORB, isp), isp)) > 1.0d-8)) then
+                call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
+              else
+                qnword = .false.
+              end if
+            end if
           end do
         end do scf_loop
 
