@@ -276,3 +276,42 @@ def test_calculation_deck_with_thakkar_basis():
     assert "LMAX=" in stdin_text
     assert "&ATOM XYZ=0.00000,0.00000,0.00000" in stdin_text
     assert "&ATORB" in stdin_text
+
+
+def test_diis_charge_acceleration():
+    """Verify Phase 4.2: Built-in DIIS charge acceleration in driver."""
+    import math
+    from phatpsy.builder import build_diatomic
+    from phatpsy.driver import PhatpsyDriver
+
+    driver = PhatpsyDriver(quiet=True)
+    deck = build_diatomic("C", "O", 2.132, basis="DZ", spin_flip=True, units="bohr")
+    deck.control.max_cycles = 15
+    deck.control.use_diis = True
+
+    res = driver.run_deck(deck)
+    assert res.converged is True
+    assert math.isclose(res.total_energy, -100.13, abs_tol=0.2)
+    assert math.isclose(res.virial_ratio, 2.0, abs_tol=0.05)
+
+
+def test_global_fermi_equilibration():
+    """Verify Phase 4.3: Full calculation with global Fermi level chemical potential equilibration."""
+    import math
+    from phatpsy.builder import build_diatomic
+    from phatpsy.driver import PhatpsyDriver
+
+    driver = PhatpsyDriver(quiet=True)
+    deck = build_diatomic("N", "N", 2.068, basis="SZ", spin_flip=False, units="bohr")
+    deck.control.max_cycles = 10
+    deck.control.use_global_fermi = True
+    deck.control.fermi_temperature = 1000.0
+
+    stdin_text = deck.to_stdin_text()
+    assert "QGFERM=T" in stdin_text
+    assert "THETA=1000.00" in stdin_text
+
+    res = driver.run_deck(deck)
+    assert res.converged is True
+    assert math.isclose(res.total_energy, -110.77, abs_tol=0.2)
+    assert math.isclose(res.virial_ratio, 2.0, abs_tol=0.05)

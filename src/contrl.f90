@@ -6,6 +6,7 @@ module contrl
   use scf,    only: run_scf_element
   use ewmo,   only: run_ewmo
   use angular,only: gencgc
+  use modelpot, only: update_dynamic_exponents
   implicit none
   public
 
@@ -286,6 +287,8 @@ contains
       if (QPRINT) write(IW, 18000) TEDIFF, TIMREM, NREMCY
       if (.not. QPRINT) write(IW, 19000) NCYCL, TMOLE, CYCTIM, CHTRAN, VDAMP
       if (QPRINT) write(IW, 20000) CYCTIM
+      if (QPRINT) write(IW, 20500) TOTKE, merge(-(TMOLE - TOTKE)/TOTKE, 0.0d0, abs(TOTKE) > 1.0d-12), &
+                                   mol_ws%last_pk_penalty, mol_ws%last_rms_coulomb, mol_ws%last_rms_exchange, CHTRAN
 
       if (QLAST) then
         converged_or_done = .true.
@@ -309,6 +312,7 @@ contains
      ' -------------------------------------')
 19000 format(' ',i3,f16.4,f13.4,f17.4,f14.4,t76,'<te>')
 20000 format(' ... IT TOOK',f6.2,' SECONDS TO COMPLETE THIS CYCLE ...')
+20500 format('   [DIAGNOSTICS]  <T>=',f14.4,'  -V/T=',f10.4,'  dE_PK=',es12.4,'  RMS_C=',es12.4,'  RMS_X=',es12.4,'  dQ=',es12.4)
 21000 format(//' ... LAST CYCLE FOLLOWS ...'/)
 22000 format(// &
      ' CYCLE   TOTAL ENERGY    CYCLE TIME    CHARGE TRANSFER', &
@@ -339,6 +343,7 @@ contains
     NCYCL = NCYCL + 1
     OLDTE = TMOLE
     TMOLE = ZERO; TOTKE = ZERO; ZZPOT = ZERO
+    call reset_cycle_diagnostics()
 
     do IELEM = 1, NELEM
       IUNIT0 = IUNIT(IELEM + 10)
@@ -370,6 +375,11 @@ contains
       return
     end if
 
+    TOTPE  = TMOLE - TOTKE
+    VIRTHM = merge(TOTPE / TOTKE, 0.0d0, abs(TOTKE) > 1.0d-12)
+
+    if (QDYNEX) call update_dynamic_exponents()
+
     QCMPTD = .true.
     if (.not. QAUDMP) then
       if (QRSTRT .or. (.not. QFIRST)) CDAMP = CDAMP**CACCEL
@@ -399,7 +409,8 @@ contains
                       VACCEL, TFEXP,  TFCOEF, LTF,    QC2FIT, QX2FIT, QPSMET, &
                       THETA,  RANGE,  EXPMIN, CONVRG, CDAMP,  CACCEL, NCREAT, &
                       NANNIH, ICREAT, IANNIH, QTRANS, QPLOT,  QCORE,  QPRINT, &
-                      QAUDMP, QTRACE
+                      QAUDMP, QTRACE, QCSTFT, QGFERM, QDYNEX, QDFTEX, &
+                      EXCH_TYPE, EXCH_ALPHA
 
     inquire(unit=9, opened=is_open)
     if (.not. is_open) open(9, file='Phatpsy.Stderr')
@@ -492,6 +503,7 @@ contains
       if (.not. QC2FIT) write(IW, 29010)
       if (.not. QX2FIT) write(IW, 29020)
       if (QPSMET) write(IW, 29030)
+      if (QDFTEX) write(IW, 29040) EXCH_TYPE, EXCH_ALPHA
       if (VDAMP /= ZERO) write(IW, 30000) VDAMP, VACCEL
       write(IW, 30500) PKSCAL
       if (.not. QPSMET) write(IW, 30600) PKE
@@ -574,6 +586,7 @@ contains
 29020 format(' THE 2-CENTER EXCHANGE POTENTIALS WILL NOT BE FIT EACH CYCLE.')
 29030 format(' THE ENERGY DEPENDENCE OF THE PSEUDOPOTENTIAL WILL BE', &
             ' HANDLED BY PSEUDOMETRIC.')
+29040 format(' DENSITY FUNCTIONAL EXCHANGE KERNEL ENABLED: TYPE=',i2,' ALPHA=',f6.4)
 30000 format(' THE CHANGE IN THE EXTERNAL POTENTIAL WILL BE DAMPED BY', &
             f6.2,' **',f6.2,'.')
 30500 format(' THE P-K PROJECTION MATRIX WILL BE SCALED BY',f6.2,'.')

@@ -154,6 +154,15 @@ class ControlConfig:
     potential_damp: float = 0.5
     potential_accel: float = 1.0
     pk_scale: float = 0.0
+    use_pseudometric: bool = True
+    pk_energy: float = 0.0
+    use_constrained_fit: bool = False
+    use_diis: bool = False
+    use_global_fermi: bool = False
+    fermi_temperature: Optional[float] = None
+    use_dynamic_exponents: bool = False
+    exchange_kernel: str = "hartree-fock"
+    exchange_alpha: float = 2.0 / 3.0
     separate_atoms_first_cycle: bool = True
     debug: bool = False
     trace: bool = False
@@ -170,11 +179,44 @@ class ControlConfig:
         valid_keys = {
             "spin_unrestricted", "max_cycles", "convergence", "time_limit",
             "charge_damp", "charge_accel", "potential_damp", "potential_accel",
-            "pk_scale", "separate_atoms_first_cycle", "debug", "trace"
+            "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",
+            "use_diis", "use_global_fermi", "fermi_temperature",
+            "use_dynamic_exponents", "exchange_kernel", "exchange_alpha",
+            "separate_atoms_first_cycle", "debug", "trace"
         }
         kwargs = {k: v for k, v in data.items() if k in valid_keys}
         extra = {k: v for k, v in data.items() if k not in valid_keys}
         return cls(**kwargs, extra_namelist=extra)
+
+    @classmethod
+    def first_principles(
+        cls,
+        pk_scale: float = 1.0,
+        use_diis: bool = True,
+        use_constrained_fit: bool = True,
+        use_dynamic_exponents: bool = True,
+        use_global_fermi: bool = False,
+        use_pseudometric: bool = False,
+        charge_damp: float = 0.5,
+        potential_damp: float = 0.5,
+        **kwargs,
+    ) -> "ControlConfig":
+        """
+        Creates a first-principles ControlConfig locking PKSCAL=1.0 and retiring
+        empirical damping knobs in favor of self-consistent DIIS acceleration,
+        constrained LAPACK cusp fitting, and dynamic STO radial exponents.
+        """
+        return cls(
+            pk_scale=pk_scale,
+            use_diis=use_diis,
+            use_constrained_fit=use_constrained_fit,
+            use_dynamic_exponents=use_dynamic_exponents,
+            use_global_fermi=use_global_fermi,
+            use_pseudometric=use_pseudometric,
+            charge_damp=charge_damp,
+            potential_damp=potential_damp,
+            **kwargs,
+        )
 
 
 @dataclass
@@ -676,6 +718,35 @@ class CalculationDeck:
             f"  PKSCAL={ctrl.pk_scale:.2f},",
             f"  QDEBUG={'T' if ctrl.debug else 'F'}, QTRACE={'T' if ctrl.trace else 'F'},",
         ]
+
+        if not ctrl.use_pseudometric or ctrl.pk_energy != 0.0:
+            lines.append(f"  QPSMET={'T' if ctrl.use_pseudometric else 'F'}, PKE={ctrl.pk_energy:.4f},")
+
+        if ctrl.use_constrained_fit:
+            lines.append("  QCSTFT=T,")
+
+        if ctrl.use_global_fermi:
+            lines.append("  QGFERM=T,")
+
+        if ctrl.fermi_temperature is not None:
+            lines.append(f"  THETA={ctrl.fermi_temperature:.2f},")
+
+        if ctrl.use_dynamic_exponents:
+            lines.append("  QDYNEX=T,")
+
+        if ctrl.exchange_kernel.lower() not in ("hf", "hartree-fock"):
+            kernel_map = {
+                "slater": 1,
+                "lda": 1,
+                "dirac": 1,
+                "becke88": 2,
+                "b88": 2,
+                "pbe": 3,
+            }
+            k_type = kernel_map.get(ctrl.exchange_kernel.lower(), 1)
+            lines.append("  QDFTEX=T,")
+            lines.append(f"  EXCH_TYPE={k_type},")
+            lines.append(f"  EXCH_ALPHA={ctrl.exchange_alpha:.6f},")
 
         # Append any extra namelist keys
         for k, v in ctrl.extra_namelist.items():

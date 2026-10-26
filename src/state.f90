@@ -18,7 +18,7 @@ module state
                      QDEBUG, QSEPAT, QCMPTD, QEWMO,  QGSTAT, QPLOT,  &
                      QCORE,  QPRINT, QAUDMP, QATOM,  QMODVO, QMNPRT, &
                      QCHECK, QANGST, QGEOM,  QC2FIT, QX2FIT, QPSMET, &
-                     QTRACE, QRERUN
+                     QTRACE, QRERUN, QCSTFT, QGFERM, QDYNEX, QDFTEX
   equivalence (QPARM(1),  QRSTRT), (QPARM(2),  QBAKUP), &
               (QPARM(3),  QNWBAS), (QPARM(4),  QOPEN),  &
               (QPARM(5),  QFIRST), (QPARM(6),  QLAST),  &
@@ -31,7 +31,9 @@ module state
               (QPARM(29), QCHECK), (QPARM(30), QANGST), &
               (QPARM(31), QGEOM),  (QPARM(32), QC2FIT), &
               (QPARM(33), QX2FIT), (QPARM(34), QPSMET), &
-              (QPARM(35), QTRACE)
+              (QPARM(35), QTRACE), (QPARM(36), QCSTFT), &
+              (QPARM(37), QGFERM), (QPARM(38), QDYNEX), &
+              (QPARM(39), QDFTEX)
 
   ! Per-atom flags equivalenced to QPARM(11:18) in atomic.f and scf.f
   logical(kind=1) :: QFLAGS(8)
@@ -200,7 +202,7 @@ module state
     character(len=2) :: latom = '  '
     integer(int32) :: nucz = 0
     integer(int32), allocatable :: n(:), l(:), lv(:), mv(:)
-    real(real64),   allocatable :: eta(:), anorm(:), vexp(:)
+    real(real64),   allocatable :: eta(:), anorm(:), vexp(:), vexp_base(:)
     real(real64),   allocatable :: stovl(:), stkin(:), stpot(:,:), sthmat(:), ontran(:,:)
   end type ElemStream
 
@@ -244,10 +246,18 @@ module state
     type(AtomStream) :: unit3_stream
     type(AtomStream) :: unit4_stream
     type(ElemStream), allocatable :: elem_stream(:)
+
+    ! Granular cycle diagnostics
+    real(real64) :: last_pk_penalty   = 0.0d0
+    real(real64) :: last_rms_coulomb  = 0.0d0
+    real(real64) :: last_rms_exchange = 0.0d0
   end type MolecularWorkspace
 
   type(MolecularWorkspace), target :: mol_ws
   !f2py intent(hide) :: mol_ws
+  real(real64) :: FERMI_MU(2) = 0.0d0
+  integer(int32) :: EXCH_TYPE = 1
+  real(real64) :: EXCH_ALPHA = 2.0d0 / 3.0d0
   character(len=1) :: TITLE(80)
 
 contains
@@ -306,6 +316,17 @@ contains
     QGEOM   = .false.; QRERUN = .false.; QTRANS = .false.; QGSTAT = .true.
     QPLOT   = .false.; QCORE  = .false.; QC2FIT = .true.;  QX2FIT = .true.
     QPSMET  = .true.
+    QCSTFT  = .false.
+    QGFERM  = .false.
+    QDYNEX  = .false.
+    QDFTEX  = .false.
+    EXCH_TYPE = 1
+    EXCH_ALPHA = 2.0d0 / 3.0d0
+    FERMI_MU = 0.0d0
+
+    mol_ws%last_pk_penalty   = 0.0d0
+    mol_ws%last_rms_coulomb  = 0.0d0
+    mol_ws%last_rms_exchange = 0.0d0
 
     do i = 1, 20
       IUNIT(i) = i
@@ -481,6 +502,14 @@ contains
     end if
   end subroutine get_charge
 
+  subroutine set_charge(in_charge, n3, n)
+    integer(int32), intent(in) :: n3, n
+    real(real64), intent(in) :: in_charge(n3, n)
+    if (allocated(mol_ws%charge)) then
+      mol_ws%charge(1:min(n3, 3), 1:min(n, NATOM)) = in_charge(1:min(n3, 3), 1:min(n, NATOM))
+    end if
+  end subroutine set_charge
+
   subroutine get_popul(out_popul, n, nspin)
     integer(int32), intent(in) :: n, nspin
     real(real64), intent(out) :: out_popul(n, nspin)
@@ -490,6 +519,14 @@ contains
       out_popul = 0.0d0
     end if
   end subroutine get_popul
+
+  subroutine set_popul(in_popul, n, nspin)
+    integer(int32), intent(in) :: n, nspin
+    real(real64), intent(in) :: in_popul(n, nspin)
+    if (allocated(mol_ws%popul)) then
+      mol_ws%popul(1:min(n, NORBT), 1:min(nspin, ISPIN)) = in_popul(1:min(n, NORBT), 1:min(nspin, ISPIN))
+    end if
+  end subroutine set_popul
 
   subroutine get_iatomx(out_iatom, m)
     integer(int32), intent(in) :: m
@@ -550,6 +587,20 @@ contains
       out_anorm = 0.0d0
     end if
   end subroutine get_anormx
+
+  subroutine reset_cycle_diagnostics()
+    mol_ws%last_pk_penalty   = 0.0d0
+    mol_ws%last_rms_coulomb  = 0.0d0
+    mol_ws%last_rms_exchange = 0.0d0
+  end subroutine reset_cycle_diagnostics
+
+  subroutine get_cycle_diagnostics(pk_penalty, rms_coulomb, rms_exchange, charge_transfer)
+    real(real64), intent(out) :: pk_penalty, rms_coulomb, rms_exchange, charge_transfer
+    pk_penalty      = mol_ws%last_pk_penalty
+    rms_coulomb     = mol_ws%last_rms_coulomb
+    rms_exchange    = mol_ws%last_rms_exchange
+    charge_transfer = CHTRAN
+  end subroutine get_cycle_diagnostics
 
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
@@ -977,6 +1028,9 @@ contains
     mol_ws%elem_stream(ielem)%lv    = lv
     mol_ws%elem_stream(ielem)%mv    = mv
     mol_ws%elem_stream(ielem)%vexp  = vexp
+    if (.not. allocated(mol_ws%elem_stream(ielem)%vexp_base)) then
+      mol_ws%elem_stream(ielem)%vexp_base = vexp
+    end if
   end subroutine write_elem_potentials
 
   subroutine read_elem_potentials(ielem, stovl, stkin, stpot, lv, mv, vexp)

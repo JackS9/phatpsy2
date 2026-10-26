@@ -26,6 +26,7 @@ module density
   public :: denmat
   public :: chrgbo
   public :: mulpop
+  public :: lowdin_pop
   public :: popout
   public :: wfct
   public :: sfct
@@ -140,6 +141,81 @@ contains
 
     call chrgbo(dens, ovlp, popul, totpop, nbas, n2bas, qmull_opt=.true.)
   end subroutine mulpop
+
+  !---------------------------------------------------------------------
+  ! LOWDIN_POP: Symmetrically orthogonalized Löwdin population analysis
+  ! P_Lowdin = S^(1/2) * D * S^(1/2).
+  ! Guarantees strictly non-negative gross orbital populations
+  ! with total population Tr(P_Lowdin) = Tr(D * S) = N_elec.
+  !---------------------------------------------------------------------
+  subroutine lowdin_pop(dens, ovlp, popul, totpop, nbas, n2bas)
+    integer(int32), intent(in)  :: nbas, n2bas
+    real(real64),   intent(in)  :: dens(n2bas), ovlp(n2bas)
+    real(real64),   intent(out) :: popul(nbas), totpop
+
+    real(real64), parameter :: ZERO = 0.0d0, TOLER = 1.0d-12
+    real(real64), allocatable :: s_mat(:,:), s_half(:,:), d_mat(:,:), p_mat(:,:)
+    real(real64), allocatable :: w(:), work(:), ovl_copy(:), tmp(:,:)
+    integer(int32) :: info, i, j, k, ij, lwork
+
+    popul  = ZERO
+    totpop = ZERO
+    if (nbas <= 0) return
+
+    allocate(s_mat(nbas, nbas), s_half(nbas, nbas), d_mat(nbas, nbas))
+    allocate(p_mat(nbas, nbas), tmp(nbas, nbas), w(nbas), ovl_copy(n2bas))
+
+    ! 1. Unpack symmetric S and D
+    ij = 0
+    do i = 1, nbas
+      do j = 1, i
+        ij = ij + 1
+        d_mat(i, j) = dens(ij)
+        d_mat(j, i) = dens(ij)
+      end do
+    end do
+
+    ! 2. Compute S^(1/2) via DSPEV
+    ovl_copy(1:n2bas) = ovlp(1:n2bas)
+    lwork = max(1, 3 * nbas)
+    allocate(work(lwork))
+    call DSPEV('V', 'U', nbas, ovl_copy, w, s_mat, nbas, work, info)
+    deallocate(work, ovl_copy)
+
+    if (info /= 0) then
+      ! Fallback to diagonal approximation if DSPEV fails
+      do i = 1, nbas
+        popul(i) = d_mat(i, i)
+      end do
+      totpop = sum(popul)
+      deallocate(s_mat, s_half, d_mat, p_mat, tmp, w)
+      return
+    end if
+
+    ! Construct S^(1/2) = U * diag(sqrt(w)) * U^T
+    s_half = ZERO
+    do k = 1, nbas
+      if (w(k) > TOLER) then
+        do j = 1, nbas
+          do i = 1, nbas
+            s_half(i, j) = s_half(i, j) + s_mat(i, k) * sqrt(w(k)) * s_mat(j, k)
+          end do
+        end do
+      end if
+    end do
+
+    ! 3. P = S^(1/2) * D * S^(1/2)
+    tmp   = matmul(d_mat, s_half)
+    p_mat = matmul(s_half, tmp)
+
+    ! 4. Gross populations are the diagonal elements of P
+    do i = 1, nbas
+      popul(i) = p_mat(i, i)
+    end do
+    totpop = sum(popul)
+
+    deallocate(s_mat, s_half, d_mat, p_mat, tmp, w)
+  end subroutine lowdin_pop
 
   !---------------------------------------------------------------------
   ! POPOUT: Formatted orbital energy eigenvalues, occupations, charge
@@ -406,6 +482,17 @@ subroutine mulpop(dens, ovlp, popul, totpop, nbas, n2bas)
   real(real64),   intent(out)   :: popul(nbas), totpop
   call mod_mulpop(dens, ovlp, popul, totpop, nbas, n2bas)
 end subroutine mulpop
+
+subroutine lowdin_pop(dens, ovlp, popul, totpop, nbas, n2bas)
+  use iso_fortran_env, only: real64, int32
+  use density,         only: mod_lowdin_pop => lowdin_pop
+  implicit none
+  integer(int32), intent(in)    :: nbas, n2bas
+  real(real64),   intent(in)    :: dens(n2bas)
+  real(real64),   intent(in)    :: ovlp(n2bas)
+  real(real64),   intent(out)   :: popul(nbas), totpop
+  call mod_lowdin_pop(dens, ovlp, popul, totpop, nbas, n2bas)
+end subroutine lowdin_pop
 
 subroutine popout(eval, occ, zcharg, alpha, beta, norb)
   use iso_fortran_env, only: real64, int32

@@ -3,7 +3,7 @@
 import math
 import numpy as np
 import pytest
-from _phatpsy_core import density
+from _phatpsy_core import density, ewmo
 
 
 def pack_lower(mat: np.ndarray) -> np.ndarray:
@@ -173,3 +173,66 @@ def test_sfct_and_wfct():
     w, s_out = density.wfct(nmx, nmnm1, n1, eta1, n2, eta2)
     assert w.shape == (nmnm1,)
     assert s_out.shape == (nmx,)
+
+
+def test_lowdin_pop():
+    """Verify Phase 4.1: Symmetrically orthogonalized Löwdin population analysis."""
+    nbas = 2
+    d_full = np.array([
+        [1.2, 0.3],
+        [0.3, 0.8]
+    ], dtype=np.float64, order="F")
+    s_full = np.array([
+        [1.0, 0.25],
+        [0.25, 1.0]
+    ], dtype=np.float64, order="F")
+
+    d_packed = pack_lower(d_full)
+    s_packed = pack_lower(s_full)
+
+    # Analytical Löwdin population calculation
+    w, v = np.linalg.eigh(s_full)
+    s_half = v @ np.diag(np.sqrt(w)) @ v.T
+    p_lowdin = s_half @ d_full @ s_half
+    expected_popul = np.diag(p_lowdin)
+    expected_totpop = np.trace(d_full @ s_full)
+
+    popul, totpop = density.lowdin_pop(d_packed, s_packed, nbas)
+
+    assert totpop == pytest.approx(expected_totpop, rel=1e-12)
+    assert np.sum(popul) == pytest.approx(expected_totpop, rel=1e-12)
+    np.testing.assert_allclose(popul, expected_popul, rtol=1e-12)
+
+    # Invariant: populations are strictly positive
+    assert np.all(popul >= 0.0)
+
+
+def test_solve_fermi_level():
+    """Verify Phase 4.3: Global Fermi Level (mu) Chemical Potential Equilibration."""
+    # 1. Symmetric two-level system: eps = [-0.5, 0.5], nelec = 1.0
+    evals = np.array([-0.5, 0.5], dtype=np.float64)
+    theta = 0.05
+    occs, mu = ewmo.solve_fermi_level(evals, 1.0, theta)
+    assert mu == pytest.approx(0.0, abs=1e-9)
+    assert np.sum(occs) == pytest.approx(1.0, abs=1e-12)
+    assert occs[0] > occs[1]
+    assert occs[0] == pytest.approx(1.0 / (1.0 + math.exp(-0.5 / theta)), rel=1e-12)
+
+    # 2. Degenerate frontier orbitals (e.g. 5 d-orbitals at eps = -0.2 with 2.5 electrons)
+    evals_deg = np.array([-0.2, -0.2, -0.2, -0.2, -0.2], dtype=np.float64)
+    occs_deg, mu_deg = ewmo.solve_fermi_level(evals_deg, 2.5, theta)
+    assert mu_deg == pytest.approx(-0.2, abs=1e-12)
+    assert np.sum(occs_deg) == pytest.approx(2.5, abs=1e-12)
+    np.testing.assert_allclose(occs_deg, 0.5, atol=1e-12)
+
+    # 3. Multi-level system across different temperatures
+    evals_multi = np.array([-1.5, -0.8, -0.3, -0.1, 0.2, 0.7, 1.2], dtype=np.float64)
+    target_nelec = 3.7
+    for th in [1e-4, 0.001, 0.01, 0.1, 1.0]:
+        occs_m, mu_m = ewmo.solve_fermi_level(evals_multi, target_nelec, th)
+        # Particle conservation invariant
+        assert np.sum(occs_m) == pytest.approx(target_nelec, abs=1e-10)
+        # Monotonicity with energy
+        assert np.all(np.diff(occs_m) <= 1e-14)
+        # Bounded between 0 and 1
+        assert np.all(occs_m >= 0.0) and np.all(occs_m <= 1.0)

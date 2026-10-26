@@ -3,6 +3,8 @@ module scf
   use state
   use lowdin, only: run_lowdin
   use symmetry, only: symop
+  use modelpot, only: regularize_pk_projector
+  use exchange_dft, only: compute_dft_exchange
   implicit none
   private
   public :: run_scf_element, USE_LAPACK_EIG, FOCK_MIX_ALPHA
@@ -130,6 +132,7 @@ contains
         do isp = 1, ISPIN
           stovl = stovl_bak
           if (QPSMET) then
+            call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, 1.0d-3)
             stovl = stovl - pkpot(:, 1, isp)
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
           end if
@@ -161,6 +164,9 @@ contains
           call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
           call read_elem_core_matrices(IELEM, sthmat, ontran)
           call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
+          if (QDFTEX) then
+            call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA)
+          end if
 
           do isp = 1, ISPIN
             do ij = 1, M2STO
@@ -371,6 +377,9 @@ contains
             call read_elem_potentials(IELEM, stovl, stkin, stpot, lv, mv, vexp)
             call read_elem_core_matrices(IELEM, sthmat, ontran)
             call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
+            if (QDFTEX) then
+              call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA)
+            end if
 
             do isp = 1, ISPIN
               ijorb = 0

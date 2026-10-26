@@ -60,6 +60,14 @@ These instructions govern all autonomous and pair-programming development work o
    correction goes into this file (or the relevant file under
    `.agents/rules/`) in the same commit as the fix, so the next
    session does not repeat it.
+6. **Non-interactive debugging (LLDB):** When inspecting a segfault
+   or runtime crash with an input deck, never run LLDB interactively
+   (which hangs awaiting terminal input). The reliable non-interactive
+   pattern is:
+   ```bash
+   lldb --batch -o "run < path/to/input.dat" -o bt -o quit -- ./build/bin/phatpsy
+   ```
+   (or redirecting stdin directly into `lldb --batch -o run -o bt -o quit -- ./build/bin/phatpsy < path/to/input.dat`).
 
 ---
 

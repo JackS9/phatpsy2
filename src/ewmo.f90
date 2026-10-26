@@ -2,9 +2,10 @@ module ewmo
   use iso_fortran_env, only: real64, int32
   use state
   use lowdin, only: run_lowdin
+  use density, only: denmat, lowdin_pop
   implicit none
   private
-  public :: run_ewmo, QNOPOP_EWMO, USE_LOWDIN_EWMO
+  public :: run_ewmo, QNOPOP_EWMO, USE_LOWDIN_EWMO, solve_fermi_level
 
   logical(kind=1), save :: QNOPOP_EWMO     = .true.  ! Legacy default (.true. uses bloop Fermi-Dirac POPUL)
   logical,         save :: USE_LOWDIN_EWMO = .false. ! .true. uses F = S*eps*S with Lowdin S^(-1/2)
@@ -149,23 +150,27 @@ contains
       !-----------------------------------------------------------------
       ! Ground-state MO occupation assignment (FIXED out-of-bounds check)
       !-----------------------------------------------------------------
-      remain = ELECS(isp) / ORBOCC
-      iorbt  = 1
-      occ_loop: do while ((iorbt <= NORBT) .and. (remain > 0.0d0))
-        idegen = 1
-        degen_loop: do while (iorbt + idegen <= NORBT)
-          split = abs(evalmo(iorbt, isp) - evalmo(iorbt + idegen, isp))
-          if (split > SMALL) exit degen_loop
-          idegen = idegen + 1
-        end do degen_loop
+      if (QGFERM) then
+        call solve_fermi_level(evalmo(1, isp), occmo(1, isp), NORBT, ELECS(isp) / ORBOCC, THETA, FERMI_MU(isp))
+      else
+        remain = ELECS(isp) / ORBOCC
+        iorbt  = 1
+        occ_loop: do while ((iorbt <= NORBT) .and. (remain > 0.0d0))
+          idegen = 1
+          degen_loop: do while (iorbt + idegen <= NORBT)
+            split = abs(evalmo(iorbt, isp) - evalmo(iorbt + idegen, isp))
+            if (split > SMALL) exit degen_loop
+            idegen = idegen + 1
+          end do degen_loop
 
-        occup = min(1.0d0, remain / real(idegen, real64))
-        do id = 1, idegen
-          occmo(iorbt, isp) = occup
-          iorbt  = iorbt + 1
-          remain = remain - occup
-        end do
-      end do occ_loop
+          occup = min(1.0d0, remain / real(idegen, real64))
+          do id = 1, idegen
+            occmo(iorbt, isp) = occup
+            iorbt  = iorbt + 1
+            remain = remain - occup
+          end do
+        end do occ_loop
+      end if
     end do
 
     !-------------------------------------------------------------------
@@ -173,20 +178,38 @@ contains
     !-------------------------------------------------------------------
     CHTRAN = 0.0d0
     DELTAE = 0.0d0
-    if (.not. QNOPOP_EWMO) then
+    if (.not. QNOPOP_EWMO .or. QGFERM) then
       do isp = 1, ISPIN
         if (.not. QGSTAT) call EXCITE(occmo, NORBT, ISPIN)
-        do iorbt = 1, NORBT
-          sum_pop = 0.0d0
-          oldpop  = mol_ws%popul(iorbt, isp)
-          do jorbt = 1, NORBT
-            sum_pop = sum_pop + occmo(jorbt, isp) * evecmo(iorbt, jorbt, isp)**2
+        if (QGFERM) then
+          block
+            real(real64) :: totpop_l
+            real(real64), allocatable :: dens(:), lpop(:)
+            allocate(dens(N2ORBT), lpop(NORBT))
+            call denmat(dens, evecmo(1, 1, isp), occmo(1, isp), NORBT, N2ORBT, NORBT)
+            call lowdin_pop(dens, mol_ws%ovlp(1, isp), lpop, totpop_l, NORBT, N2ORBT)
+            do iorbt = 1, NORBT
+              oldpop = mol_ws%popul(iorbt, isp)
+              mol_ws%popul(iorbt, isp) = lpop(iorbt)
+              ct = ORBOCC * (lpop(iorbt) - oldpop)
+              CHTRAN = CHTRAN + 0.5d0 * abs(ct)
+              DELTAE = DELTAE + evalmo(iorbt, isp) * ct
+            end do
+            deallocate(dens, lpop)
+          end block
+        else
+          do iorbt = 1, NORBT
+            sum_pop = 0.0d0
+            oldpop  = mol_ws%popul(iorbt, isp)
+            do jorbt = 1, NORBT
+              sum_pop = sum_pop + occmo(jorbt, isp) * evecmo(iorbt, jorbt, isp)**2
+            end do
+            mol_ws%popul(iorbt, isp) = sum_pop
+            ct     = ORBOCC * (sum_pop - oldpop)
+            CHTRAN = CHTRAN + 0.5d0 * abs(ct)
+            DELTAE = DELTAE + evalmo(iorbt, isp) * ct
           end do
-          mol_ws%popul(iorbt, isp) = sum_pop
-          ct     = ORBOCC * (sum_pop - oldpop)
-          CHTRAN = CHTRAN + 0.5d0 * abs(ct)
-          DELTAE = DELTAE + evalmo(iorbt, isp) * ct
-        end do
+        end if
       end do
     end if
 
@@ -267,5 +290,110 @@ contains
       end do
     end if
   end subroutine EXCITE
+
+  !---------------------------------------------------------------------
+  ! SOLVE_FERMI_LEVEL: Determines the chemical potential mu (Fermi level)
+  ! and fractional orbital occupations n_i according to the Fermi-Dirac
+  ! distribution:
+  !   n_i = 1 / (1 + exp((eps_i - mu) / theta))
+  ! such that sum_i n_i = nelec to machine precision.
+  ! Monotonic root-finding via hybrid Newton-Raphson / bisection.
+  !---------------------------------------------------------------------
+  subroutine solve_fermi_level(evals, occs, norb, nelec, theta, fermi_mu)
+    integer(int32), intent(in)            :: norb
+    real(real64),   intent(in)            :: evals(norb)
+    real(real64),   intent(out)           :: occs(norb)
+    real(real64),   intent(in)            :: nelec
+    real(real64),   intent(in)            :: theta
+    real(real64),   intent(out), optional :: fermi_mu
+
+    real(real64), parameter :: TOL_F = 1.0d-15
+    real(real64), parameter :: TOL_MU = 1.0d-14
+    real(real64), parameter :: MAX_EXP = 60.0d0
+    integer(int32), parameter :: MAX_ITER = 100
+
+    integer(int32) :: i, iter, khomo
+    real(real64)   :: emin, emax, mu, mu_low, mu_high, f, df, arg, occ, dmu
+    real(real64)   :: mu_new, th
+
+    th = theta
+    if (th < 1.0d-12) th = 1.0d-12
+
+    if (nelec <= 0.0d0) then
+      occs = 0.0d0
+      if (present(fermi_mu)) fermi_mu = minval(evals) - 1.0d0
+      return
+    end if
+
+    if (nelec >= real(norb, real64)) then
+      occs = 1.0d0
+      if (present(fermi_mu)) fermi_mu = maxval(evals) + 1.0d0
+      return
+    end if
+
+    emin = minval(evals)
+    emax = maxval(evals)
+
+    ! Safe wide bracket ensuring f(mu_low) < 0 and f(mu_high) > 0
+    mu_low  = emin - MAX_EXP * th
+    mu_high = emax + MAX_EXP * th
+
+    ! Initial guess near HOMO
+    khomo = max(1, min(norb, nint(nelec)))
+    mu = evals(khomo)
+    if (mu <= mu_low .or. mu >= mu_high) mu = 0.5d0 * (mu_low + mu_high)
+
+    do iter = 1, MAX_ITER
+      f = -nelec
+      df = 0.0d0
+      do i = 1, norb
+        arg = (evals(i) - mu) / th
+        if (arg > MAX_EXP) then
+          occ = 0.0d0
+        else if (arg < -MAX_EXP) then
+          occ = 1.0d0
+        else
+          occ = 1.0d0 / (1.0d0 + exp(arg))
+        end if
+        f = f + occ
+        df = df + (occ * (1.0d0 - occ)) / th
+      end do
+
+      if (abs(f) < TOL_F .or. (mu_high - mu_low) < TOL_MU) exit
+
+      if (f < 0.0d0) then
+        mu_low = mu
+      else
+        mu_high = mu
+      end if
+
+      ! Hybrid Newton-Raphson with bisection fallback
+      if (df > 1.0d-15) then
+        dmu = -f / df
+        mu_new = mu + dmu
+      else
+        mu_new = mu_low - 1.0d0
+      end if
+
+      if (mu_new <= mu_low .or. mu_new >= mu_high) then
+        mu_new = 0.5d0 * (mu_low + mu_high)
+      end if
+      mu = mu_new
+    end do
+
+    ! Final occupations
+    do i = 1, norb
+      arg = (evals(i) - mu) / th
+      if (arg > MAX_EXP) then
+        occs(i) = 0.0d0
+      else if (arg < -MAX_EXP) then
+        occs(i) = 1.0d0
+      else
+        occs(i) = 1.0d0 / (1.0d0 + exp(arg))
+      end if
+    end do
+
+    if (present(fermi_mu)) fermi_mu = mu
+  end subroutine solve_fermi_level
 
 end module ewmo

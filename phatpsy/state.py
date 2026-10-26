@@ -163,6 +163,47 @@ class CalculationState(dict):
     def deck(self, val: Any) -> None:
         self._deck = val
 
+    def decompose_subsystems(
+        self,
+        bulk_references: Optional[Dict[str, float]] = None,
+        isolated_references: Optional[Dict[str, float]] = None,
+    ) -> Any:
+        """
+        Decomposes total energy into active cluster, environment, and embedding components
+        according to the ONIOM / DFT-in-DFT subsystem energy formalism.
+        """
+        from phatpsy.subsystem import decompose_subsystem_energies
+        return decompose_subsystem_energies(
+            self,
+            bulk_references=bulk_references,
+            isolated_references=isolated_references,
+        )
+
+    @property
+    def subsystem_decomposition(self) -> Any:
+        """Subsystem decomposition of the calculation state."""
+        return self.decompose_subsystems()
+
+    @property
+    def energy_cluster(self) -> float:
+        """Reference isolated atomic energy sum of active cluster atoms."""
+        return self.subsystem_decomposition.energy_cluster
+
+    @property
+    def energy_environment(self) -> float:
+        """Bulk cohesive reference energy sum of frozen environment atoms."""
+        return self.subsystem_decomposition.energy_environment
+
+    @property
+    def energy_embedding(self) -> float:
+        """Embedding energy strictly satisfying E_total - E_cluster - E_env."""
+        return self.subsystem_decomposition.energy_embedding
+
+    @property
+    def energy_excess(self) -> float:
+        """Excess energy of active cluster embedded in bulk (E_total - E_env)."""
+        return self.subsystem_decomposition.energy_excess
+
     def __getattr__(self, name: str) -> Any:
         if name in self:
             return self[name]
@@ -407,6 +448,7 @@ def extract_calculation_state(
     core_state: Any,
     deck: Optional[Any] = None,
     converged: bool = False,
+    cycle_history: Optional[List[Dict[str, float]]] = None,
 ) -> CalculationState:
     """
     Extracts the full CalculationState from the low-level Fortran workspace,
@@ -589,6 +631,14 @@ def extract_calculation_state(
         "atom_populations": popul,
         "basis_info": basis_info,
         "embedded_atoms": embedded_atoms,
+        "cycle_history": list(cycle_history) if cycle_history is not None else [],
     }
+
+    try:
+        from phatpsy.subsystem import decompose_subsystem_energies
+        decomp = decompose_subsystem_energies(state_dict, total_energy=state_dict["total_energy"])
+        state_dict["subsystem_decomposition"] = decomp.to_dict()
+    except Exception:
+        pass
 
     return CalculationState(state_dict, deck=deck)

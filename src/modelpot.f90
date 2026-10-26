@@ -12,12 +12,13 @@
 !=======================================================================
 module modelpot
   use iso_fortran_env, only: real64, int32
-  use state,           only: MSTO, NORB, M2STO, ISPIN
+  use state,           only: MSTO, NORB, M2STO, ISPIN, NATOM, mol_ws, QDYNEX
   implicit none
 
   private
 
-  public :: genfac, genbc, gennrm, gennrm_default, intnrm, pkepot, epkpot, epkpot_core, dampv
+  public :: genfac, genbc, gennrm, gennrm_default, intnrm, pkepot, epkpot, epkpot_core, dampv, &
+            regularize_pk_projector, scale_screening_exponents, update_dynamic_exponents
 
   interface gennrm
     module procedure gennrm_default
@@ -320,6 +321,256 @@ contains
     zpot2(1:m2sto) = vdamp * zpot2(1:m2sto)
     vpot2(1:nvterm) = vdamp * vpot2(1:nvterm)
   end subroutine dampv
+
+  !---------------------------------------------------------------------
+  ! REGULARIZE_PK_PROJECTOR: Canonical multi-center projection bounding
+  ! Ensures the environment projector P <= (1 - delta) S in the Löwdin basis,
+  ! bounding P so that M = S - P is strictly positive-definite.
+  ! Simultaneously scales the energy projector B by the same mode factors.
+  !---------------------------------------------------------------------
+  subroutine regularize_pk_projector(stovl_packed, pkpot_p, pkpot_b, msto, m2sto, delta_in)
+    integer(int32), intent(in)    :: msto, m2sto
+    real(real64),   intent(in)    :: stovl_packed(m2sto)
+    real(real64),   intent(inout) :: pkpot_p(m2sto)
+    real(real64),   intent(inout) :: pkpot_b(m2sto)
+    real(real64),   intent(in), optional :: delta_in
+
+    real(real64) :: delta, max_lam, tol
+    real(real64), allocatable :: s_mat(:,:), s_half(:,:), s_mhalf(:,:)
+    real(real64), allocatable :: p_mat(:,:), b_mat(:,:)
+    real(real64), allocatable :: p_lowdin(:,:), b_lowdin(:,:)
+    real(real64), allocatable :: v_p(:,:), lam_p(:), s_modes(:)
+    real(real64), allocatable :: b_vp(:,:), tmp1(:,:)
+    real(real64), allocatable :: w_s(:), work(:)
+    real(real64), allocatable :: ovl_copy(:)
+    integer(int32) :: info, i, j, k, ij, lwork
+    logical :: needs_reg
+
+    delta = 1.0d-3
+    if (present(delta_in)) delta = delta_in
+    tol = 1.0d-10
+
+    ! Quick check: if norm of P is negligible, exit immediately
+    if (maxval(abs(pkpot_p(1:m2sto))) < tol) return
+
+    allocate(ovl_copy(m2sto), w_s(msto), work(3 * msto))
+    allocate(s_mat(msto, msto), s_half(msto, msto), s_mhalf(msto, msto))
+    allocate(p_mat(msto, msto), b_mat(msto, msto))
+    allocate(p_lowdin(msto, msto), b_lowdin(msto, msto))
+    allocate(v_p(msto, msto), lam_p(msto), s_modes(msto))
+    allocate(tmp1(msto, msto))
+
+    ! 1. Diagonalize atomic overlap S_A via DSPEV
+    ovl_copy(1:m2sto) = stovl_packed(1:m2sto)
+    call DSPEV('V', 'U', msto, ovl_copy, w_s, s_mat, msto, work, info)
+    deallocate(ovl_copy, work)
+    if (info /= 0) goto 999
+
+    ! Form S^(1/2) and S^(-1/2)
+    s_half = 0.0d0
+    s_mhalf = 0.0d0
+    do k = 1, msto
+      if (w_s(k) > tol) then
+        do j = 1, msto
+          do i = 1, msto
+            s_half(i, j)  = s_half(i, j)  + s_mat(i, k) * sqrt(w_s(k)) * s_mat(j, k)
+            s_mhalf(i, j) = s_mhalf(i, j) + s_mat(i, k) * (1.0d0 / sqrt(w_s(k))) * s_mat(j, k)
+          end do
+        end do
+      end if
+    end do
+
+    ! 2. Unpack P and B from packed upper triangular
+    ij = 0
+    do i = 1, msto
+      do j = 1, i
+        ij = ij + 1
+        p_mat(i, j) = pkpot_p(ij)
+        p_mat(j, i) = pkpot_p(ij)
+        b_mat(i, j) = pkpot_b(ij)
+        b_mat(j, i) = pkpot_b(ij)
+      end do
+    end do
+
+    ! 3. Transform P and B to orthonormal Löwdin basis:
+    ! P_lowdin = S^(-1/2) * P * S^(-1/2)
+    ! B_lowdin = S^(-1/2) * B * S^(-1/2)
+    tmp1 = matmul(p_mat, s_mhalf)
+    p_lowdin = matmul(s_mhalf, tmp1)
+
+    tmp1 = matmul(b_mat, s_mhalf)
+    b_lowdin = matmul(s_mhalf, tmp1)
+
+    ! 4. Diagonalize P_lowdin via DSYEV
+    lwork = max(1, 3 * msto - 1)
+    allocate(work(lwork))
+    v_p = p_lowdin
+    call DSYEV('V', 'U', msto, v_p, msto, lam_p, work, lwork, info)
+    deallocate(work)
+    if (info /= 0) goto 999
+
+    ! 5. Check if any eigenvalue exceeds physical bound (1 - delta)
+    max_lam = maxval(lam_p)
+    needs_reg = (max_lam > (1.0d0 - delta))
+
+    if (needs_reg) then
+      ! Calculate mode scaling factors s_k <= 1.0
+      do k = 1, msto
+        if (lam_p(k) > (1.0d0 - delta)) then
+          s_modes(k) = (1.0d0 - delta) / lam_p(k)
+        else
+          s_modes(k) = 1.0d0
+        end if
+      end do
+
+      ! Reconstruct regularized P in Löwdin basis:
+      ! P_lowdin_reg = V_P * diag(s_k * lam_k) * V_P^T
+      tmp1 = 0.0d0
+      do j = 1, msto
+        do i = 1, msto
+          tmp1(i, j) = v_p(i, j) * (s_modes(j) * lam_p(j))
+        end do
+      end do
+      p_lowdin = matmul(tmp1, transpose(v_p))
+
+      ! Scale B in the V_P basis:
+      ! B_vp = V_P^T * B_lowdin * V_P
+      allocate(b_vp(msto, msto))
+      tmp1 = matmul(b_lowdin, v_p)
+      b_vp = matmul(transpose(v_p), tmp1)
+
+      do j = 1, msto
+        do i = 1, msto
+          b_vp(i, j) = b_vp(i, j) * sqrt(s_modes(i) * s_modes(j))
+        end do
+      end do
+
+      tmp1 = matmul(b_vp, transpose(v_p))
+      b_lowdin = matmul(v_p, tmp1)
+      deallocate(b_vp)
+
+      ! Transform regularized P and B back to STO basis:
+      ! P_reg = S^(1/2) * P_lowdin_reg * S^(1/2)
+      ! B_reg = S^(1/2) * B_lowdin_reg * S^(1/2)
+      tmp1 = matmul(p_lowdin, s_half)
+      p_mat = matmul(s_half, tmp1)
+
+      tmp1 = matmul(b_lowdin, s_half)
+      b_mat = matmul(s_half, tmp1)
+
+      ! Pack back into pkpot_p and pkpot_b
+      ij = 0
+      do i = 1, msto
+        do j = 1, i
+          ij = ij + 1
+          pkpot_p(ij) = 0.5d0 * (p_mat(i, j) + p_mat(j, i))
+          pkpot_b(ij) = 0.5d0 * (b_mat(i, j) + b_mat(j, i))
+        end do
+      end do
+    end if
+
+999 continue
+    if (allocated(ovl_copy)) deallocate(ovl_copy)
+    if (allocated(w_s)) deallocate(w_s)
+    if (allocated(work)) deallocate(work)
+    if (allocated(s_mat)) deallocate(s_mat)
+    if (allocated(s_half)) deallocate(s_half)
+    if (allocated(s_mhalf)) deallocate(s_mhalf)
+    if (allocated(p_mat)) deallocate(p_mat)
+    if (allocated(b_mat)) deallocate(b_mat)
+    if (allocated(p_lowdin)) deallocate(p_lowdin)
+    if (allocated(b_lowdin)) deallocate(b_lowdin)
+    if (allocated(v_p)) deallocate(v_p)
+    if (allocated(lam_p)) deallocate(lam_p)
+    if (allocated(s_modes)) deallocate(s_modes)
+    if (allocated(b_vp)) deallocate(b_vp)
+    if (allocated(tmp1)) deallocate(tmp1)
+  end subroutine regularize_pk_projector
+
+  !---------------------------------------------------------------------
+  ! SCALE_SCREENING_EXPONENTS: Computes charge-dependent model potential
+  ! screening exponents:
+  !   zeta_k(Z, q) = zeta_k^0 * (1 + gamma * q / Z)^(1/3)
+  ! where q = Z - N is the net atomic charge.
+  ! Exponents are bounded to prevent unphysical contraction/collapse.
+  !---------------------------------------------------------------------
+  subroutine scale_screening_exponents(vexp_base, vexp_scaled, nvterm, znuc, q_charge, gamma_param)
+    integer(int32), intent(in)  :: nvterm
+    real(real64),   intent(in)  :: vexp_base(nvterm)
+    real(real64),   intent(out) :: vexp_scaled(nvterm)
+    real(real64),   intent(in)  :: znuc, q_charge
+    real(real64),   intent(in), optional :: gamma_param
+
+    real(real64) :: gamma_val, zeff_ratio, scale_factor
+    integer(int32) :: k
+
+    gamma_val = 1.0d0
+    if (present(gamma_param)) then
+      if (gamma_param > 0.0d0) gamma_val = gamma_param
+    end if
+
+    vexp_scaled = vexp_base
+    if (nvterm <= 1) return
+
+    if (znuc > 0.0d0) then
+      zeff_ratio = 1.0d0 + gamma_val * (q_charge / znuc)
+      ! Numerical bounds: ratio in [0.5, 2.0] keeps scale_factor in [0.7937, 1.2599]
+      zeff_ratio = max(0.5d0, min(2.0d0, zeff_ratio))
+      scale_factor = zeff_ratio**(1.0d0 / 3.0d0)
+    else
+      scale_factor = 1.0d0
+    end if
+
+    vexp_scaled(1) = 0.0d0 ! Coulomb -Z*/r term is never scaled
+    do k = 2, nvterm
+      vexp_scaled(k) = vexp_base(k) * scale_factor
+    end do
+  end subroutine scale_screening_exponents
+
+  !---------------------------------------------------------------------
+  ! UPDATE_DYNAMIC_EXPONENTS: Iterates over all active elements and adapts
+  ! their model potential screening exponents vexp based on net atomic
+  ! charges q_A = Z_A - N_A if QDYNEX = .true.
+  !---------------------------------------------------------------------
+  subroutine update_dynamic_exponents(gamma_param)
+    real(real64), intent(in), optional :: gamma_param
+    real(real64) :: gamma_val, znuc, q_net
+    integer(int32) :: ielem, nvterm, iat, nat_elem, nucz
+
+    gamma_val = 1.0d0
+    if (present(gamma_param)) then
+      if (gamma_param > 0.0d0) gamma_val = gamma_param
+    end if
+
+    if (.not. QDYNEX) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    if (.not. allocated(mol_ws%charge)) return
+
+    do ielem = 1, size(mol_ws%elem_stream)
+      nvterm = mol_ws%elem_stream(ielem)%nvterm
+      if (nvterm <= 1) cycle
+      if (.not. allocated(mol_ws%elem_stream(ielem)%vexp_base)) cycle
+
+      nucz = mol_ws%elem_stream(ielem)%nucz
+      znuc = real(nucz, real64)
+      if (znuc <= 0.0d0) cycle
+
+      ! Compute average net charge for atoms of this element
+      q_net = 0.0d0
+      nat_elem = 0
+      do iat = 1, NATOM
+        if (nint(mol_ws%charge(1, iat)) == nucz) then
+          q_net = q_net + (mol_ws%charge(1, iat) - mol_ws%charge(2, iat))
+          nat_elem = nat_elem + 1
+        end if
+      end do
+      if (nat_elem > 0) q_net = q_net / real(nat_elem, real64)
+
+      call scale_screening_exponents(mol_ws%elem_stream(ielem)%vexp_base, &
+                                    mol_ws%elem_stream(ielem)%vexp,      &
+                                    nvterm, znuc, q_net, gamma_val)
+    end do
+  end subroutine update_dynamic_exponents
 
 end module modelpot
 

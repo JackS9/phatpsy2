@@ -106,3 +106,76 @@ def test_dampv_matrix_scaling():
     assert np.allclose(pkpot[:, 2:4, :], 1.0)
     assert np.allclose(zpot2, 0.75)
     assert np.allclose(vpot2, 0.75)
+
+
+def test_constrained_model_potential_fit():
+    """Verify Phase 3.2: Exact equality-constrained model potential fitting."""
+    from phatpsy.builder import build_diatomic
+    from phatpsy.driver import PhatpsyDriver
+
+    driver = PhatpsyDriver(quiet=True)
+
+    # 1. Standard N2 calculation with legacy penalty fit
+    deck_leg = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck_leg.control.use_constrained_fit = False
+    res_leg = driver.run_deck(deck_leg)
+
+    # 2. Modern N2 calculation with exact equality-constrained fit (QCSTFT=T)
+    deck_cst = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck_cst.control.use_constrained_fit = True
+    res_cst = driver.run_deck(deck_cst)
+
+    assert res_leg.converged is True
+    assert res_cst.converged is True
+
+    # Physical virial ratio bounds: -V/T ~ 2.0
+    assert abs(res_cst.virial_ratio - 2.0) < 0.05
+
+    # Energy difference is small and consistent with eliminating soft penalty cusp distortion
+    delta_e = abs(res_cst.total_energy - res_leg.total_energy)
+    assert delta_e < 0.03  # within 0.03 Ha of legacy baseline
+
+
+def test_dynamic_exponent_scaling():
+    """Verify Phase 3.1: Charge-dependent model potential exponent scaling formula."""
+    vexp_base = np.array([0.0, 1.5, 3.2, 5.8], dtype=np.float64)
+    znuc = 7.0  # Nitrogen
+
+    # 1. Neutral atom: q = 0.0 -> identical base exponents
+    vexp_neutral = modelpot.scale_screening_exponents(vexp_base, znuc, 0.0)
+    np.testing.assert_allclose(vexp_neutral, vexp_base, atol=1e-14)
+
+    # 2. Cation: q = +1.0 -> screening contracts (exponents increase)
+    expected_scale_cat = (1.0 + 1.0 / 7.0) ** (1.0 / 3.0)
+    expected_cat = np.copy(vexp_base) * expected_scale_cat
+    expected_cat[0] = 0.0
+    vexp_cat = modelpot.scale_screening_exponents(vexp_base, znuc, 1.0)
+    np.testing.assert_allclose(vexp_cat, expected_cat, rtol=1e-12)
+    assert np.all(vexp_cat[1:] > vexp_base[1:])
+
+    # 3. Anion: q = -1.0 -> screening expands (exponents decrease)
+    expected_scale_an = (1.0 - 1.0 / 7.0) ** (1.0 / 3.0)
+    expected_an = np.copy(vexp_base) * expected_scale_an
+    expected_an[0] = 0.0
+    vexp_an = modelpot.scale_screening_exponents(vexp_base, znuc, -1.0)
+    np.testing.assert_allclose(vexp_an, expected_an, rtol=1e-12)
+    assert np.all(vexp_an[1:] < vexp_base[1:])
+
+
+def test_dynamic_exponents_deck():
+    """Verify Phase 3.1: Full SCF calculation with QDYNEX dynamic exponent optimization."""
+    from phatpsy.builder import build_diatomic
+    from phatpsy.driver import PhatpsyDriver
+
+    driver = PhatpsyDriver(quiet=True)
+    deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck.control.use_dynamic_exponents = True
+    deck.control.max_cycles = 10
+
+    stdin_text = deck.to_stdin_text()
+    assert "QDYNEX=T" in stdin_text
+
+    res = driver.run_deck(deck)
+    assert res.converged is True
+    assert abs(res.virial_ratio - 2.0) < 0.05
+    assert math.isclose(res.total_energy, -110.72, abs_tol=0.2)

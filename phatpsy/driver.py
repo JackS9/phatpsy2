@@ -180,18 +180,63 @@ class PhatpsyDriver:
 
         # 3. Main Polyatomic Self-Consistent Loop (formerly GOTO 90 in contrl.f)
         converged = False
+        diis_acc = None
+        prev_charges = None
+        if deck is not None and deck.control.use_diis:
+            from phatpsy.diis import DIISAccelerator
+            diis_acc = DIISAccelerator(max_subspace=6)
+
+        cycle_history: List[Dict[str, float]] = []
+
         while True:
             if not bool(state.qatom):
                 converged = contrl.contrl_step_aloop_and_ewmo()
                 if converged:
                     break
 
+                if diis_acc is not None:
+                    chg = state.get_charge(3, int(state.natom))
+                    curr_charges = chg[1, :].copy()
+                    if prev_charges is not None:
+                        err_vec = curr_charges - prev_charges
+                        acc_charges = diis_acc.update(curr_charges, err_vec)
+                        if np.sum(acc_charges) > 0:
+                            acc_charges = acc_charges * (np.sum(curr_charges) / np.sum(acc_charges))
+                        chg[1, :] = acc_charges
+                        chg[2, :] = chg[0, :] - acc_charges
+                        state.set_charge(chg)
+                    prev_charges = curr_charges
+
                 # Optional Python hook to override legacy CDAMP/VDAMP or apply DIIS
                 if custom_damping_hook is not None:
                     custom_damping_hook(state)
 
             done_after_scf = contrl.contrl_step_scf()
+
+            # Record granular per-cycle diagnostics
+            c_idx = int(state.ncycl)
+            t_mole = float(state.tmole)
+            t_ke = float(state.totke)
+            t_pe = t_mole - t_ke
+            v_ratio = -t_pe / t_ke if abs(t_ke) > 1e-12 else 0.0
+            try:
+                pk_pen, rms_c, rms_x, chtran_val = state.get_cycle_diagnostics()
+            except Exception:
+                pk_pen, rms_c, rms_x, chtran_val = 0.0, 0.0, 0.0, 0.0
+
+            cycle_history.append({
+                "cycle": c_idx,
+                "total_energy": t_mole,
+                "kinetic_energy": t_ke,
+                "potential_energy": t_pe,
+                "virial_ratio": v_ratio,
+                "pk_penalty": float(pk_pen),
+                "rms_coulomb": float(rms_c),
+                "rms_exchange": float(rms_x),
+                "charge_transfer": chtran_val,
+            })
+
             if done_after_scf:
                 break
 
-        return extract_calculation_state(state, deck=deck, converged=converged)
+        return extract_calculation_state(state, deck=deck, converged=converged, cycle_history=cycle_history)

@@ -144,6 +144,23 @@ def test_bulk_ni_frozen_baseline():
     assert math.isclose(res.virial_ratio, ref_cal["virial_ratio"], abs_tol=tol_v)
 
 
+def test_bulk_ni_unit_pk_scale_convergence():
+    """Verify Bulk Ni13 cluster converges stably with theoretical PKSCAL=1.0 and physical overlap metric."""
+    repo_root = Path(__file__).resolve().parent.parent
+    deck = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
+    deck.control.pk_scale = 1.0
+    deck.control.use_pseudometric = False
+    deck.control.pk_energy = -0.22
+    deck.control.max_cycles = 15
+
+    driver = PhatpsyDriver(quiet=True)
+    res = driver.run_deck(deck)
+
+    assert res.converged is True
+    assert math.isclose(res.total_energy, -19532.39, abs_tol=0.20)
+    assert math.isclose(abs(res.virial_ratio), 2.000, abs_tol=0.01)
+
+
 def test_ni_slab_3layer_frozen_baseline():
     """Verify 3-layer Ni(100) embedded slab against frozen baseline with theoretical PKSCAL=1.0."""
     ref = load_baseline("ni_slab_3layer.json")

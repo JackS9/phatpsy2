@@ -11,6 +11,170 @@ module analys
 
 contains
 
+  !---------------------------------------------------------------------
+  ! SOLVE_HELMERT_NULLSPACE_FIT:
+  ! Solves min ||G0 * c - g_rhs|| subject to exact linear cusp sum(c) = d1
+  ! using an analytical Helmert orthonormal basis Z for the null space (1^T Z = 0).
+  ! Guarantees the cusp condition is satisfied to exact machine precision
+  ! without condition-number blowup from penalty weights.
+  !---------------------------------------------------------------------
+  subroutine solve_helmert_nullspace_fit(g0_packed, g0_rhs, d1, nc, c_out, qindef)
+    integer(int32), intent(in)  :: nc
+    real(real64),   intent(in)  :: g0_packed(210), g0_rhs(20), d1
+    real(real64),   intent(out) :: c_out(nc)
+    logical(kind=1), intent(out) :: qindef
+
+    real(real64), allocatable :: g0(:,:), z(:,:), gz(:,:), g_tilde(:,:), g_sub_rhs(:)
+    real(real64), allocatable :: x0(:), y(:), s_svd(:), work(:)
+    integer(int32), allocatable :: iwork(:)
+    real(real64) :: norm, inv_norm
+    integer(int32) :: i, j, ij, k, info, rank, lwork, liwork
+
+    qindef = .false.
+    if (nc <= 1) then
+      c_out(1) = d1
+      return
+    end if
+
+    allocate(g0(nc, nc), z(nc, nc - 1), x0(nc))
+    x0 = d1 / real(nc, real64)
+
+    ! Construct Helmert orthonormal basis Z for 1^T z = 0
+    z = 0.0d0
+    do k = 1, nc - 1
+      norm = sqrt(real(k * (k + 1), real64))
+      inv_norm = 1.0d0 / norm
+      z(1:k, k) = inv_norm
+      z(k + 1, k) = -real(k, real64) * inv_norm
+    end do
+
+    ! Unpack symmetric G0
+    ij = 0
+    do i = 1, nc
+      do j = 1, i
+        ij = ij + 1
+        g0(i, j) = g0_packed(ij)
+        g0(j, i) = g0_packed(ij)
+      end do
+    end do
+
+    ! Form G_tilde = Z^T * G0 * Z and g_sub_rhs = Z^T * (g0_rhs - G0 * x0)
+    allocate(gz(nc, nc - 1), g_tilde(nc - 1, nc - 1), g_sub_rhs(nc - 1))
+    gz = matmul(g0, z)
+    g_tilde = matmul(transpose(z), gz)
+    g_sub_rhs = matmul(transpose(z), g0_rhs(1:nc) - matmul(g0, x0))
+
+    ! Solve G_tilde * y = g_sub_rhs using DGELSD (guaranteed robust even if rank-deficient)
+    allocate(y(nc - 1), s_svd(nc - 1))
+    y = g_sub_rhs
+    lwork  = 12 * (nc - 1) + 2 * (nc - 1) * 25 + 8 * (nc - 1)**2 + 100
+    liwork = max(1, 3 * (nc - 1) * 10 + 11 * (nc - 1))
+    allocate(work(lwork), iwork(liwork))
+
+    call DGELSD(nc - 1, nc - 1, 1, g_tilde, nc - 1, y, nc - 1, s_svd, 1.0d-12, &
+                rank, work, lwork, iwork, info)
+
+    if (info /= 0) then
+      qindef = .true.
+      c_out = x0
+    else
+      c_out = x0 + matmul(z, y)
+    end if
+
+    deallocate(g0, z, gz, g_tilde, g_sub_rhs, x0, y, s_svd, work, iwork)
+  end subroutine solve_helmert_nullspace_fit
+
+  !---------------------------------------------------------------------
+  ! SOLVE_CONSTRAINED_MODEL_POTENTIAL_FIT:
+  ! Equality-constrained linear fitting with KKT system and Helmert null-space fallback.
+  ! Constraint 1: Exact nuclear cusp sum(c_2..c_nvterm) = -sumocc
+  ! Constraint 2: External field matching (when WGT2 > 0 and tevz2 is active)
+  !---------------------------------------------------------------------
+  subroutine solve_constrained_model_potential_fit(g0_packed, g0_rhs, vfit2, tevz2, &
+                                                   vcoef, sumocc, nvterm, wgt2, qindef)
+    integer(int32), intent(in)    :: nvterm
+    real(real64),   intent(in)    :: g0_packed(210), g0_rhs(20), vfit2(nvterm)
+    real(real64),   intent(in)    :: tevz2, sumocc, wgt2
+    real(real64),   intent(inout) :: vcoef(nvterm)
+    logical(kind=1), intent(out)   :: qindef
+
+    integer(int32) :: nc, p_const, n_kkt, i, j, ij, info, lwork
+    real(real64), allocatable :: kkt(:,:), rhs(:), work(:)
+    integer(int32), allocatable :: ipiv(:)
+    real(real64) :: d1, d2
+    logical :: use_wgt2
+
+    nc = nvterm - 1
+    qindef = .false.
+    if (nc <= 0) return
+
+    ! Constraint 1: Nuclear cusp sum(c_2..c_nvterm) = -sumocc
+    d1 = -sumocc
+
+    ! Constraint 2: External field matching
+    use_wgt2 = (wgt2 > 1.0d-4 .and. abs(tevz2 - 0.5d0) > 1.0d-3)
+    if (use_wgt2) then
+      p_const = 2
+      d2 = tevz2 - sumocc * vfit2(1)
+    else
+      p_const = 1
+    end if
+
+    n_kkt = nc + p_const
+    allocate(kkt(n_kkt, n_kkt), rhs(n_kkt), ipiv(n_kkt))
+    kkt = 0.0d0
+    rhs = 0.0d0
+
+    ! 1. Unpack G0 into upper-left block of KKT
+    ij = 0
+    do i = 1, nc
+      do j = 1, i
+        ij = ij + 1
+        kkt(i, j) = g0_packed(ij)
+        kkt(j, i) = g0_packed(ij)
+      end do
+      rhs(i) = g0_rhs(i)
+    end do
+
+    ! 2. Constraint rows/columns B and B^T
+    ! Row 1: Cusp (all 1's)
+    do j = 1, nc
+      kkt(nc + 1, j) = 1.0d0
+      kkt(j, nc + 1) = 1.0d0
+    end do
+    rhs(nc + 1) = d1
+
+    ! Row 2: External field (vfit2(2..nvterm))
+    if (use_wgt2) then
+      do j = 1, nc
+        kkt(nc + 2, j) = vfit2(j + 1)
+        kkt(j, nc + 2) = vfit2(j + 1)
+      end do
+      rhs(nc + 2) = d2
+    end if
+
+    ! 3. Query optimal workspace and solve KKT system via LAPACK DSYSV
+    lwork = -1
+    allocate(work(1))
+    call DSYSV('U', n_kkt, 1, kkt, n_kkt, ipiv, rhs, n_kkt, work, lwork, info)
+    lwork = max(1, int(work(1)))
+    deallocate(work)
+    allocate(work(lwork))
+
+    call DSYSV('U', n_kkt, 1, kkt, n_kkt, ipiv, rhs, n_kkt, work, lwork, info)
+
+    if (info == 0) then
+      vcoef(1) = sumocc
+      vcoef(2:nvterm) = rhs(1:nc)
+    else
+      ! Null-space Helmert fallback for constraint 1
+      call solve_helmert_nullspace_fit(g0_packed, g0_rhs, d1, nc, vcoef(2:nvterm), qindef)
+      vcoef(1) = sumocc
+    end if
+
+    deallocate(kkt, rhs, ipiv, work)
+  end subroutine solve_constrained_model_potential_fit
+
   subroutine solve_model_potential_fit(vmat_packed, vsum, vcoef, sumocc, nvterm, qindef)
     integer(int32),  intent(in)    :: nvterm
     real(real64),    intent(inout) :: vmat_packed(210), vsum(20)
@@ -232,33 +396,43 @@ contains
     !-------------------------------------------------------------------
     ! Solve for new local model potential coefficients VCOEF(1..NVTERM)
     !-------------------------------------------------------------------
-    vcalc0 = vcoef(1)
-    vcalc2 = vcoef(1) * vfit2(1)
-    ij     = 0
-    do i = 2, NVTERM
-      do j = 2, i
-        ij = ij + 1
-        vmat(ij) = vmat(ij) + WGT0 / sumocc &
-                 + vfit2(i) * WGT2 * vfit2(j) / (tevz2 - 0.5d0)
+    if (QCSTFT .and. (.not. qnofit)) then
+      call solve_constrained_model_potential_fit(vmat, vsum, vfit2, tevz2, &
+                                                 vcoef, sumocc, NVTERM, WGT2, qindef)
+      vcalc0 = sum(vcoef(1:NVTERM))
+      vcalc2 = dot_product(vcoef(1:NVTERM), vfit2(1:NVTERM))
+      vdev2  = tevz2 - vcalc2
+      if (abs(tevz2) < 0.1d0) vdev2 = -zzrep - vcalc2
+      if (abs(zzrep) < 0.1d0) vdev2 = 0.0d0
+    else
+      vcalc0 = vcoef(1)
+      vcalc2 = vcoef(1) * vfit2(1)
+      ij     = 0
+      do i = 2, NVTERM
+        do j = 2, i
+          ij = ij + 1
+          vmat(ij) = vmat(ij) + WGT0 / sumocc &
+                   + vfit2(i) * WGT2 * vfit2(j) / (tevz2 - 0.5d0)
+        end do
+        vsum(i - 1) = vsum(i - 1) - WGT0 &
+                    + vfit2(i) * WGT2 * (tevz2 - sumocc * vfit2(1)) / (tevz2 - 0.5d0)
+        vcalc0 = vcalc0 + vcoef(i)
+        vcalc2 = vcalc2 + vcoef(i) * vfit2(i)
       end do
-      vsum(i - 1) = vsum(i - 1) - WGT0 &
-                  + vfit2(i) * WGT2 * (tevz2 - sumocc * vfit2(1)) / (tevz2 - 0.5d0)
-      vcalc0 = vcalc0 + vcoef(i)
-      vcalc2 = vcalc2 + vcoef(i) * vfit2(i)
-    end do
 
-    vdev2 = tevz2 - vcalc2
-    if (abs(tevz2) < 0.1d0) vdev2 = -zzrep - vcalc2
-    if (abs(zzrep) < 0.1d0) vdev2 = 0.0d0
+      vdev2 = tevz2 - vcalc2
+      if (abs(tevz2) < 0.1d0) vdev2 = -zzrep - vcalc2
+      if (abs(zzrep) < 0.1d0) vdev2 = 0.0d0
 
-    if (.not. qnofit) then
-      call solve_model_potential_fit(vmat, vsum, vcoef, sumocc, NVTERM, qindef)
-      if (qindef) then
-        call WARN(18, qretry)
-        if (NVTERM >= 4) then
-          vcoef(1)        = sumocc
-          vcoef(2:NVTERM) = 0.0d0
-          vcoef(3)        = -sumocc
+      if (.not. qnofit) then
+        call solve_model_potential_fit(vmat, vsum, vcoef, sumocc, NVTERM, qindef)
+        if (qindef) then
+          call WARN(18, qretry)
+          if (NVTERM >= 4) then
+            vcoef(1)        = sumocc
+            vcoef(2:NVTERM) = 0.0d0
+            vcoef(3)        = -sumocc
+          end if
         end if
       end if
     end if
@@ -290,10 +464,16 @@ contains
     totchg = znuc - echarg
     call run_chgan(charge)
 
+    vdevc = sqrt(vdevc)
+    vdevv = sqrt(vdevv)
+    mol_ws%last_pk_penalty  = mol_ws%last_pk_penalty + tpkerr
+    mol_ws%last_rms_coulomb = max(mol_ws%last_rms_coulomb, max(vdevc, vdevv))
+    if (QDFTEX) then
+      mol_ws%last_rms_exchange = max(mol_ws%last_rms_exchange, abs(vdev2))
+    end if
+
     if (QPRINT) then
       if (NORB * ISPIN > 20) write(IW, 8000)
-      vdevc = sqrt(vdevc)
-      vdevv = sqrt(vdevv)
       write(IW, 9000) vdevc, vdevv, vdev2
       if (qnofit) then
         write(IW, 9500)
