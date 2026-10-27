@@ -215,11 +215,40 @@ def evaluate_co_ni100_benchmark(
     }
 
 
+def evaluate_ni100_slab_benchmark(
+    driver: Optional[PhatpsyDriver] = None,
+    control: Optional[ControlConfig] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluates 3-layer embedded Ni(100) surface slab producing reusable surface
+    and subsurface (second layer) atoms with the third layer fixed as bulk atoms.
+    """
+    d = driver or PhatpsyDriver(quiet=True)
+    repo_root = Path(__file__).resolve().parent.parent
+    deck = CalculationDeck.from_yaml(repo_root / "examples" / "ni_100_slab.yaml")
+    if control:
+        deck.control = control
+
+    res = d.run_deck(deck)
+    surf_atom = res.get_embedded_atom("Ni_surf")
+    sub_atom = res.get_embedded_atom("Ni_sub")
+
+    return {
+        "system": "Ni100_Slab",
+        "total_energy_hartree": float(res.total_energy),
+        "virial_ratio": float(res.virial_ratio),
+        "converged": bool(res.converged),
+        "cycles": int(res.cycles),
+        "surface_atom_available": surf_atom is not None,
+        "subsurface_atom_available": sub_atom is not None,
+    }
+
+
 def evaluate_all_benchmarks(
     driver: Optional[PhatpsyDriver] = None,
 ) -> Dict[str, Any]:
     """
-    Runs full suite of benchmarks across N2, CO, H2O, Bulk Ni13, and CO/Ni(100).
+    Runs full suite of benchmarks across N2, CO, H2O, Bulk Ni13, Ni(100) Slab, and CO/Ni(100).
     Returns complete error vector analysis comparing against Layer B literature.
     """
     d = driver or PhatpsyDriver(quiet=True)
@@ -229,6 +258,7 @@ def evaluate_all_benchmarks(
     res_co = evaluate_co_benchmark(d)
     res_h2o = evaluate_h2o_benchmark(d)
     res_ni = evaluate_bulk_ni_benchmark(d)
+    res_slab = evaluate_ni100_slab_benchmark(d)
     res_coni = evaluate_co_ni100_benchmark(d)
 
     summary = {
@@ -257,6 +287,9 @@ def evaluate_all_benchmarks(
             "Bulk_Ni13": {
                 "calculated": res_ni,
                 "experimental": exp["systems"]["Bulk_Ni"],
+            },
+            "Ni100_Slab": {
+                "calculated": res_slab,
             },
             "CO_on_Ni100": {
                 "calculated": res_coni,
@@ -299,6 +332,10 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
     ni_c = summary["benchmarks"]["Bulk_Ni13"]["calculated"]
     lines.append(f"| Bulk $\\text{{Ni}}_{{13}}$ | $\\text{{PKSCAL}}$ | {ni_c['pk_scale']:.2f} | 1.00 (Theory) | — | $0.00$ |")
     lines.append(f"| Bulk $\\text{{Ni}}_{{13}}$ | Virial $-V/T$ | {ni_c['virial_ratio']:.4f} | 2.0000 | — | {ni_c['virial_ratio'] - 2.0:+.4f} |")
+
+    # Ni(100) Slab
+    if "Ni100_Slab" in summary.get("benchmarks", {}):
+        lines.append(f"| $\\text{{Ni}}(100)$ Slab | Reusable Atoms | Surface & Subsurface | Layer 3 Fixed Bulk | — | Exact |")
 
     # CO on Ni(100)
     coni_c = summary["benchmarks"]["CO_on_Ni100"]["calculated"]

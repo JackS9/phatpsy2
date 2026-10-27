@@ -154,6 +154,7 @@ Interatomic charge transfer between cycles is upgraded from heuristic fixed damp
 | $\text{H}_2\text{O}$ | Virial $-V/T$ | 1.9897 | 2.0000 | — | -0.0103 |
 | Bulk $\text{Ni}_{13}$ | $\text{PKSCAL}$ | 1.00 | 1.00 (Theory) | — | $0.00$ |
 | Bulk $\text{Ni}_{13}$ | Virial $-V/T$ | 1.9998 | 2.0000 | — | -0.0002 |
+| $\text{Ni}(100)$ Slab | Reusable Atoms | Surface & Subsurface | Layer 3 Fixed Bulk | — | Exact |
 | $\text{CO}/\text{Ni}(100)$ | $E_{\text{ads}}$ ref | -30.0 | -30.0 | kcal/mol | — |
 
 2. **Parameter Retirement [COMPLETED]:**

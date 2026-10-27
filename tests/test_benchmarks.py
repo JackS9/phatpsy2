@@ -10,6 +10,7 @@ from phatpsy.benchmarks import (
     evaluate_co_benchmark,
     evaluate_h2o_benchmark,
     evaluate_bulk_ni_benchmark,
+    evaluate_ni100_slab_benchmark,
     format_benchmark_summary_table,
     evaluate_all_benchmarks,
 )
@@ -60,6 +61,15 @@ def test_bulk_ni_unit_scale_benchmark(driver):
     assert res["pk_scale"] == 1.0
     assert abs(res["virial_ratio"] - 2.0) < 0.05
     assert res["total_energy_hartree"] < -19000.0
+
+
+def test_ni100_slab_benchmark(driver):
+    """Verify 3-layer Ni(100) surface slab produces reusable surface and subsurface atoms."""
+    res = evaluate_ni100_slab_benchmark(driver)
+    assert res["converged"]
+    assert res["surface_atom_available"]
+    assert res["subsurface_atom_available"]
+    assert abs(res["virial_ratio"] - 2.0) < 0.10
 
 
 def test_format_benchmark_summary_table():

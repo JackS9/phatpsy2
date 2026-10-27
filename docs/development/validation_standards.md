@@ -33,7 +33,7 @@ In adherence to first-principles theory, **`PKSCAL = 1.0` is adopted as the stan
 | **$N_2$ (DZ)** | Homonuclear anchor & dual-geometry | Converged ground state, $-V/T \approx 2.00$, zero permanent dipole ($\mu = 0$) |
 | **$H_2O$** | Non-linear polar triatomic & Eckart modes | Converged ground state, $-V/T \approx 2.00$, non-zero dipole ($\mu > 1\text{ D}$), origin invariance |
 | **Bulk $Ni_{13}$** | Bulk metal coordination ($Z=12$) | Converged ground state under theoretical $\text{PKSCAL}=1.0$, $-V/T \approx 2.00$ |
-| **$Ni(100)$ Slab** | 3-layer embedded surface slab | Stable convergence with frozen substrate core and active surface layer |
+| **$Ni(100)$ Slab** | 3-layer embedded surface slab | Produces reusable surface and subsurface (second layer) atoms with third layer fixed as bulk atoms |
 
 ---
 
