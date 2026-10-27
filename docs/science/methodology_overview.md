@@ -134,3 +134,30 @@ PHATPSY provides specialized atomic center classifications and spatial symmetry 
 - **Exclusion at the Molecular (EWMO) Level:** Virtual centers are explicitly **excluded at the molecular / Energy-Weighted Maximum Overlap (EWMO) calculation level** (`if (.not. QVIRTL)` in `phatpsy_atomic_mod.f90`). This preserves a finite, tractable cluster model of the system without expanding the molecular secular matrix.
 - **Important Distinction:** In PHATPSY, virtual atoms are **not** used for Basis Set Superposition Error (BSSE) counterpoise corrections. They act as environment/coordination completion potentials that drop out of the final molecular secular equation.
 - In the Fortran core (`phatpsy_atomic_mod.f90`), virtual centers do not increment the count of real physical molecular atoms (`nratom`), have a zero cutoff radius (`rmax = 0`), and do not contribute to classical molecular nuclear repulsion energy ($Z_A Z_B / R_{AB}$).
+
+---
+
+## 8. Surface Chemisorption Hierarchy (Dissertation Chapter IX: $NO$ and $CO$ on $Ni(100)$)
+
+In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on transition-metal surfaces is addressed through a disciplined multi-scale localized progression designed to avoid artificial finite-cluster edge/boundary truncation effects without resorting to periodic boundary conditions:
+
+### A. The 4-Stage Progressive Hierarchy
+1. **Isolated Molecule ($NO$ / $CO$):**
+   - Solved as a gas-phase diatomic to establish the isolated electronic structure, bond length ($R_e$), harmonic vibrational frequency ($\omega_e$), dipole moment ($\mu$), and reference energy ($E_{\text{molecule}}$).
+2. **Embedded Bulk Metal Atom ($Ni_{\text{bulk}}$):**
+   - Modeled via a high-coordination cluster (12-coordinated FCC $Ni_{13}$) or periodic supercell with theoretical $\text{PKSCAL}=1.0$.
+   - Yields the bulk reference cohesive energy per atom ($-1502.5650\text{ Ha/atom}$) and the self-consistent electronic state of an embedded bulk atom (`Ni_bulk_fixed`).
+3. **Clean Embedded Surface Slab ($Ni(100)$):**
+   - Modeled via a 3-layer embedded slab (`examples/ni_100_slab.yaml`) to capture surface relaxation:
+     - **Layer 1 (Surface):** `Ni_surf` active centers ($Z=8$ coordination) undergoing coordination reduction and electronic relaxation.
+     - **Layer 2 (Subsurface):** `Ni_sub` active centers mediating screening between the vacuum surface and the interior bulk.
+     - **Layer 3 (Bulk):** `Ni_bulk_fixed` boundary atoms fixed at the bulk electronic state.
+   - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` and `Ni_sub`.
+4. **Chemisorbed Complex ($CO/Ni(100)$ or $NO/Ni(100)$):**
+   - The adsorbate and the immediate chemisorption site are placed atop the substrate.
+   - **Boundary Invariant:** All surrounding "boundary" atoms are held strictly **fixed (`fixed: true`) at their respective representations**:
+     - Bulk boundary atoms fixed at their bulk state (`Ni_bulk_fixed`)
+     - Subsurface boundary atoms fixed at their second-layer state (`Ni_sub`)
+     - Surface boundary atoms fixed at their surface-layer state (`Ni_surf`)
+   - This prevents unphysical edge charge-sloshing or artificial cluster boundary distortion, ensuring that the local chemisorption bond experiences the correct electrostatic and Pauli embedding of a semi-infinite crystal substrate.
+
