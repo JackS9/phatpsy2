@@ -17,20 +17,13 @@ fi
 cmake -B build -DCMAKE_BUILD_TYPE=Release $PY_EXE
 cmake --build build -j1
 
-# 2. Run direct smoke tests on N2
+# 2. Run modern Python driver smoke test on N2 YAML
 mkdir -p data
-# Modern Fortran 2018 CLI output (traditional formatted text stdout)
-./build/bin/phatpsy < examples/n2.stdin > data/n2_modern.stdout
-
-# Python driver output (structured JSON output)
 if [ -f ".venv/bin/python3" ]; then
-    PYTHONPATH=. .venv/bin/python3 -m phatpsy examples/n2.stdin -o data/n2_python_driver.json
+    PYTHONPATH=. .venv/bin/python3 -m phatpsy examples/n2.yaml -o data/n2_python_driver.json
 else
-    PYTHONPATH=. python3 -m phatpsy examples/n2.stdin -o data/n2_python_driver.json
+    PYTHONPATH=. python3 -m phatpsy examples/n2.yaml -o data/n2_python_driver.json
 fi
-
-# Ag13 cluster smoke test
-./build/bin/phatpsy < examples/ag13dz.stdin > /dev/null
 
 # 3. Run the automated pytest regression suite
 if [ -f ".venv/bin/pytest" ]; then

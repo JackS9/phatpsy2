@@ -1,4 +1,105 @@
 {
+  "deck": {
+    "title": "",
+    "control": {
+      "spin_unrestricted": true,
+      "max_cycles": 100,
+      "convergence": 0.0001,
+      "time_limit": 360.0,
+      "charge_damp": 0.5,
+      "charge_accel": 1.0,
+      "potential_damp": 0.5,
+      "potential_accel": 1.0,
+      "pk_scale": 0.0,
+      "use_pseudometric": true,
+      "pk_energy": 0.0,
+      "use_constrained_fit": false,
+      "use_diis": false,
+      "use_global_fermi": false,
+      "fermi_temperature": null,
+      "use_dynamic_exponents": false,
+      "exchange_kernel": "hartree-fock",
+      "exchange_alpha": 0.6666666666666666,
+      "separate_atoms_first_cycle": true,
+      "debug": false,
+      "trace": false
+    },
+    "geometry": [
+      {
+        "element": "N",
+        "xyz": [
+          0.0,
+          0.0,
+          1.034
+        ],
+        "id": "N1",
+        "spin": "up",
+        "starting_orbitals": [
+          {
+            "eigval": [
+              -15.6704,
+              -15.579
+            ]
+          },
+          {
+            "eigval": [
+              -1.1606,
+              -0.727
+            ]
+          },
+          {
+            "eigval": [
+              -0.5691,
+              0.1912
+            ],
+            "occno": [
+              1.0,
+              0.0
+            ]
+          },
+          {},
+          {}
+        ]
+      },
+      {
+        "element": "N",
+        "xyz": [
+          0.0,
+          0.0,
+          -1.034
+        ],
+        "id": "N2",
+        "equivalent_to": "N1",
+        "symmetry_op": -1,
+        "symmetry_axis": 1,
+        "spin": "down"
+      }
+    ],
+    "elements": {
+      "N": {
+        "symbol": "N",
+        "atomic_number": 7,
+        "description": "CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN:",
+        "functions": [
+          {
+            "n": 1,
+            "l": 0,
+            "zeta": 6.6651
+          },
+          {
+            "n": 2,
+            "l": 0,
+            "zeta": 1.9237
+          },
+          {
+            "n": 2,
+            "l": 1,
+            "zeta": 1.917
+          }
+        ]
+      }
+    }
+  },
   "converged": true,
   "cycles": 100,
   "total_energy": -109.56539813595806,
@@ -1105,9 +1206,9 @@
     ]
   },
   "embedded_atoms": {
-    "Atom1": {
-      "atom_id": "Atom1",
-      "element": "X",
+    "N1": {
+      "atom_id": "N1",
+      "element": "N",
       "atomic_number": 7,
       "xyz": [
         0.0,
@@ -1307,9 +1408,9 @@
       "fixed": false,
       "virtual": false
     },
-    "Atom2": {
-      "atom_id": "Atom2",
-      "element": "X",
+    "N2": {
+      "atom_id": "N2",
+      "element": "N",
       "atomic_number": 7,
       "xyz": [
         -0.0,
@@ -2611,5 +2712,18 @@
       "rms_exchange": 0.0,
       "charge_transfer": 0.0
     }
-  ]
+  ],
+  "subsystem_decomposition": {
+    "total_energy": -109.56539813595806,
+    "energy_cluster": -108.795902,
+    "energy_environment": 0.0,
+    "energy_embedding": -0.7694961359580645,
+    "energy_excess": -109.56539813595806,
+    "active_atoms": [
+      "N1",
+      "N2"
+    ],
+    "frozen_atoms": [],
+    "virtual_atoms": []
+  }
 }

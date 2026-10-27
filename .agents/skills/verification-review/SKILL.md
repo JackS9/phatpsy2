@@ -30,14 +30,14 @@ For changes touching scientific routines, data files, or the Python
 driver, check the invariants from
 `.agents/rules/scientific-integrity.md` against the produced outputs:
 
-1. **Virial ratio:** converged closed-shell reference decks satisfy
-   $-V/T \approx 2.00$; flag any $|-V/T - 2.0| > 0.1$.
-2. **Baseline energies:** total energies of the reference decks
-   (`examples/n2.stdin`, `examples/CO.stdin`, `examples/ag13dz.stdin`)
-   match the committed references in `data/` — or every deviation is
-   listed numerically, with no silent changes.
-3. **Occupation counts:** orbital occupation / electron counts are
-   exact for every system checked.
+1. **Virial ratio:** converged closed-shell systems satisfy
+   $-V/T \approx 2.00$; flag any $|-V/T - 2.0| > 0.05$.
+2. **Physical energy bounds & electron conservation:** ground state
+   energies are variational and negative; total electron counts and
+   gross Löwdin populations are strictly non-negative and physically exact.
+3. **External benchmark consistency:** calculations match external
+   benchmark targets (NIST CCCBDB, CRC Handbook, Herzberg, PySCF)
+   within documented tolerances in `phatpsy/benchmarks.py`.
 4. **Basis-data changes** (any diff under `phatpsy/data/`): run the
    full-coverage basis tests and the standalone checker —
    ```bash

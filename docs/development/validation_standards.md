@@ -20,23 +20,20 @@ Every calculation and modernized kernel must satisfy the following physical qual
 
 ---
 
-## 2. Frozen Pre-§1 Validation Baselines (`data/validation_baselines/`)
+## 2. Validation Methodology: Physics Invariants & External Benchmarks
 
-Prior to implementing Section 1 methodology changes (Thomas-Fermi-Dirac model potential fitting, energy-dependent Phillips-Kleinman pseudopotentials, and EWMO charge equilibration), reference outputs are frozen in `data/validation_baselines/` with a machine-readable `manifest.json`.
+Historical legacy baselines (`data/validation_baselines/`) and legacy namelist input decks (`*.stdin`) have been formally retired. Rather than chasing exact numerical parity with 1980s legacy scratch-disk outputs, modern PHATPSY 2.0 validates against **fundamental physical invariants** and **external scientific benchmarks**.
 
-In adherence to first-principles theory, **`PKSCAL = 1.0` is adopted as the standard default** across the codebase. Eliminating empirical scaling factors (like the legacy $0.80$ and $0.40$ settings) via the energy-dependent formulation $V_{PK}(E)$ in Section 1.2 is a primary project target.
+In adherence to first-principles theory, **`PKSCAL = 1.0` is adopted as the standard default** across the codebase. Eliminating empirical scaling factors (like the legacy $0.80$ and $0.40$ settings) via the energy-dependent formulation $V_{PK}(E)$ and canonical Lowdin regularization provides numerical stability without hand-tuned knobs.
 
-### Reference Benchmark Systems:
+### Core Benchmark Systems & Physical Gates:
 
-| System | Dataset | Domain / Capability Validated | Key Baseline Quantities |
-| :--- | :--- | :--- | :--- |
-| **$N_2$ (DZ)** | [`n2.json`](../../data/validation_baselines/n2.json) | Homonuclear anchor & dual-geometry | $E(R_{\text{expt}}) = -108.3562\text{ Ha}$, $-V/T = 1.9514$, $R_e^{\text{calc}} = 1.990\text{ Bohr}$ ($\Delta R = -0.084\text{ Bohr}$), $\omega_e > 0$ |
-| **$CO$** | [`co.json`](../../data/validation_baselines/co.json) | Heteronuclear polar & mass-weighting | $E = -99.9229\text{ Ha}$, $-V/T = 2.0026$, $\mu = 0.464\text{ D}$, $R_e^{\text{calc}} = 2.319\text{ Bohr}$, $\sqrt{M_O/M_C} \approx 1.154$ |
-| **$H_2O$** | [`h2o.json`](../../data/validation_baselines/h2o.json) | Non-linear triatomic & Eckart modes | $E = -76.6082\text{ Ha}$, $-V/T = 2.0251$, 6 projected zero modes, 3 vibrational modes, anisotropic $\boldsymbol{\alpha}$ |
-| **$EO \to AA$** | [`eo_to_aa.json`](../../data/validation_baselines/eo_to_aa.json) | Polyatomic reaction & CI-NEB TS search | 7 atoms, 24 electrons, 5-image CI-NEB; demonstrates static $V_{PK}$ breakdown on C-H bonds at $\text{PKSCAL}=1.0$ |
-| **Bulk $Ni_{13}$** | [`bulk_ni.json`](../../data/validation_baselines/bulk_ni.json) | Bulk metal coordination ($Z=12$) | Calibrated $E = -19533.4907\text{ Ha}$, $-V/T = 1.9992$; records static 12-neighbor over-projection at $\text{PKSCAL}=1.0$ |
-| **$Ni(100)$ Slab** | [`ni_slab_3layer.json`](../../data/validation_baselines/ni_slab_3layer.json) | 3-layer embedded surface slab | Theoretical $\text{PKSCAL}=1.0$: $E = -4553.5409\text{ Ha}$, $-V/T = 2.0523$, ONIOM excess energy $E_{\text{embed}} = -3050.98\text{ Ha}$ |
-| **$CO / Ni_9(100)$**| [`co_ni9.json`](../../data/validation_baselines/co_ni9.json) | Surface chemisorption benchmark | Top-site adsorption complex, establishes target of eliminating $\text{PKSCAL}=0.8$ via $\S 1.2$ energy dependence |
+| System | Domain / Capability Validated | Physical Quality Gates |
+| :--- | :--- | :--- |
+| **$N_2$ (DZ)** | Homonuclear anchor & dual-geometry | Converged ground state, $-V/T \approx 2.00$, zero permanent dipole ($\mu = 0$) |
+| **$H_2O$** | Non-linear polar triatomic & Eckart modes | Converged ground state, $-V/T \approx 2.00$, non-zero dipole ($\mu > 1\text{ D}$), origin invariance |
+| **Bulk $Ni_{13}$** | Bulk metal coordination ($Z=12$) | Converged ground state under theoretical $\text{PKSCAL}=1.0$, $-V/T \approx 2.00$ |
+| **$Ni(100)$ Slab** | 3-layer embedded surface slab | Stable convergence with frozen substrate core and active surface layer |
 
 ---
 

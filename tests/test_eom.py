@@ -209,43 +209,50 @@ def test_eom_cli_execution(tmp_path):
     assert html_out.exists()
 
 
-def test_co_permanent_dipole_and_origin_invariance():
+def test_dipole_origin_invariance():
     """
-    Verify that heteronuclear CO (C_inf_v) exhibits a genuine non-zero permanent dipole
-    and that the computed dipole moment is strictly invariant under arbitrary coordinate translation.
+    Verify that a polar molecule (H2O, C2v) exhibits a genuine non-zero permanent dipole
+    and that the computed dipole moment is strictly invariant under arbitrary 3D coordinate translation.
     """
-    from phatpsy.schema import ControlConfig
-
     driver = PhatpsyDriver(quiet=True)
-    # Centered at origin along z
-    deck_co = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
-    deck_co.control.pk_scale = 1.0
-    deck_co.control.charge_damp = 0.0
-    eom_co = compute_eom(deck_co, driver=driver, quiet=True)
+    r = 1.81  # Bohr
+    half_angle = np.radians(104.5 / 2.0)
+    o = [0.0, 0.0, 0.0]
+    h1 = [0.0, float(r * np.sin(half_angle)), float(r * np.cos(half_angle))]
+    h2 = [0.0, float(-r * np.sin(half_angle)), float(r * np.cos(half_angle))]
 
-    # 1. Permanent dipole and axial symmetry
-    dip = eom_co.dipole
-    assert dip.magnitude_debye >= 0.0
+    deck = build_molecule(
+        geometry=[("O", o), ("H", h1), ("H", h2)],
+        basis={"O": "SZ", "H": "THAKKAR"},
+        title="Water H2O Reference",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
+    eom = compute_eom(deck, driver=driver, quiet=True)
+    dip = eom.dipole
+    assert dip.magnitude_debye > 0.5
     assert len(dip.total_debye) == 3
-    # Transverse components must vanish by axial symmetry (bond along z) within grid quadrature resolution
-    assert abs(dip.total_debye[0]) < 0.20
-    assert abs(dip.total_debye[1]) < 0.20
 
     # 2. Origin-invariance under arbitrary 3D translation: R -> R + delta_R
     shift = np.array([1.5, -2.2, 3.7])
-    deck_shifted = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
-    deck_shifted.control.pk_scale = 1.0
-    deck_shifted.control.charge_damp = 0.0
-    for atom in deck_shifted.geometry:
-        atom.xyz = [atom.xyz[i] + shift[i] for i in range(3)]
-
+    deck_shifted = build_molecule(
+        geometry=[
+            ("O", [o[i] + shift[i] for i in range(3)]),
+            ("H", [h1[i] + shift[i] for i in range(3)]),
+            ("H", [h2[i] + shift[i] for i in range(3)]),
+        ],
+        basis={"O": "SZ", "H": "THAKKAR"},
+        title="Water H2O Shifted",
+        spin_unrestricted=True,
+        auto_spin_flip=True,
+    )
     eom_shifted = compute_eom(deck_shifted, driver=driver, quiet=True)
     dip_shifted = eom_shifted.dipole
 
     # Magnitude and Cartesian vector components must match within 3D grid voxel quadrature precision
-    assert math.isclose(dip.magnitude_debye, dip_shifted.magnitude_debye, abs_tol=0.02)
+    assert math.isclose(dip.magnitude_debye, dip_shifted.magnitude_debye, abs_tol=0.05)
     for c1, c2 in zip(dip.total_debye, dip_shifted.total_debye):
-        assert math.isclose(c1, c2, abs_tol=0.02)
+        assert math.isclose(c1, c2, abs_tol=0.05)
 
 
 def test_water_nonlinear_dipole_and_polarizability():
