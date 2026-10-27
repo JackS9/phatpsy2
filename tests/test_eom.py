@@ -219,7 +219,8 @@ def test_co_permanent_dipole_and_origin_invariance():
     driver = PhatpsyDriver(quiet=True)
     # Centered at origin along z
     deck_co = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
-    deck_co.control = ControlConfig.first_principles(use_pseudometric=True)
+    deck_co.control.pk_scale = 1.0
+    deck_co.control.charge_damp = 0.0
     eom_co = compute_eom(deck_co, driver=driver, quiet=True)
 
     # 1. Permanent dipole and axial symmetry
@@ -233,7 +234,8 @@ def test_co_permanent_dipole_and_origin_invariance():
     # 2. Origin-invariance under arbitrary 3D translation: R -> R + delta_R
     shift = np.array([1.5, -2.2, 3.7])
     deck_shifted = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
-    deck_shifted.control = ControlConfig.first_principles(use_pseudometric=True)
+    deck_shifted.control.pk_scale = 1.0
+    deck_shifted.control.charge_damp = 0.0
     for atom in deck_shifted.geometry:
         atom.xyz = [atom.xyz[i] + shift[i] for i in range(3)]
 
