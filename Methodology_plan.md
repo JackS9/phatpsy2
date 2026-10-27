@@ -1,45 +1,34 @@
-# PHATPSY 2.0 Methodology Modernization Plan
+# PHATPSY 2.0 Methodology Modernization & Continuous Improvement Plan
 
-This document establishes the stepwise engineering and scientific roadmap for modernizing the physical approximations and algorithms in **PHATPSY 2.0**. 
+This document establishes the scientific roadmap and phased engineering milestones for modernizing and continuously improving the physical approximations and algorithms in **PHATPSY 2.0**.
 
-The plan is structured so that each phase addresses a distinct physical bottleneck, maintains numerical continuity with our established validation baselines, and progressively eliminates empirical tuning parameters (especially `PKSCAL`, `CDAMP`, and `VDAMP`).
+The roadmap is structured in two major stages:
+1. **Part I: Foundational Modernization & Parameter Retirement (Phases 1–5) [COMPLETED]:** Formulated rigorous subsystem energy partitioning, resolved Pauli over-projection via energy-dependent $V_{\text{PK}}(E)$ to lock theoretical unit scale ($\text{PKSCAL}=1.0$), implemented constrained LAPACK cusp fitting and DFT exchange kernels, integrated Löwdin populations with Pulay DIIS and Fermi equilibration, retired legacy parameters (`PKSCAL`, `CDAMP`, `VDAMP`, `CACCEL`), and established the external validation baseline.
+2. **Part II: High-Precision Methodology Improvement & High-Level Parity (Phases 6–10) [PLANNED MILESTONES]:** Systematically closes the quantitative error vectors identified in Phase 5 to reproduce experimental benchmarks (NIST CCCBDB, CRC Handbook, Herzberg, Somorjai & Li) and high-level ab initio / DFT computational results (PySCF, CCSD(T)/CBS) across all target model systems.
 
 ---
 
 ```mermaid
 flowchart TD
-    subgraph Phase1["Phase 1: Subsystem Energy & Diagnostics"]
-        P1A["Formalize ONIOM / Subsystem Total Energy"]
-        P1B["Granular Energy & Residual Decomposition"]
+    subgraph Part1["Part I: Foundational Modernization (Completed)"]
+        P1["Phase 1: Subsystem Energy & Diagnostics"]
+        P2["Phase 2: Eliminate PKSCAL (Unit Lock = 1.0)"]
+        P3["Phase 3: Model Potential & DFT Exchange"]
+        P4["Phase 4: Löwdin Population, DIIS & Fermi Level"]
+        P5["Phase 5: Benchmark Suite & Parameter Retirement"]
+        P1 --> P2 --> P3 --> P4 --> P5
     end
 
-    subgraph Phase2["Phase 2: Eliminate PKSCAL (Roadmap §1.2)"]
-        P2A["Diagnose Static Over-projection on Bulk/Dense Systems"]
-        P2B["Implement Energy-Dependent V_PK(E) / Pseudometric M(E)"]
-        P2C["Validate Unit Scale (PKSCAL = 1.0) on Bulk Ni13 & EO->AA"]
+    subgraph Part2["Part II: Continuous Improvement Milestones (High-Level Parity)"]
+        P6["Phase 6: Analytical Pulay Gradients & Vibrations"]
+        P7["Phase 7: Polarization Basis & Multipole Potentials"]
+        P8["Phase 8: Correlation Functionals & Dispersion (D3/D4)"]
+        P9["Phase 9: Transition-Metal Chemisorption & d-Band Coupling"]
+        P10["Phase 10: Automated Multi-Level Computational Parity Suite"]
+        P6 --> P7 --> P8 --> P9 --> P10
     end
 
-    subgraph Phase3["Phase 3: Model Potential & TF Fitting (Roadmap §1.1)"]
-        P3A["Dynamic Radial Exponent Optimization {zeta_k}"]
-        P3B["Constrained LAPACK Cusp & Multipole Fitting"]
-        P3C["Upgrade Local Exchange to Modern GGA/PBE Kernels"]
-    end
-
-    subgraph Phase4["Phase 4: EWMO & Charge Equilibration (Roadmap §1.3)"]
-        P4A["Löwdin & Natural Population Analysis (NPA)"]
-        P4B["Pulay DIIS Acceleration for Interatomic Charge Transfer"]
-        P4C["Global Fermi Level (mu) Equilibration Across Subsystems"]
-    end
-
-    subgraph Phase5["Phase 5: Baseline Benchmark & Parameter Retirement"]
-        P5A["Quantify Error Vectors Against Layer B Literature"]
-        P5B["Retire PKSCAL, CDAMP, VDAMP Defaults"]
-    end
-
-    Phase1 --> Phase2
-    Phase2 --> Phase3
-    Phase3 --> Phase4
-    Phase4 --> Phase5
+    Part1 --> Part2
 ```
 
 ---
@@ -166,9 +155,190 @@ Interatomic charge transfer between cycles is upgraded from heuristic fixed damp
 
 ### Modernization Status Summary
 
-All 5 core methodological phases outlined in this plan are now fully implemented, integrated, and verified:
+All 5 core methodological phases of Part I are fully implemented, integrated, and verified:
 - **Phase 1: Subsystem Energy Formulation & Diagnostics [COMPLETED]**
 - **Phase 2: Energy-Dependent $V_{\text{PK}}(E)$ & Unit Scaling [COMPLETED]**
 - **Phase 3: Model Potentials & Exchange Kernels [COMPLETED]**
 - **Phase 4: Molecular EWMO & Robust Charge Equilibration [COMPLETED]**
 - **Phase 5: Benchmark Validation & Parameter Retirement [COMPLETED]**
+
+---
+
+# Part II: Continuous Methodology Improvement for High-Level Parity
+
+Part II addresses the quantitative physical deviations revealed by the Phase 5 benchmark error vectors, progressing from qualitative physical stability to quantitative experimental and high-level computational parity (PySCF, Gaussian, CCSD(T)/CBS) across our targeted model systems.
+
+```
+       Phase 6                 Phase 7                 Phase 8                 Phase 9                 Phase 10
+  Analytical Pulay        Polarization &          Correlation &           Transition-Metal        Automated Multi-Level
+  Gradients &             Multipole Potential     Dispersion              Chemisorption &         Computational Parity
+  Vibrations              Fitting                 (GGA + D3/D4)           d-Band Coupling         Suite (PySCF Bridge)
+ [ω_e on N2 & CO]        [μ on H2O, CO]          [Barrier on EO->AA]     [E_ads on CO/Ni(100)]   [All 8 Model Systems]
+```
+
+---
+
+### Phase 6: Analytical Pulay Gradients & Vibrational Curvature Correction
+
+**Physical Bottleneck:**
+Finite-difference numerical Cartesian Hessians on atom-centered Slater-Type Orbitals (STOs) yield overly stiff harmonic vibrational frequencies ($\omega_e = 26,728.5\text{ cm}^{-1}$ for $\text{N}_2$ vs experimental $2358.6\text{ cm}^{-1}$; $94,081.2\text{ cm}^{-1}$ for $\text{CO}$ vs experimental $2169.8\text{ cm}^{-1}$). 
+Because STO basis functions move with their atomic centers ($\chi_\mu(\mathbf{r} - \mathbf{R}_A)$), shifting nuclear positions without analytical basis-derivative corrections introduces severe artificial step-like curvature in the potential energy well.
+
+**Theoretical Formulation:**
+1. **Total Energy Nuclear Gradient with Pulay Corrections:**
+   $$\frac{\partial E}{\partial \mathbf{R}_A} = \sum_{\mu\nu} P_{\mu\nu} \frac{\partial H_{\mu\nu}^{\text{core}}}{\partial \mathbf{R}_A} + \frac{1}{2} \sum_{\mu\nu\lambda\sigma} P_{\mu\nu} P_{\lambda\sigma} \frac{\partial \langle \mu\nu || \lambda\sigma \rangle}{\partial \mathbf{R}_A} - \sum_{\mu\nu} W_{\mu\nu} \frac{\partial S_{\mu\nu}}{\partial \mathbf{R}_A} + \frac{\partial V_{NN}}{\partial \mathbf{R}_A}$$
+   where $W_{\mu\nu} = \sum_i \varepsilon_i C_{\mu i} C_{\nu i}$ is the energy-weighted density matrix.
+2. **Analytical Overlap & Model Potential Derivatives:**
+   In the elliptical coordinate quadrature (`src/twocenter.f90` and `src/elliptical.f90`), evaluate exact derivatives of the two-center overlap $\partial S_{ij}/\partial R$ and interatomic potential integrals $\partial V_{ij}^B/\partial R$ using analytical recurrence relations.
+3. **Continuous Phillips-Kleinman Gradient:**
+   $$\frac{\partial V_{\text{PK}}}{\partial \mathbf{R}} = \sum_{j \in B} (\varepsilon_v - \varepsilon_j^B) \left[ \left|\frac{\partial \phi_j^B}{\partial \mathbf{R}}\right\rangle \langle \phi_j^B| + |\phi_j^B\rangle \left\langle \frac{\partial \phi_j^B}{\partial \mathbf{R}}\right| \right]$$
+   evaluating the geometric derivative of the projector smoothly across displacement steps.
+
+**Engineering Tasks:**
+- [ ] Implement analytical two-center overlap derivative routines `d_gensab` in [`src/twocenter.f90`](file:///Users/jacksmith/phatpsy2/src/twocenter.f90).
+- [ ] Implement analytical model potential derivative routines `d_genvab` in [`src/twocenter.f90`](file:///Users/jacksmith/phatpsy2/src/twocenter.f90).
+- [ ] Add analytical Pulay gradient evaluation to [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90) and expose via `PhatpsyDriver.gradient()`.
+- [ ] Upgrade [`phatpsy/vibrations.py`](file:///Users/jacksmith/phatpsy2/phatpsy/vibrations.py) to compute Cartesian Hessians via central differences of analytical gradients ($\mathbf{H}_{ij} = \frac{g_i(x_j + h) - g_i(x_j - h)}{2h}$) rather than second differences of total energies.
+
+**Milestone 6 Acceptance Criteria:**
+- $\text{N}_2$ harmonic frequency: $\omega_e \in [2100, 2500]\text{ cm}^{-1}$ (within $10\%$ of experimental $2358.6\text{ cm}^{-1}$).
+- $\text{CO}$ harmonic frequency: $\omega_e \in [1950, 2350]\text{ cm}^{-1}$ (within $10\%$ of experimental $2169.8\text{ cm}^{-1}$).
+- Equilibrium bond lengths preserved ($|\Delta R_e| < 0.005\text{ Bohr}$).
+
+---
+
+### Phase 7: Angular Polarization Basis Sets & Multipole Potential Fitting
+
+**Physical Bottleneck:**
+The permanent electric dipole moment of water ($\text{H}_2\text{O}$) is currently computed at $\mu = 4.353\text{ D}$, overestimating the experimental benchmark of $1.855\text{ D}$ by $+2.5\text{ D}$.
+This overpolarization originates from two coupled factors:
+1. Standard Clementi/Thakkar minimal and double-zeta bases lack angular polarization functions (d-orbitals on O/N/C, p-orbitals on H).
+2. Model potentials currently retain purely isotropic monopolar terms ($V_B(r) = -Z^*/r + \sum c_k e^{-\zeta_k r}$), ignoring anisotropic dipolar and quadrupolar screening that opposes excessive charge transfer.
+
+**Theoretical Formulation:**
+1. **Polarized Slater-Type Orbital (p-STO) Ingest:**
+   Augment the basis set on heavy atoms with d-polarization ($l=2$, $m \in \{-2, \dots, 2\}$) and on hydrogen with p-polarization ($l=1$), using Roetti-Clementi / Thakkar polarized exponents.
+2. **Anisotropic Multipole Model Potential Expansion:**
+   $$V_B(\mathbf{r}_B) = V_{\text{mono}}(r_B) + \sum_{m=-1}^{1} V_{1m}(r_B) Y_{1m}(\hat{r}_B) + \sum_{m=-2}^{2} V_{2m}(r_B) Y_{2m}(\hat{r}_B)$$
+   where $V_{1m}$ and $V_{2m}$ represent the induced atomic dipole and quadrupole field responses.
+3. **Self-Consistent Dielectric Polarization & Screening:**
+   Couple the Löwdin population analysis with an interatomic reaction field that damps charge separation across non-linear polar bonds.
+
+**Engineering Tasks:**
+- [ ] Ingest polarized STO basis sets into `phatpsy/data/clementi_polarized_sto.json` and update [`phatpsy/basis.py`](file:///Users/jacksmith/phatpsy2/phatpsy/basis.py).
+- [ ] Extend `src/modelpot.f90` to evaluate angular multipole coefficients ($l=1, 2$) via constrained SVD fitting in [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90).
+- [ ] Update `phatpsy/eom.py` to evaluate multipole expectation values and polarizability tensors using polarized basis sets.
+
+**Milestone 7 Acceptance Criteria:**
+- $\text{H}_2\text{O}$ dipole moment: $\mu \in [1.70, 2.05]\text{ D}$ (within $10\%$ of experimental $1.855\text{ D}$).
+- $\text{CO}$ dipole moment: $\mu \in [0.10, 0.15]\text{ D}$ with correct polarity ($C^{\delta-} O^{\delta+}$).
+- Center-of-charge translational origin invariance verified to machine precision ($< 10^{-12}\text{ D}$).
+
+---
+
+### Phase 8: Exchange-Correlation Functionals & Empirical Dispersion (D3/D4)
+
+**Physical Bottleneck:**
+Covalent bond dissociation energies ($D_e$) and chemical reaction activation barriers—specifically the polyatomic ring-opening of ethylene oxide to acetaldehyde ($\text{EO} \to \text{AA}$)—depend critically on dynamical electron correlation and long-range London dispersion forces that are absent in pure Hartree-Fock or pure local exchange.
+
+**Theoretical Formulation:**
+1. **Local & Gradient-Corrected Correlation Functionals ($E_c[\rho]$):**
+   Combine modernized exchange (B88/PBE) with Perdew-Wang (PW91) or Perdew-Burke-Ernzerhof (PBE) correlation:
+   $$E_{\text{XC}}[\rho] = E_X^{\text{PBE}}[\rho, \nabla\rho] + E_C^{\text{PBE}}[\rho, \nabla\rho]$$
+   integrated via 64-node spherical Gauss-Legendre radial quadrature in `src/exchange_dft.f90`.
+2. **Grimme DFT-D3(BJ) Empirical Dispersion Correction:**
+   $$E_{\text{disp}} = -\sum_{A < B} \left[ s_6 \frac{C_6^{AB}}{R_{AB}^6 + [R_0(A,B)]^6} + s_8 \frac{C_8^{AB}}{R_{AB}^8 + [R_0(A,B)]^8} \right]$$
+   providing seamless non-covalent attractive stabilization at intermediate and van der Waals distances.
+
+**Engineering Tasks:**
+- [ ] Implement PBE correlation kernel in [`src/exchange_dft.f90`](file:///Users/jacksmith/phatpsy2/src/exchange_dft.f90) and [`phatpsy/exchange_dft.py`](file:///Users/jacksmith/phatpsy2/phatpsy/exchange_dft.py).
+- [ ] Create `phatpsy/dispersion.py` with analytical Becke-Johnson damped DFT-D3/D4 dispersion energies and gradients.
+- [ ] Integrate dispersion into `CalculationDeck.control` (`use_dispersion: bool = True`).
+- [ ] Evaluate CI-NEB and Dimer transition state barriers on $\text{EO} \to \text{AA}$ with full XC + dispersion.
+
+**Milestone 8 Acceptance Criteria:**
+- $\text{EO} \to \text{AA}$ forward activation barrier: $\Delta E_f^\ddagger \in [50.0, 56.0]\text{ kcal/mol}$ (matching CCSD(T)/CBS benchmark $53.0\text{ kcal/mol}$).
+- Dissociation energies: $\text{N}_2$ $D_e \in [9.0, 10.0]\text{ eV}$ (expt $9.76\text{ eV}$); $\text{CO}$ $D_e \in [10.5, 11.5]\text{ eV}$ (expt $11.1\text{ eV}$).
+
+---
+
+### Phase 9: Transition-Metal Chemisorption & d-Band Coupling ($CO$ & $NO$ on $Ni(100)$)
+
+**Physical Bottleneck:**
+To accurately reproduce experimental chemisorption energetics, the methodology must correctly describe:
+1. The **Blyholder model**: Synergistic $5\sigma$ electron donation into the metal d-band and $2\pi^*$ back-donation from the metal d-band into the adsorbate.
+2. The **site preference** across the surface: Top site ($E_{\text{ads}} = -30.0\text{ kcal/mol}$) vs bridge ($-26\text{ kcal/mol}$) vs 4-fold hollow ($-22\text{ kcal/mol}$).
+3. The **adsorbate vibrational red-shift**: $\Delta\nu_{\text{CO}} \approx -78\text{ cm}^{-1}$ upon chemisorption.
+4. **Boundary fixation invariant**: Maintaining bulk, subsurface, and surface boundary atoms fixed at their respective pre-converged representations to prevent finite-cluster boundary reflections.
+
+**Theoretical Formulation:**
+1. **$C_{4v}$ Crystal Field d-Band Manifold:**
+   Explicitly separate the 5 d-orbitals into $e_g$ ($d_{z^2}, d_{x^2-y^2}$) and $t_{2g}$ ($d_{xy}, d_{xz}, d_{yz}$) manifolds in `src/symmetry.f90`, allowing directional $\pi$-backbonding along the surface normal.
+2. **Subsystem Embedding Coupling:**
+   $$E_{\text{ads}} = E_{\text{cluster}}(\text{adsorbate} + \text{site}) + E_{\text{embed}} - E_{\text{isolated}}(\text{adsorbate}) - E_{\text{slab}}(\text{clean})$$
+   where boundary atoms remain strictly fixed at their respective representations.
+3. **Surface Core-Level Shifts (SCLS):**
+   Evaluate binding energy differences $\Delta E_{\text{core}} = E(Ni_{\text{surf}}) - E(Ni_{\text{bulk}})$ to reproduce XPS/UPS benchmarks (Brundle, 1976; dissertation Table 7).
+
+**Engineering Tasks:**
+- [ ] Parameterize $C_{4v}$ d-band directional orbital projection in [`src/scf.f90`](file:///Users/jacksmith/phatpsy2/src/scf.f90) and [`src/ewmo.f90`](file:///Users/jacksmith/phatpsy2/src/ewmo.f90).
+- [ ] Build automated 2D lateral PES scan tool across top, bridge, and hollow sites in `phatpsy/pes.py`.
+- [ ] Compute vibrational frequency shift $\Delta\nu_{\text{CO}}$ for chemisorbed $CO$ using analytical gradients.
+- [ ] Verify core-level binding energy shifts for $NO/Ni(100)$ against dissertation Tables 7 and 8.
+
+**Milestone 9 Acceptance Criteria:**
+- $\text{CO}/\text{Ni}(100)$ top-site adsorption energy: $E_{\text{ads}} \in [-32.0, -28.0]\text{ kcal/mol}$ (matching Somorjai & Li $-30.0\text{ kcal/mol}$).
+- Correct energetic site preference: $E_{\text{ads}}(\text{top}) < E_{\text{ads}}(\text{bridge}) < E_{\text{ads}}(\text{hollow})$.
+- Chemisorption vibrational shift: $\Delta\nu_{\text{CO}} \in [-100, -60]\text{ cm}^{-1}$ (expt $-78\text{ cm}^{-1}$).
+- Surface core-level shift: $\Delta E_{\text{SCLS}} \in [0.2, 0.6]\text{ eV}$.
+
+---
+
+### Phase 10: Automated Multi-Level Computational Parity & Benchmarking Suite
+
+**Physical & Infrastructure Goal:**
+Establish an autonomous continuous benchmarking pipeline that evaluates the modernized PHATPSY methodology against external high-level ab initio datasets (PySCF, Gaussian, CCCBDB) on every change.
+
+**Engineering Tasks:**
+- [ ] **PySCF Parity Bridge (`tools/benchmark_pyscf_bridge.py`):**
+  A standalone Python utility that runs PySCF (HF, DFT/PBE, CCSD(T)) on identical geometries to compare:
+  - Total electronic energies and orbital eigenvalues
+  - Molecular orbital coefficient projections
+  - Dipole moment vectors ($\boldsymbol{\mu}$) and polarizability tensors ($\boldsymbol{\alpha}$)
+  - Volumetric electron density and electrostatic potential (ESP) grids
+- [ ] **Multi-Property Error Vector Norm ($L_2$ metric):**
+  Integrate an aggregated error metric in [`phatpsy/benchmarks.py`](file:///Users/jacksmith/phatpsy2/phatpsy/benchmarks.py):
+  $$\|\boldsymbol{\epsilon}\|_2 = \sqrt{\sum_{k} w_k \left( \frac{P_k^{\text{calc}} - P_k^{\text{ref}}}{P_k^{\text{ref}}} \right)^2}$$
+  enforcing non-regression thresholds in CI.
+- [ ] **Automated GitHub Actions Benchmarking Workflow (`.github/workflows/benchmarks.yml`):**
+  Automatically runs the full benchmark suite on releases/nightly builds, updates markdown badges, and publishes comparative reports to GitHub Pages.
+
+**Milestone 10 Acceptance Criteria:**
+- Fully autonomous execution of all 8 model system benchmarks in $< 3\text{ minutes}$.
+- Comparative PySCF parity report generated and archived as workflow artifacts.
+- Zero manual input required; automated pass/fail assertion based on literature error vector bounds.
+
+---
+
+### Quantitative Parity Roadmap Summary Table
+
+| Model System | Physical Property | Current Baseline (Phase 5) | Literature / High-Level Target | Target Phase | Parity Tolerance |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **$\text{N}_2$ (Dinitrogen)** | Equilibrium $R_e$ | $2.0744\text{ Bohr}$ | $2.0744\text{ Bohr}$ (NIST CCCBDB) | Phase 6 | $\pm 0.005\text{ Bohr}$ |
+| **$\text{N}_2$ (Dinitrogen)** | Harmonic Frequency $\omega_e$ | $26,728.5\text{ cm}^{-1}$ | $2358.6\text{ cm}^{-1}$ (Herzberg) | Phase 6 | $\pm 10\%$ |
+| **$\text{N}_2$ (Dinitrogen)** | Dissociation Energy $D_e$ | — | $9.76\text{ eV}$ (CRC Handbook) | Phase 8 | $\pm 0.5\text{ eV}$ |
+| **$\text{CO}$ (Carbon Monoxide)** | Equilibrium $R_e$ | $2.1322\text{ Bohr}$ | $2.1322\text{ Bohr}$ (NIST CCCBDB) | Phase 6 | $\pm 0.005\text{ Bohr}$ |
+| **$\text{CO}$ (Carbon Monoxide)** | Permanent Dipole $\mu$ | $0.167\text{ D}$ | $0.112\text{ D}$ ($C^{\delta-}O^{\delta+}$, NIST) | Phase 7 | $\pm 0.03\text{ D}$ |
+| **$\text{CO}$ (Carbon Monoxide)** | Harmonic Frequency $\omega_e$ | $94,081.2\text{ cm}^{-1}$ | $2169.8\text{ cm}^{-1}$ (Herzberg) | Phase 6 | $\pm 10\%$ |
+| **$\text{H}_2\text{O}$ (Water)** | Permanent Dipole $\mu$ | $4.353\text{ D}$ | $1.855\text{ D}$ (NIST CCCBDB) | Phase 7 | $\pm 10\%$ ($< 2.05\text{ D}$) |
+| **$\text{H}_2\text{O}$ (Water)** | Symmetric Stretch $\nu_1$ | — | $3657.1\text{ cm}^{-1}$ (NIST CCCBDB) | Phase 6 | $\pm 10\%$ |
+| **$\text{C}_2\text{H}_4$ (Ethylene)** | Torsional Barrier | — | $65.0\text{ kcal/mol}$ (Expt / CCSD(T)) | Phase 8 | $\pm 5\text{ kcal/mol}$ |
+| **$\text{EO} \to \text{AA}$ Isomerization** | Activation Barrier $\Delta E^\ddagger$ | — | $53.0\text{ kcal/mol}$ (CCSD(T)/CBS) | Phase 8 | $\pm 3.0\text{ kcal/mol}$ |
+| **Bulk $\text{Ni}_{13}$ FCC** | $\text{PKSCAL}$ Theoretical Lock | $1.00$ | $1.00$ (First-Principles Theory) | Phase 5 | Exact ($1.00$) |
+| **Bulk $\text{Ni}_{13}$ FCC** | Cohesive Energy / Atom | $-1502.565\text{ Ha}$ | $4.44\text{ eV}$ ($102.4\text{ kcal/mol}$) | Phase 8 | $\pm 10\%$ |
+| **$\text{Ni}(100)$ Clean Slab** | Reusable $\text{Ni}_{\text{surf}} / \text{Ni}_{\text{sub}}$ | Converged | Transferable Embedded States | Phase 5 | Exact |
+| **$\text{Ni}(100)$ Clean Slab** | Surface Relaxation $\Delta d_{12}$ | — | $-1.5\%$ Contraction (LEED) | Phase 9 | $\pm 0.5\%$ |
+| **$\text{CO} / \text{Ni}(100)$** | Top Site $E_{\text{ads}}$ | $-30.0\text{ kcal/mol}$ ref | $-30.0\text{ kcal/mol}$ (Somorjai & Li) | Phase 9 | $\pm 2.0\text{ kcal/mol}$ |
+| **$\text{CO} / \text{Ni}(100)$** | Site Preference | — | Top $>$ Bridge $>$ Hollow | Phase 9 | Top favored by $> 3\text{ kcal/mol}$ |
+| **$\text{CO} / \text{Ni}(100)$** | Frequency Shift $\Delta\nu_{\text{CO}}$ | — | $-78\text{ cm}^{-1}$ (IR / EELS) | Phase 9 | $\pm 20\text{ cm}^{-1}$ |
+| **$\text{NO} / \text{Ni}(100)$** | N1s / O1s Core Shifts | — | Table 7 (Dissertation / Brundle) | Phase 9 | $\pm 1.0\text{ eV}$ |

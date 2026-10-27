@@ -26,6 +26,25 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - **External Experimental Benchmarks:** Built validation suite in [`phatpsy/benchmarks.py`](file:///Users/jacksmith/phatpsy2/phatpsy/benchmarks.py) evaluating error vectors against NIST CCCBDB, CRC Handbook, Herzberg, and Somorjai & Li across bond lengths, frequencies, dipoles, bulk metal stability ($Ni_{13}$), clean surface slab ($Ni(100)$ producing reusable surface and subsurface atoms with fixed bulk), and surface chemisorption ($E_{\text{ads}}$ for $CO/Ni(100)$).
   - **Retirement of Legacy Empirical Knobs:** Replaced manual damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) with self-consistent first-principles defaults via `ControlConfig.first_principles()`.
 
+### Continuous Methodology Improvement Program (High-Level Parity)
+*Governed by [`Methodology_plan.md` (Part II)](file:///Users/jacksmith/phatpsy2/Methodology_plan.md) to systematically close error vectors against NIST CCCBDB, CRC, Herzberg, Somorjai & Li, and PySCF/CCSD(T):*
+- [ ] **Phase 6: Analytical Pulay Gradients & Vibrational Curvature Correction**
+  - Implement analytical overlap derivatives ($\partial S/\partial R$) and model potential gradients ($\partial V/\partial R$) in [`src/twocenter.f90`](file:///Users/jacksmith/phatpsy2/src/twocenter.f90).
+  - Add Pulay basis translation force corrections in [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90) to correct the artificial stiffness in harmonic frequencies ($\omega_e$ on $N_2$ and $CO$ to within $10\%$ of experimental $2358.6\text{ cm}^{-1}$ and $2169.8\text{ cm}^{-1}$).
+- [ ] **Phase 7: Angular Polarization Basis Sets & Multipole Potential Fitting**
+  - Ingest d-polarization (C, N, O) and p-polarization (H) STO functions into [`phatpsy/basis.py`](file:///Users/jacksmith/phatpsy2/phatpsy/basis.py).
+  - Extend model potentials to include dipolar ($l=1$) and quadrupolar ($l=2$) response fields in [`src/modelpot.f90`](file:///Users/jacksmith/phatpsy2/src/modelpot.f90) to correct dipole overpolarization on $H_2O$ ($< 2.05\text{ D}$) and $CO$ ($0.112\text{ D}$).
+- [ ] **Phase 8: Exchange-Correlation Functionals & Non-Covalent Dispersion (D3/D4)**
+  - Integrate PBE/PW91 correlation kernels into [`src/exchange_dft.f90`](file:///Users/jacksmith/phatpsy2/src/exchange_dft.f90).
+  - Add analytical Grimme DFT-D3(BJ) dispersion in `phatpsy/dispersion.py` to achieve quantitative activation barriers on $EO \to AA$ isomerization ($53.0 \pm 3\text{ kcal/mol}$).
+- [ ] **Phase 9: Transition-Metal Chemisorption & d-Band Coupling ($CO$ & $NO$ on $Ni(100)$)**
+  - Directional $C_{4v}$ crystal field d-band projection ($e_g$ vs $t_{2g}$) for Blyholder $5\sigma / 2\pi^*$ coupling.
+  - Multi-site 2D lateral potential energy surface reproducing experimental top-site preference ($E_{\text{ads}} = -30.0\text{ kcal/mol}$) over bridge and hollow, and vibrational red-shift ($\Delta\nu_{\text{CO}} \approx -78\text{ cm}^{-1}$).
+  - Boundary atom fixation invariant: Fixed bulk (`Ni_bulk_fixed`), second-layer (`Ni_sub`), and surface-layer (`Ni_surf`) representations eliminating cluster boundary reflections.
+- [ ] **Phase 10: Automated Multi-Level Computational Parity Suite (PySCF Bridge)**
+  - Standalone comparative bridge script (`tools/benchmark_pyscf_bridge.py`) running PySCF on identical geometries.
+  - Continuous multi-property $L_2$ error vector norm tracking in GitHub Actions CI to guarantee non-regression.
+
 ---
 
 ## 2. Modernized Atom Representation & Intrinsic Properties
