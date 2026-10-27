@@ -719,8 +719,7 @@ class CalculationDeck:
             f"  QDEBUG={'T' if ctrl.debug else 'F'}, QTRACE={'T' if ctrl.trace else 'F'},",
         ]
 
-        if not ctrl.use_pseudometric or ctrl.pk_energy != 0.0:
-            lines.append(f"  QPSMET={'T' if ctrl.use_pseudometric else 'F'}, PKE={ctrl.pk_energy:.4f},")
+        lines.append(f"  QPSMET={'T' if ctrl.use_pseudometric else 'F'}, PKE={ctrl.pk_energy:.4f},")
 
         lines.append(f"  QCSTFT={'T' if ctrl.use_constrained_fit else 'F'},")
         lines.append(f"  QGFERM={'T' if ctrl.use_global_fermi else 'F'},")

@@ -427,6 +427,7 @@ contains
       eof_reached = .true.
       return
     end if
+    QPSMET     = .true.
     QCSTFT     = .false.
     QGFERM     = .false.
     QDYNEX     = .false.
