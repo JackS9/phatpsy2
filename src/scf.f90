@@ -138,11 +138,9 @@ contains
           end if
           call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
           if (qindef) then
-            if (.not. QPSMET) call BOMB(0)
             stovl = stovl_bak
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
             call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
-            if (qindef) call BOMB(0)
           end if
           xpot2(:, isp) = pkpot(:, 3, isp)
         end do
