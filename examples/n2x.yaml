@@ -4,11 +4,6 @@ control:
   max_cycles: 100
   convergence: 0.0005
   time_limit: 360.0
-  charge_damp: 0.0
-  charge_accel: 1.0
-  potential_damp: 0.9
-  potential_accel: 1.2
-  pk_scale: 1.0
   separate_atoms_first_cycle: true
   debug: false
   trace: false

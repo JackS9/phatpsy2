@@ -42,15 +42,20 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | `max_cycles` | `int` | `100` | Maximum number of SCF iterations before aborting. |
 | `convergence` | `float` | `1.0e-4` | Convergence threshold on root-mean-square energy change ($\Delta E_h$). |
 | `time_limit` | `float` | `360.0` | Maximum allowed calculation wall time in seconds. |
-| `charge_damp` | `float` | `0.5` | Fractional mixing factor for atomic charge densities ($0 < \lambda \le 1$). Lower values ($\approx 0.2$) stabilize oscillating calculations. |
-| `charge_accel` | `float` | `1.0` | Charge acceleration factor across consecutive cycles. |
-| `potential_damp`| `float` | `0.5` | Damping factor applied to potential matrix updates. |
-| `potential_accel`| `float`| `1.0` | Acceleration factor applied to potential matrix updates. |
-| `pk_scale` | `float` | `0.0` | Scale factor for projected exchange fitting potentials. |
+| `use_diis` | `bool` | `false` | Enables Pulay Direct Inversion in the Iterative Subspace (DIIS) charge density acceleration. |
+| `use_constrained_fit` | `bool` | `false` | Enforces exact nuclear cusp and asymptotic conditions on model potential fits. |
+| `use_dynamic_exponents` | `bool` | `false` | Optimizes STO Slater radial exponents self-consistently against the molecular field. |
+| `use_global_fermi` | `bool` | `false` | Enables finite-temperature Fermi-Dirac orbital occupation smearing for metallic clusters. |
+| `fermi_temperature` | `float` | `null` | Electron temperature (Kelvin) for Fermi smearing when enabled. |
+| `exchange_kernel` | `str` | `"hartree-fock"` | Exchange-correlation kernel (`hartree-fock`, `slater`, `pbe`). |
 | `separate_atoms_first_cycle` | `bool` | `true` | Computes isolated atom states during cycle 1 to form a high-quality initial molecular density guess. Highly recommended. |
 | `debug` | `bool` | `false` | Enables verbose matrix logging in the core Fortran engine. |
 | `trace` | `bool` | `false` | Prints cycle-by-cycle execution timestamps and diagnostic traces. |
-| `extra_namelist`| `dict` | `{}` | Key-value escape hatch passed directly to legacy Namelist variables if necessary. |
+| `extra_namelist`| `dict` | `{}` | Key-value escape hatch passed directly to core engine variables if necessary. |
+
+> [!NOTE]
+> **Retired Control Parameters:**
+> The empirical parameters `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, and `pk_energy` should **not** appear in modern YAML input files. They are handled internally by self-consistent DIIS acceleration, first-principles projection scale, and LAPACK solvers.
 
 ---
 

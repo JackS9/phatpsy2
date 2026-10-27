@@ -78,7 +78,7 @@ deck = CalculationDeck.from_geometry(xyz_block, basis="DZ", units="angstrom")
 ```python
 # Adjust control parameters
 deck.control.convergence = 1.0e-5
-deck.control.charge_damp = 0.4
+deck.control.use_diis = True
 deck.control.max_cycles = 80
 
 # Assign alternating spin states (Local Valence Bond seed)

@@ -14,7 +14,6 @@ control:
   spin_unrestricted: true
   max_cycles: 100
   convergence: 1.0e-4
-  charge_damp: 0.5
   separate_atoms_first_cycle: true
 
 geometry:
@@ -49,7 +48,6 @@ control:
   spin_unrestricted: true
   max_cycles: 100
   convergence: 1.0e-4
-  charge_damp: 0.5
   separate_atoms_first_cycle: true
 
 geometry:
@@ -81,7 +79,8 @@ control:
   spin_unrestricted: true
   max_cycles: 80
   convergence: 1.0e-3
-  charge_damp: 0.3    # Lower damping stabilizes metallic d-band oscillations
+  use_global_fermi: true  # Fermi smearing stabilizes metallic d-band oscillations
+  fermi_temperature: 300.0
   separate_atoms_first_cycle: true
 
 geometry:
@@ -105,7 +104,7 @@ elements:
 ```
 
 ### Scientific Note:
-In transition metal clusters, high density of states near the Fermi level can cause cycle-to-cycle charge sloshing. Setting `charge_damp: 0.3` smoothly guides convergence.
+In transition metal clusters, high density of states near the Fermi level can cause cycle-to-cycle charge sloshing. Setting `use_global_fermi: true` with finite temperature smoothly guides convergence.
 
 ---
 
@@ -119,7 +118,6 @@ control:
   spin_unrestricted: true
   max_cycles: 120
   convergence: 1.0e-4
-  charge_damp: 0.4
   separate_atoms_first_cycle: true
 
 geometry:

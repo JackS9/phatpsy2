@@ -143,6 +143,17 @@ def apply_symmetry_operation(
     return [0.0 if abs(val) < 1e-12 else val for val in [xr, yr, zr]]
 
 
+RETIRED_YAML_CONTROL_PARAMS: set = {
+    "charge_damp",
+    "charge_accel",
+    "potential_damp",
+    "potential_accel",
+    "pk_scale",
+    "use_pseudometric",
+    "pk_energy",
+}
+
+
 @dataclass
 class ControlConfig:
     spin_unrestricted: bool = True
@@ -168,10 +179,13 @@ class ControlConfig:
     trace: bool = False
     extra_namelist: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, include_retired: bool = False) -> Dict[str, Any]:
         d = asdict(self)
         if not self.extra_namelist:
             del d["extra_namelist"]
+        if not include_retired:
+            for k in RETIRED_YAML_CONTROL_PARAMS:
+                d.pop(k, None)
         return d
 
     @classmethod

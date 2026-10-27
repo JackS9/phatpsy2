@@ -176,8 +176,6 @@ control:
   spin_unrestricted: true
   max_cycles: 50
   convergence: 1.0e-4
-  charge_damp: 0.5
-  potential_damp: 0.5
 geometry:
   - element: N
     xyz: [0.0, 0.0, 1.034]

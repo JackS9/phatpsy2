@@ -20,7 +20,6 @@ control:
   spin_unrestricted: true
   max_cycles: 100
   convergence: 1.0e-4
-  charge_damp: 0.5
   separate_atoms_first_cycle: true
 
 geometry:
