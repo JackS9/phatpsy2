@@ -106,7 +106,7 @@ def test_irc_mass_weighting_relation():
 
 def test_compute_irc_with_explicit_normal_mode(driver):
     """Test compute_irc using an explicit transition normal mode on stretched N2."""
-    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
     # Position N2 at a stretched non-equilibrium geometry
     deck.geometry[0].xyz = [0.0, 0.0, 0.850]
     deck.geometry[1].xyz = [0.0, 0.0, -0.850]
@@ -155,7 +155,7 @@ def test_compute_irc_with_explicit_normal_mode(driver):
 
 def test_compute_irc_auto_transition_vector(driver):
     """Test compute_irc with automatic transition vector identification."""
-    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
     deck.geometry[0].xyz = [0.0, 0.0, 0.720]
     deck.geometry[1].xyz = [0.0, 0.0, -0.720]
 
@@ -175,7 +175,7 @@ def test_compute_irc_auto_transition_vector(driver):
 
 def test_irc_export_xyz_and_json(driver):
     """Verify JSON and multi-frame XYZ trajectory serialization."""
-    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
     deck.geometry[0].xyz = [0.0, 0.0, 0.750]
     deck.geometry[1].xyz = [0.0, 0.0, -0.750]
 
@@ -213,7 +213,7 @@ def test_irc_export_xyz_and_json(driver):
 
 def test_irc_3d_webgl_visualizer(driver):
     """Verify generation of interactive Three.js 3D WebGL HTML visualizer for IRC."""
-    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
     deck.geometry[0].xyz = [0.0, 0.0, 0.750]
     deck.geometry[1].xyz = [0.0, 0.0, -0.750]
 
@@ -257,7 +257,7 @@ def test_cli_irc(driver):
 
         ret = main([
             "irc",
-            "examples/n2.yaml",
+            "examples/n2sz.yaml",
             "-s", "0.05",
             "-n", "2",
             "--direction", "both",

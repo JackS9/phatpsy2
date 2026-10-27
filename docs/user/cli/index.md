@@ -174,7 +174,7 @@ Performs automated 1D or 2D Potential Energy Surface (PES) scans:
 
 ```bash
 # 1D bond dissociation scan between atom 0 and atom 1 from 1.8 to 3.0 Bohrs
-python -m phatpsy scan examples/n2.yaml -b 0,1 -r 1.8:3.0:0.1 -o n2_pes.json -p n2_pes.png
+python -m phatpsy scan examples/n2dz.yaml -b 0,1 -r 1.8:3.0:0.1 -o n2_pes.json -p n2_pes.png
 ```
 
 * **Coordinate Flags:**

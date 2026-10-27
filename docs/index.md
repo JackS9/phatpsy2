@@ -62,13 +62,13 @@ The system combines:
 
     ```bash
     # Run from a modern YAML deck
-    python -m phatpsy examples/n2.yaml -o n2_results.json
+    python -m phatpsy examples/n2dz.yaml -o n2_results.json
 
     # Generate a 3D total electron density grid and export to Gaussian Cube
-    python -m phatpsy cube examples/n2.yaml --density -o n2_density.cube
+    python -m phatpsy cube examples/n2dz.yaml --density -o n2_density.cube
 
     # Launch interactive Three.js isosurface visualizer
-    python -m phatpsy cube examples/n2.yaml --density --view --isovalue 0.05
+    python -m phatpsy cube examples/n2dz.yaml --density --view --isovalue 0.05
     ```
 
 === "Python API"

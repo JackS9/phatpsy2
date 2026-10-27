@@ -259,13 +259,13 @@ def test_cli_cube_subcommand():
         html_path = Path(tmpdir) / "n2_view.html"
 
         # Export Gaussian Cube
-        rc1 = main(["cube", "examples/n2.yaml", "--density", "-o", str(cube_path), "--spacing", "0.4"])
+        rc1 = main(["cube", "examples/n2sz.yaml", "--density", "-o", str(cube_path), "--spacing", "0.4"])
         assert rc1 == 0
         assert cube_path.exists()
         assert cube_path.stat().st_size > 1000
 
         # Export HTML with property-colored ESP
-        rc2 = main(["cube", "examples/n2.yaml", "--esp", "-o", str(html_path), "--spacing", "0.4", "-n"])
+        rc2 = main(["cube", "examples/n2sz.yaml", "--esp", "-o", str(html_path), "--spacing", "0.4", "-n"])
         assert rc2 == 0
         assert html_path.exists()
         assert "3D Isosurface Envelope" in html_path.read_text(encoding="utf-8")

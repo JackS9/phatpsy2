@@ -4,6 +4,13 @@ control:
   max_cycles: 100
   convergence: 0.0005
   time_limit: 360.0
+  use_constrained_fit: false
+  use_diis: false
+  use_global_fermi: false
+  fermi_temperature: null
+  use_dynamic_exponents: false
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
   separate_atoms_first_cycle: true
   debug: false
   trace: false
@@ -15,88 +22,6 @@ geometry:
   - 1.084
   id: N1
   spin: up
-  starting_orbitals:
-  - eigval:
-    - -15.629
-    - -15.629
-    occno:
-    - 1.0
-    - 1.0
-    coefficients:
-    - - 1
-      - 0
-      - 0.938
-      - 0.938
-    - - 2
-      - 0
-      - 0.058
-      - 0.058
-  - eigval:
-    - -0.945
-    - -0.945
-    occno:
-    - 1.0
-    - 1.0
-    coefficients:
-    - - 1
-      - 0
-      - -0.217
-      - -0.217
-    - - 2
-      - 0
-      - -0.008
-      - -0.008
-    - - 3
-      - 0
-      - 0.18
-      - 0.18
-    - - 4
-      - 0
-      - 0.674
-      - 0.674
-    - - 5
-      - 0
-      - 0.313
-      - 0.313
-    - - 6
-      - 0
-      - -0.145
-      - -0.145
-  - eigval:
-    - -0.567
-    - -0.567
-    occno:
-    - 1.0
-    - 0.0
-    coefficients:
-    - - 7
-      - -1
-      - 0.266
-      - 0.266
-    - - 8
-      - -1
-      - 0.523
-      - 0.523
-    - - 9
-      - -1
-      - 0.274
-      - 0.274
-    - - 10
-      - -1
-      - 0.013
-      - 0.013
-  - eigval:
-    - -0.566
-    - -0.566
-    occno:
-    - 1.0
-    - 0.0
-  - eigval:
-    - -0.566
-    - -0.566
-    occno:
-    - 1.0
-    - 0.0
 - element: N
   xyz:
   - 0.0
@@ -107,78 +32,8 @@ geometry:
   symmetry_op: -1
   symmetry_axis: 1
   spin: down
-- element: X
-  xyz:
-  - 0.0
-  - 0.0
-  - 1.034
-  id: X1
-  spin: up
-- element: X
-  xyz:
-  - 0.0
-  - 0.0
-  - -1.034
-  id: X2
-  equivalent_to: X1
-  symmetry_op: -1
-  symmetry_axis: 1
-  spin: down
-- element: X
-  xyz:
-  - 0.0
-  - 0.0
-  - 0.984
-  id: X1
-  spin: up
-- element: X
-  xyz:
-  - 0.0
-  - 0.0
-  - -0.984
-  id: X2
-  equivalent_to: X1
-  symmetry_op: -1
-  symmetry_axis: 1
-  spin: down
 elements:
   N:
     symbol: N
     atomic_number: 7
-    description: 'CLEMENTI EXTENDED BASIS FOR N(4S):'
-    functions:
-    - n: 1
-      l: 0
-      zeta: 6.45739
-    - n: 1
-      l: 0
-      zeta: 11.172
-    - n: 2
-      l: 0
-      zeta: 1.36405
-    - n: 2
-      l: 0
-      zeta: 1.89734
-    - n: 2
-      l: 0
-      zeta: 3.25291
-    - n: 2
-      l: 0
-      zeta: 5.08238
-    - n: 2
-      l: 1
-      zeta: 1.16068
-    - n: 2
-      l: 1
-      zeta: 1.70472
-    - n: 2
-      l: 1
-      zeta: 3.03935
-    - n: 2
-      l: 1
-      zeta: 7.17482
-    - n: 3
-      l: 2
-      zeta: 1.5
-  X:
-    symbol: X
+    basis: DZ

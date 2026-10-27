@@ -1,0 +1,222 @@
+title: '... Ni13, R(Ni-Ni)=4.71'
+control:
+  spin_unrestricted: true
+  max_cycles: 20
+  convergence: 0.0001
+  time_limit: 600.0
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: Ni
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: Ni1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -305.5
+    - -305.5
+  - eigval:
+    - -37.21
+    - -37.21
+  - eigval:
+    - -32.63
+    - -32.63
+  - eigval:
+    - -32.63
+    - -32.63
+  - eigval:
+    - -32.63
+    - -32.63
+  - eigval:
+    - -4.341
+    - -4.341
+  - eigval:
+    - -2.85
+    - -2.85
+  - eigval:
+    - -2.85
+    - -2.85
+  - eigval:
+    - -2.85
+    - -2.85
+  - eigval:
+    - -0.001
+    - -0.001
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.001
+    - -0.001
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.001
+    - -0.001
+    occno:
+    - 1.0
+    - 1.0
+  - eigval:
+    - -0.001
+    - -0.001
+    occno:
+    - 1.0
+    - 0.0
+  - eigval:
+    - -0.001
+    - -0.001
+    occno:
+    - 1.0
+    - 0.0
+  - eigval:
+    - -0.223
+    - -0.223
+    occno:
+    - 1.0
+    - 1.0
+- element: Ni
+  xyz:
+  - 4.71
+  - 0.0
+  - 0.0
+  id: Ni2
+  spin: down
+- element: Ni
+  xyz:
+  - 0.0
+  - 4.71
+  - 0.0
+  id: Ni3
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: up
+- element: Ni
+  xyz:
+  - -4.71
+  - 0.0
+  - 0.0
+  id: Ni4
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: down
+- element: Ni
+  xyz:
+  - 0.0
+  - -4.71
+  - 0.0
+  id: Ni5
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: up
+- element: Ni
+  xyz:
+  - 2.72
+  - 2.72
+  - 2.72
+  id: Ni6
+  spin: up
+- element: Ni
+  xyz:
+  - -2.72
+  - 2.72
+  - 2.72
+  id: Ni7
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: down
+- element: Ni
+  xyz:
+  - -2.72
+  - -2.72
+  - 2.72
+  id: Ni8
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: up
+- element: Ni
+  xyz:
+  - 2.72
+  - -2.72
+  - 2.72
+  id: Ni9
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: down
+- element: Ni
+  xyz:
+  - 2.72
+  - -2.72
+  - -2.72
+  id: Ni10
+  equivalent_to: Ni6
+  symmetry_op: -1
+  symmetry_axis: 1
+  spin: up
+- element: Ni
+  xyz:
+  - 2.72
+  - 2.72
+  - -2.72
+  id: Ni11
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: down
+- element: Ni
+  xyz:
+  - -2.72
+  - 2.72
+  - -2.72
+  id: Ni12
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: up
+- element: Ni
+  xyz:
+  - -2.72
+  - -2.72
+  - -2.72
+  id: Ni13
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  spin: down
+elements:
+  Ni:
+    symbol: Ni
+    atomic_number: 28
+    description: 'Clementi SZ-Basis for neutral Nickel:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 27.347
+    - n: 2
+      l: 0
+      zeta: 10.1098
+    - n: 2
+      l: 1
+      zeta: 12.0478
+    - n: 3
+      l: 0
+      zeta: 4.98602
+    - n: 3
+      l: 1
+      zeta: 4.69403
+    - n: 3
+      l: 2
+      zeta: 4.17688
+    - n: 4
+      l: 0
+      zeta: 1.42748

@@ -4,6 +4,13 @@ control:
   max_cycles: 20
   convergence: 0.0001
   time_limit: 200.0
+  use_constrained_fit: false
+  use_diis: false
+  use_global_fermi: false
+  fermi_temperature: null
+  use_dynamic_exponents: false
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
   separate_atoms_first_cycle: true
   debug: false
   trace: false
@@ -15,25 +22,6 @@ geometry:
   - 4.0
   id: O1
   spin: up
-  starting_orbitals:
-  - eigval:
-    - -20.6
-    - -20.6
-  - eigval:
-    - -1.15
-    - -1.15
-  - eigval:
-    - -0.5
-    - -0.5
-    occno:
-    - 1.0
-    - 1.0
-  - occno:
-    - 1.0
-    - 0.0
-  - occno:
-    - 1.0
-    - 0.0
 - element: Ag
   xyz:
   - 0.0
@@ -41,144 +29,12 @@ geometry:
   - 0.0
   id: Ag1
   spin: down
-  starting_orbitals:
-  - eigval:
-    - -913.9
-    - -913.9
-  - eigval:
-    - -133.2
-    - -133.2
-  - eigval:
-    - -125.0
-    - -125.0
-  - eigval:
-    - -125.0
-    - -125.0
-  - eigval:
-    - -125.0
-    - -125.0
-  - eigval:
-    - -25.04
-    - -25.04
-  - eigval:
-    - -21.67
-    - -21.67
-  - eigval:
-    - -21.67
-    - -21.67
-  - eigval:
-    - -21.67
-    - -21.67
-  - eigval:
-    - -14.01
-    - -14.01
-  - eigval:
-    - -14.01
-    - -14.01
-  - eigval:
-    - -14.01
-    - -14.01
-  - eigval:
-    - -14.01
-    - -14.01
-  - eigval:
-    - -14.01
-    - -14.01
-  - eigval:
-    - -3.74
-    - -3.74
-  - eigval:
-    - -2.54
-    - -2.54
-  - eigval:
-    - -2.54
-    - -2.54
-  - eigval:
-    - -2.54
-    - -2.54
-  - eigval:
-    - -0.36
-    - -0.36
-    occno:
-    - 1.0
-    - 1.0
-  - eigval:
-    - -0.36
-    - -0.36
-    occno:
-    - 1.0
-    - 1.0
-  - eigval:
-    - -0.36
-    - -0.36
-    occno:
-    - 1.0
-    - 1.0
-  - eigval:
-    - -0.36
-    - -0.36
-    occno:
-    - 1.0
-    - 1.0
-  - eigval:
-    - -0.36
-    - -0.36
-    occno:
-    - 1.0
-    - 1.0
-  - eigval:
-    - -0.19
-    - -0.19
-    occno:
-    - 0.0
-    - 1.0
 elements:
   O:
     symbol: O
     atomic_number: 8
-    description: 'Clementi SZ-Basis for Neutral Oxygen:'
-    functions:
-    - n: 1
-      l: 0
-      zeta: 7.66
-    - n: 2
-      l: 0
-      zeta: 2.25
-    - n: 2
-      l: 1
-      zeta: 2.23
+    basis: DZ
   Ag:
     symbol: Ag
     atomic_number: 47
-    description: 'Clementi SZ-Basis for neutral Silver:'
-    functions:
-    - n: 1
-      l: 0
-      zeta: 46.04
-    - n: 2
-      l: 0
-      zeta: 17.32
-    - n: 2
-      l: 1
-      zeta: 21.46
-    - n: 3
-      l: 0
-      zeta: 10.01
-    - n: 3
-      l: 1
-      zeta: 9.95
-    - n: 3
-      l: 2
-      zeta: 10.85
-    - n: 4
-      l: 0
-      zeta: 5.05
-    - n: 4
-      l: 1
-      zeta: 4.68
-    - n: 4
-      l: 2
-      zeta: 3.81
-    - n: 5
-      l: 0
-      zeta: 1.61
+    basis: DZ

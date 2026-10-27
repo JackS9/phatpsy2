@@ -1,0 +1,150 @@
+title: '... Ethylene Oxide -> Acetaldehyde Transition State ...'
+control:
+  spin_unrestricted: true
+  max_cycles: 20
+  convergence: 0.0001
+  time_limit: 200.0
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: C
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: C1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -11.3
+    - -11.3
+  - eigval:
+    - -0.68
+    - -0.68
+    occno:
+    - 1.0
+    - 0.0
+  - eigval:
+    - -0.4
+    - -0.4
+    occno:
+    - 1.0
+    - 0.0
+  - occno:
+    - 1.0
+    - 0.0
+  - occno:
+    - 1.0
+    - 0.0
+- element: C
+  xyz:
+  - 1.44
+  - 0.0
+  - 0.0
+  id: C2
+  spin: down
+- element: O
+  xyz:
+  - 1.87
+  - 1.23
+  - 0.0
+  id: O1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -20.6
+    - -20.6
+  - eigval:
+    - -1.15
+    - -1.15
+  - eigval:
+    - -0.5
+    - -0.5
+    occno:
+    - 1.0
+    - 1.0
+  - occno:
+    - 1.0
+    - 0.0
+  - occno:
+    - 0.0
+    - 1.0
+- element: H
+  xyz:
+  - -0.55
+  - 0.8
+  - 0.48
+  id: H1
+  spin: up
+  starting_orbitals:
+  - eigval:
+    - -0.5
+    - -0.5
+    occno:
+    - 1.0
+    - 0.0
+- element: H
+  xyz:
+  - -0.6
+  - -0.67
+  - -0.6
+  id: H2
+  spin: up
+- element: H
+  xyz:
+  - 1.89
+  - -0.62
+  - -0.81
+  id: H3
+  spin: down
+- element: H
+  xyz:
+  - 1.7
+  - -0.58
+  - 0.94
+  id: H4
+  spin: up
+elements:
+  C:
+    symbol: C
+    atomic_number: 6
+    description: 'Clementi SZ-Basis for Neutral Carbon:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 5.67
+    - n: 2
+      l: 0
+      zeta: 1.61
+    - n: 2
+      l: 1
+      zeta: 1.57
+  O:
+    symbol: O
+    atomic_number: 8
+    description: 'Clementi SZ-Basis for Neutral Oxygen:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 7.66
+    - n: 2
+      l: 0
+      zeta: 2.25
+    - n: 2
+      l: 1
+      zeta: 2.23
+  H:
+    symbol: H
+    atomic_number: 1
+    description: 'SZ-Basis for neutral Hydrogen:'
+    functions:
+    - n: 1
+      l: 0
+      zeta: 1.0
+    - n: 2
+      l: 0
+      zeta: 0.5
+    - n: 2
+      l: 1
+      zeta: 0.5

@@ -12,7 +12,7 @@ This quick-start tutorial demonstrates how to perform a quantum self-consistent 
 
 The simplest way to run PHATPSY 2.0 is from an existing YAML calculation deck.
 
-### 1. Inspect the Deck (`examples/n2.yaml`)
+### 1. Inspect the Deck (`examples/n2dz.yaml`)
 
 ```yaml
 title: "Nitrogen Molecule (N2) - Double-Zeta Basis"
@@ -40,7 +40,7 @@ elements:
 ### 2. Run the Calculation
 
 ```bash
-python -m phatpsy examples/n2.yaml -o n2_results.json
+python -m phatpsy examples/n2dz.yaml -o n2_results.json
 ```
 
 ### 3. Review the Output
@@ -125,8 +125,8 @@ Once the calculation has run, you can extract 3D scalar fields to Gaussian Cube 
 
 ```bash
 # Export the Highest Occupied Molecular Orbital (HOMO, orbital 7) to Cube format
-python -m phatpsy cube examples/n2.yaml --mo 7 -o n2_homo.cube
+python -m phatpsy cube examples/n2dz.yaml --mo 7 -o n2_homo.cube
 
 # Launch interactive 3D browser isosurface viewer
-python -m phatpsy cube examples/n2.yaml --mo 7 --view --isovalue 0.08
+python -m phatpsy cube examples/n2dz.yaml --mo 7 --view --isovalue 0.08
 ```

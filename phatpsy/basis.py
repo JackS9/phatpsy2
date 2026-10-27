@@ -382,7 +382,9 @@ def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementD
     if sym in raw_thakkar:
         return get_thakkar_basis(sym)
 
-    # Fallback to Clementi SZ
+    # Fallback to Clementi DZ / SZ
+    if "DZ" in clem_db and sym in clem_db["DZ"]:
+        return get_clementi_basis(sym, "DZ")
     if "SZ" in clem_db and sym in clem_db["SZ"]:
         return get_clementi_basis(sym, "SZ")
 

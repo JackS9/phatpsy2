@@ -87,7 +87,7 @@ def evaluate_co_benchmark(
     ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
     r_expt = 2.1322
 
-    deck = build_diatomic("C", "O", r_expt, basis="SZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("C", "O", r_expt, basis="DZ", spin_flip=True, units="bohr")
     deck.control = ctrl
     res = d.run_deck(deck)
 
@@ -131,7 +131,7 @@ def evaluate_h2o_benchmark(
 
     deck = build_molecule(
         geometry=[("O", o), ("H", h1), ("H", h2)],
-        basis={"O": "SZ", "H": "THAKKAR"},
+        basis="DZ",
         title="Water H2O Benchmark",
         spin_unrestricted=True,
         auto_spin_flip=True,
