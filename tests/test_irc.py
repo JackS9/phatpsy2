@@ -290,6 +290,7 @@ def test_co_irc_heteronuclear_mass_weighting(driver):
     satisfies the mass-weighting condition dz_C / dz_O = -sqrt(M_O / M_C) in mass-weighted space.
     """
     deck = build_diatomic("C", "O", 2.20, basis="SZ", spin_flip=True)
+    deck.control.pk_scale = 0.0
     m_c = ATOMIC_MASSES_AMU["C"]
     m_o = ATOMIC_MASSES_AMU["O"]
 
