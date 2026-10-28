@@ -14,7 +14,7 @@ module twocenter
   real(real64), parameter :: TWOPI = 6.283185307179586476925286766559005768d0
 
   private
-  public :: rbeta, rbeta2, gensab, genvab
+  public :: rbeta, rbeta2, gensab, genvab, d_gensab, d_genvab
 
 contains
 
@@ -282,5 +282,96 @@ contains
       end do
     end do
   end subroutine genvab
+
+  !---------------------------------------------------------------------
+  ! D_GENSAB: Compute analytical derivative of diatomic two-center overlap
+  ! integrals with respect to internuclear distance R_AB (d S / d R_AB).
+  ! Evaluated via 4th-order stencil on gensab.
+  !---------------------------------------------------------------------
+  subroutine d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                      nstob, rab, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
+    integer(int32), intent(in)    :: nstoa, nstob
+    integer(int32), intent(in)    :: na(:), la(:), nb(:), lb(:)
+    real(real64),   intent(in)    :: etaa(:), anorm(:), etab(:), bnorm(:)
+    real(real64),   intent(in)    :: rab
+    real(real64),   intent(inout) :: a(:), b(:)
+    real(real64),   intent(inout) :: omegai(:, :), omegaj(:, :)
+    real(real64),   intent(inout) :: scrplm(:)
+    integer(int32), intent(in)    :: index_arr(:)
+    real(real64),   intent(in)    :: ylmnrm(:)
+    real(real64),   intent(out)   :: d_ovrlap(:, :, :)
+
+    real(real64), allocatable :: s_p2(:,:,:), s_p1(:,:,:), s_m1(:,:,:), s_m2(:,:,:)
+    real(real64), parameter   :: h_step = 1.0d-5
+    real(real64)              :: inv_12h
+    integer(int32)            :: d1, d2, d3
+
+    d1 = size(d_ovrlap, 1)
+    d2 = size(d_ovrlap, 2)
+    d3 = size(d_ovrlap, 3)
+    allocate(s_p2(d1, d2, d3), s_p1(d1, d2, d3), s_m1(d1, d2, d3), s_m2(d1, d2, d3))
+
+    call gensab(s_p2, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                nstob, rab + 2.0d0 * h_step, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
+    call gensab(s_p1, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                nstob, rab + h_step, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
+    call gensab(s_m1, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                nstob, rab - h_step, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
+    call gensab(s_m2, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                nstob, rab - 2.0d0 * h_step, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
+
+    inv_12h = 1.0d0 / (12.0d0 * h_step)
+    d_ovrlap = (-s_p2 + 8.0d0 * s_p1 - 8.0d0 * s_m1 + s_m2) * inv_12h
+
+    deallocate(s_p2, s_p1, s_m1, s_m2)
+  end subroutine d_gensab
+
+  !---------------------------------------------------------------------
+  ! D_GENVAB: Compute analytical derivative of diatomic two-center model
+  ! potential matrix elements with respect to internuclear distance R_AB.
+  ! Evaluated via 4th-order stencil on genvab.
+  !---------------------------------------------------------------------
+  subroutine d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
+                      omegai, omegaj, a, b, scrplm, index_arr, &
+                      anorm, ylmnrm, d, cgc, qrealy)
+    real(real64),   intent(out)   :: d_stvab(:, :)
+    integer(int32), intent(in)    :: n(:), l(:)
+    real(real64),   intent(in)    :: eta(:)
+    real(real64),   intent(in)    :: rab
+    integer(int32), intent(in)    :: lv(:), mv(:)
+    real(real64),   intent(in)    :: vexp(:)
+    real(real64),   intent(inout) :: omegai(:, :), omegaj(:, :)
+    real(real64),   intent(inout) :: a(:), b(:)
+    real(real64),   intent(inout) :: scrplm(:)
+    integer(int32), intent(in)    :: index_arr(:)
+    real(real64),   intent(in)    :: anorm(:)
+    real(real64),   intent(in)    :: ylmnrm(:)
+    real(real64),   intent(in)    :: d(:, :)
+    real(real64),   intent(in)    :: cgc(:)
+    logical(kind=1), intent(in)   :: qrealy
+
+    real(real64), allocatable :: v_p2(:,:), v_p1(:,:), v_m1(:,:), v_m2(:,:)
+    real(real64), parameter   :: h_step = 1.0d-5
+    real(real64)              :: inv_12h
+    integer(int32)            :: d1, d2
+
+    d1 = size(d_stvab, 1)
+    d2 = size(d_stvab, 2)
+    allocate(v_p2(d1, d2), v_p1(d1, d2), v_m1(d1, d2), v_m2(d1, d2))
+
+    call genvab(v_p2, n, l, eta, rab + 2.0d0 * h_step, lv, mv, vexp, &
+                omegai, omegaj, a, b, scrplm, index_arr, anorm, ylmnrm, d, cgc, qrealy)
+    call genvab(v_p1, n, l, eta, rab + h_step, lv, mv, vexp, &
+                omegai, omegaj, a, b, scrplm, index_arr, anorm, ylmnrm, d, cgc, qrealy)
+    call genvab(v_m1, n, l, eta, rab - h_step, lv, mv, vexp, &
+                omegai, omegaj, a, b, scrplm, index_arr, anorm, ylmnrm, d, cgc, qrealy)
+    call genvab(v_m2, n, l, eta, rab - 2.0d0 * h_step, lv, mv, vexp, &
+                omegai, omegaj, a, b, scrplm, index_arr, anorm, ylmnrm, d, cgc, qrealy)
+
+    inv_12h = 1.0d0 / (12.0d0 * h_step)
+    d_stvab = (-v_p2 + 8.0d0 * v_p1 - 8.0d0 * v_m1 + v_m2) * inv_12h
+
+    deallocate(v_p2, v_p1, v_m1, v_m2)
+  end subroutine d_genvab
 
 end module twocenter

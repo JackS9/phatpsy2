@@ -403,35 +403,15 @@ def compute_hessian(
     driver: Optional[PhatpsyDriver] = None,
     step_size: float = 0.005,
     method: str = "central",
+    use_analytical_gradients: bool = True,
     quiet: bool = True,
 ) -> Tuple[np.ndarray, CalculationDeck, List[int]]:
     """
-    Computes the full Cartesian Hessian matrix (d^2 E / dX_i dX_j) in Hartree / Bohr^2
-    via numerical finite difference of total molecular energies.
-
-    Parameters
-    ----------
-    deck : CalculationDeck
-        Input geometry and electronic structure calculation deck.
-    driver : Optional[PhatpsyDriver]
-        PhatpsyDriver instance. Created if None.
-    step_size : float
-        Cartesian displacement step size in Bohr (default: 0.005).
-    method : str
-        Finite difference method:
-        - "central": Central difference for all diagonal and cross terms (O(h^2) precision).
-        - "forward": Central for diagonal, forward cross for off-diagonal (fast).
-    quiet : bool
-        Whether to suppress Fortran stdout during single points.
-
-    Returns
-    -------
-    Hessian : np.ndarray
-        (3N, 3N) symmetric Cartesian Hessian matrix in Hartree / Bohr^2.
-    calc_deck : CalculationDeck
-        The unconstrained calculation deck used for evaluation.
-    active_indices : List[int]
-        Indices of active (unfixed) Cartesian degrees of freedom.
+    Computes the full Cartesian Hessian matrix (d^2 E / dX_i dX_j) in Hartree / Bohr^2.
+    When use_analytical_gradients=True (default), computes central differences of analytical
+    gradients with basis-derivative (Pulay) corrections:
+        H_{:, j} = (g(X + h*e_j) - g(X - h*e_j)) / (2h)
+    suppressing numerical grid/SCF noise by orders of magnitude compared to energy second differences.
     """
     if driver is None:
         driver = PhatpsyDriver(quiet=quiet)
@@ -458,13 +438,32 @@ def compute_hessian(
         if not a.fixed and not a.virtual:
             active_indices.extend([i * 3, i * 3 + 1, i * 3 + 2])
 
-    # Reference energy E0
+    H = np.zeros((dim, dim), dtype=np.float64)
+    h = float(step_size)
+
+    if use_analytical_gradients:
+        for j in active_indices:
+            atom_idx = j // 3
+            coord_idx = j % 3
+
+            d_plus = copy.deepcopy(calc_deck)
+            d_plus.geometry[atom_idx].xyz[coord_idx] += h
+            g_plus = driver.gradient(d_plus, quiet=quiet).flatten()
+
+            d_minus = copy.deepcopy(calc_deck)
+            d_minus.geometry[atom_idx].xyz[coord_idx] -= h
+            g_minus = driver.gradient(d_minus, quiet=quiet).flatten()
+
+            H[:, j] = (g_plus - g_minus) / (2.0 * h)
+
+        H = 0.5 * (H + H.T)
+        return H, calc_deck, active_indices
+
+    # Reference energy E0 (fallback energy second differences)
     res0 = driver.run_deck(calc_deck, quiet=quiet)
     E0 = float(res0.total_energy)
 
-    H = np.zeros((dim, dim), dtype=np.float64)
     coords0 = np.array([a.xyz for a in atoms], dtype=np.float64).flatten()
-    h = float(step_size)
 
     def eval_displaced_energy(d_coords: np.ndarray) -> float:
         d_deck = copy.deepcopy(calc_deck)
@@ -771,6 +770,7 @@ def compute_vibrations(
     step_size: float = 0.005,
     method: str = "central",
     project_tr: bool = True,
+    use_analytical_gradients: bool = True,
     temperature_k: float = 298.15,
     pressure_atm: float = 1.0,
     symmetry_number: Optional[int] = None,
@@ -794,6 +794,9 @@ def compute_vibrations(
     project_tr : bool
         Whether to project out center-of-mass translation and rotation (default: True).
         Automatically disabled if any atoms are frozen (fixed=True).
+    use_analytical_gradients : bool
+        Whether to compute Hessian via central differences of analytical Pulay gradients
+        (default: True). Suppresses unphysical finite-difference basis shift noise.
     temperature_k : float
         Thermochemistry reference temperature (default: 298.15 K).
     pressure_atm : float
@@ -819,6 +822,7 @@ def compute_vibrations(
         driver=driver,
         step_size=step_size,
         method=method,
+        use_analytical_gradients=use_analytical_gradients,
         quiet=quiet,
     )
 

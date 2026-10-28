@@ -204,9 +204,11 @@ def test_compute_vibrations_n2_calculation():
     assert vib_res.is_minimum is True
     assert vib_res.is_transition_state is False
 
-    # Check genuine stretch mode
+    # Check genuine stretch mode: Milestone 6 Acceptance Criteria omega_e in [2100, 2500] cm^-1
     stretch_mode = vib_res.vibrational_modes[0]
-    assert stretch_mode.frequency_cm > 8000.0
+    assert 2100.0 <= stretch_mode.frequency_cm <= 2500.0, (
+        f"N2 frequency {stretch_mode.frequency_cm:.2f} cm^-1 outside Milestone 6 range [2100, 2500]"
+    )
     assert stretch_mode.is_imaginary is False
 
     # The stretch mode displacements must be purely along the z-axis with opposite signs
@@ -223,12 +225,38 @@ def test_compute_vibrations_n2_calculation():
 
     # Thermochemistry attached
     assert vib_res.thermochemistry is not None
-    assert vib_res.thermochemistry.zero_point_energy_kcal > 10.0
+    assert 3.0 <= vib_res.thermochemistry.zero_point_energy_kcal <= 4.0
 
     # Summary formatting
     summary_text = vib_res.summary()
     assert "HARMONIC VIBRATIONAL FREQUENCY ANALYSIS" in summary_text
     assert "THERMOCHEMICAL ANALYSIS" in summary_text
+
+
+def test_compute_vibrations_co_calculation():
+    """Verify CO vibrational analysis and Milestone 6 criteria omega_e in [1950, 2350] cm^-1."""
+    driver = PhatpsyDriver(quiet=True)
+    deck_co = build_diatomic("C", "O", bond_length=2.132, basis="DZ")
+    vib_res = compute_vibrations(
+        deck=deck_co,
+        driver=driver,
+        step_size=0.005,
+        method="central",
+        project_tr=True,
+        temperature_k=298.15,
+        pressure_atm=1.0,
+        quiet=True,
+    )
+
+    assert vib_res.num_atoms == 2
+    assert vib_res.num_vibrational_modes == 1
+    assert vib_res.is_minimum is True
+
+    stretch_mode = vib_res.vibrational_modes[0]
+    assert 1950.0 <= stretch_mode.frequency_cm <= 2350.0, (
+        f"CO frequency {stretch_mode.frequency_cm:.2f} cm^-1 outside Milestone 6 range [1950, 2350]"
+    )
+    assert 2.5 <= vib_res.thermochemistry.zero_point_energy_kcal <= 3.5
 
 
 def test_vibrations_serialization_and_json(tmp_path):

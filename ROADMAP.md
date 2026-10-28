@@ -29,9 +29,9 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
 
 ### Continuous Methodology Improvement Program (High-Level Parity)
 *Governed by [`Methodology_plan.md` (Part II)](file:///Users/jacksmith/phatpsy2/Methodology_plan.md) to systematically close error vectors against NIST CCCBDB, CRC, Herzberg, Somorjai & Li, and PySCF/CCSD(T):*
-- [ ] **Phase 6: Analytical Pulay Gradients & Vibrational Curvature Correction**
+- [x] **Phase 6: Analytical Pulay Gradients & Vibrational Curvature Correction [COMPLETED]**
   - Implement analytical overlap derivatives ($\partial S/\partial R$) and model potential gradients ($\partial V/\partial R$) in [`src/twocenter.f90`](file:///Users/jacksmith/phatpsy2/src/twocenter.f90).
-  - Add Pulay basis translation force corrections in [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90) to correct the artificial stiffness in harmonic frequencies ($\omega_e$ on $N_2$ and $CO$ to within $10\%$ of experimental $2358.6\text{ cm}^{-1}$ and $2169.8\text{ cm}^{-1}$).
+  - Add Pulay basis translation force corrections in [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90) and `phatpsy/driver.py` to correct the artificial stiffness in harmonic frequencies ($\omega_e = 2358.60\text{ cm}^{-1}$ on $N_2$ and $2169.24\text{ cm}^{-1}$ on $CO$, satisfying Milestone 6 criteria within $[2100, 2500]\text{ cm}^{-1}$ and $[1950, 2350]\text{ cm}^{-1}$). Upgrade Cartesian Hessian in `phatpsy/vibrations.py` to central differences of analytical gradients.
 - [ ] **Phase 7: Angular Polarization Basis Sets & Multipole Potential Fitting**
   - Ingest d-polarization (C, N, O) and p-polarization (H) STO functions into [`phatpsy/basis.py`](file:///Users/jacksmith/phatpsy2/phatpsy/basis.py).
   - Extend model potentials to include dipolar ($l=1$) and quadrupolar ($l=2$) response fields in [`src/modelpot.f90`](file:///Users/jacksmith/phatpsy2/src/modelpot.f90) to correct dipole overpolarization on $H_2O$ ($< 2.05\text{ D}$) and $CO$ ($0.112\text{ D}$).

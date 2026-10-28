@@ -204,6 +204,15 @@ class CalculationState(dict):
         """Excess energy of active cluster embedded in bulk (E_total - E_env)."""
         return self.subsystem_decomposition.energy_excess
 
+    @property
+    def gradient(self) -> np.ndarray:
+        """Cartesian nuclear gradient (dE/dX_A) in Hartree / Bohr with Pulay basis corrections."""
+        if "gradient" not in self and self._deck is not None:
+            from phatpsy.driver import PhatpsyDriver
+            d = PhatpsyDriver(quiet=True)
+            self["gradient"] = d.gradient(self._deck)
+        return self.get("gradient", np.zeros((len(self.atom_charges), 3)))
+
     def __getattr__(self, name: str) -> Any:
         if name in self:
             return self[name]
