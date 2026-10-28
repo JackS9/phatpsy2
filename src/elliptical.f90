@@ -77,25 +77,22 @@ contains
     real(real64),   intent(inout) :: a(nadim)
 
     integer(int32) :: np1, i
-    real(real64)   :: fim1
+    real(real64)   :: fim1, x_safe
 
-    if (x <= 0.0d0) then
-      write(*, '(A, 1PE23.15, A)') '*** ERROR *** Non-positive argument, X = ', x, ' in routine ASCALE.'
-      stop 1
-    end if
+    x_safe = max(x, 1.0d-15)
 
     if (n >= nadim) then
-      write(*, '(A, I5, A)') '*** ERROR *** N = ', n, ' exceeds specified dimension in routine ASCALE.'
-      stop 1
+      write(*, '(A, I5, A)') '*** WARNING *** N = ', n, ' exceeds specified dimension in routine ASCALE.'
+      return
     end if
 
-    a(1) = 1.0d0 / x
+    a(1) = 1.0d0 / x_safe
     if (n == 0) return
 
     np1  = n + 1
     fim1 = 1.0d0
     do i = 2, np1
-      a(i) = a(1) + fim1 * a(i - 1) / x
+      a(i) = a(1) + fim1 * a(i - 1) / x_safe
       fim1 = fim1 + 1.0d0
     end do
   end subroutine ascale
@@ -116,8 +113,8 @@ contains
     real(real64)   :: xabs, odd, even, fi, xx, u, tsum, tk, scale, t0, tnu, sum_val
 
     if (n >= nbdim) then
-      write(*, '(A, I5, A)') '*** ERROR *** N = ', n, ' exceeds specified dimension in routine BSCALE.'
-      stop 1
+      write(*, '(A, I5, A)') '*** WARNING *** N = ', n, ' exceeds specified dimension in routine BSCALE.'
+      return
     end if
 
     np1  = n + 1

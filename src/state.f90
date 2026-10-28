@@ -360,7 +360,7 @@ contains
     N2ORBT = (NORBT * (NORBT + 1)) / 2
     NNMX   = 2 * NMAX
     NNMXM1 = NNMX - 1
-    NABDIM = 5 * NMAX - 1
+    NABDIM = max(128, 10 * NMAX)
     LMXP1  = LMAX + 1
     llmx   = 2 * LMAX
     LLMXP1 = llmx + 1
