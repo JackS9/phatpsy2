@@ -80,7 +80,7 @@ Phase 5 establishes an automated literature benchmark evaluation engine in [`pha
 
 | Metric | Tolerance | Rationale |
 | :--- | :--- | :--- |
-| **Total Energy ($E_{\text{tot}}$)** | $\text{atol} = 1.0 \times 10^{-3}\text{ Hartree}$ | Modern LAPACK matrix diagonalizations. |
+| **Total Energy ($E_{\text{tot}}$)** | $\text{atol} = 2.0 \times 10^{-3}\text{ Hartree}$ | Modern LAPACK matrix diagonalizations and cross-BLAS portability (macOS Accelerate vs Linux OpenBLAS). |
 | **Virial Ratio ($-V/T$)** | $\text{atol} = 0.05$ | Physical virial boundary condition. |
 | **Harmonic Frequency ($\omega$)** | $\text{atol} = 10.0\text{ cm}^{-1}$ | Finite-difference numerical Hessian accuracy. |
 | **Dipole Moment ($\mu$)** | $\text{atol} = 0.05\text{ Debye}$ | EOM density and origin invariance. |

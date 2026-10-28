@@ -301,6 +301,10 @@ def test_neb_molecular_eo_to_aa_isomerization():
         spin_unrestricted=True,
         auto_spin_flip=True,
     )
+    # Minimal Single-Zeta basis requires pk_scale=0.0 to prevent static V_PK over-projection
+    # on multi-center C-H bonds, matching eo_to_aa.json legacy_calibrated_pathway
+    deck_r.control.pk_scale = 0.0
+    deck_p.control.pk_scale = 0.0
 
     driver = PhatpsyDriver(quiet=True)
     res = neb_search(
