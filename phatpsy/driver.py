@@ -34,7 +34,7 @@ def silence_stdout():
 class PhatpsyDriver:
     """Hybrid Python orchestrator replacing main.f and contrl.f."""
 
-    def __init__(self, quiet: bool = False):
+    def __init__(self, quiet: bool = True):
         self.quiet = quiet
         core.state.init_block_data_and_defaults()
 
