@@ -410,6 +410,13 @@ contains
     allocate(mol_ws%evecx(MSTOT, NORBT, ISPIN))
     allocate(mol_ws%pair_stovlp(N2ATOM))
     allocate(mol_ws%pair_stvab(max(10, NATOM * NATOM * 2)))
+
+    mol_ws%ovlp = 0.0d0; mol_ws%ewmat = 0.0d0; mol_ws%popul = 0.0d0
+    mol_ws%coord = 0.0d0; mol_ws%charge = 0.0d0
+    mol_ws%iatomx = 0; mol_ws%nx = 0; mol_ws%lx = 0; mol_ws%mlx = 0
+    mol_ws%etax = 0.0d0; mol_ws%anormx = 0.0d0
+    mol_ws%evalx = 0.0d0; mol_ws%occx = 0.0d0; mol_ws%evecx = 0.0d0
+
     mol_ws%stvab_count = 0
     mol_ws%stvab_pos   = 0
 
@@ -531,60 +538,54 @@ contains
   subroutine get_iatomx(out_iatom, m)
     integer(int32), intent(in) :: m
     integer(int32), intent(out) :: out_iatom(m)
+    out_iatom = 0
     if (allocated(mol_ws%iatomx)) then
       out_iatom(1:min(m, MSTOT)) = mol_ws%iatomx(1:min(m, MSTOT))
-    else
-      out_iatom = 0
     end if
   end subroutine get_iatomx
 
   subroutine get_nx(out_n, m)
     integer(int32), intent(in) :: m
     integer(int32), intent(out) :: out_n(m)
+    out_n = 0
     if (allocated(mol_ws%nx)) then
       out_n(1:min(m, MSTOT)) = mol_ws%nx(1:min(m, MSTOT))
-    else
-      out_n = 0
     end if
   end subroutine get_nx
 
   subroutine get_lx(out_l, m)
     integer(int32), intent(in) :: m
     integer(int32), intent(out) :: out_l(m)
+    out_l = 0
     if (allocated(mol_ws%lx)) then
       out_l(1:min(m, MSTOT)) = mol_ws%lx(1:min(m, MSTOT))
-    else
-      out_l = 0
     end if
   end subroutine get_lx
 
   subroutine get_mlx(out_ml, m)
     integer(int32), intent(in) :: m
     integer(int32), intent(out) :: out_ml(m)
+    out_ml = 0
     if (allocated(mol_ws%mlx)) then
       out_ml(1:min(m, MSTOT)) = mol_ws%mlx(1:min(m, MSTOT))
-    else
-      out_ml = 0
     end if
   end subroutine get_mlx
 
   subroutine get_etax(out_eta, m)
     integer(int32), intent(in) :: m
     real(real64), intent(out) :: out_eta(m)
+    out_eta = 0.0d0
     if (allocated(mol_ws%etax)) then
       out_eta(1:min(m, MSTOT)) = mol_ws%etax(1:min(m, MSTOT))
-    else
-      out_eta = 0.0d0
     end if
   end subroutine get_etax
 
   subroutine get_anormx(out_anorm, m)
     integer(int32), intent(in) :: m
     real(real64), intent(out) :: out_anorm(m)
+    out_anorm = 0.0d0
     if (allocated(mol_ws%anormx)) then
       out_anorm(1:min(m, MSTOT)) = mol_ws%anormx(1:min(m, MSTOT))
-    else
-      out_anorm = 0.0d0
     end if
   end subroutine get_anormx
 

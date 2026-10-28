@@ -489,7 +489,9 @@ def compute_grid(
     # Pre-evaluate all STO basis functions on the grid
     chi = np.zeros((mstot, nx, ny, nz), dtype=np.float64)
     for mu in range(mstot):
-        iatom = binfo["iatomx"][mu] - 1
+        iatom = int(binfo["iatomx"][mu]) - 1
+        if iatom < 0 or iatom >= coords.shape[1]:
+            continue
         n = binfo["nx"][mu]
         l = binfo["lx"][mu]
         m = binfo["mlx"][mu]

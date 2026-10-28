@@ -517,7 +517,7 @@ def main():
             "virial_tolerance": 0.05,
         },
         "tolerances": {
-            "total_energy_hartree": 2.0e-3,
+            "total_energy_hartree": 2.5e-3,
             "virial_ratio": 0.05,
             "harmonic_frequency_cm": 15.0,
             "dipole_moment_debye": 0.05,

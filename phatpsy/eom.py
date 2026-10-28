@@ -387,7 +387,9 @@ def compute_eom(
     # Pre-evaluate all real Slater-Type Orbitals on the grid
     chi = np.zeros((mstot, *dims), dtype=np.float64)
     for mu in range(mstot):
-        iatom = binfo["iatomx"][mu] - 1
+        iatom = int(binfo["iatomx"][mu]) - 1
+        if iatom < 0 or iatom >= coords.shape[1]:
+            continue
         chi[mu] = evaluate_real_sto(
             X, Y, Z,
             tuple(coords[:, iatom]),
