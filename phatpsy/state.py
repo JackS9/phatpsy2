@@ -441,6 +441,11 @@ class CalculationState(dict):
 
                 if cand is not None:
                     atom.embedded_state = cand
+                    atom.starting_orbitals = (
+                        cand.to_initial_orbitals()
+                        if hasattr(cand, "to_initial_orbitals")
+                        else cand.orbitals
+                    )
 
         # Apply control overrides
         if control_overrides:

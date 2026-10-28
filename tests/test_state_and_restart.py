@@ -257,3 +257,5 @@ def test_create_restart_deck_with_title():
     )
     assert restart_deck.title == "N2 Warm Restart (R = 2.10 Bohr)"
     assert len(restart_deck.geometry) == 2
+    assert restart_deck.atoms[0].starting_orbitals is not None
+    assert len(restart_deck.atoms[0].starting_orbitals) > 0
