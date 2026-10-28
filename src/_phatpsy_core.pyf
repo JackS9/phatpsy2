@@ -42,6 +42,15 @@ python module _phatpsy_core
                 integer optional, depend(in_charge) :: n = shape(in_charge, 1)
                 real(kind=real64) intent(in), dimension(n3, n) :: in_charge
             end subroutine set_charge
+            subroutine get_atom_dipoles(out_dipoles, n3, n)
+                integer intent(in) :: n3, n
+                real(kind=real64) intent(out), dimension(n3, n) :: out_dipoles
+            end subroutine get_atom_dipoles
+            subroutine set_atom_dipoles(in_dipoles, n3, n)
+                integer optional, depend(in_dipoles) :: n3 = shape(in_dipoles, 0)
+                integer optional, depend(in_dipoles) :: n = shape(in_dipoles, 1)
+                real(kind=real64) intent(in), dimension(n3, n) :: in_dipoles
+            end subroutine set_atom_dipoles
             subroutine get_popul(out_popul, n, nspin)
                 integer intent(in) :: n, nspin
                 real(kind=real64) intent(out), dimension(n, nspin) :: out_popul
@@ -423,7 +432,12 @@ python module _phatpsy_core
                 real(kind=real64) intent(in) :: alpha
                 real(kind=real64) intent(out) :: vx, fx
             end subroutine eval_exchange_potential_point
-            subroutine compute_dft_exchange(ielem, stden, stexch, exch_type_in, exch_alpha_in, m2sto, ispin)
+            subroutine eval_correlation_potential_point(rho, drho, corr_type, vc, ec)
+                real(kind=real64) intent(in) :: rho, drho
+                integer(kind=int32) intent(in) :: corr_type
+                real(kind=real64) intent(out) :: vc, ec
+            end subroutine eval_correlation_potential_point
+            subroutine compute_dft_exchange(ielem, stden, stexch, exch_type_in, exch_alpha_in, corr_type_in, m2sto, ispin)
                 use state, only: M2STO, ISPIN
                 integer(kind=int32) intent(in) :: ielem
                 integer(kind=int32) optional, depend(stden) :: m2sto = shape(stden, 0)
@@ -432,6 +446,7 @@ python module _phatpsy_core
                 real(kind=real64) intent(out), dimension(m2sto, ispin), depend(m2sto, ispin) :: stexch
                 integer(kind=int32) optional, intent(in) :: exch_type_in = 1
                 real(kind=real64) optional, intent(in) :: exch_alpha_in = 0.6666666666666666
+                integer(kind=int32) optional, intent(in) :: corr_type_in = 0
             end subroutine compute_dft_exchange
             subroutine fit_exchange_exponential(n_grid, r_grid, vx_grid, w_grid, n_terms, vexp, vcoef, rms)
                 integer(kind=int32) optional, depend(r_grid) :: n_grid = shape(r_grid, 0)

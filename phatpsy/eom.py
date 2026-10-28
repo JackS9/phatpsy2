@@ -78,7 +78,7 @@ class ElectronicTransition:
 
 @dataclass
 class DipoleMoment:
-    """Permanent molecular electric dipole moment."""
+    """Permanent molecular electric dipole and quadrupole moments."""
     total: List[float]         # [mux, muy, muz] in atomic units (e * a0)
     total_debye: List[float]   # in Debye
     magnitude_au: float
@@ -86,9 +86,11 @@ class DipoleMoment:
     nuclear: List[float]       # nuclear dipole in a.u.
     electronic: List[float]    # electronic dipole in a.u.
     center_of_charge: List[float]  # reference origin in Bohr
+    quadrupole_tensor: Optional[List[List[float]]] = None  # 3x3 traceless quadrupole tensor in a.u. (e * a0^2)
+    quadrupole_tensor_buckingham: Optional[List[List[float]]] = None  # in Buckingham
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "total_au": [round(float(c), 6) for c in self.total],
             "total_debye": [round(float(c), 6) for c in self.total_debye],
             "magnitude_au": round(float(self.magnitude_au), 6),
@@ -97,6 +99,11 @@ class DipoleMoment:
             "electronic_au": [round(float(c), 6) for c in self.electronic],
             "center_of_charge_bohr": [round(float(c), 6) for c in self.center_of_charge],
         }
+        if self.quadrupole_tensor is not None:
+            d["quadrupole_tensor_au"] = [[round(float(v), 6) for v in row] for row in self.quadrupole_tensor]
+        if self.quadrupole_tensor_buckingham is not None:
+            d["quadrupole_tensor_buckingham"] = [[round(float(v), 4) for v in row] for row in self.quadrupole_tensor_buckingham]
+        return d
 
 
 @dataclass
@@ -277,6 +284,18 @@ class EOMResult:
             f"   Total Dipole Vector (a.u.): [{self.dipole.total[0]:10.4f}, {self.dipole.total[1]:10.4f}, {self.dipole.total[2]:10.4f}]",
             f"   Total Dipole (Debye):       [{self.dipole.total_debye[0]:10.4f}, {self.dipole.total_debye[1]:10.4f}, {self.dipole.total_debye[2]:10.4f}]",
             f"   Dipole Magnitude:            {self.dipole.magnitude_debye:10.4f} Debye  ({self.dipole.magnitude_au:.6f} a.u.)",
+        ]
+        if self.dipole.quadrupole_tensor is not None:
+            q = self.dipole.quadrupole_tensor
+            qb = self.dipole.quadrupole_tensor_buckingham or q
+            lines.extend([
+                "",
+                "   Traceless Quadrupole Tensor (a.u. / Buckingham):",
+                f"   Theta_xx: {q[0][0]:9.4f} a.u. ({qb[0][0]:9.4f} B)   Theta_xy: {q[0][1]:9.4f} a.u.   Theta_xz: {q[0][2]:9.4f} a.u.",
+                f"   Theta_yx: {q[1][0]:9.4f} a.u.              Theta_yy: {q[1][1]:9.4f} a.u. ({qb[1][1]:9.4f} B)   Theta_yz: {q[1][2]:9.4f} a.u.",
+                f"   Theta_zx: {q[2][0]:9.4f} a.u.              Theta_zy: {q[2][1]:9.4f} a.u.              Theta_zz: {q[2][2]:9.4f} a.u. ({qb[2][2]:9.4f} B)",
+            ])
+        lines.extend([
             "",
             "2. OPTICAL POLARIZABILITY TENSOR (a.u.):",
             f"   alpha_xx: {self.polarizability.static_tensor[0][0]:10.4f}   alpha_xy: {self.polarizability.static_tensor[0][1]:10.4f}   alpha_xz: {self.polarizability.static_tensor[0][2]:10.4f}",
@@ -295,7 +314,7 @@ class EOMResult:
             "4. ELECTRONIC EXCITATIONS (UV-VIS ABSORPTION):",
             f"   {'Index':>5}  {'Spin':>5}  {'Transition':>12}  {'dE (eV)':>10}  {'lambda (nm)':>12}  {'Osc (f)':>10}  {'||mu|| (a.u.)':>12}",
             "-" * 74,
-        ]
+        ])
 
         # Top 10 transitions by oscillator strength
         sorted_trans = sorted(self.transitions, key=lambda t: t.oscillator_strength, reverse=True)
@@ -321,6 +340,7 @@ def compute_eom(
     grid_spacing: float = 0.20,
     dynamic_wavelengths: Optional[List[float]] = None,
     temperature_k: float = 298.15,
+    normalize_grid: bool = False,
     quiet: bool = True,
 ) -> EOMResult:
     """
@@ -455,6 +475,13 @@ def compute_eom(
         psi_grid = np.tensordot(C.T, chi, axes=(1, 0))
         psi_flat = psi_grid.reshape(norbt, -1)
 
+        if normalize_grid:
+            # Normalize molecular orbitals on numerical grid to eliminate finite-difference nuclear cusp artifacts
+            grid_norms = np.sqrt(np.sum(psi_flat**2 * dV, axis=1, keepdims=True))
+            grid_norms = np.where(grid_norms > 1e-12, grid_norms, 1.0)
+            psi_flat = psi_flat / grid_norms
+            psi_grid = psi_flat.reshape(norbt, *dims)
+
         # 1. Permanent Dipole Contribution
         d_x = (psi_flat * Xr_flat @ (psi_flat.T * dV)).diagonal()
         d_y = (psi_flat * Yr_flat @ (psi_flat.T * dV)).diagonal()
@@ -560,9 +587,32 @@ def compute_eom(
                     l_outer = np.outer([lx, ly, lz], [lx, ly, lz])
                     chi_para += spin_mult * (1.0 / (2.0 * c_light * c_light)) * (1.0 / dE) * l_outer
 
-    # Final Dipole Moment
+    # Final Dipole and Quadrupole Moments
     mu_total = mu_nuc - mu_elec
     mu_mag_au = float(np.linalg.norm(mu_total))
+
+    # Nuclear primitive second moments relative to r0
+    coords_rel = coords - r0[:, np.newaxis]
+    Q_nuc = np.zeros((3, 3), dtype=np.float64)
+    for a in range(natom):
+        Q_nuc += charges[a] * np.outer(coords_rel[:, a], coords_rel[:, a])
+
+    # Electronic primitive second moments
+    Q_elec = np.array([
+        [M_xx_tot, M_xy_tot, M_xz_tot],
+        [M_xy_tot, M_yy_tot, M_yz_tot],
+        [M_xz_tot, M_yz_tot, M_zz_tot],
+    ], dtype=np.float64)
+
+    # Total primitive second moment tensor
+    Q_tot = Q_nuc - Q_elec
+
+    # Traceless quadrupole moment tensor: Theta_ab = 0.5 * (3 Q_tot_ab - Tr(Q_tot) * delta_ab)
+    tr_Q = float(np.trace(Q_tot))
+    theta_mat = 0.5 * (3.0 * Q_tot - tr_Q * np.eye(3))
+    AU_TO_BUCKINGHAM = 1.345034
+    theta_buckingham = theta_mat * AU_TO_BUCKINGHAM
+
     dipole_res = DipoleMoment(
         total=mu_total.tolist(),
         total_debye=(mu_total * AU_TO_DEBYE).tolist(),
@@ -571,6 +621,8 @@ def compute_eom(
         nuclear=mu_nuc.tolist(),
         electronic=mu_elec.tolist(),
         center_of_charge=r0.tolist(),
+        quadrupole_tensor=theta_mat.tolist(),
+        quadrupole_tensor_buckingham=theta_buckingham.tolist(),
     )
 
     # Final Polarizability Tensor

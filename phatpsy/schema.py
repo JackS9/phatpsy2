@@ -174,6 +174,9 @@ class ControlConfig:
     use_dynamic_exponents: bool = False
     exchange_kernel: str = "hartree-fock"
     exchange_alpha: float = 2.0 / 3.0
+    correlation_kernel: Optional[str] = None
+    use_dispersion: bool = False
+    dispersion_model: str = "d3bj"
     separate_atoms_first_cycle: bool = True
     debug: bool = False
     trace: bool = False
@@ -196,6 +199,7 @@ class ControlConfig:
             "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",
             "use_diis", "use_global_fermi", "fermi_temperature",
             "use_dynamic_exponents", "exchange_kernel", "exchange_alpha",
+            "correlation_kernel", "use_dispersion", "dispersion_model",
             "separate_atoms_first_cycle", "debug", "trace"
         }
         kwargs = {k: v for k, v in data.items() if k in valid_keys}
@@ -511,6 +515,7 @@ class CalculationDeck:
     control: ControlConfig = field(default_factory=ControlConfig)
     geometry: List[AtomConfig] = field(default_factory=list)
     elements: Dict[str, ElementConfig] = field(default_factory=dict)
+    basis: Optional[str] = None
 
     @property
     def atoms(self) -> List[AtomConfig]:
@@ -536,7 +541,7 @@ class CalculationDeck:
         resolved = {}
         for sym in symbols:
             user_elem = self.elements.get(sym)
-            basis_name = (user_elem.basis if user_elem and user_elem.basis else None) or "DZ"
+            basis_name = (user_elem.basis if user_elem and user_elem.basis else None) or self.basis or "DZ"
             # Retrieve default or named library basis
             lib_elem = get_element_basis(sym, basis_name=basis_name)
 
@@ -756,6 +761,20 @@ class CalculationDeck:
             lines.append("  QDFTEX=T,")
             lines.append(f"  EXCH_TYPE={k_type},")
             lines.append(f"  EXCH_ALPHA={ctrl.exchange_alpha:.6f},")
+
+            corr_map = {
+                "pw92": 1,
+                "lda": 1,
+                "pbe": 2,
+                "gga": 2,
+            }
+            c_type = 0
+            if ctrl.correlation_kernel:
+                c_type = corr_map.get(ctrl.correlation_kernel.lower(), 0)
+            elif ctrl.exchange_kernel.lower() == "pbe":
+                c_type = 2
+            if c_type > 0:
+                lines.append(f"  CORR_TYPE={c_type},")
         else:
             lines.append("  QDFTEX=F,")
 
@@ -911,6 +930,8 @@ class CalculationDeck:
         }
         if self.elements:
             res["elements"] = {k: v.to_dict() for k, v in self.elements.items()}
+        if self.basis:
+            res["basis"] = self.basis
         return res
 
     def to_yaml(self, path: Optional[Union[str, Path]] = None) -> str:
@@ -944,7 +965,8 @@ class CalculationDeck:
             if isinstance(v, dict) and "symbol" not in v:
                 v["symbol"] = k
             elements[k] = ElementConfig.from_dict(v)
-        deck = cls(title=title, control=control, geometry=geometry, elements=elements)
+        basis = data.get("basis")
+        deck = cls(title=title, control=control, geometry=geometry, elements=elements, basis=basis)
         deck.resolve_coordinates()
         return deck
 

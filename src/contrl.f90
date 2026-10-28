@@ -410,7 +410,7 @@ contains
                       THETA,  RANGE,  EXPMIN, CONVRG, CDAMP,  CACCEL, NCREAT, &
                       NANNIH, ICREAT, IANNIH, QTRANS, QPLOT,  QCORE,  QPRINT, &
                       QAUDMP, QTRACE, QCSTFT, QGFERM, QDYNEX, QDFTEX, &
-                      EXCH_TYPE, EXCH_ALPHA
+                      EXCH_TYPE, EXCH_ALPHA, CORR_TYPE
 
     inquire(unit=9, opened=is_open)
     if (.not. is_open) open(9, file='Phatpsy.Stderr')
@@ -434,6 +434,7 @@ contains
     QDFTEX     = .false.
     EXCH_TYPE  = 1
     EXCH_ALPHA = 2.0d0 / 3.0d0
+    CORR_TYPE  = 0
 
     read(IR, nml=CTLINP, iostat=ios)
     if (ios < 0) then

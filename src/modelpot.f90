@@ -18,7 +18,8 @@ module modelpot
   private
 
   public :: genfac, genbc, gennrm, gennrm_default, intnrm, pkepot, epkpot, epkpot_core, dampv, &
-            regularize_pk_projector, scale_screening_exponents, update_dynamic_exponents
+            regularize_pk_projector, scale_screening_exponents, update_dynamic_exponents, &
+            eval_atomic_dipole, eval_multipole_field
 
   interface gennrm
     module procedure gennrm_default
@@ -571,6 +572,134 @@ contains
                                     nvterm, znuc, q_net, gamma_val)
     end do
   end subroutine update_dynamic_exponents
+  !---------------------------------------------------------------------
+  ! EVAL_ATOMIC_DIPOLE:
+  ! Evaluates the intra-atomic dipole moment p = [px, py, pz] from the
+  ! atomic orbital eigenvectors and occupations using one-center transition
+  ! integrals between s <-> p and p <-> d Slater-Type Orbitals.
+  !---------------------------------------------------------------------
+  subroutine eval_atomic_dipole(stevec, occ, n, l, ml, eta, anorm, msto, norb, ispin, p_dipole)
+    integer(int32), intent(in)  :: msto, norb, ispin
+    integer(int32), intent(in)  :: n(msto), l(msto), ml(msto)
+    real(real64),   intent(in)  :: stevec(msto, norb, ispin)
+    real(real64),   intent(in)  :: occ(norb, ispin)
+    real(real64),   intent(in)  :: eta(msto), anorm(msto)
+    real(real64),   intent(out) :: p_dipole(3)
+
+    real(real64), allocatable :: p_mat(:,:), dx_mat(:,:), dy_mat(:,:), dz_mat(:,:)
+    real(real64) :: mult, r_int, fact_term, eta_sum
+    integer(int32) :: isp, iorb, i, j, ni, li, mi, nj, lj, mj, n_rad
+    real(real64), parameter :: r_sqrt3 = 0.5773502691896257d0  ! 1 / sqrt(3)
+    real(real64), parameter :: r_sqrt5 = 0.4472135954999579d0  ! 1 / sqrt(5)
+    real(real64), parameter :: r_2sqrt15 = 0.5163977794943222d0 ! 2 / sqrt(15)
+
+    p_dipole = 0.0d0
+    if (msto <= 0 .or. norb <= 0) return
+
+    allocate(p_mat(msto, msto), dx_mat(msto, msto), dy_mat(msto, msto), dz_mat(msto, msto))
+    p_mat = 0.0d0
+    dx_mat = 0.0d0
+    dy_mat = 0.0d0
+    dz_mat = 0.0d0
+
+    ! 1. Construct atomic density matrix P_ij
+    mult = merge(1.0d0, 2.0d0, ispin == 2)
+    do isp = 1, ispin
+      do iorb = 1, norb
+        if (occ(iorb, isp) <= 0.0d0) cycle
+        do i = 1, msto
+          do j = 1, msto
+            p_mat(i, j) = p_mat(i, j) + mult * occ(iorb, isp) * stevec(i, iorb, isp) * stevec(j, iorb, isp)
+          end do
+        end do
+      end do
+    end do
+
+    ! 2. Evaluate analytical dipole transition matrices between s <-> p and p <-> d
+    do i = 1, msto
+      ni = n(i); li = l(i); mi = ml(i)
+      do j = 1, msto
+        nj = n(j); lj = l(j); mj = ml(j)
+        if (abs(li - lj) /= 1) cycle
+
+        n_rad = ni + nj + 1
+        eta_sum = eta(i) + eta(j)
+        if (eta_sum <= 0.0d0) cycle
+
+        fact_term = 1.0d0
+        do iorb = 1, n_rad
+          fact_term = fact_term * real(iorb, real64)
+        end do
+        r_int = anorm(i) * anorm(j) * fact_term / (eta_sum ** (n_rad + 1))
+
+        ! s <-> p transitions:
+        if ((li == 0 .and. lj == 1) .or. (li == 1 .and. lj == 0)) then
+          if ((li == 1 .and. mi == 0) .or. (lj == 1 .and. mj == 0)) dz_mat(i, j) = r_int * r_sqrt3
+          if ((li == 1 .and. mi == 1) .or. (lj == 1 .and. mj == 1)) dx_mat(i, j) = r_int * r_sqrt3
+          if ((li == 1 .and. mi == -1) .or. (lj == 1 .and. mj == -1)) dy_mat(i, j) = r_int * r_sqrt3
+        end if
+
+        ! p <-> d transitions:
+        if ((li == 1 .and. lj == 2) .or. (li == 2 .and. lj == 1)) then
+          if ((li == 1 .and. mi == 0 .and. mj == 0) .or. (lj == 1 .and. mj == 0 .and. mi == 0)) then
+            dz_mat(i, j) = r_int * r_2sqrt15
+          end if
+          if ((li == 1 .and. mi == 1 .and. mj == 1) .or. (lj == 1 .and. mj == 1 .and. mi == 1)) then
+            dz_mat(i, j) = r_int * r_sqrt5
+            dx_mat(i, j) = r_int * r_sqrt5
+          end if
+          if ((li == 1 .and. mi == -1 .and. mj == -1) .or. (lj == 1 .and. mj == -1 .and. mi == -1)) then
+            dz_mat(i, j) = r_int * r_sqrt5
+            dy_mat(i, j) = r_int * r_sqrt5
+          end if
+        end if
+      end do
+    end do
+
+    ! 3. Electronic dipole p_elec = -sum(P_ij * D_ij)
+    p_dipole(1) = -sum(p_mat * dx_mat)
+    p_dipole(2) = -sum(p_mat * dy_mat)
+    p_dipole(3) = -sum(p_mat * dz_mat)
+    deallocate(p_mat, dx_mat, dy_mat, dz_mat)
+  end subroutine eval_atomic_dipole
+
+  !---------------------------------------------------------------------
+  ! EVAL_MULTIPOLE_FIELD:
+  ! Evaluates the interatomic electric dipole reaction field E_A and
+  ! potential Phi_A at atom A from all other polarized atomic centers B.
+  !---------------------------------------------------------------------
+  subroutine eval_multipole_field(coord, atom_dipoles, natom, iatom, e_field, phi_dipole)
+    integer(int32), intent(in)  :: natom, iatom
+    real(real64),   intent(in)  :: coord(3, natom)
+    real(real64),   intent(in)  :: atom_dipoles(3, natom)
+    real(real64),   intent(out) :: e_field(3), phi_dipole
+
+    real(real64) :: rab(3), r_dist, r_inv, r_inv3, r_hat(3), p_dot_r, f_damp, alpha_damp, ar
+    integer(int32) :: ib
+
+    e_field = 0.0d0
+    phi_dipole = 0.0d0
+    alpha_damp = 1.50d0
+
+    do ib = 1, natom
+      if (ib == iatom) cycle
+      rab = coord(:, iatom) - coord(:, ib)
+      r_dist = sqrt(sum(rab**2))
+      if (r_dist < 1.0d-5) cycle
+
+      r_inv = 1.0d0 / r_dist
+      r_hat = rab * r_inv
+      r_inv3 = r_inv**3
+
+      ! Tang-Toennies damping function f_1(R)
+      ar = alpha_damp * r_dist
+      f_damp = max(0.0d0, 1.0d0 - exp(-ar) * (1.0d0 + ar))
+
+      p_dot_r = dot_product(atom_dipoles(:, ib), r_hat)
+      phi_dipole = phi_dipole + f_damp * p_dot_r * (r_inv**2)
+      e_field = e_field + f_damp * r_inv3 * (3.0d0 * p_dot_r * r_hat - atom_dipoles(:, ib))
+    end do
+  end subroutine eval_multipole_field
 
 end module modelpot
 

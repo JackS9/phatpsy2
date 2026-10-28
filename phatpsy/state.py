@@ -32,6 +32,7 @@ class EmbeddedAtomState:
     orbitals: List[Dict[str, Any]] = field(default_factory=list)
     density_matrix: Optional[List[List[float]]] = None
     model_potential: Optional[Dict[str, Any]] = None
+    dipole: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     fixed: bool = False
     virtual: bool = False
 
@@ -45,6 +46,7 @@ class EmbeddedAtomState:
         d["alpha_spin"] = round(float(self.alpha_spin), 6)
         d["beta_spin"] = round(float(self.beta_spin), 6)
         d["net_spin"] = round(float(self.net_spin), 6)
+        d["dipole"] = [round(float(c), 6) for c in self.dipole]
         return d
 
     @classmethod
@@ -66,6 +68,7 @@ class EmbeddedAtomState:
             orbitals=list(data.get("orbitals", [])),
             density_matrix=data.get("density_matrix"),
             model_potential=data.get("model_potential"),
+            dipole=[float(c) for c in data.get("dipole", [0.0, 0.0, 0.0])],
             fixed=bool(data.get("fixed", False)),
             virtual=bool(data.get("virtual", False)),
         )
@@ -481,6 +484,10 @@ def extract_calculation_state(
     ewmat = core_state.get_ewmat(n2orbt, ispin)
     coord = core_state.get_coord(3, natom)
     charge = core_state.get_charge(3, natom)
+    try:
+        atom_dipoles = core_state.get_atom_dipoles(3, natom)
+    except Exception:
+        atom_dipoles = np.zeros((3, natom), dtype=np.float64)
     popul = core_state.get_popul(norbt, ispin)
 
     iatomx = core_state.get_iatomx(mstot)
@@ -613,6 +620,7 @@ def extract_calculation_state(
             net_spin=net_sp,
             basis_functions=radial_funcs,
             orbitals=atom_orbitals,
+            dipole=atom_dipoles[:, atom_idx].tolist(),
             fixed=is_fixed,
             virtual=is_virtual,
         )
@@ -642,6 +650,7 @@ def extract_calculation_state(
         "ewmat_packed": ewmat,
         "atom_charges": charge,
         "atom_coordinates": coord,
+        "atom_dipoles": atom_dipoles,
         "atom_populations": popul,
         "basis_info": basis_info,
         "embedded_atoms": embedded_atoms,

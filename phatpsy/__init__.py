@@ -26,7 +26,12 @@ from phatpsy.builder import (
     parse_geometry,
     BOHR_PER_ANGSTROM,
 )
-from phatpsy.basis import get_element_basis, list_available_elements
+from phatpsy.basis import (
+    get_element_basis,
+    get_polarized_basis,
+    list_available_elements,
+    POLARIZATION_PARAMETERS,
+)
 from phatpsy.spin import assign_alternating_spin
 from phatpsy.visualizer import (
     visualize_deck,
@@ -128,6 +133,11 @@ from phatpsy.visualizer import (
     generate_eom_html,
     generate_eom_visualization_data,
 )
+from phatpsy.dispersion import (
+    compute_dispersion_energy,
+    compute_dispersion_gradient,
+    DispersionModel,
+)
 
 __all__ = [
     "PhatpsyDriver",
@@ -147,7 +157,9 @@ __all__ = [
     "ElementConfig",
     "SymmetrySpec",
     "get_element_basis",
+    "get_polarized_basis",
     "list_available_elements",
+    "POLARIZATION_PARAMETERS",
     "build_molecule",
     "build_diatomic",
     "parse_geometry",
@@ -226,6 +238,9 @@ __all__ = [
     "show_eom",
     "generate_eom_html",
     "generate_eom_visualization_data",
+    "compute_dispersion_energy",
+    "compute_dispersion_gradient",
+    "DispersionModel",
 ]
 
 

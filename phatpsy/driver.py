@@ -238,7 +238,14 @@ class PhatpsyDriver:
             if done_after_scf:
                 break
 
-        return extract_calculation_state(state, deck=deck, converged=converged, cycle_history=cycle_history)
+        res = extract_calculation_state(state, deck=deck, converged=converged, cycle_history=cycle_history)
+        if deck is not None and getattr(deck, "control", None) is not None and getattr(deck.control, "use_dispersion", False):
+            from phatpsy.dispersion import compute_dispersion_energy
+            fn = deck.control.exchange_kernel if deck.control.exchange_kernel.lower() not in ("hf", "hartree-fock") else "hf"
+            e_disp = compute_dispersion_energy(deck.geometry, functional=fn)
+            res["dispersion_energy"] = e_disp
+            res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
+        return res
 
     def gradient(self, deck, quiet: Optional[bool] = None) -> np.ndarray:
         """
@@ -307,5 +314,11 @@ class PhatpsyDriver:
 
                 grad[i] += f_mag * u
                 grad[j] -= f_mag * u
+
+        if calc_deck.control.use_dispersion:
+            from phatpsy.dispersion import compute_dispersion_gradient
+            fn = calc_deck.control.exchange_kernel if calc_deck.control.exchange_kernel.lower() not in ("hf", "hartree-fock") else "hf"
+            g_disp = compute_dispersion_gradient(calc_deck.geometry, functional=fn)
+            grad += g_disp
 
         return grad

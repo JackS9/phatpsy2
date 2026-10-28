@@ -23,6 +23,7 @@ module exchange_dft
   public :: gauss_legendre
   public :: eval_atomic_rho
   public :: eval_exchange_potential_point
+  public :: eval_correlation_potential_point
   public :: compute_dft_exchange
   public :: fit_exchange_exponential
 
@@ -32,6 +33,18 @@ module exchange_dft
   real(real64), parameter :: BETA_B88  = 0.0042d0
   real(real64), parameter :: KAPPA_PBE = 0.804d0
   real(real64), parameter :: MU_PBE    = 0.2195149727645171d0
+
+  ! Perdew-Wang 92 (PW92) LDA Correlation parameters
+  real(real64), parameter :: A_PW92      = 0.031090690869654895d0
+  real(real64), parameter :: ALPHA1_PW92 = 0.21370d0
+  real(real64), parameter :: BETA1_PW92  = 7.5957d0
+  real(real64), parameter :: BETA2_PW92  = 3.5876d0
+  real(real64), parameter :: BETA3_PW92  = 1.6382d0
+  real(real64), parameter :: BETA4_PW92  = 0.49294d0
+
+  ! Perdew-Burke-Ernzerhof (PBE) GGA Correlation parameters
+  real(real64), parameter :: BETA_PBE_C  = 0.066725d0
+  real(real64), parameter :: GAMMA_PBE_C = 0.031090690869654895d0
 
 contains
 
@@ -127,6 +140,96 @@ contains
       vx = vx_lda
     end select
   end subroutine eval_exchange_potential_point
+
+  !---------------------------------------------------------------------
+  ! 2b. Pointwise Correlation Potential and Energy Density Evaluation
+  ! Inputs:
+  !   rho       : Electron density (Bohr^-3)
+  !   drho      : Radial density gradient |drho/dr| (Bohr^-4)
+  !   corr_type : 1 = PW92 LDA, 2 = PBE GGA
+  ! Outputs:
+  !   vc        : Local correlation potential (Hartree)
+  !   ec        : Correlation energy density per electron (Hartree)
+  !---------------------------------------------------------------------
+  subroutine eval_correlation_potential_point(rho, drho, corr_type, vc, ec)
+    real(real64),   intent(in)  :: rho, drho
+    integer(int32), intent(in)  :: corr_type
+    real(real64),   intent(out) :: vc, ec
+
+    real(real64) :: rho_eff, rs, rs_sqrt, q_val, q_prime, ln_term
+    real(real64) :: eps_c_unif, deps_drs, vc_unif
+    real(real64) :: k_f, k_s, t, t2, t4, exp_term, a_param
+    real(real64) :: u_denom, u_val, w_val, h_val
+    real(real64) :: dh_dw, du_dt, dw_dt, du_da, dw_da, da_drs
+    real(real64) :: dh_dt, dh_drs
+
+    vc = 0.0d0
+    ec = 0.0d0
+
+    if (rho <= RHO_FLOOR) return
+
+    rho_eff = max(rho, RHO_FLOOR)
+
+    ! Wigner-Seitz radius: r_s = (3 / (4 * pi * rho))^(1/3)
+    rs      = (3.0d0 / (4.0d0 * PI * rho_eff))**(1.0d0 / 3.0d0)
+    rs_sqrt = sqrt(rs)
+
+    ! PW92 uniform electron gas parametrization
+    q_val   = 2.0d0 * A_PW92 * (BETA1_PW92 * rs_sqrt + BETA2_PW92 * rs + &
+                                BETA3_PW92 * rs * rs_sqrt + BETA4_PW92 * rs * rs)
+    q_prime = 2.0d0 * A_PW92 * (0.5d0 * BETA1_PW92 / rs_sqrt + BETA2_PW92 + &
+                                1.5d0 * BETA3_PW92 * rs_sqrt + 2.0d0 * BETA4_PW92 * rs)
+    ln_term = log(1.0d0 + 1.0d0 / q_val)
+
+    eps_c_unif = -2.0d0 * A_PW92 * (1.0d0 + ALPHA1_PW92 * rs) * ln_term
+    deps_drs   = -2.0d0 * A_PW92 * ALPHA1_PW92 * ln_term + &
+                  2.0d0 * A_PW92 * (1.0d0 + ALPHA1_PW92 * rs) * q_prime / (q_val * (1.0d0 + q_val))
+    vc_unif    = eps_c_unif - (rs / 3.0d0) * deps_drs
+
+    select case (corr_type)
+    case (1)
+      ! PW92 LDA Correlation
+      ec = eps_c_unif
+      vc = vc_unif
+
+    case (2)
+      ! PBE GGA Correlation
+      k_f = (3.0d0 * PI * PI * rho_eff)**(1.0d0 / 3.0d0)
+      k_s = sqrt(4.0d0 * k_f / PI)
+      t   = abs(drho) / (2.0d0 * k_s * rho_eff)
+
+      exp_term = exp(-eps_c_unif / GAMMA_PBE_C)
+      a_param  = (BETA_PBE_C / GAMMA_PBE_C) / max(exp_term - 1.0d0, 1.0d-12)
+
+      t2 = t * t
+      t4 = t2 * t2
+      u_denom = 1.0d0 + a_param * t2 + a_param * a_param * t4
+      u_val   = (1.0d0 + a_param * t2) / u_denom
+      w_val   = (BETA_PBE_C / GAMMA_PBE_C) * t2 * u_val
+      h_val   = GAMMA_PBE_C * log(1.0d0 + w_val)
+
+      ec = eps_c_unif + h_val
+
+      ! Functional derivatives with respect to density and gradient
+      dh_dw  = GAMMA_PBE_C / (1.0d0 + w_val)
+      du_dt  = (-2.0d0 * a_param**2 * t * t2 - 4.0d0 * a_param**3 * t * t4) / (u_denom**2)
+      dw_dt  = (BETA_PBE_C / GAMMA_PBE_C) * (2.0d0 * t * u_val + t2 * du_dt)
+
+      du_da  = -a_param * t4 * (2.0d0 + a_param * t2) / (u_denom**2)
+      dw_da  = (BETA_PBE_C / GAMMA_PBE_C) * t2 * du_da
+      da_drs = (a_param**2 / BETA_PBE_C) * exp_term * deps_drs
+
+      dh_dt  = dh_dw * dw_dt
+      dh_drs = dh_dw * dw_da * da_drs
+
+      vc = vc_unif + h_val - (rs / 3.0d0) * dh_drs - (7.0d0 / 6.0d0) * t * dh_dt
+
+    case default
+      ! Default: PW92 LDA
+      ec = eps_c_unif
+      vc = vc_unif
+    end select
+  end subroutine eval_correlation_potential_point
 
   !---------------------------------------------------------------------
   ! 3. Evaluate Spherically Averaged Atomic Density rho(r) and |drho/dr|
@@ -241,30 +344,34 @@ contains
   !   (V_X)_ij = delta_l_i,l_j delta_m_i,m_j int_0^inf R_i(r) v_x(r) R_j(r) r^2 dr
   ! via mapped Gauss-Legendre quadrature.
   !---------------------------------------------------------------------
-  subroutine compute_dft_exchange(ielem, stden, stexch, exch_type_in, exch_alpha_in)
+  subroutine compute_dft_exchange(ielem, stden, stexch, exch_type_in, exch_alpha_in, corr_type_in)
     integer(int32),           intent(in)    :: ielem
     real(real64),             intent(in)    :: stden(M2STO, ISPIN)
     real(real64),             intent(out)   :: stexch(M2STO, ISPIN)
     integer(int32), optional, intent(in)    :: exch_type_in
     real(real64),   optional, intent(in)    :: exch_alpha_in
+    integer(int32), optional, intent(in)    :: corr_type_in
 
     integer(int32), parameter :: N_QUAD = 64
     real(real64),   parameter :: R0 = 1.0d0
 
-    integer(int32) :: exch_type, nsto_l, msto_l, k, isp, i, j, m, li, lj, ni, nj
+    integer(int32) :: exch_type, corr_type, nsto_l, msto_l, k, isp, i, j, m, li, lj, ni, nj
     integer(int32) :: mu, nu, p
     integer(int32), allocatable :: shell_offset(:)
     real(real64)   :: alpha, t_nodes(N_QUAD), w_nodes(N_QUAD), r_grid(N_QUAD), w_metric(N_QUAD)
     real(real64)   :: rho_pts(N_QUAD, ISPIN), drho_pts(N_QUAD, ISPIN)
     real(real64)   :: vx_pts(N_QUAD, ISPIN), fx_pts(N_QUAD, ISPIN)
     real(real64)   :: r_val, r_inv, ri_val, rj_val, etai, etaj, anormi, anormj
-    real(real64)   :: int_val, vx_val
+    real(real64)   :: int_val, vx_val, vc_val, ec_val
     real(real64), allocatable :: r_rad(:,:), shell_vmat(:,:,:)
 
     stexch = 0.0d0
 
     exch_type = 1
     if (present(exch_type_in)) exch_type = exch_type_in
+
+    corr_type = 0
+    if (present(corr_type_in)) corr_type = corr_type_in
 
     alpha = 2.0d0 / 3.0d0
     if (present(exch_alpha_in)) then
@@ -290,11 +397,16 @@ contains
     ! Compute atomic electron density and gradient on the radial grid
     call eval_atomic_rho(ielem, stden, r_grid, rho_pts, drho_pts, N_QUAD, ISPIN)
 
-    ! Evaluate exchange potential at each radial grid point
+    ! Evaluate exchange and optional correlation potential at each radial grid point
     do isp = 1, ISPIN
       do k = 1, N_QUAD
         call eval_exchange_potential_point(rho_pts(k, isp), drho_pts(k, isp), &
                                            exch_type, alpha, vx_pts(k, isp), fx_pts(k, isp))
+        if (corr_type > 0) then
+          call eval_correlation_potential_point(rho_pts(k, isp), drho_pts(k, isp), &
+                                                corr_type, vc_val, ec_val)
+          vx_pts(k, isp) = vx_pts(k, isp) + vc_val
+        end if
       end do
     end do
 

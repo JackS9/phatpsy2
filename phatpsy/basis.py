@@ -254,6 +254,84 @@ def _generate_degenerate_orbitals(l: int, eigval: float, n_electrons: float,
     return orbs
 
 
+# ---------------------------------------------------------------------------
+# Polarized STO Parameters (DZP / SZP)
+# ---------------------------------------------------------------------------
+# Standard Roetti-Clementi / Thakkar polarized exponents:
+# - 2p on H and He
+# - 3d on Li through Ar
+POLARIZATION_PARAMETERS: Dict[str, Tuple[int, int, float]] = {
+    # Symbol: (n, l, zeta)
+    "H":  (2, 1, 1.00),
+    "He": (2, 1, 1.50),
+    "Li": (3, 2, 0.40),
+    "Be": (3, 2, 0.70),
+    "B":  (3, 2, 1.00),
+    "C":  (3, 2, 1.25),
+    "N":  (3, 2, 1.50),
+    "O":  (3, 2, 1.75),
+    "F":  (3, 2, 2.00),
+    "Ne": (3, 2, 2.25),
+    "Na": (3, 2, 0.50),
+    "Mg": (3, 2, 0.70),
+    "Al": (3, 2, 0.90),
+    "Si": (3, 2, 1.10),
+    "P":  (3, 2, 1.30),
+    "S":  (3, 2, 1.50),
+    "Cl": (3, 2, 1.70),
+    "Ar": (3, 2, 1.90),
+}
+
+
+def get_polarized_basis(base_data: ElementData, target_basis_name: str = "DZP") -> ElementData:
+    """
+    Augments a base Clementi/Thakkar basis set (SZ or DZ) with angular polarization functions:
+    - 2p (l=1) polarization on H and He.
+    - 3d (l=2) polarization on Li through Ar.
+    Virtual polarization orbitals with zero initial occupation (0.0 alpha, 0.0 beta)
+    are added to allow molecular electron density to polarize into them during SCF.
+    """
+    sym = base_data.symbol.strip().capitalize()
+    target_name = target_basis_name.strip().upper()
+    if sym not in POLARIZATION_PARAMETERS:
+        return ElementData(
+            symbol=base_data.symbol,
+            atomic_number=base_data.atomic_number,
+            description=f"Polarized {target_name} basis for {sym}",
+            basis_name=target_name,
+            functions=list(base_data.functions),
+            nvterm=base_data.nvterm,
+            default_orbitals=list(base_data.default_orbitals),
+        )
+
+    n_pol, l_pol, zeta_pol = POLARIZATION_PARAMETERS[sym]
+    pol_func = BasisFunction(n=n_pol, l=l_pol, zeta=zeta_pol)
+    new_funcs = list(base_data.functions) + [pol_func]
+    new_func_idx = len(new_funcs)
+
+    eig_val = 0.10 if l_pol == 1 else 0.20
+    new_orbs = list(base_data.default_orbitals)
+    for ml in range(-l_pol, l_pol + 1):
+        new_orbs.append(
+            InitialOrbital(
+                eigval=[eig_val, eig_val],
+                occno=[0.0, 0.0],
+                coefficients=[(new_func_idx, ml, 1.0)],
+            )
+        )
+
+    orb_type = "p" if l_pol == 1 else ("d" if l_pol == 2 else "f")
+    return ElementData(
+        symbol=base_data.symbol,
+        atomic_number=base_data.atomic_number,
+        description=f"Polarized {target_name} basis for {sym} ({n_pol}{orb_type} polarization, zeta={zeta_pol:.2f})",
+        basis_name=target_name,
+        functions=new_funcs,
+        nvterm=base_data.nvterm,
+        default_orbitals=new_orbs,
+    )
+
+
 def get_clementi_basis(symbol: str, basis_name: str = "DZ") -> ElementData:
     """
     Retrieves the Clementi & Roetti (1974) Double-Zeta (DZ) or Single-Zeta (SZ) basis set (Z=2 to 54).
@@ -355,6 +433,11 @@ def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementD
         if b_name in ("THAKKAR", "THAKKAR-RHF", "KOGA", "K99", "K00"):
             return get_thakkar_basis(sym)
 
+        if b_name in ("DZP", "SZP"):
+            base_type = "DZ" if b_name == "DZP" else "SZ"
+            base_elem = get_element_basis(sym, base_type)
+            return get_polarized_basis(base_elem, b_name)
+
         if b_name in ("DZ", "SZ"):
             if b_name in clem_db and sym in clem_db[b_name]:
                 return get_clementi_basis(sym, b_name)
@@ -368,7 +451,7 @@ def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementD
 
         raise KeyError(
             f"Basis '{b_name}' for element '{sym}' not found. "
-            f"Available basis sets: 'DZ', 'SZ' (Z=2..54), 'THAKKAR' (Z=1..103)"
+            f"Available basis sets: 'DZ', 'SZ', 'DZP', 'SZP' (Z=2..54), 'THAKKAR' (Z=1..103)"
         )
 
     # Return default:
@@ -409,6 +492,11 @@ def list_available_elements() -> Dict[str, List[str]]:
             bases.append("DZ")
         if "SZ" in clem_db and sym in clem_db["SZ"] and "SZ" not in bases:
             bases.append("SZ")
+        if sym in POLARIZATION_PARAMETERS:
+            if ("DZ" in bases or sym == "H") and "DZP" not in bases:
+                bases.append("DZP")
+            if ("SZ" in bases or sym == "H") and "SZP" not in bases:
+                bases.append("SZP")
         bases.append("THAKKAR")
         res[sym] = bases
 

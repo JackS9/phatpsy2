@@ -163,7 +163,7 @@ contains
           call read_elem_core_matrices(IELEM, sthmat, ontran)
           call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
           if (QDFTEX) then
-            call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA)
+            call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA, CORR_TYPE)
           end if
 
           do isp = 1, ISPIN
@@ -386,7 +386,7 @@ contains
             call read_elem_core_matrices(IELEM, sthmat, ontran)
             call FOKMAT(stcoul, stexch, stden, mol_ws%buffer)
             if (QDFTEX) then
-              call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA)
+              call compute_dft_exchange(IELEM, stden, stexch, EXCH_TYPE, EXCH_ALPHA, CORR_TYPE)
             end if
 
             do isp = 1, ISPIN

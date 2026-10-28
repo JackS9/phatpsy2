@@ -1,7 +1,8 @@
 module analys
   use iso_fortran_env, only: real64, int32
   use state
-  use lowdin, only: run_lowdin
+  use lowdin,   only: run_lowdin
+  use modelpot, only: eval_atomic_dipole
   implicit none
   private
   public :: run_analys, run_chgan, USE_LAPACK_FIT
@@ -249,6 +250,10 @@ contains
     real(real64)    :: smax, hole, screen, schole, el2, pkerr, vcalc0, vcalc2
     real(real64)    :: vdev2, tetot, tpe, virial
     integer(int32)  :: ncore, isp, iorb, nv, k, indxk, kk, km1, l, kl, i, j, ij
+    integer(int32)  :: idx_sto, li_sto, ni_sto, m_sto
+    real(real64)    :: etai_sto, anormi_sto
+    integer(int32), allocatable :: n_msto(:), l_msto(:), ml_msto(:)
+    real(real64),   allocatable :: eta_msto(:), anorm_msto(:)
     logical(kind=1) :: qpkinc, qnofit, qindef, qretry
 
     real(real64),   external :: ASUM
@@ -467,6 +472,39 @@ contains
     charge(3, IATOM) = spdiff
     totchg = znuc - echarg
     call run_chgan(charge)
+
+    !-------------------------------------------------------------------
+    ! Evaluate intra-atomic dipole moment for atom IATOM
+    !-------------------------------------------------------------------
+    if (allocated(mol_ws%elem_stream) .and. allocated(mol_ws%atom_dipoles)) then
+      if (IELEM >= 1 .and. IELEM <= size(mol_ws%elem_stream)) then
+        if (allocated(mol_ws%elem_stream(IELEM)%l) .and. MSTO > 0) then
+          allocate(n_msto(MSTO), l_msto(MSTO), ml_msto(MSTO), eta_msto(MSTO), anorm_msto(MSTO))
+          idx_sto = 0
+          do i = 1, mol_ws%elem_stream(IELEM)%nsto
+            li_sto     = mol_ws%elem_stream(IELEM)%l(i)
+            ni_sto     = mol_ws%elem_stream(IELEM)%n(i)
+            etai_sto   = mol_ws%elem_stream(IELEM)%eta(i)
+            anormi_sto = mol_ws%elem_stream(IELEM)%anorm(i)
+            do m_sto = -li_sto, li_sto
+              idx_sto = idx_sto + 1
+              if (idx_sto <= MSTO) then
+                n_msto(idx_sto)     = ni_sto
+                l_msto(idx_sto)     = li_sto
+                ml_msto(idx_sto)    = m_sto
+                eta_msto(idx_sto)   = etai_sto
+                anorm_msto(idx_sto) = anormi_sto
+              end if
+            end do
+          end do
+          if (idx_sto == MSTO) then
+            call eval_atomic_dipole(stevec, occ, n_msto, l_msto, ml_msto, eta_msto, anorm_msto, &
+                                    MSTO, NORB, ISPIN, mol_ws%atom_dipoles(:, IATOM))
+          end if
+          deallocate(n_msto, l_msto, ml_msto, eta_msto, anorm_msto)
+        end if
+      end if
+    end if
 
     vdevc = sqrt(vdevc)
     vdevv = sqrt(vdevv)

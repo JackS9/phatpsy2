@@ -247,6 +247,10 @@ module state
     type(AtomStream) :: unit4_stream
     type(ElemStream), allocatable :: elem_stream(:)
 
+    ! Atomic multipole moments for anisotropic potential fitting
+    real(real64), allocatable :: atom_dipoles(:,:)       ! (3, NATOM)
+    real(real64), allocatable :: atom_quadrupoles(:,:,:) ! (3, 3, NATOM)
+
     ! Granular cycle diagnostics
     real(real64) :: last_pk_penalty   = 0.0d0
     real(real64) :: last_rms_coulomb  = 0.0d0
@@ -258,6 +262,7 @@ module state
   real(real64) :: FERMI_MU(2) = 0.0d0
   integer(int32) :: EXCH_TYPE = 1
   real(real64) :: EXCH_ALPHA = 2.0d0 / 3.0d0
+  integer(int32) :: CORR_TYPE = 0
   character(len=1) :: TITLE(80)
 
 contains
@@ -322,6 +327,7 @@ contains
     QDFTEX  = .false.
     EXCH_TYPE = 1
     EXCH_ALPHA = 2.0d0 / 3.0d0
+    CORR_TYPE = 0
     FERMI_MU = 0.0d0
 
     mol_ws%last_pk_penalty   = 0.0d0
@@ -375,7 +381,8 @@ contains
       mol_ws%s, mol_ws%w, mol_ws%omegai, mol_ws%omegaj, &
       mol_ws%a, mol_ws%b, mol_ws%d, mol_ws%buffer, &
       mol_ws%ovlp, mol_ws%ewmat, mol_ws%popul, mol_ws%coord, &
-      mol_ws%label, mol_ws%charge, mol_ws%scrat, mol_ws%iatomx, &
+      mol_ws%label, mol_ws%charge, mol_ws%atom_dipoles, mol_ws%atom_quadrupoles, &
+      mol_ws%scrat, mol_ws%iatomx, &
       mol_ws%nx, mol_ws%lx, mol_ws%mlx, mol_ws%etax, &
       mol_ws%anormx, mol_ws%evalx, mol_ws%occx, mol_ws%evecx, &
       mol_ws%pair_stovlp, mol_ws%pair_stvab)
@@ -398,6 +405,8 @@ contains
     allocate(mol_ws%coord(3, NATOM))
     allocate(mol_ws%label(NATOM))
     allocate(mol_ws%charge(3, NATOM))
+    allocate(mol_ws%atom_dipoles(3, NATOM))
+    allocate(mol_ws%atom_quadrupoles(3, 3, NATOM))
     allocate(mol_ws%scrat(LLMXP2, 2))
     allocate(mol_ws%iatomx(MSTOT))
     allocate(mol_ws%nx(MSTOT))
@@ -413,6 +422,7 @@ contains
 
     mol_ws%ovlp = 0.0d0; mol_ws%ewmat = 0.0d0; mol_ws%popul = 0.0d0
     mol_ws%coord = 0.0d0; mol_ws%charge = 0.0d0
+    mol_ws%atom_dipoles = 0.0d0; mol_ws%atom_quadrupoles = 0.0d0
     mol_ws%iatomx = 0; mol_ws%nx = 0; mol_ws%lx = 0; mol_ws%mlx = 0
     mol_ws%etax = 0.0d0; mol_ws%anormx = 0.0d0
     mol_ws%evalx = 0.0d0; mol_ws%occx = 0.0d0; mol_ws%evecx = 0.0d0
@@ -516,6 +526,24 @@ contains
       mol_ws%charge(1:min(n3, 3), 1:min(n, NATOM)) = in_charge(1:min(n3, 3), 1:min(n, NATOM))
     end if
   end subroutine set_charge
+
+  subroutine get_atom_dipoles(out_dipoles, n3, n)
+    integer(int32), intent(in) :: n3, n
+    real(real64), intent(out) :: out_dipoles(n3, n)
+    if (allocated(mol_ws%atom_dipoles)) then
+      out_dipoles(1:min(n3, 3), 1:min(n, NATOM)) = mol_ws%atom_dipoles(1:min(n3, 3), 1:min(n, NATOM))
+    else
+      out_dipoles = 0.0d0
+    end if
+  end subroutine get_atom_dipoles
+
+  subroutine set_atom_dipoles(in_dipoles, n3, n)
+    integer(int32), intent(in) :: n3, n
+    real(real64), intent(in) :: in_dipoles(n3, n)
+    if (allocated(mol_ws%atom_dipoles)) then
+      mol_ws%atom_dipoles(1:min(n3, 3), 1:min(n, NATOM)) = in_dipoles(1:min(n3, 3), 1:min(n, NATOM))
+    end if
+  end subroutine set_atom_dipoles
 
   subroutine get_popul(out_popul, n, nspin)
     integer(int32), intent(in) :: n, nspin
