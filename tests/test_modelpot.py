@@ -118,11 +118,13 @@ def test_constrained_model_potential_fit():
     # 1. Standard N2 calculation with legacy penalty fit
     deck_leg = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
     deck_leg.control.use_constrained_fit = False
+    deck_leg.control.pk_scale = 0.0
     res_leg = driver.run_deck(deck_leg)
 
     # 2. Modern N2 calculation with exact equality-constrained fit (QCSTFT=T)
     deck_cst = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
     deck_cst.control.use_constrained_fit = True
+    deck_cst.control.pk_scale = 0.0
     res_cst = driver.run_deck(deck_cst)
 
     assert res_leg.converged is True
