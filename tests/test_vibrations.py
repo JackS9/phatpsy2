@@ -166,10 +166,18 @@ def test_thermochemistry_analytical_n2():
     assert cv["cv_rot"] == pytest.approx(1.0 * r_cal, abs=1e-3)
 
 
+def get_n2_test_deck() -> CalculationDeck:
+    """Helper to load canonical N2 deck with test-local SZ basis for fast numerical test."""
+    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck.elements["N"].basis = "SZ"
+    deck.control.pk_scale = 0.0
+    return deck
+
+
 def test_compute_vibrations_n2_calculation():
     """Verify full end-to-end numerical Hessian and vibrational calculation on N2."""
     driver = PhatpsyDriver(quiet=True)
-    deck0 = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck0 = get_n2_test_deck()
     deck = copy.deepcopy(deck0)
     # Set coordinates near the bound minimum (R = 1.400 Bohr)
     deck.geometry[0].xyz = [0.0, 0.0, 0.700]
@@ -226,7 +234,7 @@ def test_compute_vibrations_n2_calculation():
 def test_vibrations_serialization_and_json(tmp_path):
     """Verify dictionary conversion and JSON file export of vibration results."""
     driver = PhatpsyDriver(quiet=True)
-    deck0 = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck0 = get_n2_test_deck()
     deck = copy.deepcopy(deck0)
     deck.geometry[0].xyz = [0.0, 0.0, 0.700]
     deck.geometry[1].xyz = [0.0, 0.0, -0.700]
@@ -257,7 +265,7 @@ def test_vibrations_serialization_and_json(tmp_path):
 def test_vibrations_3d_webgl_visualizer(tmp_path):
     """Verify 3D Three.js WebGL visualization HTML generation for normal modes."""
     driver = PhatpsyDriver(quiet=True)
-    deck0 = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck0 = get_n2_test_deck()
     deck = copy.deepcopy(deck0)
     deck.geometry[0].xyz = [0.0, 0.0, 0.700]
     deck.geometry[1].xyz = [0.0, 0.0, -0.700]
@@ -298,7 +306,7 @@ def test_vibrations_cli(tmp_path):
     deck_yaml = tmp_path / "n2_test.yaml"
 
     # Create test deck near minimum
-    deck0 = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck0 = get_n2_test_deck()
     deck = copy.deepcopy(deck0)
     deck.geometry[0].xyz = [0.0, 0.0, 0.700]
     deck.geometry[1].xyz = [0.0, 0.0, -0.700]

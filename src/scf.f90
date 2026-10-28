@@ -131,7 +131,7 @@ contains
         ! Construct pseudometric and Löwdin transformation matrix TRANX
         do isp = 1, ISPIN
           stovl = stovl_bak
-          if (QPSMET) then
+          if (QPSMET .and. nucz > 1.5d0) then
             call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, 1.0d-3)
             stovl = stovl - pkpot(:, 1, isp)
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
@@ -206,9 +206,8 @@ contains
             qdivrg = .false.
           end if
 
-          ! Diagonalize modified Fock matrix for each spin
           do isp = 1, ISPIN
-            stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)
+            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)
             call UTHU(MSTO, stfock(1,isp), tranx(1,1,isp), scrat1, onfock)
             call solve_orthonormal_fock(onfock, scrat1, onevec, scrat2, &
                                         MSTO, M2STO, NORB, ierr)
@@ -245,7 +244,7 @@ contains
               call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
             end if
 
-            stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)
+            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)
             call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
                         stovl, MSTO, M2STO, NORB, qnword)
             if (qnword) then
@@ -284,9 +283,14 @@ contains
           end do
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-          pkpot(:, 4, isp) = PKSCAL * pkpot(:, 4, isp)
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
-          pkpot(:, 5, isp) = PKSCAL * pkpot(:, 5, isp)
+          if (nucz <= 1.5d0) then
+            pkpot(:, 4, isp) = 0.0d0
+            pkpot(:, 5, isp) = 0.0d0
+          else
+            pkpot(:, 4, isp) = PKSCAL * pkpot(:, 4, isp)
+            pkpot(:, 5, isp) = PKSCAL * pkpot(:, 5, isp)
+          end if
 
           ! FIXED BUG: Vectorized over 1:M2STO instead of uninitialized IJ
           if (.not. QPSMET) then
@@ -394,9 +398,14 @@ contains
                 end do
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-              pkpot(:, 4, isp) = PKSCAL * pkpot(:, 4, isp)
               call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
-              pkpot(:, 5, isp) = PKSCAL * pkpot(:, 5, isp)
+              if (nucz <= 1.5d0) then
+                pkpot(:, 4, isp) = 0.0d0
+                pkpot(:, 5, isp) = 0.0d0
+              else
+                pkpot(:, 4, isp) = PKSCAL * pkpot(:, 4, isp)
+                pkpot(:, 5, isp) = PKSCAL * pkpot(:, 5, isp)
+              end if
 
               ! FIXED BUG: Vectorized over 1:M2STO
               if (.not. QPSMET) then

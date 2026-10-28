@@ -2,8 +2,8 @@
   "manifest_version": "1.1.0",
   "title": "PHATPSY 2.0 Pre-\u00a71 Frozen Validation Baselines (First-Principles PKSCAL=1.0 Standard)",
   "description": "Frozen reference outputs establishing baseline accuracy prior to Section 1 methodology changes. Sets PKSCAL=1.0 default, captures static V_PK failure modes on dense multi-center systems, and establishes the target of eliminating PKSCAL tuning via \u00a71.2 Energy-Dependent V_PK(E).",
-  "frozen_at_utc": "2026-10-26T03:30:56.521487+00:00",
-  "git_commit": "a77751a6900f9ac3a914ab33f6e5383f4fa559c6",
+  "frozen_at_utc": "2026-10-28T02:53:28.357212+00:00",
+  "git_commit": "4fa1af644b1781d0cc11c33329a06d99f9851f91",
   "methodology_version": "PHATPSY 2.0 Core (Fortran 2018 / LAPACK, PKSCAL=1.0 Standard)",
   "default_model_parameters": {
     "pk_scale": 1.0,
@@ -13,7 +13,7 @@
     "virial_tolerance": 0.05
   },
   "tolerances": {
-    "total_energy_hartree": 0.002,
+    "total_energy_hartree": 0.001,
     "virial_ratio": 0.05,
     "harmonic_frequency_cm": 15.0,
     "dipole_moment_debye": 0.05,

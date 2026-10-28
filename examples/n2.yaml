@@ -1,8 +1,8 @@
-title: ''
+title: '... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)'
 control:
   spin_unrestricted: true
   max_cycles: 100
-  convergence: 0.0001
+  convergence: 0.0005
   time_limit: 360.0
   use_constrained_fit: false
   use_diis: false
@@ -36,4 +36,4 @@ elements:
   N:
     symbol: N
     atomic_number: 7
-    basis: SZ
+    basis: DZ

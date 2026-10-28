@@ -5,14 +5,14 @@
   "nearest_neighbor_distance_bohr": 4.71,
   "pure_theory_pk_10": {
     "pk_scale": 1.0,
-    "total_energy_hartree": -42069245508.50842,
-    "virial_ratio": 2156391.835184399,
+    "total_energy_hartree": -19853.292786077513,
+    "virial_ratio": 2.0141040362448392,
     "note": "Static V_PK summed over 12 neighbors causes core over-repulsion; \u00a71.2 energy-dependent V_PK(E) eliminates need for empirical PKSCAL=0.4 tuning."
   },
   "legacy_calibrated_baseline": {
     "pk_scale": 0.4,
-    "total_energy_hartree": -19533.345006934192,
-    "virial_ratio": 1.9992110502594789,
+    "total_energy_hartree": -19771.871512048077,
+    "virial_ratio": 2.007834680814316,
     "converged": true,
     "scf_cycles": 20,
     "central_atom": {
@@ -23,6 +23,6 @@
     }
   },
   "cohesive_reference": {
-    "bulk_cohesive_energy_per_atom_hartree": -1502.5650005333994
+    "bulk_cohesive_energy_per_atom_hartree": -1520.9131932344676
   }
 }

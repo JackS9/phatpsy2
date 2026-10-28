@@ -112,7 +112,7 @@ driver = PhatpsyDriver()
 res = driver.run_deck(deck)
 
 # Or run directly from a YAML file
-res = driver.run_file("examples/n2dz.yaml")
+res = driver.run_file("examples/n2.yaml")
 ```
 
 ### Custom Damping & Acceleration Hooks

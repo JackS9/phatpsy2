@@ -57,6 +57,10 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 > **Retired Control Parameters:**
 > The empirical parameters `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, and `pk_energy` should **not** appear in modern YAML input files. They are handled internally by self-consistent DIIS acceleration, first-principles projection scale, and LAPACK solvers.
 
+> [!TIP]
+> **Theoretical First-Principles Defaults & Hydrogen Core Exemption:**
+> In PHATPSY 2.0, the Phillips-Kleinman operator operates under strict first-principles unit scaling (`pk_scale: 1.0`, `use_pseudometric: true`) across all multi-electron elements. Because Hydrogen ($Z=1$) possesses zero core electrons ($N_{\text{core}} = 0$), it is governed by the physical **Hydrogen Core-Exemption Invariant**: Hydrogen centers neither receive nor contribute Phillips-Kleinman core projection ($V_{\text{PK}} = 0$), and maintain an unperturbed overlap metric ($M = \mathbf{S}$). Standard input decks require no empirical tuning or scaling parameters.
+
 ---
 
 ## The `geometry:` Block

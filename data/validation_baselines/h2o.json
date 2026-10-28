@@ -5,29 +5,29 @@
     "r_oh_bohr": 1.81,
     "angle_hoh_deg": 104.5
   },
-  "total_energy_hartree": -76.92391169257779,
-  "virial_ratio": 2.002780664028922,
+  "total_energy_hartree": -76.62522092163772,
+  "virial_ratio": 2.004127535910612,
   "converged": true,
-  "scf_cycles": 22,
-  "dipole_moment_debye": 5.2248619505325005,
+  "scf_cycles": 19,
+  "dipole_moment_debye": 2.9411444537523823,
   "dipole_vector_debye": [
-    -1.7354170636425568e-15,
-    -2.2010860460941476e-14,
-    -5.2248619505325005
+    1.979281466449152e-15,
+    1.2073414614344646e-15,
+    2.9411444537523823
   ],
   "vibrational_frequencies_cm": [
-    -122188.18538217207,
-    -112138.719605759,
-    95811.77990142151
+    -2593.650125011882,
+    1414.5162582280404,
+    2501.607758576264
   ],
   "num_eckart_projected_zero_modes": 6,
   "thermochemistry": {
-    "zpve_kcal_mol": 136.9698156947633,
+    "zpve_kcal_mol": 5.59838033873707,
     "entropy_rotational_cal_mol_k": 7.261652880241529,
-    "entropy_total_cal_mol_k": 41.870659928422604,
-    "gibbs_free_energy_g_t_hartree": -76.72222585195715
+    "entropy_total_cal_mol_k": 41.887702274115846,
+    "gibbs_free_energy_g_t_hartree": -76.63288981985697
   },
   "delta_vs_experiment": {
-    "delta_dipole_debye": 3.3702619505325004
+    "delta_dipole_debye": 1.0865444537523823
   }
 }

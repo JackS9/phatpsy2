@@ -3,10 +3,10 @@
   "description": "3-layer Ni(100) embedded slab with theoretical PKSCAL=1.0",
   "lattice_constant_bohr": 6.652,
   "interlayer_spacing_bohr": 3.326,
-  "total_energy_hartree": -4553.540937467726,
-  "virial_ratio": 2.0522814347898883,
+  "total_energy_hartree": -4518.214249347263,
+  "virial_ratio": 1.9898684573318541,
   "converged": true,
-  "scf_cycles": 13,
+  "scf_cycles": 25,
   "oniom_embedding_partitioning": {
     "active_subsystem": [
       "Ni_surf (L1)",
@@ -15,8 +15,8 @@
     "environment_subsystem": [
       "Ni_bulk_fixed (L3)"
     ],
-    "bulk_reference_energy_per_atom_hartree": -1502.5650005333994,
-    "embedded_excess_energy_hartree": -3050.9759369343265
+    "bulk_reference_energy_per_atom_hartree": -1520.9131932344676,
+    "embedded_excess_energy_hartree": -2997.3010561127953
   },
   "layer_properties": {
     "surface_layer_1": {

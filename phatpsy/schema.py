@@ -164,7 +164,7 @@ class ControlConfig:
     charge_accel: float = 1.0
     potential_damp: float = 0.5
     potential_accel: float = 1.0
-    pk_scale: float = 0.0
+    pk_scale: float = 1.0
     use_pseudometric: bool = True
     pk_energy: float = 0.0
     use_constrained_fit: bool = False
@@ -210,7 +210,7 @@ class ControlConfig:
         use_constrained_fit: bool = True,
         use_dynamic_exponents: bool = True,
         use_global_fermi: bool = False,
-        use_pseudometric: bool = False,
+        use_pseudometric: bool = True,
         charge_damp: float = 0.5,
         potential_damp: float = 0.5,
         **kwargs,
@@ -536,7 +536,7 @@ class CalculationDeck:
         resolved = {}
         for sym in symbols:
             user_elem = self.elements.get(sym)
-            basis_name = user_elem.basis if user_elem else None
+            basis_name = (user_elem.basis if user_elem and user_elem.basis else None) or "DZ"
             # Retrieve default or named library basis
             lib_elem = get_element_basis(sym, basis_name=basis_name)
 
@@ -808,6 +808,9 @@ class CalculationDeck:
                     flags.append("QVIRTL=T")
                 if p_atom.is_spin_down:
                     flags.append("QFLIP=T")
+                has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals)
+                if group_idx > 0 and has_custom_orbs:
+                    flags.append("QDFVEC=T")
                 flag_str = (", " + ", ".join(flags)) if flags else ""
 
                 if p_atom.symmetry is not None and not p_atom.equivalent_to:
@@ -819,7 +822,7 @@ class CalculationDeck:
                     lines.append(f" &ATOM XYZ={x:.5f},{y:.5f},{z:.5f}{flag_str} &END")
 
                 # Initial orbital cards for the primary atom (overridden by embedded_state if present)
-                if group_idx == 0:
+                if group_idx == 0 or has_custom_orbs:
                     orbitals_to_use = ed.default_orbitals
                     if p_atom.embedded_state:
                         emb = p_atom.embedded_state
@@ -936,7 +939,11 @@ class CalculationDeck:
         geometry = [AtomConfig.from_dict(a) for a in geom_data]
 
         elem_data = data.get("elements", {})
-        elements = {k: ElementConfig.from_dict(v) for k, v in elem_data.items()}
+        elements = {}
+        for k, v in elem_data.items():
+            if isinstance(v, dict) and "symbol" not in v:
+                v["symbol"] = k
+            elements[k] = ElementConfig.from_dict(v)
         deck = cls(title=title, control=control, geometry=geometry, elements=elements)
         deck.resolve_coordinates()
         return deck

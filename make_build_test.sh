@@ -20,9 +20,9 @@ cmake --build build -j1
 # 2. Run modern Python driver smoke test on N2 YAML
 mkdir -p data
 if [ -f ".venv/bin/python3" ]; then
-    PYTHONPATH=. .venv/bin/python3 -m phatpsy examples/n2sz.yaml -o data/n2_python_driver.json
+    PYTHONPATH=. .venv/bin/python3 -m phatpsy examples/n2.yaml -o data/n2_python_driver.json
 else
-    PYTHONPATH=. python3 -m phatpsy examples/n2sz.yaml -o data/n2_python_driver.json
+    PYTHONPATH=. python3 -m phatpsy examples/n2.yaml -o data/n2_python_driver.json
 fi
 
 # 3. Run the automated pytest regression suite

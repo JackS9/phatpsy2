@@ -163,12 +163,10 @@ def evaluate_bulk_ni_benchmark(
     d = driver or PhatpsyDriver(quiet=True)
     repo_root = Path(__file__).resolve().parent.parent
     deck = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
-    deck.control = control or ControlConfig.first_principles(
-        pk_scale=1.0,
-        use_pseudometric=False,
-        max_cycles=15,
-        extra_namelist={"PKE": -0.22},
-    )
+    if control:
+        deck.control = control
+    else:
+        deck.control.pk_scale = 1.0
 
     res = d.run_deck(deck)
     e_per_atom = float(res.total_energy / 13.0)

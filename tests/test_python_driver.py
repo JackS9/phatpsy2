@@ -195,7 +195,7 @@ geometry:
 
     assert res["converged"] is True
     assert res["cycles"] > 0
-    assert np.isclose(res["total_energy"], -109.7089, atol=1e-2)
+    assert np.isclose(res["total_energy"], -108.4541, atol=1e-2)
 
 
 def test_cli_convert_command(tmp_path):
@@ -311,5 +311,5 @@ def test_global_fermi_equilibration():
 
     res = driver.run_deck(deck)
     assert res.converged is True
-    assert math.isclose(res.total_energy, -110.77, abs_tol=0.2)
+    assert math.isclose(res.total_energy, -108.87, abs_tol=0.2)
     assert math.isclose(res.virial_ratio, 2.0, abs_tol=0.05)

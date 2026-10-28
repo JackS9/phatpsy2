@@ -114,12 +114,20 @@ def test_dimer_cost_accounting():
 # 2. Molecular Dimer Search (Quantum Chemistry Core)
 # ==============================================================================
 
+def get_n2_test_deck() -> CalculationDeck:
+    """Helper to load canonical N2 deck with test-local SZ basis for fast numerical test."""
+    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    deck.elements["N"].basis = "SZ"
+    deck.control.pk_scale = 0.0
+    return deck
+
+
 def test_dimer_search_molecular_single_ended(driver):
     """
     Single-ended check: dimer search on a molecular deck from a perturbed geometry.
     Verifies that no Cartesian Hessian is constructed, and negative curvature is reached.
     """
-    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck = get_n2_test_deck()
     # Position N2 at non-equilibrium stretched configuration
     deck.geometry[0].xyz = [0.0, 0.0, 0.780]
     deck.geometry[1].xyz = [0.0, 0.0, -0.780]
@@ -157,11 +165,11 @@ def test_refine_neb_saddle_handoff(driver):
     Integration check: Run a short CI-NEB search, hand off the climbing image
     to refine_neb_saddle(), and verify the transition state refinement pipeline.
     """
-    deck_r = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck_r = get_n2_test_deck()
     deck_r.geometry[0].xyz = [0.0, 0.0, 0.700]
     deck_r.geometry[1].xyz = [0.0, 0.0, -0.700]
 
-    deck_p = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck_p = get_n2_test_deck()
     deck_p.geometry[0].xyz = [0.0, 0.0, 0.900]
     deck_p.geometry[1].xyz = [0.0, 0.0, -0.900]
 
@@ -191,7 +199,7 @@ def test_refine_neb_saddle_handoff(driver):
 
 def test_dimer_serialization_and_xyz(driver):
     """Verify DimerResult JSON serialization and multi-frame XYZ export."""
-    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck = get_n2_test_deck()
     deck.geometry[0].xyz = [0.0, 0.0, 0.750]
     deck.geometry[1].xyz = [0.0, 0.0, -0.750]
 
@@ -226,7 +234,7 @@ def test_dimer_serialization_and_xyz(driver):
 
 def test_dimer_visualizer(driver):
     """Verify Dimer 3D WebGL HTML visualization generation."""
-    deck = CalculationDeck.from_yaml("examples/n2sz.yaml")
+    deck = get_n2_test_deck()
     dimer_res = dimer_search(
         deck=deck,
         driver=driver,
@@ -250,12 +258,14 @@ def test_dimer_cli(driver):
     from phatpsy.cli import main
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        deck_yaml = Path(tmpdir) / "n2_dimer.yaml"
+        get_n2_test_deck().to_yaml(deck_yaml)
         out_json = Path(tmpdir) / "cli_dimer.json"
         out_xyz = Path(tmpdir) / "cli_dimer.xyz"
 
         ret = main([
             "dimer",
-            "examples/n2sz.yaml",
+            str(deck_yaml),
             "--dimer-dist", "0.005",
             "--max-cycles", "2",
             "-o", str(out_json),

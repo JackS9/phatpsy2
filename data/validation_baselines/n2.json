@@ -4,29 +4,29 @@
   "description": "Homonuclear anchor in Double-Zeta STO basis with theoretical PKSCAL=1.0",
   "experimental_geometry": {
     "r_expt_bohr": 2.068,
-    "total_energy_hartree": -108.35712222037928,
-    "virial_ratio": 1.9513795327941394,
+    "total_energy_hartree": -108.3561606077693,
+    "virial_ratio": 1.9513742367865932,
     "converged": true,
     "scf_cycles": 100
   },
   "relaxed_equilibrium_geometry": {
-    "r_opt_bohr": 1.99029853515625,
-    "total_energy_hartree": -108.66618528668259,
-    "virial_ratio": 1.9626858305333934,
-    "harmonic_frequency_cm": 218302.40815175584,
-    "zpve_kcal_mol": 312.0789598213629,
-    "enthalpy_h_t_hartree": -108.1655511605645,
-    "gibbs_free_energy_g_t_hartree": -108.18721467619395
+    "r_opt_bohr": 1.9905509765625,
+    "total_energy_hartree": -108.40125227978191,
+    "virial_ratio": 1.9464348472432658,
+    "harmonic_frequency_cm": 209280.44486283502,
+    "zpve_kcal_mol": 299.18141580162103,
+    "enthalpy_h_t_hartree": -108.18464624442194,
+    "gibbs_free_energy_g_t_hartree": -108.20630999954936
   },
   "eom_properties": {
-    "first_excitation_ev": 33.08508603199017,
-    "first_oscillator_strength": 0.32472567124565593,
-    "mean_polarizability_bohr3": 5.518927870949022,
-    "dipole_moment_debye": 5.906510488233094e-15
+    "first_excitation_ev": 33.08508603199459,
+    "first_oscillator_strength": 0.32472567124561513,
+    "mean_polarizability_bohr3": 5.518927870949049,
+    "dipole_moment_debye": 1.915959261016657e-14
   },
   "delta_vs_experiment": {
-    "delta_r_bohr": -0.0841014648437497,
-    "delta_frequency_cm": 215943.83815175583,
+    "delta_r_bohr": -0.08384902343749978,
+    "delta_frequency_cm": 206921.87486283501,
     "note": "Static V_PK over-repulsion shifts minimum; energy-dependent V_PK(E) in \u00a71.2 targets elimination of this shift without empirical PKSCAL tuning."
   }
 }

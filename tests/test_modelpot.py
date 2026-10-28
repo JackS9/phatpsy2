@@ -178,4 +178,4 @@ def test_dynamic_exponents_deck():
     res = driver.run_deck(deck)
     assert res.converged is True
     assert abs(res.virial_ratio - 2.0) < 0.05
-    assert math.isclose(res.total_energy, -110.72, abs_tol=0.2)
+    assert math.isclose(res.total_energy, -109.03, abs_tol=0.2)

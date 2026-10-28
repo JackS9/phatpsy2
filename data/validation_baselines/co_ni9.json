@@ -6,8 +6,8 @@
     "r_nic_bohr": 3.59,
     "adsorption_site": "top"
   },
-  "total_energy_hartree": -13595.375136665327,
-  "virial_ratio": 1.9977218747258938,
+  "total_energy_hartree": -13029.645118458262,
+  "virial_ratio": 1.940076838062353,
   "converged": true,
   "scf_cycles": 40,
   "target_methodology_milestone": {

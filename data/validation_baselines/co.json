@@ -3,31 +3,31 @@
   "description": "Heteronuclear polar benchmark with theoretical PKSCAL=1.0",
   "experimental_geometry": {
     "r_expt_bohr": 2.132,
-    "total_energy_hartree": -99.92285326235348,
-    "virial_ratio": 2.0025955793215275,
-    "permanent_dipole_debye": 0.46414715415555113,
+    "total_energy_hartree": -99.30881145156945,
+    "virial_ratio": 1.9272024725255907,
+    "permanent_dipole_debye": 0.15369310203107348,
     "dipole_vector_debye": [
-      0.018769725659826854,
-      -0.0024028300403190865,
-      -0.4637612581028618
+      0.0027205833886445275,
+      0.005971577210282198,
+      0.1535529495111736
     ],
-    "mean_polarizability_bohr3": 26.110362921288033,
+    "mean_polarizability_bohr3": 11.841203347227035,
     "polarizability_tensor_diag": [
-      14.877529850362722,
-      22.839039609983004,
-      40.61451930351837
+      21.37795997933311,
+      11.651971067336374,
+      2.4936789950116216
     ]
   },
   "relaxed_equilibrium_geometry": {
-    "r_opt_bohr": 2.3186541015625006,
-    "total_energy_hartree": -100.1309914537225,
-    "virial_ratio": 2.0048576124173763,
-    "harmonic_frequency_cm": 92285.95446621955
+    "r_opt_bohr": 3.5,
+    "total_energy_hartree": -101.08023114331232,
+    "virial_ratio": 1.9688895866511409,
+    "harmonic_frequency_cm": 0.0
   },
   "irc_mass_weighting_ratio": 1.154135595777642,
   "delta_vs_experiment": {
-    "delta_r_bohr": 0.18645410156250053,
-    "delta_frequency_cm": 90116.14446621956,
-    "delta_dipole_debye": 0.35214715415555115
+    "delta_r_bohr": 1.3678,
+    "delta_frequency_cm": -2169.81,
+    "delta_dipole_debye": 0.04169310203107347
   }
 }

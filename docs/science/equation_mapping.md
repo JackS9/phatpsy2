@@ -27,6 +27,7 @@ This document provides a line-of-sight mapping connecting key mathematical deriv
 | **Eq. (3.30)** | $M = 1 - \sum_k (1 - \lambda_k) \|\phi_k^B\rangle \langle \phi_k^B\|$ | `src/scf.f` | `src/scf.f90` | Approximate pseudometric operator for energy dependence |
 | **Eq. (3.45)** | $F C = \varepsilon M C$ | `src/scf.f`, `eispak.f` | `src/scf.f90`, `src/linalg.f90` | Generalized secular equation (solved via LAPACK `DSPEVD`/`DSPEV`) |
 | **Modern §1.2** | $V_{\text{PK}}(E) = \sum_{j} (E_{\text{ref}} - \varepsilon_j) \|\phi_j\rangle\langle\phi_j\|$ | — | `src/scf.f90` | Energy-dependent PK operator with unit scale `PKSCAL=1.0` |
+| **Modern §1.2b** | $P_{\text{core}} = 0 \text{ for } Z \le 1$ | — | `src/scf.f90` | Hydrogen core-exemption invariant ($N_{\text{core}}=0$) enabling universal `PKSCAL=1.0` |
 
 ---
 

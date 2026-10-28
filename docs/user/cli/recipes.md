@@ -53,7 +53,7 @@ python -m phatpsy cube ni100_co.yaml --deformation -o deformation.cube --view --
 Compute a high-resolution 1D bond dissociation curve for diatomic nitrogen and save the energy plot:
 
 ```bash
-python -m phatpsy scan examples/n2dz.yaml \
+python -m phatpsy scan examples/n2.yaml \
   -b 0,1 \
   -r 1.8:3.2:0.05 \
   -o n2_dissociation.json \
@@ -91,7 +91,7 @@ done
 Integrate PHATPSY directly into Unix data pipelines without touching disk:
 
 ```bash
-cat examples/n2dz.yaml | python -m phatpsy - --json-stdout | jq '.total_energy'
+cat examples/n2.yaml | python -m phatpsy - --json-stdout | jq '.total_energy'
 ```
 
 

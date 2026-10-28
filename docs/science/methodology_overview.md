@@ -58,8 +58,9 @@ Unlike static local potentials, $V_{\text{PK}}(\varepsilon_i)$ depends explicitl
 
 In **PHATPSY 2.0**:
 1. **Theoretical Lock `PKSCAL = 1.0`:** The arbitrary empirical scaling parameter has been eliminated.
-2. **Dynamic Valence Reference Projection:** The operator is evaluated using the valence reference energy $E_{\text{ref}}$ (e.g. `PKE = -0.22 Ha` for transition metal d-bands), dynamically projecting out core states while preserving valence bonding.
-3. **Symmetrized Operator:** Evaluated as a symmetric matrix in [`src/scf.f90`](file:///Users/jacksmith/phatpsy2/src/scf.f90), preserving exact Hermiticity, exact total energy conservation, and physical virial ratios ($-V/T \approx 2.0$). This completely stabilizes 12-coordinated bulk metals ($\text{Ni}_{13}$ FCC cluster) under pure theory `PKSCAL = 1.0`.
+2. **Generalized Pseudometric & Dynamic Projection:** The energy dependence is handled dynamically via the regularized pseudometric ($M = I - P$) and standard LAPACK eigensolvers (`DSPEVD`), completely stabilizing 12-coordinated bulk metals ($\text{Ni}_{13}$ FCC cluster) under pure theory `PKSCAL = 1.0` without requiring manual reference energy overrides.
+3. **Symmetrized Operator:** Evaluated as a symmetric matrix in [`src/scf.f90`](file:///Users/jacksmith/phatpsy2/src/scf.f90), preserving exact Hermiticity, exact total energy conservation, and physical virial ratios ($-V/T \approx 2.0$).
+4. **Hydrogen Core-Exemption Invariant ($Z=1$):** Because the Phillips-Kleinman operator is fundamentally an interatomic core projector ($V_{\text{PK}} = \sum_{j \in \text{core}} (\varepsilon - \varepsilon_j) |\phi_j\rangle\langle\phi_j|$), and Hydrogen possesses zero core electrons ($N_{\text{core}} = 0$), Hydrogen centers are exempt from core projection at the engine level in [`src/scf.f90`](file:///Users/jacksmith/phatpsy2/src/scf.f90). The overlap metric on Hydrogen remains unperturbed ($M = \mathbf{S}$), and Hydrogen emits zero core projection onto neighboring atoms. This prevents unphysical valence over-projection, allowing pure theoretical unit scaling (`PKSCAL = 1.0`, `use_pseudometric: true`) to serve as the universal default across all polyatomics without per-molecule tuning.
 
 ---
 

@@ -127,13 +127,14 @@ def main():
     # 2. CO Heteronuclear Polar Anchor (PKSCAL=1.0)
     # =========================================================================
     print("2. Running CO (PKSCAL=1.0)...")
-    deck_co_exp = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
+    driver = PhatpsyDriver(quiet=True)
+    deck_co_exp = build_diatomic("C", "O", 2.132, basis="DZ", spin_flip=True, units="bohr")
     deck_co_exp.control.pk_scale = 1.0
     res_co_exp = driver.run_deck(deck_co_exp)
     eom_co = compute_eom(deck_co_exp, driver=driver, quiet=True)
 
-    r_co_opt = optimize_diatomic_bond("C", "O", "SZ", 1.0, 2.132, driver)
-    deck_co_opt = build_diatomic("C", "O", r_co_opt, basis="SZ", spin_flip=True, units="bohr")
+    r_co_opt = optimize_diatomic_bond("C", "O", "DZ", 1.0, 2.132, driver)
+    deck_co_opt = build_diatomic("C", "O", r_co_opt, basis="DZ", spin_flip=True, units="bohr")
     deck_co_opt.control.pk_scale = 1.0
     res_co_opt = driver.run_deck(deck_co_opt)
     vib_co_opt = compute_vibrations(deck_co_opt, driver=driver, step_size=0.005, method="central", quiet=True)
@@ -184,7 +185,7 @@ def main():
 
     deck_h2o = build_molecule(
         geometry=[("O", o_xyz), ("H", h1_xyz), ("H", h2_xyz)],
-        basis={"O": "SZ", "H": "THAKKAR"},
+        basis="DZ",
         title="Water H2O Validation Baseline",
         spin_unrestricted=True,
         auto_spin_flip=True,

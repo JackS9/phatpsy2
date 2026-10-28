@@ -68,7 +68,7 @@ cd ..
 phatpsy view examples/CO_ni_100.stdin
 
 # View with automatic alternating-spin assignment
-phatpsy view -s examples/n2dz.yaml
+phatpsy view -s examples/n2.yaml
 
 # Convert between formats (legacy .stdin to modern YAML)
 phatpsy convert examples/CO.stdin -o examples/CO.yaml
