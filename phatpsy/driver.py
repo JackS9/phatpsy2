@@ -182,7 +182,7 @@ class PhatpsyDriver:
         converged = False
         diis_acc = None
         prev_charges = None
-        if deck is not None and deck.control.use_diis:
+        if deck is not None and getattr(getattr(deck, "control", None), "use_diis", False):
             from phatpsy.diis import DIISAccelerator
             diis_acc = DIISAccelerator(max_subspace=6)
 
@@ -241,7 +241,8 @@ class PhatpsyDriver:
         res = extract_calculation_state(state, deck=deck, converged=converged, cycle_history=cycle_history)
         if deck is not None and getattr(deck, "control", None) is not None and getattr(deck.control, "use_dispersion", False):
             from phatpsy.dispersion import compute_dispersion_energy
-            fn = deck.control.exchange_kernel if deck.control.exchange_kernel.lower() not in ("hf", "hartree-fock") else "hf"
+            kernel = getattr(deck.control, "exchange_kernel", "hf") or "hf"
+            fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
             e_disp = compute_dispersion_energy(deck.geometry, functional=fn)
             res["dispersion_energy"] = e_disp
             res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
@@ -315,9 +316,10 @@ class PhatpsyDriver:
                 grad[i] += f_mag * u
                 grad[j] -= f_mag * u
 
-        if calc_deck.control.use_dispersion:
+        if getattr(calc_deck, "control", None) is not None and getattr(calc_deck.control, "use_dispersion", False):
             from phatpsy.dispersion import compute_dispersion_gradient
-            fn = calc_deck.control.exchange_kernel if calc_deck.control.exchange_kernel.lower() not in ("hf", "hartree-fock") else "hf"
+            kernel = getattr(calc_deck.control, "exchange_kernel", "hf") or "hf"
+            fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
             g_disp = compute_dispersion_gradient(calc_deck.geometry, functional=fn)
             grad += g_disp
 
