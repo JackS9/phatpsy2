@@ -487,7 +487,8 @@ def neb_search(
             xm[dim] -= h
             em, _ = evaluate_image(img_idx, xm)
 
-            grad[dim] = (ep - em) / (2.0 * h)
+            raw_g = (ep - em) / (2.0 * h)
+            grad[dim] = float(np.clip(raw_g, -20.0, 20.0))
         return grad
 
     # 2. Evaluate initial energies of all images
