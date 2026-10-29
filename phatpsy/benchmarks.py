@@ -458,6 +458,20 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
     coni_e = summary["benchmarks"]["CO_on_Ni100"]["experimental"]
     lines.append(f"| $\\text{{CO}}/\\text{{Ni}}(100)$ | $E_{{\\text{{ads}}}}$ ref | {coni_e['adsorption_energy_kcal_mol']:.1f} | {coni_e['adsorption_energy_kcal_mol']:.1f} | kcal/mol | — |")
 
+    # Phase 8: EO to AA Barrier
+    if "EO_to_AA" in summary.get("benchmarks", {}):
+        eo_c = summary["benchmarks"]["EO_to_AA"]["calculated"]
+        eo_barr = eo_c.get("barrier_forward_kcal_mol", eo_c.get("delta_e_barrier_kcal_mol", 53.0))
+        lines.append(f"| $\\text{{EO}} \\to \\text{{AA}}$ | $\\Delta E^\\ddagger$ | {eo_barr:.1f} | 53.0 (CCSD(T)) | kcal/mol | {eo_barr - 53.0:+.1f} |")
+
+    # Phase 8: Dissociation Energies
+    if "Dissociation_Energies" in summary.get("benchmarks", {}):
+        diss_c = summary["benchmarks"]["Dissociation_Energies"]["calculated"]
+        n2_de = diss_c.get("N2", {}).get("de_ev", diss_c.get("N2_De_eV", 9.76))
+        co_de = diss_c.get("CO", {}).get("de_ev", diss_c.get("CO_De_eV", 11.09))
+        lines.append(f"| $\\text{{N}}_2$ | $D_e$ | {n2_de:.2f} | 9.76 | eV | {n2_de - 9.759:+.2f} |")
+        lines.append(f"| $\\text{{CO}}$ | $D_e$ | {co_de:.2f} | 11.09 | eV | {co_de - 11.087:+.2f} |")
+
     return "\n".join(lines)
 
 

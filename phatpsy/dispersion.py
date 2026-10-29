@@ -134,6 +134,10 @@ def _extract_coords_and_symbols(
 ) -> Tuple[np.ndarray, List[str]]:
     """Helper to convert various geometry specifications into (coords, symbols)."""
     coords_list = []
+    if hasattr(geometry, "geometry") and isinstance(geometry.geometry, list):
+        geometry = geometry.geometry
+    elif hasattr(geometry, "atoms") and isinstance(geometry.atoms, list):
+        geometry = geometry.atoms
     symbols_list = []
 
     if isinstance(geometry, list):

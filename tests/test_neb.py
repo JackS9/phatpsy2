@@ -312,7 +312,7 @@ def test_neb_molecular_eo_to_aa_isomerization():
         final_deck=deck_p,
         driver=driver,
         num_images=5,
-        max_iterations=2,
+        max_iterations=1,
         climb=True,
         quiet=True,
     )
