@@ -177,7 +177,10 @@ def compute_dispersion_energy(
     Parameters:
         geometry: List of AtomConfig, (element, xyz) tuples, or dicts with coordinates in Bohrs.
         functional: Underlying functional ('pbe', 'b88', 'hf', 'slater').
-        s6, s8, a1, a2: Optional override parameters for D3(BJ) damping.
+        s6: Optional override parameter for D3(BJ) s6 damping.
+        s8: Optional override parameter for D3(BJ) s8 damping.
+        a1: Optional override parameter for D3(BJ) a1 damping.
+        a2: Optional override parameter for D3(BJ) a2 damping.
 
     Returns:
         e_disp: Dispersion energy in Hartrees (strictly <= 0.0).
@@ -237,7 +240,10 @@ def compute_dispersion_gradient(
     Parameters:
         geometry: List of AtomConfig, (element, xyz) tuples, or dicts with coordinates in Bohrs.
         functional: Underlying functional ('pbe', 'b88', 'hf', 'slater').
-        s6, s8, a1, a2: Optional override parameters for D3(BJ) damping.
+        s6: Optional override parameter for D3(BJ) s6 damping.
+        s8: Optional override parameter for D3(BJ) s8 damping.
+        a1: Optional override parameter for D3(BJ) a1 damping.
+        a2: Optional override parameter for D3(BJ) a2 damping.
 
     Returns:
         grad: Nuclear gradient array of shape (N, 3) in Hartree/Bohr.
