@@ -79,6 +79,7 @@ def parse_geometry(
                     virtual=item.virtual,
                     spin_flip=item.spin_flip,
                     spin=item.spin,
+                    basis=item.basis,
                     embedded_state=item.embedded_state,
                     starting_orbitals=item.starting_orbitals,
                 ))
@@ -107,6 +108,7 @@ def parse_geometry(
                 virtual=bool(item.get("virtual", item.get("is_virtual", is_virt))),
                 spin_flip=spin_flip_val,
                 spin=spin_val,
+                basis=item.get("basis"),
                 embedded_state=item.get("embedded_state"),
                 starting_orbitals=item.get("starting_orbitals"),
             ))
@@ -133,6 +135,7 @@ def parse_geometry(
                 sym, is_virt, is_fix, spin_tag = _extract_atom_modifiers(raw_sym)
                 coords = [float(c) * to_bohr for c in item[1]]
                 opts = item[2]
+                basis_val = None
                 if isinstance(opts, str):
                     opt_lower = opts.lower()
                     is_virt = is_virt or ("virt" in opt_lower or "ghost" in opt_lower)
@@ -152,6 +155,7 @@ def parse_geometry(
                     charge = float(opts.get("charge", 0.0))
                     symm = opts.get("symmetry")
                     symm_obj = SymmetrySpec(**symm) if isinstance(symm, dict) else symm
+                    basis_val = opts.get("basis")
                 atom_configs.append(AtomConfig(
                     element=sym,
                     xyz=coords,
@@ -161,6 +165,7 @@ def parse_geometry(
                     virtual=is_virt,
                     spin_flip=(spin_tag == "down"),
                     spin=spin_tag,
+                    basis=basis_val,
                 ))
             elif len(item) == 4:
                 # ("C", x, y, z)
@@ -306,14 +311,30 @@ def build_molecule(
             if emb is not None:
                 atom.embedded_state = emb
 
+    if isinstance(basis, dict):
+        for idx, atom in enumerate(atoms):
+            if atom.id and atom.id in basis:
+                atom.basis = basis[atom.id]
+            elif idx in basis:
+                atom.basis = basis[idx]
+            elif str(idx) in basis:
+                atom.basis = basis[str(idx)]
+
     if control is None:
         ctrl_extra = dict(extra_namelist or {})
         control = ControlConfig(
             spin_unrestricted=spin_unrestricted,
             extra_namelist=ctrl_extra,
+            default_basis=(basis if isinstance(basis, str) else basis.get("default", basis.get("*")) if isinstance(basis, dict) else None),
         )
-    elif extra_namelist:
-        control.extra_namelist.update(extra_namelist)
+    else:
+        if extra_namelist:
+            control.extra_namelist.update(extra_namelist)
+        if control.default_basis is None:
+            if isinstance(basis, str):
+                control.default_basis = basis
+            elif isinstance(basis, dict) and ("default" in basis or "*" in basis):
+                control.default_basis = basis.get("default", basis.get("*"))
 
     # Determine unique elements and populate ElementConfigs
     unique_symbols = []
@@ -323,25 +344,28 @@ def build_molecule(
 
     elements_dict: Dict[str, ElementConfig] = {}
     for sym in unique_symbols:
-        if isinstance(basis, dict):
-            b_name = basis.get(sym, "DZ")
-        else:
+        b_name = None
+        if isinstance(basis, dict) and sym in basis:
+            b_name = basis[sym]
+        elif isinstance(basis, str):
             b_name = basis
 
-        ed = get_element_basis(sym, basis_name=b_name)
-        elements_dict[sym] = ElementConfig(
-            symbol=sym,
-            atomic_number=ed.atomic_number,
-            basis=ed.basis_name,
-            description=ed.description,
-            functions=ed.functions,
-        )
+        if b_name:
+            ed = get_element_basis(sym, basis_name=b_name)
+            elements_dict[sym] = ElementConfig(
+                symbol=sym,
+                atomic_number=ed.atomic_number,
+                basis=ed.basis_name,
+                description=ed.description,
+                functions=ed.functions,
+            )
 
     deck = CalculationDeck(
         title=title,
         control=control,
         geometry=atoms,
         elements=elements_dict,
+        basis=(basis if isinstance(basis, str) else None),
     )
     if auto_spin_flip:
         deck.assign_alternating_spin()

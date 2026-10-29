@@ -377,3 +377,93 @@ geometry:
         CalculationDeck.from_yaml(conflicting_yaml)
 
 
+def test_cascading_basis_hierarchy():
+    from phatpsy.schema import ControlConfig, ElementConfig, AtomConfig, CalculationDeck
+    from phatpsy.builder import build_molecule
+
+    # 1. Global control default basis
+    deck1 = CalculationDeck(
+        title="Cascading Test 1",
+        control=ControlConfig(default_basis="ADF-TZP"),
+        geometry=[AtomConfig(element="C", id="C1"), AtomConfig(element="H", id="H1")],
+    )
+    assert deck1.get_effective_basis_for_atom(deck1.geometry[0]) == "ADF-TZP"
+    assert deck1.get_effective_basis_for_atom(deck1.geometry[1]) == "ADF-TZP"
+
+    # 2. Per-atom basis override beats control default basis
+    deck2 = CalculationDeck(
+        title="Cascading Test 2",
+        control=ControlConfig(default_basis="ADF-DZ"),
+        geometry=[
+            AtomConfig(element="C", id="C1", basis="ADF-TZ2P"),
+            AtomConfig(element="C", id="C2"),
+        ],
+    )
+    assert deck2.get_effective_basis_for_atom(deck2.geometry[0]) == "ADF-TZ2P"
+    assert deck2.get_effective_basis_for_atom(deck2.geometry[1]) == "ADF-DZ"
+
+    # 3. ElementConfig basis beats control default basis
+    deck3 = CalculationDeck(
+        title="Cascading Test 3",
+        control=ControlConfig(default_basis="DZ"),
+        elements={"C": ElementConfig(symbol="C", basis="ADF-QZ4P")},
+        geometry=[AtomConfig(element="C", id="C1"), AtomConfig(element="H", id="H1")],
+    )
+    assert deck3.get_effective_basis_for_atom(deck3.geometry[0]) == "ADF-QZ4P"
+    assert deck3.get_effective_basis_for_atom(deck3.geometry[1]) == "DZ"
+
+    # 4. AtomConfig basis beats ElementConfig basis
+    deck4 = CalculationDeck(
+        title="Cascading Test 4",
+        control=ControlConfig(default_basis="SZ"),
+        elements={"C": ElementConfig(symbol="C", basis="ADF-DZ")},
+        geometry=[
+            AtomConfig(element="C", id="C1", basis="ADF-TZ2P"),
+            AtomConfig(element="C", id="C2"),
+        ],
+    )
+    assert deck4.get_effective_basis_for_atom(deck4.geometry[0]) == "ADF-TZ2P"
+    assert deck4.get_effective_basis_for_atom(deck4.geometry[1]) == "ADF-DZ"
+
+    # 5. build_molecule with per-atom basis dictionary
+    deck5 = build_molecule(
+        geometry=[("C", [0.0, 0.0, 0.0]), ("C", [0.0, 0.0, 2.5]), ("H", [0.0, 1.5, 0.0])],
+        basis={"C1": "ADF-TZ2P", "C2": "ADF-DZ", "default": "SZ"},
+    )
+    assert deck5.geometry[0].basis == "ADF-TZ2P"
+    assert deck5.geometry[1].basis == "ADF-DZ"
+    assert deck5.control.default_basis == "SZ"
+    assert deck5.get_effective_basis_for_atom(deck5.geometry[2]) == "SZ"
+
+
+def test_mixed_basis_deck_stdin_generation():
+    """
+    Ensures that when atoms of the same element specify different basis sets,
+    CalculationDeck correctly isolates them into distinct &BASDIM and &ELEM blocks,
+    both with LATOM='C' and NUCZ=6, and NELEM=2.
+    """
+    from phatpsy.builder import build_molecule
+
+    deck = build_molecule(
+        geometry=[
+            ("C", [0.0, 0.0, 0.0]),
+            ("C", [0.0, 0.0, 2.5]),
+        ],
+        basis={"C1": "ADF-TZ2P", "C2": "ADF-DZ"},
+    )
+
+    elem_map = deck.resolve_elements()
+    assert "C_ADF-TZ2P" in elem_map
+    assert "C_ADF-DZ" in elem_map
+
+    stdin_text = deck.to_stdin_text()
+    assert "NELEM=2" in stdin_text
+    assert "NATOM=2" in stdin_text
+    # Both blocks have LATOM='C'
+    assert stdin_text.count("LATOM='C'") == 2
+    # Verify both MSTO dimensions are represented
+    assert "MSTO=26, NSTO=10" in stdin_text  # ADF-TZ2P for C
+    assert "MSTO=10, NSTO=6" in stdin_text  # ADF-DZ for C
+
+
+

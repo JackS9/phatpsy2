@@ -133,7 +133,8 @@ def handle_view(args):
     deck = load_deck_from_arg(args.input_file, auto_spin=args.auto_spin)
     out_path = Path(args.output) if args.output else None
     auto_open = not args.no_browser
-    visualize_deck(deck, output_path=out_path, auto_open=auto_open)
+    edit_mode = getattr(args, "edit", False)
+    visualize_deck(deck, output_path=out_path, auto_open=auto_open, edit_mode=edit_mode)
     if out_path:
         sys.stderr.write(f"PHATPSY: Wrote 3D HTML visualization to '{out_path}'\n")
     return 0
@@ -747,6 +748,7 @@ def main(argv=None):
         parser.add_argument("input_file", help="Input file path (.yaml, .json, .stdin, .xyz)")
         parser.add_argument("-o", "--output", default=None, help="Output HTML file path")
         parser.add_argument("-s", "--auto-spin", action="store_true", help="Assign alternating-spin states before viewing")
+        parser.add_argument("-e", "--edit", action="store_true", help="Open visualizer in interactive parameter editor mode")
         parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open web browser automatically")
         args = parser.parse_args(argv[1:])
         return handle_view(args)

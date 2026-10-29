@@ -269,6 +269,27 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
     from phatpsy.schema import resolve_atom_coordinates
     resolve_atom_coordinates(atoms)
 
+    if hasattr(deck_or_atoms, "control"):
+        control_dict = deck_or_atoms.control.to_dict()
+        default_basis = deck_or_atoms.control.default_basis or getattr(deck_or_atoms, "basis", None) or "DZ"
+    else:
+        control_dict = {
+            "spin_unrestricted": True,
+            "max_cycles": 100,
+            "convergence": 1.0e-4,
+            "charge_damp": 0.5,
+            "potential_damp": 0.5,
+            "use_diis": False,
+            "exchange_kernel": "hartree-fock",
+            "use_dispersion": False,
+            "default_basis": "DZ",
+        }
+        default_basis = "DZ"
+
+    available_bases = [
+        "ADF-TZP", "ADF-DZ", "ADF-TZ2P", "ADF-QZ4P",
+        "DZ", "SZ", "DZP", "SZP", "THAKKAR"
+    ]
 
     atom_data = []
     # Identify symmetry generator mapping using explicit equivalent_to or fallback
@@ -301,11 +322,20 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
                 "generator_idx": generator_map.get(idx),
             }
 
+        a_basis = getattr(a, "basis", None)
+        if hasattr(deck_or_atoms, "get_effective_basis_for_atom"):
+            eff_basis = deck_or_atoms.get_effective_basis_for_atom(a)
+        else:
+            eff_basis = a_basis or default_basis
+
         atom_data.append({
             "index": idx,
             "id": a.id or f"{a.element}{idx+1}",
             "element": a.element,
             "equivalent_to": a.equivalent_to,
+            "basis": a_basis,
+            "effective_basis": eff_basis,
+            "charge": getattr(a, "charge", 0.0),
             "x": x_aa,
             "y": y_aa,
             "z": z_aa,
@@ -338,6 +368,10 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
         "title": title,
         "atoms": atom_data,
         "bonds": bonds,
+        "control": control_dict,
+        "default_basis": default_basis,
+        "available_bases": available_bases,
+        "is_deck": hasattr(deck_or_atoms, "control"),
         "stats": {
             "total_atoms": len(atoms),
             "spin_up": n_up,
@@ -353,8 +387,9 @@ def generate_html(
     title: Optional[str] = None,
     isovalue: Optional[float] = None,
     property_grid: Optional[Any] = None,
+    edit_mode: bool = False,
 ) -> str:
-    """Generates a complete, interactive standalone HTML5 WebGL viewer using Three.js."""
+    """Generates a complete, interactive standalone HTML5 WebGL viewer & parameter editor using Three.js."""
     if isinstance(deck_or_atoms, dict) and "atoms" in deck_or_atoms:
         data = deck_or_atoms
     elif hasattr(deck_or_atoms, "data") and hasattr(deck_or_atoms, "voxel_steps"):
@@ -364,14 +399,25 @@ def generate_html(
     if title:
         data["title"] = title
 
-    json_payload = json.dumps(data)
+    if not isinstance(data.get("control"), dict):
+        data["control"] = {}
+    if not data.get("default_basis"):
+        data["default_basis"] = "DZ"
+    if not data.get("available_bases"):
+        data["available_bases"] = [
+            "ADF-TZP", "ADF-DZ", "ADF-TZ2P", "ADF-QZ4P",
+            "DZ", "SZ", "DZP", "SZP", "THAKKAR"
+        ]
+    cdamp = float(data["control"].get("charge_damp") if data["control"].get("charge_damp") is not None else 0.5)
+    vdamp = float(data["control"].get("potential_damp") if data["control"].get("potential_damp") is not None else 0.5)
 
+    json_payload = json.dumps(data)
 
     html_template = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{data['title']} - PHATPSY 3D Viewer</title>
+  <title>{data['title']} - PHATPSY 3D Viewer &amp; Editor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -390,9 +436,303 @@ def generate_html(
       top: 0;
       left: 0;
     }}
+    #top-bar {{
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 48px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 500;
+    }}
+    .brand-group {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }}
+    .brand-logo {{
+      font-weight: 800;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }}
+    .deck-title {{
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      max-width: 260px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .top-actions {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .nav-btn {{
+      background: rgba(30, 41, 59, 0.85);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }}
+    .nav-btn:hover {{
+      background: rgba(51, 65, 85, 0.95);
+      border-color: #38bdf8;
+      color: #ffffff;
+    }}
+    .nav-btn-primary {{
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: white;
+    }}
+    .nav-btn-primary:hover {{
+      background: #0369a1;
+    }}
+    .nav-dropdown {{
+      position: relative;
+      display: inline-block;
+    }}
+    .dropdown-menu {{
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      min-width: 210px;
+      z-index: 1000;
+      overflow: hidden;
+    }}
+    .nav-dropdown:hover .dropdown-menu {{
+      display: block;
+    }}
+    .dropdown-menu a {{
+      display: block;
+      padding: 8px 12px;
+      color: #e2e8f0;
+      font-size: 0.78rem;
+      text-decoration: none;
+      transition: background 0.15s;
+    }}
+    .dropdown-menu a:hover {{
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }}
+    .editor-panel {{
+      position: absolute;
+      top: 60px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+      z-index: 200;
+      flex-direction: column;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+    }}
+    #system-panel {{
+      right: 20px;
+      width: 330px;
+    }}
+    #atom-panel {{
+      right: 365px;
+      width: 320px;
+    }}
+    .panel-header {{
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }}
+    .panel-header h2 {{
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin: 0;
+    }}
+    .close-btn {{
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+    }}
+    .close-btn:hover {{ color: #f87171; }}
+    .panel-body {{
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 0.8rem;
+    }}
+    .form-section {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 10px;
+    }}
+    .section-label {{
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 2px;
+    }}
+    .form-row {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+    .text-input, .num-input {{
+      background: rgba(30, 41, 59, 0.85);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      outline: none;
+    }}
+    .text-input:focus, .num-input:focus {{
+      border-color: #38bdf8;
+    }}
+    .full-width {{
+      width: 100%;
+    }}
+    .coord-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }}
+    .coord-col {{
+      display: flex;
+      align-items: center;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }}
+    .coord-tag {{
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-right: 4px;
+    }}
+    .coord-input {{
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #f1f5f9;
+      font-size: 0.78rem;
+      outline: none;
+    }}
+    .spin-segmented-control {{
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+      background: rgba(30, 41, 59, 0.85);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }}
+    .spin-btn {{
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 4px 0;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }}
+    .spin-btn.active {{
+      background: #0284c7;
+      color: white;
+    }}
+    .spin-btn[data-spin="up"].active {{
+      background: #0284c7;
+      color: white;
+    }}
+    .spin-btn[data-spin="down"].active {{
+      background: #ea580c;
+      color: white;
+    }}
+    .slider-val-box {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .slider-val-box input[type="range"] {{
+      width: 110px;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }}
+    .slider-val-box span {{
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      min-width: 32px;
+      text-align: right;
+    }}
+    .panel-footer-link {{
+      margin-top: 4px;
+      font-size: 0.72rem;
+    }}
+    .panel-footer-link a {{
+      color: #38bdf8;
+      text-decoration: none;
+    }}
+    .panel-footer-link a:hover {{
+      text-decoration: underline;
+    }}
+    .field-hint {{
+      font-size: 0.68rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }}
+    .btn-xs {{
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #38bdf8;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      cursor: pointer;
+    }}
+    .btn-xs:hover {{ background: rgba(56, 189, 248, 0.2); }}
+
     .ui-panel {{
       position: absolute;
-      top: 20px;
+      top: 60px;
       left: 20px;
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(12px);
@@ -530,9 +870,185 @@ def generate_html(
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
+  <header id="top-bar">
+    <div class="brand-group">
+      <span class="brand-logo">PHATPSY 2.0</span>
+      <span class="deck-title">{data['title']}</span>
+      <span id="badge-sys-basis" class="badge badge-blue">Basis: {data.get('default_basis', 'DZ')}</span>
+    </div>
+    <div class="top-actions">
+      <button id="btn-toggle-system" class="nav-btn" title="Edit System &amp; Basis Parameters">⚙️ System Controls</button>
+      <button id="btn-toggle-atom" class="nav-btn" title="Inspect &amp; Edit Selected Atom">🔬 Atom Inspector</button>
+      <button id="btn-export-yaml" class="nav-btn nav-btn-primary" title="Export CalculationDeck as YAML">💾 Export YAML</button>
+      <button id="btn-export-json" class="nav-btn" title="Export CalculationDeck as JSON">📄 Export JSON</button>
+      <div class="nav-dropdown">
+        <button class="nav-btn nav-btn-docs">📚 Docs &blacktriangledown;</button>
+        <div class="dropdown-menu">
+          <a href="https://jacks9.github.io/phatpsy2/science/methodology_overview/" target="_blank">🔬 Science &amp; Theory</a>
+          <a href="https://jacks9.github.io/phatpsy2/science/model_potentials/" target="_blank">⚛️ Basis Sets &amp; Potentials</a>
+          <a href="https://jacks9.github.io/phatpsy2/development/architecture/" target="_blank">⚙️ Configuration &amp; Controls</a>
+          <a href="https://github.com/JackS9/phatpsy2" target="_blank">🐙 GitHub Repository</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
   <div id="canvas-container">
     <div id="loading-msg" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #94a3b8; font-size: 0.9rem; text-align: center; pointer-events: none; z-index: 10;">
       Loading 3D WebGL Scene...
+    </div>
+  </div>
+
+  <!-- System Settings Panel -->
+  <div id="system-panel" class="editor-panel" style="{ 'display: flex;' if edit_mode else 'display: none;' }">
+    <div class="panel-header">
+      <h2>⚙️ System Controls &amp; Basis</h2>
+      <button class="close-btn" id="close-system-panel">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-section">
+        <label class="section-label">Default Basis Set</label>
+        <select id="sys-default-basis" class="select-input full-width">
+        </select>
+        <span class="field-hint">Cascades to all atoms unless overridden at atom level.</span>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">SCF &amp; Convergence</label>
+        <div class="form-row">
+          <label for="sys-max-cycles">Max Cycles:</label>
+          <input type="number" id="sys-max-cycles" class="num-input" value="{data['control'].get('max_cycles', 100)}" min="1" max="1000" style="width: 80px;">
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label for="sys-convergence">Convergence:</label>
+          <input type="text" id="sys-convergence" class="text-input" value="{data['control'].get('convergence', 1e-4)}" style="width: 90px;">
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="sys-spin-unrestricted" { 'checked' if data['control'].get('spin_unrestricted', True) else '' }> Spin Unrestricted (UHF)</label>
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="sys-diis" { 'checked' if data['control'].get('use_diis', False) else '' }> DIIS Acceleration</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">Damping &amp; Mixing</label>
+        <div class="form-row">
+          <label for="sys-cdamp">Charge Damping:</label>
+          <div class="slider-val-box">
+            <input type="range" id="sys-cdamp" min="0.0" max="1.0" step="0.05" value="{cdamp}">
+            <span id="sys-cdamp-val">{cdamp:.2f}</span>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label for="sys-vdamp">Potential Damping:</label>
+          <div class="slider-val-box">
+            <input type="range" id="sys-vdamp" min="0.0" max="1.0" step="0.05" value="{vdamp}">
+            <span id="sys-vdamp-val">{vdamp:.2f}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">Hamiltonian &amp; Dispersion</label>
+        <div class="form-row">
+          <label for="sys-exchange">Exchange:</label>
+          <select id="sys-exchange" class="select-input" style="width: 120px;">
+            <option value="hartree-fock" { 'selected' if str(data['control'].get('exchange_kernel', '')).lower() in ('hf', 'hartree-fock') else '' }>Hartree-Fock</option>
+            <option value="slater" { 'selected' if str(data['control'].get('exchange_kernel', '')).lower() in ('slater', 'lda') else '' }>Slater (LDA)</option>
+            <option value="becke88" { 'selected' if str(data['control'].get('exchange_kernel', '')).lower() in ('becke88', 'b88') else '' }>Becke 88</option>
+            <option value="pbe" { 'selected' if str(data['control'].get('exchange_kernel', '')).lower() == 'pbe' else '' }>PBE</option>
+          </select>
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="sys-dispersion" { 'checked' if data['control'].get('use_dispersion', False) else '' }> Grimme D3-BJ Dispersion</label>
+        </div>
+      </div>
+
+      <div class="panel-footer-link">
+        <a href="https://jacks9.github.io/phatpsy2/development/architecture/" target="_blank">📖 Controls &amp; Namelist Reference &nearr;</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Atom Inspector Panel -->
+  <div id="atom-panel" class="editor-panel" style="{ 'display: flex;' if edit_mode else 'display: none;' }">
+    <div class="panel-header">
+      <h2>🔬 Atom Inspector</h2>
+      <button class="close-btn" id="close-atom-panel">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-section">
+        <label class="section-label">Selected Atom</label>
+        <select id="atom-select" class="select-input full-width">
+        </select>
+      </div>
+
+      <div class="form-section">
+        <div class="form-row">
+          <label for="atom-elem">Element Symbol:</label>
+          <input type="text" id="atom-elem" class="text-input" style="width: 80px; text-transform: capitalize;">
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label for="atom-basis">Basis Set Override:</label>
+          <select id="atom-basis" class="select-input" style="max-width: 140px;">
+            <option value="">(Inherit Default)</option>
+          </select>
+        </div>
+        <div style="margin-top: 4px; display: flex; justify-content: flex-end;">
+          <span id="atom-eff-basis-badge" class="badge badge-blue">Active: DZ</span>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <label class="section-label" style="margin-bottom:0;">Coordinates</label>
+          <button id="unit-toggle" class="btn-xs" title="Switch coordinate display unit">Units: Bohr</button>
+        </div>
+        <div class="coord-grid">
+          <div class="coord-col">
+            <span class="coord-tag">X</span>
+            <input type="number" id="atom-coord-x" step="0.01" class="coord-input">
+          </div>
+          <div class="coord-col">
+            <span class="coord-tag">Y</span>
+            <input type="number" id="atom-coord-y" step="0.01" class="coord-input">
+          </div>
+          <div class="coord-col">
+            <span class="coord-tag">Z</span>
+            <input type="number" id="atom-coord-z" step="0.01" class="coord-input">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">Local Spin Channel</label>
+        <div class="spin-segmented-control">
+          <button type="button" class="spin-btn active" data-spin="none">None</button>
+          <button type="button" class="spin-btn" data-spin="up">&uarr; Up (&alpha;)</button>
+          <button type="button" class="spin-btn" data-spin="down">&darr; Down (&beta;)</button>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <label class="section-label">State Flags &amp; Charge</label>
+        <div class="form-row">
+          <label><input type="checkbox" id="atom-virtual"> Virtual / Ghost Center</label>
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="atom-fixed"> Fixed / Frozen Substrate</label>
+        </div>
+        <div class="form-row" style="margin-top: 4px;">
+          <label for="atom-charge">Formal Charge:</label>
+          <input type="number" id="atom-charge" step="0.1" class="num-input" style="width: 80px;">
+        </div>
+        <div id="atom-sym-info" style="font-size: 0.72rem; color: #94a3b8; margin-top: 6px; display: none;">
+        </div>
+      </div>
+
+      <div class="panel-footer-link">
+        <a href="https://jacks9.github.io/phatpsy2/science/model_potentials/" target="_blank">📖 Basis Sets &amp; Theory Reference &nearr;</a>
+      </div>
     </div>
   </div>
   
@@ -543,10 +1059,10 @@ def generate_html(
       {f'<span class="badge badge-blue">Field: {data.get("field_type", "3D Grid").capitalize()}</span>' if data.get('surfaces') else ''}
       {f'<span class="badge badge-violet">Iso: &plusmn;{data.get("isovalue", 0.02):.4f}</span>' if data.get('surfaces') else ''}
       {f'<span class="badge badge-orange">Property: {data.get("property_title", "ESP")}</span>' if data.get('has_property') else ''}
-      {f'<span class="badge badge-blue">Spin Up &uarr;: {data["stats"]["spin_up"]}</span>' if data['stats'].get('spin_up', 0) > 0 else ''}
-      {f'<span class="badge badge-orange">Spin Down &darr;: {data["stats"]["spin_down"]}</span>' if data['stats'].get('spin_down', 0) > 0 else ''}
-      {f'<span class="badge badge-violet">Virtual: {data["stats"]["virtual"]}</span>' if data['stats'].get('virtual', 0) > 0 else ''}
-      {f'<span class="badge badge-gray">Fixed: {data["stats"]["fixed"]}</span>' if data['stats'].get('fixed', 0) > 0 else ''}
+      <span id="badge-stat-up" class="badge badge-blue" style="{'display: inline-flex;' if data['stats'].get('spin_up', 0) > 0 else 'display: none;'}">Spin Up &uarr;: <span id="val-stat-up">{data['stats'].get('spin_up', 0)}</span></span>
+      <span id="badge-stat-down" class="badge badge-orange" style="{'display: inline-flex;' if data['stats'].get('spin_down', 0) > 0 else 'display: none;'}">Spin Down &darr;: <span id="val-stat-down">{data['stats'].get('spin_down', 0)}</span></span>
+      <span id="badge-stat-virt" class="badge badge-violet" style="{'display: inline-flex;' if data['stats'].get('virtual', 0) > 0 else 'display: none;'}">Virtual: <span id="val-stat-virt">{data['stats'].get('virtual', 0)}</span></span>
+      <span id="badge-stat-fixed" class="badge badge-gray" style="{'display: inline-flex;' if data['stats'].get('fixed', 0) > 0 else 'display: none;'}">Fixed: <span id="val-stat-fixed">{data['stats'].get('fixed', 0)}</span></span>
     </div>
     
     <div class="controls">
@@ -1068,6 +1584,467 @@ def generate_html(
       controls.update();
     }});
 
+    // Selection outline ring
+    const selGeo = new THREE.TorusGeometry(1.0, 0.06, 16, 64);
+    const selMat = new THREE.MeshBasicMaterial({{ color: 0x38bdf8, transparent: true, opacity: 0.9 }});
+    const selectionTorus = new THREE.Mesh(selGeo, selMat);
+    selectionTorus.rotation.x = Math.PI / 2;
+    selectionTorus.visible = false;
+    scene.add(selectionTorus);
+
+    // Interactive panel toggles
+    const systemPanel = document.getElementById('system-panel');
+    const atomPanel = document.getElementById('atom-panel');
+    const btnToggleSys = document.getElementById('btn-toggle-system');
+    const btnToggleAtom = document.getElementById('btn-toggle-atom');
+    const closeSysBtn = document.getElementById('close-system-panel');
+    const closeAtomBtn = document.getElementById('close-atom-panel');
+
+    if (btnToggleSys && systemPanel) {{
+      btnToggleSys.addEventListener('click', () => {{
+        systemPanel.style.display = (systemPanel.style.display === 'none' || !systemPanel.style.display) ? 'flex' : 'none';
+      }});
+    }}
+    if (closeSysBtn && systemPanel) {{
+      closeSysBtn.addEventListener('click', () => {{ systemPanel.style.display = 'none'; }});
+    }}
+
+    if (btnToggleAtom && atomPanel) {{
+      btnToggleAtom.addEventListener('click', () => {{
+        atomPanel.style.display = (atomPanel.style.display === 'none' || !atomPanel.style.display) ? 'flex' : 'none';
+        if (atomPanel.style.display === 'flex' && selectedAtomIdx === -1 && MOL_DATA.atoms.length > 0) {{
+          selectAtom(0);
+        }}
+      }});
+    }}
+    if (closeAtomBtn && atomPanel) {{
+      closeAtomBtn.addEventListener('click', () => {{
+        atomPanel.style.display = 'none';
+        selectionTorus.visible = false;
+      }});
+    }}
+
+    // Populate available basis options
+    const sysDefaultBasis = document.getElementById('sys-default-basis');
+    const atomBasisSelect = document.getElementById('atom-basis');
+    if (sysDefaultBasis && MOL_DATA.available_bases) {{
+      MOL_DATA.available_bases.forEach(b => {{
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        if (b === (MOL_DATA.default_basis || 'DZ')) opt.selected = true;
+        sysDefaultBasis.appendChild(opt);
+
+        if (atomBasisSelect) {{
+          const opt2 = document.createElement('option');
+          opt2.value = b;
+          opt2.textContent = b;
+          atomBasisSelect.appendChild(opt2);
+        }}
+      }});
+    }}
+
+    // Populate atom select dropdown
+    const atomSelect = document.getElementById('atom-select');
+    function updateAtomSelectOptions() {{
+      if (!atomSelect) return;
+      atomSelect.innerHTML = '';
+      MOL_DATA.atoms.forEach((a, idx) => {{
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = (a.id || (a.element + (idx+1))) + ' (' + a.element + ' #' + (idx+1) + ')';
+        atomSelect.appendChild(opt);
+      }});
+    }}
+    updateAtomSelectOptions();
+
+    let selectedAtomIdx = -1;
+    let coordUnits = 'bohr';
+    const BOHR_TO_AA = 1.0 / 1.8897261245650618;
+    const AA_TO_BOHR = 1.8897261245650618;
+
+    function selectAtom(idx) {{
+      if (idx < 0 || idx >= MOL_DATA.atoms.length) return;
+      selectedAtomIdx = idx;
+      if (atomSelect) atomSelect.value = idx;
+      const a = MOL_DATA.atoms[idx];
+      const mesh = atomMeshes[idx];
+
+      selectionTorus.position.copy(mesh.position);
+      const r = Math.max(0.35, a.radius * 0.45);
+      selectionTorus.scale.set(r * 1.5, r * 1.5, r * 1.5);
+      selectionTorus.visible = true;
+
+      const elElem = document.getElementById('atom-elem');
+      if (elElem) elElem.value = a.element;
+
+      if (atomBasisSelect) atomBasisSelect.value = a.basis || '';
+
+      updateEffectiveBasisBadge();
+      updateCoordInputs();
+
+      const spinVal = a.spin || 'none';
+      document.querySelectorAll('.spin-btn').forEach(btn => {{
+        btn.classList.toggle('active', btn.getAttribute('data-spin') === spinVal);
+      }});
+
+      const elVirt = document.getElementById('atom-virtual');
+      if (elVirt) elVirt.checked = !!a.virtual;
+
+      const elFix = document.getElementById('atom-fixed');
+      if (elFix) elFix.checked = !!a.fixed;
+
+      const elCharge = document.getElementById('atom-charge');
+      if (elCharge) elCharge.value = a.charge || 0.0;
+
+      const elSymInfo = document.getElementById('atom-sym-info');
+      if (elSymInfo) {{
+        if (a.equivalent_to) {{
+          elSymInfo.style.display = 'block';
+          elSymInfo.textContent = 'Equivalent to: ' + a.equivalent_to + (a.symmetry ? ' (ISYM=' + a.symmetry.isym + ')' : '');
+        }} else if (a.symmetry) {{
+          elSymInfo.style.display = 'block';
+          elSymInfo.textContent = 'Symmetry: ISYM=' + a.symmetry.isym + ', IXYZ=' + a.symmetry.ixyz;
+        }} else {{
+          elSymInfo.style.display = 'none';
+        }}
+      }}
+    }}
+
+    function updateEffectiveBasisBadge() {{
+      const badge = document.getElementById('atom-eff-basis-badge');
+      if (!badge || selectedAtomIdx === -1) return;
+      const a = MOL_DATA.atoms[selectedAtomIdx];
+      const eff = a.basis || (MOL_DATA.control && MOL_DATA.control.default_basis) || MOL_DATA.default_basis || 'DZ';
+      badge.textContent = 'Active: ' + eff;
+    }}
+
+    function updateCoordInputs() {{
+      if (selectedAtomIdx === -1) return;
+      const a = MOL_DATA.atoms[selectedAtomIdx];
+      const inX = document.getElementById('atom-coord-x');
+      const inY = document.getElementById('atom-coord-y');
+      const inZ = document.getElementById('atom-coord-z');
+      if (coordUnits === 'bohr') {{
+        if (inX) inX.value = a.x_bohr.toFixed(4);
+        if (inY) inY.value = a.y_bohr.toFixed(4);
+        if (inZ) inZ.value = a.z_bohr.toFixed(4);
+      }} else {{
+        if (inX) inX.value = a.x.toFixed(4);
+        if (inY) inY.value = a.y.toFixed(4);
+        if (inZ) inZ.value = a.z.toFixed(4);
+      }}
+    }}
+
+    if (atomSelect) {{
+      atomSelect.addEventListener('change', (e) => {{
+        selectAtom(parseInt(e.target.value, 10));
+      }});
+    }}
+
+    const unitToggleBtn = document.getElementById('unit-toggle');
+    if (unitToggleBtn) {{
+      unitToggleBtn.addEventListener('click', () => {{
+        coordUnits = (coordUnits === 'bohr') ? 'angstrom' : 'bohr';
+        unitToggleBtn.textContent = 'Units: ' + (coordUnits === 'bohr' ? 'Bohr' : 'Å');
+        updateCoordInputs();
+      }});
+    }}
+
+    // Raycast on canvas click
+    renderer.domElement.addEventListener('click', (e) => {{
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(atomMeshes);
+      if (intersects.length > 0) {{
+        const d = intersects[0].object.userData;
+        if (atomPanel) atomPanel.style.display = 'flex';
+        selectAtom(d.index);
+      }}
+    }});
+
+    function rebuildBonds() {{
+      while (bondGroup.children.length > 0) {{
+        bondGroup.remove(bondGroup.children[0]);
+      }}
+      MOL_DATA.bonds.forEach(([i, j]) => {{
+        const p1 = atomMeshes[i].position;
+        const p2 = atomMeshes[j].position;
+        const dist = p1.distanceTo(p2);
+        const dir = p2.clone().sub(p1).normalize();
+        const mid = p1.clone().add(p2).multiplyScalar(0.5);
+
+        const cylGeo = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
+        const cylMat = new THREE.MeshStandardMaterial({{ color: 0x64748b, roughness: 0.5 }});
+        const cyl = new THREE.Mesh(cylGeo, cylMat);
+        cyl.position.copy(mid);
+        cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        bondGroup.add(cyl);
+      }});
+    }}
+
+    function onAtomCoordChanged() {{
+      if (selectedAtomIdx === -1) return;
+      const a = MOL_DATA.atoms[selectedAtomIdx];
+      const inX = parseFloat(document.getElementById('atom-coord-x').value) || 0;
+      const inY = parseFloat(document.getElementById('atom-coord-y').value) || 0;
+      const inZ = parseFloat(document.getElementById('atom-coord-z').value) || 0;
+
+      if (coordUnits === 'bohr') {{
+        a.x_bohr = inX; a.y_bohr = inY; a.z_bohr = inZ;
+        a.x = inX * BOHR_TO_AA; a.y = inY * BOHR_TO_AA; a.z = inZ * BOHR_TO_AA;
+      }} else {{
+        a.x = inX; a.y = inY; a.z = inZ;
+        a.x_bohr = inX * AA_TO_BOHR; a.y_bohr = inY * AA_TO_BOHR; a.z_bohr = inZ * AA_TO_BOHR;
+      }}
+      const newPos = new THREE.Vector3(a.x - cx, a.y - cy, a.z - cz);
+      atomMeshes[selectedAtomIdx].position.copy(newPos);
+      selectionTorus.position.copy(newPos);
+
+      rebuildBonds();
+    }}
+
+    ['atom-coord-x', 'atom-coord-y', 'atom-coord-z'].forEach(id => {{
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', onAtomCoordChanged);
+    }});
+
+    // Spin channel changes
+    document.querySelectorAll('.spin-btn').forEach(btn => {{
+      btn.addEventListener('click', () => {{
+        if (selectedAtomIdx === -1) return;
+        const sVal = btn.getAttribute('data-spin');
+        document.querySelectorAll('.spin-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const a = MOL_DATA.atoms[selectedAtomIdx];
+        a.spin = sVal;
+        applyColorMode(document.getElementById('color-mode-select').value);
+
+        let nUp = 0, nDown = 0;
+        MOL_DATA.atoms.forEach(at => {{
+          if (at.spin === 'up') nUp++;
+          if (at.spin === 'down') nDown++;
+        }});
+        const badgeUp = document.getElementById('badge-stat-up');
+        const valUp = document.getElementById('val-stat-up');
+        const badgeDown = document.getElementById('badge-stat-down');
+        const valDown = document.getElementById('val-stat-down');
+        if (badgeUp && valUp) {{
+          valUp.textContent = nUp;
+          badgeUp.style.display = nUp > 0 ? 'inline-flex' : 'none';
+        }}
+        if (badgeDown && valDown) {{
+          valDown.textContent = nDown;
+          badgeDown.style.display = nDown > 0 ? 'inline-flex' : 'none';
+        }}
+      }});
+    }});
+
+    // Virtual flag
+    const elAtomVirt = document.getElementById('atom-virtual');
+    if (elAtomVirt) {{
+      elAtomVirt.addEventListener('change', (e) => {{
+        if (selectedAtomIdx === -1) return;
+        const a = MOL_DATA.atoms[selectedAtomIdx];
+        a.virtual = e.target.checked;
+        const mesh = atomMeshes[selectedAtomIdx];
+        if (a.virtual) {{
+          mesh.material = new THREE.MeshStandardMaterial({{
+            color: 0xc084fc, wireframe: true, transparent: true, opacity: 0.45
+          }});
+        }} else {{
+          mesh.material = new THREE.MeshStandardMaterial({{
+            color: a.color, roughness: 0.35, metalness: 0.15
+          }});
+          applyColorMode(document.getElementById('color-mode-select').value);
+        }}
+      }});
+    }}
+
+    // Fixed flag
+    const elAtomFix = document.getElementById('atom-fixed');
+    if (elAtomFix) {{
+      elAtomFix.addEventListener('change', (e) => {{
+        if (selectedAtomIdx === -1) return;
+        MOL_DATA.atoms[selectedAtomIdx].fixed = e.target.checked;
+      }});
+    }}
+
+    // Element symbol
+    const elAtomElem = document.getElementById('atom-elem');
+    if (elAtomElem) {{
+      elAtomElem.addEventListener('change', (e) => {{
+        if (selectedAtomIdx === -1) return;
+        const a = MOL_DATA.atoms[selectedAtomIdx];
+        a.element = e.target.value.trim().toUpperCase();
+        updateAtomSelectOptions();
+        if (atomSelect) atomSelect.value = selectedAtomIdx;
+      }});
+    }}
+
+    // Atom basis override
+    if (atomBasisSelect) {{
+      atomBasisSelect.addEventListener('change', (e) => {{
+        if (selectedAtomIdx === -1) return;
+        MOL_DATA.atoms[selectedAtomIdx].basis = e.target.value || null;
+        updateEffectiveBasisBadge();
+      }});
+    }}
+
+    // System default basis
+    if (sysDefaultBasis) {{
+      sysDefaultBasis.addEventListener('change', (e) => {{
+        if (!MOL_DATA.control) MOL_DATA.control = {{}};
+        MOL_DATA.control.default_basis = e.target.value;
+        MOL_DATA.default_basis = e.target.value;
+        const bBadge = document.getElementById('badge-sys-basis');
+        if (bBadge) bBadge.textContent = 'Basis: ' + e.target.value;
+        updateEffectiveBasisBadge();
+      }});
+    }}
+
+    // Damping slider labels
+    const cdampInput = document.getElementById('sys-cdamp');
+    const cdampVal = document.getElementById('sys-cdamp-val');
+    if (cdampInput && cdampVal) {{
+      cdampInput.addEventListener('input', (e) => {{
+        cdampVal.textContent = parseFloat(e.target.value).toFixed(2);
+        if (MOL_DATA.control) MOL_DATA.control.charge_damp = parseFloat(e.target.value);
+      }});
+    }}
+
+    const vdampInput = document.getElementById('sys-vdamp');
+    const vdampVal = document.getElementById('sys-vdamp-val');
+    if (vdampInput && vdampVal) {{
+      vdampInput.addEventListener('input', (e) => {{
+        vdampVal.textContent = parseFloat(e.target.value).toFixed(2);
+        if (MOL_DATA.control) MOL_DATA.control.potential_damp = parseFloat(e.target.value);
+      }});
+    }}
+
+    // Other system control listeners
+    const maxCycInput = document.getElementById('sys-max-cycles');
+    if (maxCycInput) {{
+      maxCycInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.max_cycles = parseInt(e.target.value, 10);
+      }});
+    }}
+    const convInput = document.getElementById('sys-convergence');
+    if (convInput) {{
+      convInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.convergence = parseFloat(e.target.value);
+      }});
+    }}
+    const spinUnresInput = document.getElementById('sys-spin-unrestricted');
+    if (spinUnresInput) {{
+      spinUnresInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.spin_unrestricted = e.target.checked;
+      }});
+    }}
+    const diisInput = document.getElementById('sys-diis');
+    if (diisInput) {{
+      diisInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.use_diis = e.target.checked;
+      }});
+    }}
+    const exchInput = document.getElementById('sys-exchange');
+    if (exchInput) {{
+      exchInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.exchange_kernel = e.target.value;
+      }});
+    }}
+    const dispInput = document.getElementById('sys-dispersion');
+    if (dispInput) {{
+      dispInput.addEventListener('change', (e) => {{
+        if (MOL_DATA.control) MOL_DATA.control.use_dispersion = e.target.checked;
+      }});
+    }}
+
+    // Deck Exporters (YAML and JSON)
+    function exportDeck(format) {{
+      const ctrl = Object.assign({{}}, MOL_DATA.control || {{}});
+      if (sysDefaultBasis) ctrl.default_basis = sysDefaultBasis.value;
+
+      const geom = MOL_DATA.atoms.map(a => {{
+        const at = {{
+          element: a.element,
+          id: a.id,
+          xyz: [
+            parseFloat(a.x_bohr.toFixed(6)),
+            parseFloat(a.y_bohr.toFixed(6)),
+            parseFloat(a.z_bohr.toFixed(6))
+          ]
+        }};
+        if (a.basis) at.basis = a.basis;
+        if (a.spin && a.spin !== 'none') at.spin = a.spin;
+        if (a.charge && Math.abs(a.charge) > 1e-5) at.charge = parseFloat(a.charge.toFixed(4));
+        if (a.fixed) at.fixed = true;
+        if (a.virtual) at.virtual = true;
+        if (a.equivalent_to) at.equivalent_to = a.equivalent_to;
+        if (a.symmetry) at.symmetry = a.symmetry;
+        return at;
+      }});
+
+      const deck = {{
+        title: MOL_DATA.title || "PHATPSY Calculation Deck",
+        control: ctrl,
+        geometry: geom
+      }};
+
+      let content = "";
+      let mime = "text/plain";
+      let filename = "deck.yaml";
+
+      if (format === 'json') {{
+        content = JSON.stringify(deck, null, 2);
+        mime = "application/json";
+        filename = "deck.json";
+      }} else {{
+        const lines = [];
+        lines.push("title: " + JSON.stringify(deck.title));
+        lines.push("control:");
+        for (const k in deck.control) {{
+          const val = deck.control[k];
+          if (val !== undefined && val !== null) {{
+            lines.push("  " + k + ": " + JSON.stringify(val));
+          }}
+        }}
+        lines.push("geometry:");
+        deck.geometry.forEach(at => {{
+          lines.push("  - element: " + at.element);
+          if (at.id) lines.push("    id: " + at.id);
+          lines.push("    xyz: [" + at.xyz.join(", ") + "]");
+          if (at.basis) lines.push("    basis: " + at.basis);
+          if (at.spin) lines.push("    spin: " + at.spin);
+          if (at.charge) lines.push("    charge: " + at.charge);
+          if (at.fixed) lines.push("    fixed: true");
+          if (at.virtual) lines.push("    virtual: true");
+          if (at.equivalent_to) lines.push("    equivalent_to: " + at.equivalent_to);
+        }});
+        content = lines.join("\\n") + "\\n";
+        filename = "deck.yaml";
+      }}
+
+      const blob = new Blob([content], {{ type: mime }});
+      const url = URL.createObjectURL(blob);
+      const aTag = document.createElement('a');
+      aTag.href = url;
+      aTag.download = filename;
+      document.body.appendChild(aTag);
+      aTag.click();
+      document.body.removeChild(aTag);
+      URL.revokeObjectURL(url);
+    }}
+
+    const btnExpYaml = document.getElementById('btn-export-yaml');
+    if (btnExpYaml) btnExpYaml.addEventListener('click', () => exportDeck('yaml'));
+
+    const btnExpJson = document.getElementById('btn-export-json');
+    if (btnExpJson) btnExpJson.addEventListener('click', () => exportDeck('json'));
+
       function updateSize() {{
         const w = getW();
         const h = getH();
@@ -1113,6 +2090,7 @@ def visualize_deck(
     isovalue: Optional[float] = None,
     property_grid: Optional[Any] = None,
     title: Optional[str] = None,
+    edit_mode: bool = False,
 ) -> str:
     """
     Renders an interactive 3D WebGL visualization of the molecule, calculation deck, or volumetric grid.
@@ -1124,11 +2102,12 @@ def visualize_deck(
         isovalue: Optional isosurface contour value if visualizing a VolumetricGrid.
         property_grid: Optional property grid for vertex-color mapping (e.g. ESP).
         title: Optional custom visualization title.
+        edit_mode: If True, opens the system controls and atom inspector panels on launch.
 
     Returns:
         The generated HTML content string.
     """
-    html_content = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid)
+    html_content = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid, edit_mode=edit_mode)
 
     if output_path:
         out_file = Path(output_path)
@@ -1174,6 +2153,7 @@ def show_deck(
     isovalue: Optional[float] = None,
     property_grid: Optional[Any] = None,
     title: Optional[str] = None,
+    edit_mode: bool = False,
 ):
     """
     Displays the 3D interactive viewer inline inside a Jupyter notebook.
@@ -1184,7 +2164,7 @@ def show_deck(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
             from IPython.display import HTML
-            html_code = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid)
+            html_code = generate_html(deck_or_atoms, title=title, isovalue=isovalue, property_grid=property_grid, edit_mode=edit_mode)
             escaped_html = html.escape(html_code, quote=True)
             iframe_html = (
                 f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'

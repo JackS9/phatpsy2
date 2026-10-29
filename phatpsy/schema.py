@@ -177,6 +177,7 @@ class ControlConfig:
     correlation_kernel: Optional[str] = None
     use_dispersion: bool = False
     dispersion_model: str = "d3bj"
+    default_basis: Optional[str] = None
     separate_atoms_first_cycle: bool = True
     debug: bool = False
     trace: bool = False
@@ -186,6 +187,8 @@ class ControlConfig:
         d = asdict(self)
         if not self.extra_namelist:
             del d["extra_namelist"]
+        if self.default_basis is None:
+            del d["default_basis"]
         if not include_retired:
             for k in RETIRED_YAML_CONTROL_PARAMS:
                 d.pop(k, None)
@@ -200,7 +203,7 @@ class ControlConfig:
             "use_diis", "use_global_fermi", "fermi_temperature",
             "use_dynamic_exponents", "exchange_kernel", "exchange_alpha",
             "correlation_kernel", "use_dispersion", "dispersion_model",
-            "separate_atoms_first_cycle", "debug", "trace"
+            "default_basis", "separate_atoms_first_cycle", "debug", "trace"
         }
         kwargs = {k: v for k, v in data.items() if k in valid_keys}
         extra = {k: v for k, v in data.items() if k not in valid_keys}
@@ -217,6 +220,7 @@ class ControlConfig:
         use_pseudometric: bool = True,
         charge_damp: float = 0.5,
         potential_damp: float = 0.5,
+        default_basis: Optional[str] = None,
         **kwargs,
     ) -> "ControlConfig":
         """
@@ -233,6 +237,7 @@ class ControlConfig:
             use_pseudometric=use_pseudometric,
             charge_damp=charge_damp,
             potential_damp=potential_damp,
+            default_basis=default_basis,
             **kwargs,
         )
 
@@ -275,6 +280,7 @@ class AtomConfig:
     virtual: bool = False
     spin_flip: bool = False  # Backward compatibility fallback
     spin: Optional[str] = None  # "up", "down", or None
+    basis: Optional[str] = None  # Atom-specific basis override (e.g. 'ADF-TZ2P')
     embedded_state: Optional[Any] = None
     starting_orbitals: Optional[List[Any]] = None
 
@@ -381,6 +387,8 @@ class AtomConfig:
             res["spin"] = self.spin
         elif self.spin_flip:
             res["spin"] = "down"
+        if self.basis:
+            res["basis"] = self.basis
         if self.embedded_state:
             if hasattr(self.embedded_state, "to_dict"):
                 res["embedded_state"] = self.embedded_state.to_dict()
@@ -443,6 +451,7 @@ class AtomConfig:
             virtual=bool(data.get("virtual", False)),
             spin_flip=spin_flip_val,
             spin=spin_val,
+            basis=data.get("basis"),
             embedded_state=emb,
             starting_orbitals=starting_orbs,
         )
@@ -526,32 +535,80 @@ class CalculationDeck:
     def atoms(self, val: List[AtomConfig]) -> None:
         self.geometry = val
 
+    def get_effective_basis_for_atom(self, atom: AtomConfig) -> str:
+        """
+        Determines the effective basis set for an atom using cascading hierarchy:
+        1. Atom-specific basis (atom.basis)
+        2. Reference atom's basis if equivalent_to is declared
+        3. Element-specific basis (self.elements[sym].basis)
+        4. Control default basis (self.control.default_basis)
+        5. Deck default basis (self.basis)
+        6. Global fallback ('DZ')
+        """
+        if atom.basis:
+            return atom.basis
+        if atom.equivalent_to:
+            ref = next((a for a in self.geometry if a.id == atom.equivalent_to), None)
+            if ref and ref.basis:
+                return ref.basis
+        sym = atom.element.strip().capitalize()
+        user_elem = self.elements.get(sym)
+        if user_elem and user_elem.basis:
+            return user_elem.basis
+        if self.control and self.control.default_basis:
+            return self.control.default_basis
+        if self.basis:
+            return self.basis
+        return "DZ"
+
+    def get_atom_element_key(self, atom: AtomConfig) -> str:
+        """
+        Returns the element key for this atom. If atoms of the same atomic symbol
+        use different basis sets, groups are keyed by f"{sym}_{basis}".
+        Otherwise, the plain symbol sym is used.
+        """
+        sym = atom.element.strip().capitalize()
+        eff_basis = self.get_effective_basis_for_atom(atom)
+        elem_bases = {
+            self.get_effective_basis_for_atom(a)
+            for a in self.geometry
+            if a.element.strip().capitalize() == sym
+        }
+        if len(elem_bases) > 1:
+            return f"{sym}_{eff_basis}"
+        return sym
+
     def resolve_elements(self) -> Dict[str, ElementData]:
         """
         Resolves each atom's element data, pulling from the built-in library
-        or applying custom user basis overrides.
+        or applying custom user basis overrides, supporting cascading and mixed basis sets.
         """
-        # Determine all unique element symbols in geometry
-        symbols = []
-        for atom in self.geometry:
-            sym = atom.element.strip().capitalize()
-            if sym not in symbols:
-                symbols.append(sym)
+        self.ensure_atom_ids()
+        keys_ordered: List[str] = []
+        key_to_atoms: Dict[str, List[AtomConfig]] = {}
+        for a in self.geometry:
+            ekey = self.get_atom_element_key(a)
+            if ekey not in keys_ordered:
+                keys_ordered.append(ekey)
+                key_to_atoms[ekey] = []
+            key_to_atoms[ekey].append(a)
 
-        resolved = {}
-        for sym in symbols:
+        resolved: Dict[str, ElementData] = {}
+        for ekey in keys_ordered:
+            sample_atom = key_to_atoms[ekey][0]
+            sym = sample_atom.element.strip().capitalize()
+            eff_basis = self.get_effective_basis_for_atom(sample_atom)
+
             user_elem = self.elements.get(sym)
-            basis_name = (user_elem.basis if user_elem and user_elem.basis else None) or self.basis or "DZ"
-            # Retrieve default or named library basis
-            lib_elem = get_element_basis(sym, basis_name=basis_name)
+            lib_elem = get_element_basis(sym, basis_name=eff_basis)
 
-            # Check if any atom of this element has an embedded_state
+            # Check if any atom in this element group has an embedded_state
             embedded_atom = next(
-                (a for a in self.geometry if a.element.strip().capitalize() == sym and a.embedded_state),
+                (a for a in key_to_atoms[ekey] if a.embedded_state),
                 None
             )
 
-            if user_elem and user_elem.functions:
+            if user_elem and user_elem.functions and (eff_basis == (user_elem.basis or "CUSTOM") or sample_atom.basis is None):
                 # Custom user basis functions override library
                 funcs = user_elem.functions
                 desc = user_elem.description or f"Custom Basis for {sym}"
@@ -559,7 +616,7 @@ class CalculationDeck:
                 orbs = lib_elem.default_orbitals
                 if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
                     orbs = embedded_atom.embedded_state.to_initial_orbitals()
-                resolved[sym] = ElementData(
+                resolved[ekey] = ElementData(
                     symbol=sym,
                     atomic_number=z,
                     description=desc,
@@ -573,7 +630,7 @@ class CalculationDeck:
                 orbs = embedded_atom.embedded_state.to_initial_orbitals()
                 z = embedded_atom.embedded_state.atomic_number or lib_elem.atomic_number
                 desc = f"Pre-converged Embedded Atom Basis for {sym}"
-                resolved[sym] = ElementData(
+                resolved[ekey] = ElementData(
                     symbol=sym,
                     atomic_number=z,
                     description=desc,
@@ -585,7 +642,7 @@ class CalculationDeck:
             else:
                 if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
                     orbs = embedded_atom.embedded_state.to_initial_orbitals()
-                    resolved[sym] = ElementData(
+                    resolved[ekey] = ElementData(
                         symbol=sym,
                         atomic_number=lib_elem.atomic_number,
                         description=lib_elem.description,
@@ -595,7 +652,7 @@ class CalculationDeck:
                         default_orbitals=orbs,
                     )
                 else:
-                    resolved[sym] = lib_elem
+                    resolved[ekey] = lib_elem
 
         return resolved
 
@@ -616,21 +673,20 @@ class CalculationDeck:
 
     def group_atoms_by_equivalency(self) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Groups atoms of each element into primary reference atoms and their
-        attached equivalent atoms. Enforces that reference atoms precede
-        atoms that reference them.
+        Groups atoms into primary reference atoms and their attached equivalent atoms.
+        Enforces that reference atoms precede atoms that reference them.
         """
         self.ensure_atom_ids()
         result_by_elem: Dict[str, List[Dict[str, Any]]] = {}
 
-        # Preserve element encounter order
+        # Preserve element group encounter order
         for a in self.geometry:
-            sym = a.element.strip().capitalize()
-            if sym not in result_by_elem:
-                result_by_elem[sym] = []
+            ekey = self.get_atom_element_key(a)
+            if ekey not in result_by_elem:
+                result_by_elem[ekey] = []
 
-        for sym, primary_groups in result_by_elem.items():
-            atoms_of_elem = [a for a in self.geometry if a.element.strip().capitalize() == sym]
+        for ekey, primary_groups in result_by_elem.items():
+            atoms_of_elem = [a for a in self.geometry if self.get_atom_element_key(a) == ekey]
             groups_by_id: Dict[str, Dict[str, Any]] = {}
 
             # First pass: identify primary reference atoms
@@ -651,7 +707,7 @@ class CalculationDeck:
                     remaining = [a for a in atoms_of_elem if a is not first]
                 else:
                     raise ValueError(
-                        f"All atoms of element '{sym}' declare 'equivalent_to', but no reference atom with that ID was found in element {sym}."
+                        f"All atoms of element '{ekey}' declare 'equivalent_to', but no reference atom with that ID was found in element {ekey}."
                     )
             else:
                 remaining = [a for a in atoms_of_elem if a.equivalent_to is not None or a.symmetry is not None]
@@ -667,7 +723,7 @@ class CalculationDeck:
                     else:
                         raise ValueError(
                             f"Atom '{a.id}' has equivalent_to='{a.equivalent_to}', "
-                            f"but no reference atom with that ID was found in element {sym}."
+                            f"but no reference atom with that ID was found in element group {ekey}."
                         )
                 elif last_primary is not None:
                     # Legacy positional equivalence
@@ -707,7 +763,8 @@ class CalculationDeck:
         max_l = 1
 
         for atom in self.geometry:
-            ed = elem_map[atom.element]
+            ekey = self.get_atom_element_key(atom)
+            ed = elem_map[ekey]
             norb_atom = len(ed.default_orbitals) if ed.default_orbitals else ed.msto
             total_orbt += norb_atom
             if ed.nsto > mxnsto:
@@ -719,6 +776,8 @@ class CalculationDeck:
             for f in ed.functions:
                 if f.n > max_n:
                     max_n = f.n
+                if f.l > max_l:
+                    max_l = f.l
                 if f.l > max_l:
                     max_l = f.l
 
@@ -908,19 +967,19 @@ class CalculationDeck:
         self.geometry = assign_alternating_spin(self.geometry, start_spin=start_spin)
         return self
 
-    def visualize(self, output_path: Optional[Union[str, Path]] = None, auto_open: bool = False) -> str:
+    def visualize(self, output_path: Optional[Union[str, Path]] = None, auto_open: bool = False, edit_mode: bool = False) -> str:
         """
-        Generates an interactive 3D WebGL visualization of this CalculationDeck.
+        Generates an interactive 3D WebGL visualization & parameter editor of this CalculationDeck.
         """
         from phatpsy.visualizer import visualize_deck
-        return visualize_deck(self, output_path=output_path, auto_open=auto_open)
+        return visualize_deck(self, output_path=output_path, auto_open=auto_open, edit_mode=edit_mode)
 
-    def show(self, height: int = 600):
+    def show(self, height: int = 600, edit_mode: bool = False):
         """
         Displays the interactive 3D visualization inside a Jupyter notebook.
         """
         from phatpsy.visualizer import show_deck
-        return show_deck(self, height=height)
+        return show_deck(self, height=height, edit_mode=edit_mode)
 
     def to_dict(self) -> Dict[str, Any]:
         res = {

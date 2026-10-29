@@ -169,3 +169,63 @@ def test_cli_view_and_auto_spin(tmp_path):
     assert ret_view == 0
     assert html_out.exists()
     assert "PHATPSY 3D Viewer" in html_out.read_text()
+
+    # 3. Test view command with --edit flag
+    html_edit_out = tmp_path / "c2h4_edit.html"
+    ret_edit = cli_main(["view", str(yaml_out), "--edit", "-o", str(html_edit_out), "-n"])
+    assert ret_edit == 0
+    assert html_edit_out.exists()
+    edit_html = html_edit_out.read_text()
+    assert 'id="system-panel" class="editor-panel" style="display: flex;"' in edit_html
+    assert 'id="atom-panel" class="editor-panel" style="display: flex;"' in edit_html
+
+
+def test_interactive_parameter_editor(tmp_path):
+    """
+    Verifies that the interactive parameter viewer & editor contains:
+    - Navbar with export buttons (YAML / JSON) and GitHub Pages documentation links
+    - System controls panel with basis selection and convergence parameters
+    - Atom inspector panel with per-atom basis, 3D coordinate inputs, spin switcher
+    - Live client-side update scripts and deck serialization
+    """
+    deck = CalculationDeck.from_diatomic("CO", bond_length=2.13, basis="ADF-TZ2P")
+    deck.control.default_basis = "ADF-TZ2P"
+    deck.geometry[0].basis = "ADF-QZ4P"  # Per-atom basis override
+
+    html_file = tmp_path / "co_edit.html"
+    html_text = visualize_deck(deck, output_path=html_file, auto_open=False, edit_mode=True)
+
+    # Navbar and Top-Bar checks
+    assert 'id="top-bar"' in html_text
+    assert "Export YAML" in html_text
+    assert "Export JSON" in html_text
+    assert "Docs" in html_text
+    assert "https://jacks9.github.io/phatpsy2/" in html_text
+
+    # System Panel checks
+    assert 'id="system-panel"' in html_text
+    assert 'id="sys-default-basis"' in html_text
+    assert "ADF-TZ2P" in html_text
+    assert "ADF-QZ4P" in html_text
+    assert 'id="sys-cdamp"' in html_text
+    assert 'id="sys-vdamp"' in html_text
+    assert 'id="sys-max-cycles"' in html_text
+    assert 'id="sys-spin-unrestricted"' in html_text
+
+    # Atom Inspector Panel checks
+    assert 'id="atom-panel"' in html_text
+    assert 'id="atom-select"' in html_text
+    assert 'id="atom-basis"' in html_text
+    assert 'id="atom-coord-x"' in html_text
+    assert 'id="atom-coord-y"' in html_text
+    assert 'id="atom-coord-z"' in html_text
+    assert 'data-spin="up"' in html_text
+    assert 'id="atom-virtual"' in html_text
+    assert 'id="atom-fixed"' in html_text
+
+    # Client-side Deck Exporter & Reactive Logic checks
+    assert "exportDeck" in html_text
+    assert "selectAtom" in html_text
+    assert "onAtomCoordChanged" in html_text
+    assert "rebuildBonds" in html_text
+
