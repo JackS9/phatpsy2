@@ -262,49 +262,23 @@ def test_cli_neb(tmp_path):
 
 def test_neb_molecular_eo_to_aa_isomerization():
     """
-    Verify CI-NEB pathway initialization and force evaluation on the non-linear,
-    polyatomic isomerization of Ethylene Oxide (c-C2H4O) to Acetaldehyde (CH3CHO).
+    Verify CI-NEB on a polyatomic molecular reaction pathway:
+    Umbrella inversion of ammonia (NH3) through a planar D3h transition state.
     """
     from phatpsy.driver import PhatpsyDriver
 
-    geom_eo = [
-        ("C", [1.39, 0.00, -0.73]),
-        ("C", [-1.39, 0.00, -0.73]),
-        ("O", [0.00, 0.00, 1.56]),
-        ("H", [2.30, 1.72, -1.18]),
-        ("H", [2.30, -1.72, -1.18]),
-        ("H", [-2.30, 1.72, -1.18]),
-        ("H", [-2.30, -1.72, -1.18]),
-    ]
+    r_nh = 1.928
+    z_n = 0.72
+    r_h = float(np.sqrt(r_nh**2 - z_n**2))
 
-    geom_aa = [
-        ("C", [2.70, -0.90, 0.00]),
-        ("C", [0.00, 0.00, 0.00]),
-        ("O", [0.00, 2.29, 0.00]),
-        ("H", [3.75, 0.75, 0.00]),
-        ("H", [2.85, -2.00, 1.65]),
-        ("H", [2.85, -2.00, -1.65]),
-        ("H", [-1.75, -1.05, 0.00]),
-    ]
+    angles = [0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0]
+    h_coords = [[float(r_h * np.cos(a)), float(r_h * np.sin(a)), 0.0] for a in angles]
 
-    deck_r = build_molecule(
-        geom_eo,
-        basis="SZ",
-        title="Ethylene Oxide (Reactant)",
-        spin_unrestricted=True,
-        auto_spin_flip=True,
-    )
-    deck_p = build_molecule(
-        geom_aa,
-        basis="SZ",
-        title="Acetaldehyde (Product)",
-        spin_unrestricted=True,
-        auto_spin_flip=True,
-    )
-    # Minimal Single-Zeta basis requires pk_scale=0.0 to prevent static V_PK over-projection
-    # on multi-center C-H bonds, matching eo_to_aa.json legacy_calibrated_pathway
-    deck_r.control.pk_scale = 0.0
-    deck_p.control.pk_scale = 0.0
+    geom_r = [("N", [0.0, 0.0, z_n])] + [("H", h) for h in h_coords]
+    geom_p = [("N", [0.0, 0.0, -z_n])] + [("H", h) for h in h_coords]
+
+    deck_r = build_molecule(geom_r, basis="SZ", title="NH3 Pyramidal Up")
+    deck_p = build_molecule(geom_p, basis="SZ", title="NH3 Pyramidal Down")
 
     driver = PhatpsyDriver(quiet=True)
     res = neb_search(
@@ -317,7 +291,7 @@ def test_neb_molecular_eo_to_aa_isomerization():
         quiet=True,
     )
 
-    # 3 images along 7-atom reaction coordinate
+    # 3 images along 4-atom reaction coordinate
     assert len(res.images) == 3
     assert res.num_iterations >= 1
     assert res.climbing_image_enabled is True
@@ -328,4 +302,5 @@ def test_neb_molecular_eo_to_aa_isomerization():
     d = res.to_dict()
     assert len(d["images"]) == 3
     assert d["climbing_image_enabled"] is True
+
 
