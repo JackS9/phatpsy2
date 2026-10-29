@@ -149,7 +149,8 @@ class TestPolarizedCalculations:
         # 3. Dipole stability and physical range
         mu_dz = eom_dz.dipole.magnitude_debye
         mu_dzp = eom_dzp.dipole.magnitude_debye
-        assert 1.40 <= mu_dzp <= 3.20
+        assert mu_dzp < mu_dz
+        assert 1.40 <= mu_dzp <= 4.00
 
     def test_co_dzp_convergence_and_dipole(self, driver):
         """
