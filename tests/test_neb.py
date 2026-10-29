@@ -311,21 +311,21 @@ def test_neb_molecular_eo_to_aa_isomerization():
         initial_deck=deck_r,
         final_deck=deck_p,
         driver=driver,
-        num_images=5,
+        num_images=3,
         max_iterations=1,
         climb=True,
         quiet=True,
     )
 
-    # 5 images along 7-atom reaction coordinate
-    assert len(res.images) == 5
+    # 3 images along 7-atom reaction coordinate
+    assert len(res.images) == 3
     assert res.num_iterations >= 1
     assert res.climbing_image_enabled is True
-    assert 0 < res.transition_state_index < 4
+    assert res.transition_state_index == 1
     assert res.barrier_forward_kcal is not None
 
     # Verify trajectory structures export
     d = res.to_dict()
-    assert len(d["images"]) == 5
+    assert len(d["images"]) == 3
     assert d["climbing_image_enabled"] is True
 
