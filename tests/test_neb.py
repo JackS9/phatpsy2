@@ -289,14 +289,14 @@ def test_neb_molecular_eo_to_aa_isomerization():
 
     deck_r = build_molecule(
         geom_eo,
-        basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
+        basis="SZ",
         title="Ethylene Oxide (Reactant)",
         spin_unrestricted=True,
         auto_spin_flip=True,
     )
     deck_p = build_molecule(
         geom_aa,
-        basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
+        basis="SZ",
         title="Acetaldehyde (Product)",
         spin_unrestricted=True,
         auto_spin_flip=True,

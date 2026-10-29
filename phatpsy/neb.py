@@ -223,6 +223,8 @@ class NEBResult:
             fig.savefig(out_p, dpi=150, bbox_inches="tight")
         if show:
             plt.show()
+        else:
+            plt.close(fig)
         return fig
 
     def show(self, height: int = 550) -> Any:
