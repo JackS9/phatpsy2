@@ -36,7 +36,7 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - [x] **Polarized STO Basis Sets (`DZP` / `SZP`) [COMPLETED]:** Ingest d-polarization (C, N, O, Li–Ar) and p-polarization (H, He) STO functions into [`phatpsy/basis.py`](file:///Users/jacksmith/phatpsy2/phatpsy/basis.py) and [`phatpsy/schema.py`](file:///Users/jacksmith/phatpsy2/phatpsy/schema.py). Automatically configure `LMAX=2` and initialize $(2l+1)$ virtual polarization orbitals ($0.0 \uparrow, 0.0 \downarrow$) for variational mixing. Validated on $H_2O$ ($\mu$ reduced from $4.35\text{ D}$ to $1.18\text{ D}$), $CO$ ($\mu$ reduced from $>5\text{ D}$ to $0.96\text{ D}$ with correct $C^{\delta-} O^{\delta+}$ polarity), and $N_2$ across automated tests.
   - [x] **Multipole Model Potential Fitting & Traceless Quadrupoles [COMPLETED]:** Extended Fortran core ([`src/modelpot.f90`](file:///Users/jacksmith/phatpsy2/src/modelpot.f90), [`src/analys.f90`](file:///Users/jacksmith/phatpsy2/src/analys.f90), [`src/state.f90`](file:///Users/jacksmith/phatpsy2/src/state.f90)) to evaluate intra-atomic dipole transition moments ($s \leftrightarrow p$, $p \leftrightarrow d$) and interatomic reaction fields. Exposed `atom_dipoles` on `CalculationState` and `EmbeddedAtomState.dipole`. Upgraded [`phatpsy/eom.py`](file:///Users/jacksmith/phatpsy2/phatpsy/eom.py) to evaluate full traceless symmetric quadrupole tensors $\mathbf{\Theta}_{\alpha\beta}$ in atomic units and Buckingham ($1.345034\text{ B}$), yielding close parity with microwave spectroscopy on water ($-3.07, +2.76, +0.31\text{ B}$) and machine-precision translational origin invariance ($< 10^{-12}\text{ D}$).
   - **Basis Set Extension Program (ADF ZORA STO Ingest):**
-    - [ ] **Phase 7.1: Literature Polarization Exponents (H–Ar) [IN PROGRESS]:** Replace placeholder arithmetic progression exponents in `POLARIZATION_PARAMETERS` with published ADF standard (ZORA-contracted) values (van Lenthe & Baerends 2003, Gasević et al. 2022) extracted from `zorabasis/TZP` vs `zorabasis/DZ`. Validated by shifting $H_2O$ dipole from $1.50\text{ D} \to 1.63\text{ D}$ toward experimental $1.855\text{ D}$ and $CO$ dipole from $1.19\text{ D} \to 1.08\text{ D}$.
+    - [x] **Phase 7.1: Literature Polarization Exponents (H–Ar) [COMPLETED]:** Replace placeholder arithmetic progression exponents in `POLARIZATION_PARAMETERS` with published ADF standard (ZORA-contracted) values (van Lenthe & Baerends 2003, Gasević et al. 2022) extracted from `zorabasis/TZP` vs `zorabasis/DZ`. Validated by shifting $H_2O$ dipole from $1.50\text{ D} \to 1.63\text{ D}$ toward experimental $1.855\text{ D}$ and $CO$ dipole from $1.19\text{ D} \to 1.08\text{ D}$.
     - [ ] **Phase 7.2: First-Class ADF STO Library (`phatpsy/data/adf_sto.json`):** Create automated ingest script `phatpsy/ingest_adf.py` to ingest all-electron basis definitions from `zorabasis/` for `ADF-DZ`, `ADF-TZP`, `ADF-TZ2P` (double polarization: $p+d$ on H, $d+f$ on heavy atoms), and `ADF-QZ4P` (quadruple polarization), with automatic initial orbital occupancy synthesizer.
     - [ ] **Phase 7.3: Transition Metal & Heavy Element Coverage (Z=1 to 118):** Ingest 3d/4d/5d transition metal sets (Fe, Co, Ni, Cu, Ag, Pt, Au) from `zorabasis/` to provide high-precision basis options for surface cluster and catalysis calculations (directly supporting Phase 9).
 - [x] **Phase 8: Exchange-Correlation Functionals & Non-Covalent Dispersion (D3/D4) [COMPLETED]**
@@ -80,6 +80,12 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - Watertight isosurface extraction via Marching Tetrahedra (`phatpsy/marching_cubes.py`) and property mapping onto isosurfaces with standard Red-White-Blue colormap (Red = negative/nucleophilic, White = neutral, Blue = positive/electrophilic).
     - Dual-phase lobe rendering for orbitals and interactive WebGL controls in Three.js (`phatpsy/visualizer.py`).
     - Full Gaussian Cube format (`.cube`) import and export compatible with VMD, PyMOL, Avogadro, ChimeraX, and Jmol. Accessible via Python API and CLI (`phatpsy cube`).
+- [ ] **Interactive Parameter Viewer & Editor (System & Atom Levels)**
+  - Extend the 3D WebGL viewer and GUI to inspect, edit, and save simulation parameters interactively at both system and atomic levels:
+    - **System-Level Parameters:** Real-time configuration of Hamiltonian/SCF parameters (`ControlConfig`: exchange kernel, correlation kernel, dispersion, DIIS, Fermi temperature, pseudometric, convergence thresholds, dynamic exponents).
+    - **Atom-Level Parameters:** Interactive inspection and editing of atomic properties (`AtomConfig`: basis set selection, local spin state $\uparrow/\downarrow$, virtual/ghost status, fixed substrate constraints, initial electron configurations).
+    - **Integrated Documentation Links:** Direct context-sensitive hyperlinks to relevant sections of the deployed [GitHub Pages Documentation](https://jacks9.github.io/phatpsy2/) (Science & Theory, API Reference, Validation Standards) for each parameter and physical model.
+    - **Export & Serialization:** Save edited configurations directly back to valid YAML/JSON `CalculationDeck` files or Python script templates.
 
 
 ---
@@ -171,3 +177,42 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
     - Eliminate legacy disk unit dependencies in favor of in-memory data structures.
 - [x] **Continuous Integration (CI)**
   - Automated GitHub Actions workflow (`.github/workflows/ci.yml`) running the canonical verification loop on push and pull requests with robust OpenBLAS threading controls, unlimited stack allocations, and non-interactive apt provisioning.
+
+---
+
+## 8. Interactive Model System Notebooks & Pedagogy
+
+- [ ] **Dedicated Model System Notebook Suite**
+  - Create standalone Jupyter Notebooks dedicated to each of the primary benchmark and model systems, each featuring an introductory preamble detailing scientific motivation, physical significance, why it was chosen as a model system, and what specific capabilities of PHATPSY 2.0 it is targeted to demonstrate:
+    - **$\text{N}_2$ (Dinitrogen):** Homonuclear triple bond, exact inversion symmetry ($\boldsymbol{\mu} = 0$), analytical Pulay gradients, harmonic vibrational frequency ($\omega_e = 2358.60\text{ cm}^{-1}$), and PBE-D3 bond dissociation energy ($D_e = 9.759\text{ eV}$).
+    - **$\text{CO}$ (Carbon Monoxide):** Heteronuclear polar diatomic with subtle polarity ($C^{\delta-} O^{\delta+}$), DIIS charge equilibration, vibrational frequency ($\omega_e = 2169.24\text{ cm}^{-1}$), permanent dipole reduction via angular polarization, and dissociation energy ($D_e = 11.087\text{ eV}$).
+    - **$\text{H}_2\text{O}$ (Water):** Non-linear $C_{2v}$ molecular geometry, core-exemption for hydrogen ($V_{\text{PK}}=0$), angular polarization ($2p$ on H, $3d$ on O), permanent dipole moment ($\mu = 1.63\text{ D}$), and traceless symmetric quadrupole moment tensor ($\mathbf{\Theta}_{\alpha\beta}$ in Buckingham).
+    - **$\text{C}_2\text{H}_4\text{O} \to \text{CH}_3\text{CHO}$ (Ethylene Oxide $\to$ Acetaldehyde):** Polyatomic unimolecular ring-opening isomerization reaction, CI-NEB minimum energy pathway, Dimer saddle-point refinement, and forward activation barrier ($\Delta E_f^\ddagger = 53.0\text{ kcal/mol}$).
+    - **Bulk $\text{Ni}_{13}$ FCC Cluster:** 12-coordinated transition metal cluster, unit-scale Phillips-Kleinman theoretical lock ($\text{PKSCAL}=1.0$), Fermi-Dirac chemical potential equilibration, cohesive energy per atom, and local magnetic moments.
+    - **Embedded $\text{Ni}(100)$ Clean Slab:** 3-layer pseudo-periodic slab model, transferable embedded atom generation ($\text{Ni}_{\text{surf}}$ and $\text{Ni}_{\text{sub}}$), layer freezing, and surface core-level shifts.
+- [ ] **Special Historical Benchmark Notebook: $\text{NO}$ on $\text{Ni}(100)$ Chemisorption**
+  - Develop a dedicated flagship notebook for the chemisorption of nitric oxide ($\text{NO}$) on the $\text{Ni}(100)$ surface—the seminal system from Jack A. Smith's 1980 PhD dissertation where the PHATPSY methodology was originally developed:
+    - **Historical Context & Dissertation Parity:** Detailed preamble contextualizing the 1980 University of Florida dissertation, legacy FORTRAN 66 approximations, and the modern transition to Fortran 2018 / typed Python architecture.
+    - **Electronic Structure & Adsorption Physics:** Multi-site binding (top, bridge, 4-fold hollow), Blyholder $5\sigma$ donation and $2\pi^*$ back-donation into Ni 3d bands, and surface core-level shifts (N 1s and O 1s).
+    - **Interactive Visualization:** 3D Three.js rendering of the embedded $\text{Ni}(100)$ slab with $\text{NO}$ adsorbate, deformation densities, and vibrational mode animation of the $\text{N}-\text{O}$ stretch and substrate-adsorbate frustrated motions.
+
+---
+
+## 9. Platform Deployment & Community Access (NanoHUB)
+
+- [ ] **Deploy PHATPSY 2.0 on NanoHUB**
+  - Package PHATPSY 2.0 as an interactive online scientific simulation tool on [NanoHUB](https://nanohub.org/):
+    - Containerize the Fortran 2018 core, Python API, and Jupyter/JupyterLab environment via Docker / Singularity compatible with NanoHUB middleware (Rappture / Jupyter tool wrappers).
+    - Create a streamlined web GUI for configuring calculations, running quantum simulations in the cloud, and visualizing 3D molecular/slab structures and volumetric densities directly in the browser without local software installation.
+    - Provide pre-loaded benchmark examples ($\text{H}_2\text{O}$, $\text{CO}$, $\text{N}_2$, and $\text{NO}/\text{Ni}(100)$) for educational and research use in surface chemistry and materials science.
+
+---
+
+## 10. Scientific Archival Publication & Comprehensive Methodology Dissemination
+
+- [ ] **Journal Article: Modernization and Physics of PHATPSY 2.0**
+  - Author and submit a comprehensive peer-reviewed journal article (e.g., *Journal of Chemical Physics*, *Journal of Computational Chemistry*, or *Journal of Open Source Software (JOSS)*):
+    - **First Archival Publication of the Methodology:** Formally document the theoretical foundations of the Projected Hamiltonian Approach to Polyatomic Systems (PHATPSY), which were originally developed in the 1980 PhD dissertation but never published in archival journal literature.
+    - **Modernization & Theoretical Breakthroughs:** Detail the modern formulation that replaced legacy empirical knobs: theoretical unit-scale lock $\text{PKSCAL}=1.0$ via energy-dependent $V_{\text{PK}}(E)$ and hydrogen core-exemption; constrained LAPACK cusp fitting with modern DFT exchange/correlation; symmetrized Löwdin population analysis with Pulay DIIS and global Fermi equilibration; and Grimme D3/D4 dispersion.
+    - **Software Architecture:** Present the decoupled Fortran 2018 / typed Python architecture, CMake build system, Three.js 3D visualization, and automated verification against external experimental benchmarks (NIST CCCBDB, CRC, Herzberg, Somorjai & Li).
+
