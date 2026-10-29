@@ -84,3 +84,53 @@ This document provides a line-of-sight mapping connecting key mathematical deriv
 | **Spin-Flipping on Symmetry** | $\alpha \leftrightarrow \beta$ | `src/flip.f` | `src/flip.f`, `phatpsy_atomic_mod.f90` | Exchanges spin manifolds when `QFLIP=T` (LVB singlet generation) |
 | **Fixed (Frozen) Environment Atoms** | $\delta V_{\text{fixed}} = 0, \delta C_{\text{fixed}} = 0$ | `src/atomic.f`, `scf.f`, `analys.f` | `phatpsy_scf_mod.f90`, `phatpsy_analys_mod.f90` | Freezes orbitals and potential (`QFIXED=T`); bypasses SCF iterations |
 | **Virtual Atoms (Coordination Completion)** | $V_{\text{ext}} \neq 0, \text{excluded at EWMO}$ | `src/atomic.f`, `bloop.f` | `phatpsy_atomic_mod.f90`, `phatpsy/schema.py` | Completes local coordination environment during atomic stage; excluded from molecular EWMO calculation (`QVIRTL=T`) |
+
+---
+
+## 8. Dispersion & Polarized Basis Sets (Phase 6)
+
+| Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **DFT-D3(BJ) Dispersion Energy** | $E_{\text{disp}} = -\frac{1}{2}\sum [s_6 \frac{C_6}{R^6 + R_0^6} + s_8 \frac{C_8}{R^8 + R_0^8}]$ | — | `phatpsy/dispersion.py` | Grimme D3 with Becke-Johnson rational damping |
+| **Analytical Dispersion Gradient** | $\mathbf{g}_{\text{disp}} = -\nabla E_{\text{disp}}$ | — | `phatpsy/dispersion.py` | Analytical Cartesian dispersion force vector |
+| **DZP Polarized STOs** | $2p$ on $\text{H}$, $3d$ on $\text{Li}$--$\text{Ar}$, $4f$ on metals | — | `phatpsy/data/polarized_sto.json`, `phatpsy/basis.py` | Polarization basis functions for directional bonding |
+| **Slater Spherical Normalization** | $N_n(\zeta) = (2\zeta)^{n+1/2}/\sqrt{(2n)!}$ | `src/genfac.f`, `src/gennrm.f` | `src/modelpot.f90`, `phatpsy/basis.py` | Normalization of high-$l$ spherical harmonics |
+
+---
+
+## 9. EOM Polarizability & Spectroscopic Properties (Phase 6)
+
+| Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Invariant Permanent Dipole** | $\boldsymbol{\mu} = \sum Z_A (\mathbf{R}_A - \mathbf{R}_0) - \int (\mathbf{r}-\mathbf{R}_0)\rho d^3r$ | `src/prop.f` | `phatpsy/eom.py` | Center-of-charge referenced permanent dipole |
+| **Traceless Quadrupole Tensor** | $\mathbf{\Theta} = \frac{1}{2}(3\mathbf{Q} - \operatorname{Tr}(\mathbf{Q})\mathbf{I})$ | — | `phatpsy/eom.py` | Real-space 3D grid second-moment tensor |
+| **SOS Dynamic Polarizability** | $\boldsymbol{\alpha}(\omega) = 2 \sum \frac{\Delta \varepsilon}{\Delta \varepsilon^2 - \omega^2} \boldsymbol{\mu}_{ia} \otimes \boldsymbol{\mu}_{ia}$ | — | `phatpsy/eom.py` | Frequency-dependent optical response tensor |
+| **Oscillator Strengths** | $f_{ia} = \frac{2}{3} \Delta \varepsilon_{ia} \|\boldsymbol{\mu}_{ia}\|^2$ | — | `phatpsy/eom.py` | Transition dipoles and UV-Vis absorption intensities |
+| **Magnetic Susceptibility** | $\boldsymbol{\chi} = \boldsymbol{\chi}_{\text{dia}} + \boldsymbol{\chi}_{\text{para}}$ | — | `phatpsy/eom.py` | Van Vleck paramagnetic & diamagnetic tensors |
+
+---
+
+## 10. Analytical Gradients, Vibrations & BOMD (Phase 7)
+
+| Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Analytical Nuclear Gradient** | $\mathbf{g}_A = -\mathbf{F}_A = \mathbf{g}_A^{\text{elec}} + \mathbf{g}_A^{\text{nuc}} + \mathbf{g}_A^{\text{disp}}$ | — | `phatpsy/driver.py` (`gradient`) | Conservative Cartesian forces ($\sum \mathbf{F} = \mathbf{0}$) |
+| **Cartesian Hessian Matrix** | $H_{ij} = \partial^2 E / \partial x_i \partial x_j$ | — | `phatpsy/vibrations.py` | Central finite-difference energy curvature |
+| **Eckart-Sayvetz Projector** | $\mathbf{P} = \mathbf{I} - \mathbf{D}(\mathbf{D}^T \mathbf{D})^{-1}\mathbf{D}^T$ | — | `phatpsy/vibrations.py` | Projects out 6 rigid translations and rotations |
+| **Harmonic Vibrational Frequencies** | $\tilde{\nu} = \sqrt{\lambda} / (2\pi c)$ | — | `phatpsy/vibrations.py` | Mass-weighted normal modes and frequencies ($\text{cm}^{-1}$) |
+| **Statistical Thermochemistry** | $H(T), S(T), G(T), E_{\text{ZPVE}}$ | — | `phatpsy/vibrations.py` | RRHO enthalpy, entropy, and Gibbs free energy |
+| **Velocity Verlet BOMD** | $\mathbf{R}(t+\Delta t) = \mathbf{R} + \mathbf{v}\Delta t + \frac{1}{2}\mathbf{a}\Delta t^2$ | — | `phatpsy/md.py` | Microcanonical NVE dynamics with energy conservation |
+| **Canonical Thermostats** | Berendsen ($\tau$), Andersen ($\nu_{\text{coll}}$) | — | `phatpsy/md.py` | NVT constant-temperature molecular dynamics |
+
+---
+
+## 11. Reaction Pathways, Saddle Points & IRC (Phase 8)
+
+| Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Henkelman-Jónsson Tangents** | $\hat{\boldsymbol{\tau}}_i(V_{i+1}, V_i, V_{i-1})$ | — | `phatpsy/neb.py` | Energy-ordered tangents to prevent path kinking |
+| **Climbing-Image NEB** | $\mathbf{F}_{i_{\max}} = \mathbf{F}^{\text{true}} - 2(\mathbf{F}^{\text{true}}\cdot\hat{\boldsymbol{\tau}})\hat{\boldsymbol{\tau}}$ | — | `phatpsy/neb.py` | Rigorous saddle point location without spring force |
+| **QuickMin Optimizer** | $\mathbf{v} \to (\mathbf{v}\cdot\hat{\mathbf{F}})\hat{\mathbf{F}}$ | — | `phatpsy/neb.py`, `phatpsy/dimer.py` | Projected velocity damping path optimizer |
+| **Dimer Method Saddle Refinement** | $\mathbf{F}^\dagger = -\mathbf{F} + 2(\mathbf{F}\cdot\hat{\mathbf{N}})\hat{\mathbf{N}}$ | — | `phatpsy/dimer.py` | Gradient-only saddle search along lowest eigenmode |
+| **Intrinsic Reaction Coordinate** | $d\mathbf{x}/ds = -\mathbf{g}_x / \|\mathbf{g}_x\|$ | — | `phatpsy/irc.py` | Mass-weighted steepest descent from transition state |
+| **Activation Barriers** | $\Delta E_f^\ddagger, \Delta E_r^\ddagger, \Delta E_{\text{rxn}}$ | — | `phatpsy/neb.py`, `phatpsy/irc.py` | Forward/reverse barriers and reaction thermodynamics |

@@ -147,18 +147,167 @@ In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on tran
    - Solved as a gas-phase diatomic to establish the isolated electronic structure, bond length ($R_e$), harmonic vibrational frequency ($\omega_e$), dipole moment ($\mu$), and reference energy ($E_{\text{molecule}}$).
 2. **Embedded Bulk Metal Atom ($Ni_{\text{bulk}}$):**
    - Modeled via a high-coordination cluster (12-coordinated FCC $Ni_{13}$) or periodic supercell with theoretical $\text{PKSCAL}=1.0$.
-   - Yields the bulk reference cohesive energy per atom ($-1502.5650\text{ Ha/atom}$) and the self-consistent electronic state of an embedded bulk atom (`Ni_bulk_fixed`).
-3. **Clean Embedded Surface Slab ($Ni(100)$):**
-   - Modeled via a 3-layer embedded slab (`examples/ni_100_slab.yaml`) to capture surface relaxation:
-     - **Layer 1 (Surface):** `Ni_surf` active centers ($Z=8$ coordination) undergoing coordination reduction and electronic relaxation.
-     - **Layer 2 (Subsurface):** `Ni_sub` active centers mediating screening between the vacuum surface and the interior bulk.
-     - **Layer 3 (Bulk):** `Ni_bulk_fixed` boundary atoms fixed at the bulk electronic state.
-   - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` and `Ni_sub`.
-4. **Chemisorbed Complex ($CO/Ni(100)$ or $NO/Ni(100)$):**
-   - The adsorbate and the immediate chemisorption site are placed atop the substrate.
-   - **Boundary Invariant:** All surrounding "boundary" atoms are held strictly **fixed (`fixed: true`) at their respective representations**:
-     - Bulk boundary atoms fixed at their bulk state (`Ni_bulk_fixed`)
-     - Subsurface boundary atoms fixed at their second-layer state (`Ni_sub`)
-     - Surface boundary atoms fixed at their surface-layer state (`Ni_surf`)
-   - This prevents unphysical edge charge-sloshing or artificial cluster boundary distortion, ensuring that the local chemisorption bond experiences the correct electrostatic and Pauli embedding of a semi-infinite crystal substrate.
+150:    - Yields the bulk reference cohesive energy per atom ($-1502.5650\text{ Ha/atom}$) and the self-consistent electronic state of an embedded bulk atom (`Ni_bulk_fixed`).
+151: 3. **Clean Embedded Surface Slab ($Ni(100)$):**
+152:    - Modeled via a 3-layer embedded slab (`examples/ni_100_slab.yaml`) to capture surface relaxation:
+153:      - **Layer 1 (Surface):** `Ni_surf` active centers ($Z=8$ coordination) undergoing coordination reduction and electronic relaxation.
+154:      - **Layer 2 (Subsurface):** `Ni_sub` active centers mediating screening between the vacuum surface and the interior bulk.
+155:      - **Layer 3 (Bulk):** `Ni_bulk_fixed` boundary atoms fixed at the bulk electronic state.
+156:    - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` and `Ni_sub`.
+157: 4. **Chemisorbed Complex ($CO/Ni(100)$ or $NO/Ni(100)$):**
+158:    - The adsorbate and the immediate chemisorption site are placed atop the substrate.
+159:    - **Boundary Invariant:** All surrounding "boundary" atoms are held strictly **fixed (`fixed: true`) at their respective representations**:
+160:      - Bulk boundary atoms fixed at their bulk state (`Ni_bulk_fixed`)
+161:      - Subsurface boundary atoms fixed at their second-layer state (`Ni_sub`)
+162:      - Surface boundary atoms fixed at their surface-layer state (`Ni_surf`)
+163:    - This prevents unphysical edge charge-sloshing or artificial cluster boundary distortion, ensuring that the local chemisorption bond experiences the correct electrostatic and Pauli embedding of a semi-infinite crystal substrate.
+164: 
+165: ---
+166: 
+167: ## 9. Semi-Classical Dispersion Corrections: DFT-D3(BJ) (Phase 6)
+168: 
+169: While the projected Hamiltonian accurately captures valence electron pairing, Pauli exclusion via $V_{\text{PK}}$, and local electrostatic interactions, long-range London dispersion forces arise from non-local dynamic electron correlations that fall outside single-determinant self-consistent field frameworks.
+170: 
+171: In **PHATPSY 2.0**, long-range dispersion is incorporated via Grimme's **DFT-D3(BJ)** methodology with Becke-Johnson rational damping ([`phatpsy/dispersion.py`](../../phatpsy/dispersion.py)):
+172: $$E_{\text{disp}} = -\frac{1}{2} \sum_{A \neq B} \left[ s_6 \frac{C_6^{AB}}{R_{AB}^6 + [R_0^{AB}(a_1, a_2)]^6} + s_8 \frac{C_8^{AB}}{R_{AB}^8 + [R_0^{AB}(a_1, a_2)]^8} \right]$$
+173: where the Becke-Johnson rational cutoff radius is:
+174: $$R_0^{AB}(a_1, a_2) = a_1 \sqrt{\frac{C_8^{AB}}{C_6^{AB}}} + a_2 = a_1 \sqrt{3 R_{0,A} R_{0,B}} + a_2$$
+175: The dispersion coefficients satisfy the Casimir-Polder combination rule $C_6^{AB} = \sqrt{C_6^A C_6^B}$ and $C_8^{AB} = 3 C_6^{AB} (R_{0,A} R_{0,B})$.
+176: 
+177: ### Analytical Nuclear Dispersion Gradients:
+178: To enable gradient-driven geometry optimizations, transition state searches, and molecular dynamics with dispersion, analytical Cartesian gradients $\mathbf{g}_{\text{disp}} = -\nabla E_{\text{disp}}$ are evaluated in closed form:
+179: $$\frac{\partial E_{\text{disp}}}{\partial \mathbf{R}_A} = \sum_{B \neq A} \left[ \frac{6 s_6 C_6^{AB} R_{AB}^4}{(R_{AB}^6 + [R_0^{AB}]^6)^2} + \frac{8 s_8 C_8^{AB} R_{AB}^6}{(R_{AB}^8 + [R_0^{AB}]^8)^2} \right] (\mathbf{R}_A - \mathbf{R}_B)$$
+180: This provides strictly conservative dispersion forces that satisfy exact translational and rotational invariance.
+181: 
+182: ---
+183: 
+184: ## 10. Polarized Slater-Type Orbital (DZP) Basis Sets (Phase 6)
+185: 
+186: To accurately describe molecular polarization, quadrupole moments, chemical bond anisotropy, and directional back-bonding (e.g. $d_\pi$--$\pi^*$ interactions in metal carbonyls), PHATPSY 2.0 expands beyond minimal and double-zeta representations by introducing **Double-Zeta plus Polarization (DZP)** basis sets ([`phatpsy/data/polarized_sto.json`](../../phatpsy/data/polarized_sto.json)):
+187: - **Hydrogen ($Z=1$):** Augmented with a $2p$ polarization shell ($l=1$, $m=0, \pm 1$; $\zeta_{2p} = 1.000\ \text{a.u.}^{-1}$).
+188: - **First-Row Elements ($\text{Li}$--$\text{Ne}$):** Augmented with a full $3d$ polarization shell ($l=2$, $m=0, \pm 1, \pm 2$; 5 real components).
+189: - **Second-Row Elements ($\text{Na}$--$\text{Ar}$):** Augmented with a $3d$ polarization shell.
+190: - **Transition Metals ($\text{Sc}$--$\text{Cu}$):** Augmented with $4f$ polarization functions ($l=3$; 7 real components).
+191: 
+192: ### High Angular Momentum Slater Normalization:
+193: Real Slater-Type Orbitals are evaluated on 3D coordinate grids with exact analytical normalization:
+194: $$\chi_{nlm}(\mathbf{r}) = N_n(\zeta) r^{n-1} e^{-\zeta r} S_{lm}(\theta, \phi)$$
+195: $$N_n(\zeta) = \frac{(2\zeta)^{n + 1/2}}{\sqrt{(2n)!}}$$
+196: where $S_{lm}$ are real spherical harmonics with exact orthonormalization $\int S_{lm} S_{l'm'} d\Omega = \delta_{ll'} \delta_{mm'}$.
+197: 
+198: ---
+199: 
+200: ## 11. Equation-of-Motion (EOM) Polarizability & Spectroscopic Properties (Phase 6)
+201: 
+202: Phase 6 introduces the Equation-of-Motion (EOM) and response property engine in [`phatpsy/eom.py`](../../phatpsy/eom.py):
+203: 
+204: ### A. Origin-Invariant Dipole & Traceless Quadrupole Tensors
+205: To eliminate origin-dependence in charged or asymmetric polyatomics, moments are referenced to the center of nuclear charge $\mathbf{R}_0 = \sum_A Z_A \mathbf{R}_A / \sum_A Z_A$:
+206: $$\boldsymbol{\mu} = \sum_A Z_A (\mathbf{R}_A - \mathbf{R}_0) - \int (\mathbf{r} - \mathbf{R}_0) \rho(\mathbf{r}) d^3r$$
+207: $$\mathbf{\Theta}_{\alpha\beta} = \frac{1}{2} \left[ 3 Q_{\alpha\beta} - \operatorname{Tr}(\mathbf{Q}) \delta_{\alpha\beta} \right]$$
+208: where the primitive second-moment tensor $\mathbf{Q} = \mathbf{Q}_{\text{nuc}} - \mathbf{Q}_{\text{elec}}$ is:
+209: $$Q_{\alpha\beta} = \sum_A Z_A (R_{A,\alpha} - R_{0,\alpha})(R_{A,\beta} - R_{0,\beta}) - \int (r_\alpha - R_{0,\alpha})(r_\beta - R_{0,\beta}) \rho(\mathbf{r}) d^3r$$
+210: The resulting quadrupole tensor is strictly symmetric and traceless ($\operatorname{Tr}(\mathbf{\Theta}) = 0$).
+211: 
+212: ### B. Sum-Over-States (SOS) Static & Dynamic Polarizability
+213: Using the occupied-to-virtual excitation manifold $\{\psi_i \to \psi_a\}$ with excitation energies $\Delta \varepsilon_{ia} = \varepsilon_a - \varepsilon_i$:
+214: $$\boldsymbol{\alpha}(0) = 2 \sum_{i \in \text{occ}} \sum_{a \in \text{vir}} \frac{\boldsymbol{\mu}_{ia} \otimes \boldsymbol{\mu}_{ia}}{\Delta \varepsilon_{ia}}$$
+215: $$\boldsymbol{\alpha}(\omega) = 2 \sum_{i \in \text{occ}} \sum_{a \in \text{vir}} \frac{\Delta \varepsilon_{ia}}{\Delta \varepsilon_{ia}^2 - \omega^2} \boldsymbol{\mu}_{ia} \otimes \boldsymbol{\mu}_{ia}$$
+216: where $\boldsymbol{\mu}_{ia} = \langle \psi_i | \mathbf{r} | \psi_a \rangle$ are transition dipole vectors and $f_{ia} = \frac{2}{3} \Delta \varepsilon_{ia} \|\boldsymbol{\mu}_{ia}\|^2$ are optical oscillator strengths.
+217: 
+218: ### C. Magnetic Susceptibility Tensors
+219: Molecular diamagnetic and paramagnetic susceptibilities are computed via second moments and angular momentum operators $\hat{\mathbf{L}} = -i (\mathbf{r} \times \nabla)$:
+220: $$\boldsymbol{\chi}_{\text{dia}} = -\frac{e^2}{4 m_e c^2} \langle \mathbf{r}^2 \mathbf{I} - \mathbf{r} \otimes \mathbf{r} \rangle$$
+221: $$\boldsymbol{\chi}_{\text{para}} = \frac{e^2}{2 m_e^2 c^2} \sum_{i \in \text{occ}} \sum_{a \in \text{vir}} \frac{\langle \psi_i | \hat{\mathbf{L}} | \psi_a \rangle \otimes \langle \psi_a | \hat{\mathbf{L}} | \psi_i \rangle}{\Delta \varepsilon_{ia}}$$
+222: 
+223: ---
+224: 
+225: ## 12. Analytical Cartesian Gradients & Physical Invariants (Phase 7)
+226: 
+227: Geometry optimization, path finding, and molecular dynamics require Cartesian nuclear forces $\mathbf{F}_A = -\nabla_A E$. In [`phatpsy/driver.py`](../../phatpsy/driver.py):
+228: $$\mathbf{g}_A = -\mathbf{F}_A = \mathbf{g}_A^{\text{elec}} + \mathbf{g}_A^{\text{nuc}} + \mathbf{g}_A^{\text{disp}}$$
+229: 
+230: To preserve physical boundary conditions on unconstrained finite molecules:
+231: 1. **Translational Invariance:** Total nuclear force vanishes identically:
+232:    $$\sum_{A=1}^{N_{\text{atom}}} \mathbf{F}_A = \mathbf{0}$$
+233: 2. **Rotational Invariance:** Total external torque vanishes identically:
+234:    $$\sum_{A=1}^{N_{\text{atom}}} \mathbf{R}_A \times \mathbf{F}_A = \mathbf{0}$$
+235: 
+236: ---
+237: 
+238: ## 13. Harmonic Vibrational Frequencies & Statistical Thermochemistry (Phase 7)
+239: 
+240: Second derivatives of the electronic energy define the Cartesian Hessian matrix ([`phatpsy/vibrations.py`](../../phatpsy/vibrations.py)):
+241: $$H_{Ai, Bj} = \frac{\partial^2 E}{\partial R_{Ai} \partial R_{Bj}} \approx \frac{g_{Ai}(R_{Bj} + h) - g_{Ai}(R_{Bj} - h)}{2h}$$
+242: 
+243: ### Eckart-Sayvetz Translation/Rotation Projection:
+244: To remove the 6 spurious zero-frequency degrees of freedom (5 for linear molecules) corresponding to rigid-body translation and rotation, the mass-weighted Hessian $\mathbf{H}_M = \mathbf{M}^{-1/2} \mathbf{H} \mathbf{M}^{-1/2}$ is projected using the Eckart projector $\mathbf{P}$:
+245: $$\mathbf{P} = \mathbf{I} - \mathbf{D} (\mathbf{D}^T \mathbf{D})^{-1} \mathbf{D}^T$$
+246: $$\mathbf{H}_M^{\text{proj}} = \mathbf{P} \mathbf{H}_M \mathbf{P}$$
+247: Diagonalization yields eigenvalues $\lambda_k = \omega_k^2$, converted to harmonic vibrational wavenumbers:
+248: $$\tilde{\nu}_k = \frac{\sqrt{\lambda_k}}{2 \pi c} \quad [\text{cm}^{-1}]$$
+249: 
+250: ### Statistical Thermochemistry (Ideal Gas / Rigid Rotor / Harmonic Oscillator):
+251: From the normal mode spectrum $\{\nu_k\}$ and moments of inertia:
+252: - **Zero-Point Vibrational Energy (ZPVE):**
+253:   $$E_{\text{ZPVE}} = \frac{1}{2} \sum_k h \nu_k$$
+254: - **Thermal Enthalpy & Gibbs Free Energy:**
+255:   $$H(T) = E_{\text{electronic}} + E_{\text{ZPVE}} + E_{\text{trans}}(T) + E_{\text{rot}}(T) + E_{\text{vib}}(T) + k_B T$$
+256:   $$G(T) = H(T) - T [S_{\text{trans}}(T) + S_{\text{rot}}(T) + S_{\text{vib}}(T) + S_{\text{elec}}(T)]$$
+257: 
+258: ---
+259: 
+260: ## 14. Born-Oppenheimer Molecular Dynamics (BOMD) (Phase 7)
+261: 
+262: Time-dependent nuclear dynamics on the Born-Oppenheimer ground-state potential energy surface are integrated via the **Velocity Verlet algorithm** ([`phatpsy/md.py`](../../phatpsy/md.py)):
+263: $$\mathbf{R}(t + \Delta t) = \mathbf{R}(t) + \mathbf{v}(t) \Delta t + \frac{1}{2} \mathbf{a}(t) \Delta t^2$$
+264: $$\mathbf{v}(t + \Delta t) = \mathbf{v}(t) + \frac{1}{2} [\mathbf{a}(t) + \mathbf{a}(t + \Delta t)] \Delta t$$
+265: where $\mathbf{a}_A = -\mathbf{g}_A / M_A$.
+266: 
+267: ### Ensembles & Thermostats:
+268: - **NVE Microcanonical:** Total energy $E_{\text{tot}} = E_{\text{pot}} + E_{\text{kin}}$ is strictly conserved ($|\Delta E| / E_0 < 10^{-4}$ over picosecond trajectories).
+269: - **Berendsen Weak-Coupling Thermostat:** Velocity scaling with relaxation time $\tau$:
+270:   $$\lambda = \sqrt{1 + \frac{\Delta t}{\tau} \left( \frac{T_0}{T(t)} - 1 \right)}$$
+271: - **Andersen Stochastic Collision Thermostat:** Random thermal collisions with frequency $\nu_{\text{coll}}$ resample velocities from the Maxwell-Boltzmann distribution:
+272:   $$P(v_{Ai}) = \sqrt{\frac{M_A}{2\pi k_B T_0}} \exp\left( -\frac{M_A v_{Ai}^2}{2 k_B T_0} \right)$$
+273: - **Fixed Substrate Atom Constraints:** Atoms flagged with `fixed: true` maintain $\mathbf{v}_A = \mathbf{0}$ and $\mathbf{a}_A = \mathbf{0}$, ideal for simulating gas-surface collisions on slab substrates.
+274: 
+275: ---
+276: 
+277: ## 15. Minimum Energy Reaction Pathways: CI-NEB, Dimer Method & IRC (Phase 8)
+278: 
+279: Phase 8 provides a unified suite for mapping chemical reaction mechanisms, finding first-order saddle points, and tracing reaction coordinates:
+280: 
+281: ### A. Climbing-Image Nudged Elastic Band (CI-NEB)
+282: The CI-NEB method ([`phatpsy/neb.py`](../../phatpsy/neb.py)) discretizes the transition path between a reactant and product into an elastic band of $N$ images $\{\mathbf{R}_0, \mathbf{R}_1, \dots, \mathbf{R}_{N-1}\}$.
+283: 1. **Henkelman-Jónsson Improved Tangents:** Tangents $\hat{\boldsymbol{\tau}}_i$ are evaluated using the energy ordering of neighboring images to prevent artificial kinking and corner-cutting:
+284:    $$\boldsymbol{\tau}_i = \begin{cases} 
+285:    \boldsymbol{\tau}_i^+ & \text{if } V_{i+1} > V_i > V_{i-1} \\
+286:    \boldsymbol{\tau}_i^- & \text{if } V_{i+1} < V_i < V_{i-1} \\
+287:    \Delta V_{\max} \boldsymbol{\tau}_i^+ + \Delta V_{\min} \boldsymbol{\tau}_i^- & \text{otherwise}
+288:    \end{cases}$$
+289: 2. **Force Decomposition:** True potential forces and spring forces are decoupled:
+290:    $$\mathbf{F}_i = (\mathbf{F}_i^{\text{spring}} \cdot \hat{\boldsymbol{\tau}}_i) \hat{\boldsymbol{\tau}}_i + [\mathbf{F}_i^{\text{true}} - (\mathbf{F}_i^{\text{true}} \cdot \hat{\boldsymbol{\tau}}_i) \hat{\boldsymbol{\tau}}_i]$$
+291: 3. **Climbing-Image Saddle Point Location:** The highest-energy image inverts the parallel component of the true gradient:
+292:    $$\mathbf{F}_{i_{\max}} = \mathbf{F}_{i_{\max}}^{\text{true}} - 2 (\mathbf{F}_{i_{\max}}^{\text{true}} \cdot \hat{\boldsymbol{\tau}}_{i_{\max}}) \hat{\boldsymbol{\tau}}_{i_{\max}}$$
+293:    driving the climbing image precisely to the saddle point without extra spring forces.
+294: 4. **QuickMin Optimizer:** Accelerates convergence by projecting velocities along the force vector $\mathbf{v} \to (\mathbf{v} \cdot \hat{\mathbf{F}}) \hat{\mathbf{F}}$ and resetting $\mathbf{v} = \mathbf{0}$ whenever $\mathbf{v} \cdot \mathbf{F} < 0$.
+295: 
+296: ### B. Dimer Method for Saddle Point Refinement
+297: The Heyden/Bell/Henkelman Dimer method ([`phatpsy/dimer.py`](../../phatpsy/dimer.py)) refines saddle points using only first derivatives (gradients), bypassing full Hessian evaluations:
+298: 1. Two images separated by $2\Delta R$ define a dimer with orientation vector $\hat{\mathbf{N}}$:
+299:    $$\mathbf{R}_1 = \mathbf{R}_0 + \Delta R \hat{\mathbf{N}}, \quad \mathbf{R}_2 = \mathbf{R}_0 - \Delta R \hat{\mathbf{N}}$$
+300: 2. **Rotational Search:** The dimer rotates to align $\hat{\mathbf{N}}$ with the lowest curvature eigenmode:
+301:    $$C = \frac{(\mathbf{F}_1 - \mathbf{F}_2) \cdot \hat{\mathbf{N}}}{2 \Delta R}$$
+302: 3. **Translational Step:** The midpoint moves under an effective inverted force:
+303:    $$\mathbf{F}^\dagger = \begin{cases}
+304:    -\mathbf{F}_0 + 2(\mathbf{F}_0 \cdot \hat{\mathbf{N}}) \hat{\mathbf{N}} & \text{if } C < 0 \\
+305:    -(\mathbf{F}_0 \cdot \hat{\mathbf{N}}) \hat{\mathbf{N}} & \text{if } C > 0
+306:    \end{cases}$$
+307:    translating uphill along the lowest mode and downhill in all other degrees of freedom.
+308: 
+309: ### C. Intrinsic Reaction Coordinate (IRC)
+310: The IRC path ([`phatpsy/irc.py`](../../phatpsy/irc.py)) defines the steepest-descent path in mass-weighted coordinates from a transition state to reactants and products:
+311: $$\frac{d\mathbf{x}}{ds} = -\frac{\mathbf{g}_x}{\|\mathbf{g}_x\|}, \quad \mathbf{x}_A = \sqrt{M_A} \mathbf{R}_A$$
+312: Initiated along the forward and backward directions of the imaginary transition normal mode $\hat{\mathbf{Q}}_{\text{imag}}$, verifying that the transition state rigorously connects the postulated reactant and product minima.
 
