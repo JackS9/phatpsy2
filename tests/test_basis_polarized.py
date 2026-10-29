@@ -28,13 +28,13 @@ class TestPolarizedBasisDefinition:
     """Unit tests for polarized basis set library construction."""
 
     def test_polarization_parameters_presence(self):
-        """Ensure standard elements have defined polarization exponents."""
+        """Ensure standard elements have defined polarization exponents from ADF ZORA standard."""
         for sym in ["H", "C", "N", "O", "F"]:
             assert sym in POLARIZATION_PARAMETERS
-        assert POLARIZATION_PARAMETERS["H"] == (2, 1, 1.00)
-        assert POLARIZATION_PARAMETERS["C"] == (3, 2, 1.25)
-        assert POLARIZATION_PARAMETERS["N"] == (3, 2, 1.50)
-        assert POLARIZATION_PARAMETERS["O"] == (3, 2, 1.75)
+        assert POLARIZATION_PARAMETERS["H"] == (2, 1, 1.25)
+        assert POLARIZATION_PARAMETERS["C"] == (3, 2, 2.20)
+        assert POLARIZATION_PARAMETERS["N"] == (3, 2, 2.20)
+        assert POLARIZATION_PARAMETERS["O"] == (3, 2, 2.00)
 
     def test_hydrogen_dzp(self):
         """Verify H DZP basis has 1s + 2p functions and unoccupied 2p virtual orbitals."""
@@ -45,7 +45,7 @@ class TestPolarizedBasisDefinition:
         assert len(h_dzp.functions) == 2  # 1s and 2p
         assert h_dzp.functions[-1].n == 2
         assert h_dzp.functions[-1].l == 1
-        assert h_dzp.functions[-1].zeta == 1.00
+        assert h_dzp.functions[-1].zeta == 1.25
 
         # MSTO = 1 (1s) + 3 (2p) = 4
         assert h_dzp.msto == 4
@@ -69,7 +69,7 @@ class TestPolarizedBasisDefinition:
         d_func = o_dzp.functions[-1]
         assert d_func.n == 3
         assert d_func.l == 2
-        assert d_func.zeta == 1.75
+        assert d_func.zeta == 2.00
 
         # Degeneracy: 5 components for d (m = -2..2)
         assert o_dzp.msto == o_dz.msto + 5

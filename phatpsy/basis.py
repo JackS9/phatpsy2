@@ -257,29 +257,31 @@ def _generate_degenerate_orbitals(l: int, eigval: float, n_electrons: float,
 # ---------------------------------------------------------------------------
 # Polarized STO Parameters (DZP / SZP)
 # ---------------------------------------------------------------------------
-# Standard Roetti-Clementi / Thakkar polarized exponents:
+# ADF standard polarization exponents (ZORA-contracted):
+# van Lenthe & Baerends, J. Comput. Chem. 24, 1142 (2003);
+# Gasević, Stückrath, Grimme, Bursch, J. Phys. Chem. A 126, 3826 (2022).
 # - 2p on H and He
 # - 3d on Li through Ar
 POLARIZATION_PARAMETERS: Dict[str, Tuple[int, int, float]] = {
-    # Symbol: (n, l, zeta)
-    "H":  (2, 1, 1.00),
-    "He": (2, 1, 1.50),
-    "Li": (3, 2, 0.40),
-    "Be": (3, 2, 0.70),
-    "B":  (3, 2, 1.00),
-    "C":  (3, 2, 1.25),
-    "N":  (3, 2, 1.50),
-    "O":  (3, 2, 1.75),
+    # Symbol: (n, l, zeta in bohr^-1)
+    "H":  (2, 1, 1.25),
+    "He": (2, 1, 1.00),
+    "Li": (3, 2, 1.20),
+    "Be": (3, 2, 1.90),
+    "B":  (3, 2, 2.00),
+    "C":  (3, 2, 2.20),
+    "N":  (3, 2, 2.20),
+    "O":  (3, 2, 2.00),
     "F":  (3, 2, 2.00),
-    "Ne": (3, 2, 2.25),
-    "Na": (3, 2, 0.50),
-    "Mg": (3, 2, 0.70),
-    "Al": (3, 2, 0.90),
-    "Si": (3, 2, 1.10),
-    "P":  (3, 2, 1.30),
-    "S":  (3, 2, 1.50),
-    "Cl": (3, 2, 1.70),
-    "Ar": (3, 2, 1.90),
+    "Ne": (3, 2, 2.00),
+    "Na": (3, 2, 1.20),
+    "Mg": (3, 2, 1.50),
+    "Al": (3, 2, 1.60),
+    "Si": (3, 2, 1.75),
+    "P":  (3, 2, 1.90),
+    "S":  (3, 2, 2.10),
+    "Cl": (3, 2, 2.00),
+    "Ar": (3, 2, 2.20),
 }
 
 

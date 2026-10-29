@@ -38,3 +38,7 @@ src/* copy.f90
 
 # Graphify tool outputs
 graphify-out/
+
+# Raw basis downloads
+zorabasis/
+
