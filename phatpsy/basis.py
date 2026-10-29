@@ -234,6 +234,24 @@ def _load_thakkar_raw_data() -> Dict[str, Dict[str, Any]]:
     return _THAKKAR_CACHE
 
 
+# ---------------------------------------------------------------------------
+# ADF ZORA STO Library (DZ, TZP, TZ2P, QZ4P for Z=1 to 118)
+# ---------------------------------------------------------------------------
+_ADF_DATA_PATH = Path(__file__).parent / "data" / "adf_sto.json"
+_ADF_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _load_adf_raw_data() -> Dict[str, Dict[str, Any]]:
+    global _ADF_CACHE
+    if _ADF_CACHE is None:
+        if not _ADF_DATA_PATH.exists():
+            return {}
+        with open(_ADF_DATA_PATH, "r", encoding="utf-8") as f:
+            _ADF_CACHE = json.load(f)
+    return _ADF_CACHE
+
+
+
 def _generate_degenerate_orbitals(l: int, eigval: float, n_electrons: float,
                                   coefficients: Optional[List[Dict[str, Any]]] = None) -> List[InitialOrbital]:
     """Generates (2l + 1) spatial orbitals distributed via Hund's rule with orbital expansion coefficients."""
@@ -421,6 +439,75 @@ def list_thakkar_elements() -> List[str]:
     return sorted(list(raw_db.keys()), key=lambda s: raw_db[s].get("atomic_number", 0))
 
 
+# ---------------------------------------------------------------------------
+# ADF ZORA STO Library Interface
+# ---------------------------------------------------------------------------
+def get_adf_basis(symbol: str, basis_name: str = "ADF-TZP") -> ElementData:
+    """
+    Retrieves an ADF ZORA STO basis set (DZ, TZP, TZ2P, QZ4P) for an element (Z=1 to 118).
+    van Lenthe & Baerends, J. Comput. Chem. 24, 1142-1156 (2003);
+    Gasević, Stückrath, Grimme, Bursch, J. Phys. Chem. A 126, 3826-3838 (2022).
+    """
+    sym = symbol.strip().capitalize()
+    raw_adf = _load_adf_raw_data()
+
+    b_upper = basis_name.strip().upper().replace("_", "-")
+    tier_map = {
+        "ADF-DZ": "DZ", "DZ-ADF": "DZ",
+        "ADF-TZP": "TZP", "TZP": "TZP", "TZP-ADF": "TZP",
+        "ADF-TZ2P": "TZ2P", "TZ2P": "TZ2P", "TZ2P-ADF": "TZ2P",
+        "ADF-QZ4P": "QZ4P", "QZ4P": "QZ4P", "QZ4P-ADF": "QZ4P",
+    }
+    tier = tier_map.get(b_upper)
+    if tier is None:
+        if b_upper in raw_adf:
+            tier = b_upper
+        else:
+            raise ValueError(
+                f"Invalid ADF basis set '{basis_name}'. Choose 'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P', or 'ADF-QZ4P'."
+            )
+
+    tier_data = raw_adf.get(tier, {})
+    if sym not in tier_data:
+        raise KeyError(
+            f"Element '{sym}' not found in ADF {tier} library (available: Z=1..118)."
+        )
+
+    entry = tier_data[sym]
+    funcs = [
+        BasisFunction(n=f["n"], l=f["l"], zeta=f["zeta"])
+        for f in entry.get("functions", entry.get("basis_functions", []))
+    ]
+
+    default_orbs = []
+    for orb in entry.get("orbitals", []):
+        l = orb["l"]
+        eig = orb["eigval"]
+        occ_tot = orb.get("occ_total", 0.0)
+        coefs = orb.get("coefficients", [])
+        default_orbs.extend(_generate_degenerate_orbitals(l, eig, occ_tot, coefficients=coefs))
+
+    canonical_name = f"ADF-{tier}"
+    return ElementData(
+        symbol=sym,
+        atomic_number=entry["atomic_number"],
+        description=entry.get("description", f"ADF ZORA {tier} STO basis for {sym}"),
+        basis_name=canonical_name,
+        functions=funcs,
+        nvterm=5,
+        default_orbitals=default_orbs,
+    )
+
+
+def list_adf_elements(tier: str = "TZP") -> List[str]:
+    """Returns a list of all elements available in the ADF ZORA STO library for a given tier."""
+    raw_adf = _load_adf_raw_data()
+    t = tier.strip().upper().replace("ADF-", "").replace("ADF_", "")
+    tier_data = raw_adf.get(t, {})
+    return sorted(list(tier_data.keys()), key=lambda s: tier_data[s].get("atomic_number", 0))
+
+
+
 def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementData:
     """
     Look up element basis from the built-in library.
@@ -432,6 +519,9 @@ def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementD
 
     if basis_name:
         b_name = basis_name.strip().upper()
+        if b_name.startswith("ADF") or b_name in ("TZP", "TZ2P", "QZ4P", "DZ-ADF", "TZP-ADF", "TZ2P-ADF", "QZ4P-ADF"):
+            return get_adf_basis(sym, b_name)
+
         if b_name in ("THAKKAR", "THAKKAR-RHF", "KOGA", "K99", "K00"):
             return get_thakkar_basis(sym)
 
@@ -453,8 +543,10 @@ def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementD
 
         raise KeyError(
             f"Basis '{b_name}' for element '{sym}' not found. "
-            f"Available basis sets: 'DZ', 'SZ', 'DZP', 'SZP' (Z=2..54), 'THAKKAR' (Z=1..103)"
+            f"Available basis sets: 'DZ', 'SZ', 'DZP', 'SZP' (Z=2..54), 'THAKKAR' (Z=1..103), "
+            f"'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P', 'ADF-QZ4P' (Z=1..118)"
         )
+
 
     # Return default:
     if sym in STANDARD_BASIS_LIBRARY:
@@ -483,10 +575,20 @@ def list_available_elements() -> Dict[str, List[str]]:
     """Returns mapping of available element symbols to available basis names."""
     res = {}
     raw_thakkar = _load_thakkar_raw_data()
+    raw_adf = _load_adf_raw_data()
     clem_db = _load_clementi_raw_data()
 
-    # Include all 103 periodic table elements from Thakkar
-    for sym in list_thakkar_elements():
+    # Gather all known element symbols from ADF (1..118) and Thakkar (1..103)
+    all_syms: List[str] = []
+    for tier in ("DZ", "TZP", "TZ2P", "QZ4P"):
+        for s in raw_adf.get(tier, {}):
+            if s not in all_syms:
+                all_syms.append(s)
+    for s in list_thakkar_elements():
+        if s not in all_syms:
+            all_syms.append(s)
+
+    for sym in all_syms:
         bases = []
         if sym in STANDARD_BASIS_LIBRARY:
             bases.extend(list(STANDARD_BASIS_LIBRARY[sym].keys()))
@@ -499,13 +601,20 @@ def list_available_elements() -> Dict[str, List[str]]:
                 bases.append("DZP")
             if ("SZ" in bases or sym == "H") and "SZP" not in bases:
                 bases.append("SZP")
-        bases.append("THAKKAR")
+        if sym in raw_thakkar:
+            bases.append("THAKKAR")
+        for tier in ("DZ", "TZP", "TZ2P", "QZ4P"):
+            if tier in raw_adf and sym in raw_adf[tier]:
+                adf_name = f"ADF-{tier}"
+                if adf_name not in bases:
+                    bases.append(adf_name)
         res[sym] = bases
 
-    # Include any custom standard entries not in Thakkar
+    # Include any custom standard entries not yet in res
     for sym, bases in STANDARD_BASIS_LIBRARY.items():
         if sym not in res:
             res[sym] = list(bases.keys())
 
     return res
+
 

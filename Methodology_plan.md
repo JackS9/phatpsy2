@@ -242,18 +242,18 @@ This overpolarization originated from two coupled factors:
 
 To elevate PHATPSY's basis set offerings from heuristic extensions to first-class literature standards, a multi-phase basis expansion program ingests the open-access ZORA Slater-Type Orbital (STO) sets (van Lenthe & Baerends, *J. Comput. Chem.* **24**, 1142 (2003)):
 
-1. **Phase 7.1: Literature Polarization Exponents (H–Ar) [IN PROGRESS]:**
-   - Replace placeholder arithmetic progressions in `POLARIZATION_PARAMETERS` with published ADF standard exponents extracted from `zorabasis/TZP` vs `zorabasis/DZ` (e.g., $\text{H } 2p = 1.250$, $\text{O } 3d = 2.000$, $\text{C } 3d = 2.200$).
+1. **Phase 7.1: Literature Polarization Exponents (H–Ar) [COMPLETED]:**
+   - Replaced placeholder arithmetic progressions in `POLARIZATION_PARAMETERS` with published ADF standard exponents extracted from `zorabasis/TZP` vs `zorabasis/DZ` (e.g., $\text{H } 2p = 1.250$, $\text{O } 3d = 2.000$, $\text{C } 3d = 2.200$).
    - Aligns water dipole ($1.50\text{ D} \to 1.63\text{ D}$, closing toward experimental $1.855\text{ D}$) and carbon monoxide dipole ($1.19\text{ D} \to 1.08\text{ D}$).
-2. **Phase 7.2: First-Class ADF STO Library (`phatpsy/data/adf_sto.json`):**
-   - Implement automated ingest script `phatpsy/ingest_adf.py` to ingest all-electron basis definitions from `zorabasis/`:
+2. **Phase 7.2: First-Class ADF STO Library (`phatpsy/data/adf_sto.json`) [COMPLETED]:**
+   - Implemented automated ingest script `phatpsy/ingest_adf.py` ingesting all-electron basis definitions from `zorabasis/`:
      - `ADF-DZ`: Double-zeta valence without polarization.
      - `ADF-TZP`: Triple-zeta valence + single polarization function ($p$ on H, $d$ on heavy atoms).
      - `ADF-TZ2P`: Triple-zeta valence + double polarization ($p+d$ on H, $d+f$ on heavy atoms).
      - `ADF-QZ4P`: Quadruple-zeta valence + quadruple polarization.
-   - Implement automatic initial orbital configuration synthesizer mapping radial STOs to $(2l+1)$ components with proper Aufbau/Hund orbital occupations.
-3. **Phase 7.3: Transition Metal & Surface Cluster Coverage (Z=1 to 118):**
-   - Ingest 3d/4d/5d transition metal basis sets (Fe, Co, Ni, Cu, Ag, Pt, Au) with optimized exponents to replace minimal single-zeta approximations in embedded surface clusters ($Ni_{13}$ and $Ni(100)$ slab), directly underpinning Phase 9 ($CO / Ni(100)$ chemisorption).
+   - Built exact analytical STO least-squares atomic orbital projections from Thakkar reference wavefunctions and Löwdin-orthonormalized virtual polarization orbitals.
+3. **Phase 7.3: Transition Metal & Surface Cluster Coverage (Z=1 to 118) [COMPLETED]:**
+   - Comprehensive periodic table coverage from $Z=1$ to $118$ across all 4 tiers, providing high-precision all-electron basis options for transition metals (Fe, Co, Ni, Cu, Ag, Pt, Au) with optimized exponents to replace minimal single-zeta approximations in embedded surface clusters ($Ni_{13}$ and $Ni(100)$ slab), directly underpinning Phase 9 ($CO / Ni(100)$ chemisorption).
 
 ---
 
