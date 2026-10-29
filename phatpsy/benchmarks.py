@@ -277,6 +277,8 @@ def evaluate_dissociation_energies_benchmark(
 
     return {
         "system": "Dissociation_Energies",
+        "N2_De_eV": de_n2_ev,
+        "CO_De_eV": de_co_ev,
         "N2": {
             "r_e_bohr": 2.0744,
             "total_energy_hartree": float(res_n2.total_energy),
@@ -342,6 +344,7 @@ def evaluate_eo_to_aa_benchmark(
         "description": "Unimolecular ring-opening isomerization of ethylene oxide to acetaldehyde",
         "reactant_energy_hartree": float(res_eo.total_energy),
         "barrier_forward_kcal_mol": barrier_kcal_mol,
+        "delta_e_barrier_kcal_mol": barrier_kcal_mol,
         "benchmark_barrier_kcal_mol": 53.0,
         "delta_barrier_kcal_mol": barrier_kcal_mol - 53.0,
         "within_acceptance": 50.0 <= barrier_kcal_mol <= 56.0,
