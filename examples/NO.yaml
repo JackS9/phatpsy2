@@ -1,0 +1,40 @@
+title: 'Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr'
+control:
+  spin_unrestricted: true
+  max_cycles: 100
+  convergence: 0.0001
+  time_limit: 200.0
+  use_constrained_fit: false
+  use_diis: false
+  use_global_fermi: false
+  fermi_temperature: null
+  use_dynamic_exponents: false
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: N1
+  spin: up
+- element: O
+  xyz:
+  - 0.0
+  - 0.0
+  - 2.18
+  id: O1
+  spin: down
+elements:
+  N:
+    symbol: N
+    atomic_number: 7
+    basis: DZ
+  O:
+    symbol: O
+    atomic_number: 8
+    basis: DZ

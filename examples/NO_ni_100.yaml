@@ -1,0 +1,132 @@
+title: 'NO on Ni(100), R(NO)=2.18 Bohr, R(NiN)=3.40 Bohr, C4v Top Site'
+control:
+  spin_unrestricted: true
+  max_cycles: 40
+  convergence: 0.0001
+  time_limit: 200.0
+  use_constrained_fit: false
+  use_diis: false
+  use_global_fermi: false
+  fermi_temperature: null
+  use_dynamic_exponents: false
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: N
+  xyz:
+  - 0.0
+  - 0.0
+  - 3.40
+  id: N1
+  spin: up
+- element: O
+  xyz:
+  - 0.0
+  - 0.0
+  - 5.58
+  id: O1
+  spin: down
+- element: Ni
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: Ni1
+  spin: up
+- element: Ni
+  xyz:
+  - 4.71
+  - 0.0
+  - 0.0
+  id: Ni2
+  spin: down
+- element: Ni
+  xyz:
+  - 0.0
+  - 4.71
+  - 0.0
+  id: Ni3
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: up
+- element: Ni
+  xyz:
+  - -4.71
+  - 0.0
+  - 0.0
+  id: Ni4
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: down
+- element: Ni
+  xyz:
+  - 0.0
+  - -4.71
+  - 0.0
+  id: Ni5
+  equivalent_to: Ni2
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: up
+- element: Ni
+  xyz:
+  - -2.72
+  - -2.72
+  - -2.72
+  id: Ni6
+  fixed: true
+  spin: up
+- element: Ni
+  xyz:
+  - 2.72
+  - -2.72
+  - -2.72
+  id: Ni7
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: down
+- element: Ni
+  xyz:
+  - 2.72
+  - 2.72
+  - -2.72
+  id: Ni8
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: up
+- element: Ni
+  xyz:
+  - -2.72
+  - 2.72
+  - -2.72
+  id: Ni9
+  equivalent_to: Ni6
+  symmetry_op: 4
+  symmetry_axis: 1
+  fixed: true
+  spin: down
+elements:
+  N:
+    symbol: N
+    atomic_number: 7
+    basis: DZ
+  O:
+    symbol: O
+    atomic_number: 8
+    basis: DZ
+  Ni:
+    symbol: Ni
+    atomic_number: 28
+    basis: DZ

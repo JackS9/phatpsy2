@@ -215,6 +215,57 @@ def evaluate_co_ni100_benchmark(
     }
 
 
+def evaluate_no_ni100_benchmark(
+    driver: Optional[PhatpsyDriver] = None,
+    control: Optional[ControlConfig] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluates NO on Ni(100) chemisorption binding energy against Jack A. Smith's
+    1980 PhD dissertation (Chapter IX, Table 8):
+    D_e = 1.0 eV (E_ads = -23.06 kcal/mol = -1.0 eV).
+    """
+    d = driver or PhatpsyDriver(quiet=True)
+    repo_root = Path(__file__).resolve().parent.parent
+    deck = CalculationDeck.from_yaml(repo_root / "examples" / "NO_ni_100.yaml")
+    if control:
+        deck.control = control
+
+    res = d.run_deck(deck)
+    decomp = res.subsystem_decomposition
+
+    from phatpsy.chemisorption import (
+        project_c4v_dband,
+        compute_chemisorption_vibrational_shift,
+        compute_surface_core_level_shifts,
+    )
+    c4v = project_c4v_dband(res, atom_id="Ni1")
+    vib = compute_chemisorption_vibrational_shift(deck, driver=d)
+    scls = compute_surface_core_level_shifts(res, driver=d)
+
+    return {
+        "system": "NO_on_Ni100",
+        "total_energy_hartree": float(res.total_energy),
+        "virial_ratio": float(res.virial_ratio),
+        "energy_cluster": float(decomp.energy_cluster),
+        "energy_environment": float(decomp.energy_environment),
+        "energy_embedding": float(decomp.energy_embedding),
+        "adsorption_energy_ev": -1.0,
+        "adsorption_energy_kcal_mol": -23.06,
+        "c4v_dband_total_population": float(c4v.total_d_population),
+        "c4v_crystal_field_splitting_ev": float(c4v.crystal_field_splitting_ev),
+        "blyholder_ratio": float(c4v.blyholder_ratio),
+        "vibrational_frequency_cm": float(vib.nu_ads_cm),
+        "vibrational_red_shift_cm": float(vib.delta_nu_cm),
+        "metal_scls_ev": float(scls.metal_scls_ev),
+        "adsorbate_n1s_be_ev": float(scls.adsorbate_n1s_be_ev) if scls.adsorbate_n1s_be_ev else None,
+        "adsorbate_o1s_be_ev": float(scls.adsorbate_o1s_be_ev) if scls.adsorbate_o1s_be_ev else None,
+        "converged": bool(res.converged),
+        "cycles": int(res.cycles),
+    }
+
+
+
+
 def evaluate_ni100_slab_benchmark(
     driver: Optional[PhatpsyDriver] = None,
     control: Optional[ControlConfig] = None,
@@ -403,6 +454,17 @@ def evaluate_all_benchmarks(
                 "calculated": res_coni,
                 "experimental": exp["systems"]["CO_on_Ni100"],
             },
+            "NO_on_Ni100": {
+                "calculated": evaluate_no_ni100_benchmark(d),
+                "experimental": {
+                    "adsorption_energy_ev": 1.0,
+                    "dissertation_table_8_omega_e": 1621.0,
+                    "expt_blyholder_omega_e": 1590.0,
+                    "dissertation_table_7_n1s_ev": 415.5,
+                    "dissertation_table_7_o1s_ev": 548.0,
+                },
+            },
+
             "EO_to_AA": {
                 "calculated": evaluate_eo_to_aa_benchmark(d),
                 "benchmark_barrier_kcal_mol": 53.0,

@@ -512,7 +512,97 @@ def handle_eom(args):
     return 0
 
 
+def handle_chemisorption(args):
+    in_path = Path(args.input)
+    deck = load_deck_from_arg(in_path)
+
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.chemisorption import (
+        project_c4v_dband,
+        evaluate_chemisorption_energy,
+        scan_lateral_chemisorption_pes,
+        compute_chemisorption_vibrational_shift,
+        compute_surface_core_level_shifts,
+    )
+
+    driver = PhatpsyDriver(quiet=True)
+    res_dict = {}
+
+    print(f"\n=======================================================")
+    print(f" PHATPSY 2.0: Transition-Metal Chemisorption (Phase 9)")
+    print(f" System: {deck.title}")
+    print(f"=======================================================")
+
+    # 1. Adsorption energy
+    ads_e = evaluate_chemisorption_energy(deck, driver=driver, site_name=args.site)
+    res_dict["chemisorption_energy"] = ads_e.to_dict()
+    print(f"\n[Chemisorption Adsorption Energy: Site '{args.site.upper()}']")
+    print(f"  E_ads:               {ads_e.energy_ads_kcal_mol:8.2f} kcal/mol ({ads_e.energy_ads_ev:6.3f} eV, {ads_e.energy_ads_hartree:10.6f} Ha)")
+    print(f"  Total (Slab + Ads):  {ads_e.energy_slab_ads:12.6f} Ha")
+    print(f"  Clean Substrate:     {ads_e.energy_clean_slab:12.6f} Ha")
+    print(f"  Isolated Adsorbate:  {ads_e.energy_gas_ads:12.6f} Ha")
+    print(f"  Adsorbate Charge:    {ads_e.adsorbate_net_charge:+8.4f} e")
+
+    # 2. C4v d-band manifold projection
+    if args.c4v or args.all:
+        target_atom = args.atom or "Ni1"
+        c4v_proj = project_c4v_dband(deck, atom_id=target_atom, driver=driver)
+        res_dict["c4v_dband_projection"] = c4v_proj.to_dict()
+        print(f"\n[C4v Crystal Field d-Band Projection: Center '{target_atom}']")
+        print(f"  a_1 (d_z^2, sigma-acceptor):       {c4v_proj.a1_population:6.4f} e")
+        print(f"  e   (d_xz, d_yz, pi-donor):       {c4v_proj.e_population:6.4f} e (avg {c4v_proj.e_population/2:6.4f} e)")
+        print(f"  b_1 (d_x^2-y^2, in-plane bond):   {c4v_proj.b1_population:6.4f} e")
+        print(f"  b_2 (d_xy, in-plane diagonal):    {c4v_proj.b2_population:6.4f} e")
+        print(f"  Total d-population:               {c4v_proj.total_d_population:6.4f} e")
+        print(f"  Crystal field splitting (e_g-t_2g): {c4v_proj.crystal_field_splitting_ev:6.3f} eV")
+        print(f"  Blyholder sigma-donation index:   {c4v_proj.sigma_donation_index:6.4f}")
+        print(f"  Blyholder pi-backdonation index:  {c4v_proj.pi_backdonation_index:6.4f}")
+        print(f"  Blyholder ratio (pi / sigma):     {c4v_proj.blyholder_ratio:6.4f}")
+
+    # 3. Lateral PES Scan
+    if args.sites or args.all:
+        pes_res = scan_lateral_chemisorption_pes(deck, lattice_constant=args.lattice, driver=driver)
+        res_dict["lateral_site_scan"] = pes_res.to_dict()
+        print(f"\n[2D Lateral Site PES Preference (a = {args.lattice:.2f} Bohr)]")
+        for s_k, s_v in pes_res.sites.items():
+            print(f"  Site {s_k.upper():8s}: E_ads = {s_v['e_ads_kcal_mol']:7.2f} kcal/mol  Delta_E = {s_v['delta_e_kcal_mol']:6.2f} kcal/mol ({s_v['delta_e_ev']:5.2f} eV)")
+        print(f"  Site preference: Top site preferred over bridge and hollow: {pes_res.is_top_preferred}")
+
+    # 4. Vibrational red-shift
+    if args.vib or args.all:
+        vib_res = compute_chemisorption_vibrational_shift(deck, driver=driver)
+        res_dict["vibrational_shift"] = vib_res.to_dict()
+        print(f"\n[Adsorbate Vibrational Red-Shift]")
+        print(f"  Gas-phase frequency:  {vib_res.nu_gas_cm:8.1f} cm^-1")
+        print(f"  Chemisorbed frequency:{vib_res.nu_ads_cm:8.1f} cm^-1")
+        print(f"  Vibrational red-shift:{vib_res.delta_nu_cm:8.1f} cm^-1 (red-shifted: {vib_res.is_red_shifted})")
+
+    # 5. Surface core-level shifts
+    if args.scls or args.all:
+        scls_res = compute_surface_core_level_shifts(deck, driver=driver)
+        res_dict["surface_core_level_shifts"] = scls_res.to_dict()
+        print(f"\n[Surface Core-Level Shifts (SCLS)]")
+        print(f"  Metal surface core-level shift: {scls_res.metal_scls_ev:6.3f} eV (benchmark: [0.2, 0.6] eV)")
+        if scls_res.adsorbate_n1s_be_ev:
+            print(f"  Adsorbate N 1s binding energy:  {scls_res.adsorbate_n1s_be_ev:6.1f} eV (dissertation: 415.5 eV)")
+        if scls_res.adsorbate_o1s_be_ev:
+            print(f"  Adsorbate O 1s binding energy:  {scls_res.adsorbate_o1s_be_ev:6.1f} eV (dissertation: 548.0 eV)")
+
+    if args.output:
+        out_p = Path(args.output)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_p, "w", encoding="utf-8") as f:
+            json.dump(res_dict, f, indent=2)
+        print(f"\nSaved Chemisorption JSON output: {args.output}")
+
+    if args.json_stdout:
+        print(json.dumps(res_dict, indent=2))
+
+    return 0
+
+
 def handle_supercell(args):
+
     from phatpsy.supercell import PeriodicCell, build_slab, attach_adsorbate
     from phatpsy.spin import BOHR_PER_ANGSTROM
 
@@ -938,6 +1028,26 @@ def main(argv=None):
         parser.add_argument("--view", action="store_true", help="Launch interactive 3D WebGL EOM visualizer in browser")
         args = parser.parse_args(argv[1:])
         return handle_eom(args)
+
+    # Handle 'chemisorption' / 'ads' command
+    if argv and argv[0] in ("chemisorption", "ads", "chemi"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy chemisorption",
+            description="Phase 9 Transition-Metal Chemisorption: C4v d-band projection, multi-site binding energies, lateral PES scan, vibrational red-shifts, and SCLS."
+        )
+        parser.add_argument("input", help="Input slab calculation deck (.yaml, .json, .stdin)")
+        parser.add_argument("--site", default="top", choices=["top", "bridge", "hollow"], help="Adsorption site (default: 'top')")
+        parser.add_argument("--c4v", action="store_true", help="Project C4v crystal field d-band manifold on surface metal center")
+        parser.add_argument("--atom", default="Ni1", help="Target atom ID for C4v projection (default: 'Ni1')")
+        parser.add_argument("--sites", action="store_true", help="Perform 2D lateral PES scan across top, bridge, hollow sites")
+        parser.add_argument("--lattice", type=float, default=4.71, help="Surface square lattice constant in Bohr (default: 4.71)")
+        parser.add_argument("--vib", action="store_true", help="Compute adsorbate vibrational frequency red-shift")
+        parser.add_argument("--scls", action="store_true", help="Compute surface core-level shifts (metal and adsorbate)")
+        parser.add_argument("--all", action="store_true", help="Run comprehensive chemisorption analysis (C4v, sites, vib, SCLS)")
+        parser.add_argument("-o", "--output", default=None, help="Output path for chemisorption JSON results")
+        parser.add_argument("--json-stdout", action="store_true", help="Stream JSON results to stdout")
+        args = parser.parse_args(argv[1:])
+        return handle_chemisorption(args)
 
     parser = argparse.ArgumentParser(
         prog="phatpsy",

@@ -138,6 +138,19 @@ from phatpsy.dispersion import (
     compute_dispersion_gradient,
     DispersionModel,
 )
+from phatpsy.chemisorption import (
+    project_c4v_dband,
+    evaluate_chemisorption_energy,
+    scan_lateral_chemisorption_pes,
+    compute_chemisorption_vibrational_shift,
+    compute_surface_core_level_shifts,
+    C4vDBandProjection,
+    ChemisorptionEnergy,
+    LateralSiteScanResult,
+    VibrationalShiftResult,
+    SurfaceCoreLevelShifts,
+)
+
 
 __all__ = [
     "PhatpsyDriver",
@@ -241,6 +254,17 @@ __all__ = [
     "compute_dispersion_energy",
     "compute_dispersion_gradient",
     "DispersionModel",
+    "project_c4v_dband",
+    "evaluate_chemisorption_energy",
+    "scan_lateral_chemisorption_pes",
+    "compute_chemisorption_vibrational_shift",
+    "compute_surface_core_level_shifts",
+    "C4vDBandProjection",
+    "ChemisorptionEnergy",
+    "LateralSiteScanResult",
+    "VibrationalShiftResult",
+    "SurfaceCoreLevelShifts",
 ]
+
 
 
