@@ -554,9 +554,13 @@ contains
   ! BOMB: Diagnostic error handler and program exit
   !---------------------------------------------------------------------
   subroutine bomb(ierror)
+    use iso_fortran_env, only: error_unit
     integer(int32), intent(in) :: ierror
 
+    write(error_unit, 1000) ierror
+    flush(error_unit)
     write(IW, 1000) ierror
+    flush(IW)
     call dump(0)
     error stop 'PHATPSY TERMINATED VIA BOMB'
 

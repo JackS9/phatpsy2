@@ -2,7 +2,7 @@
 set -e
 
 # Increase stack size limit for quantum chemical array evaluations
-ulimit -s unlimited 2>/dev/null || true
+ulimit -s $(ulimit -H -s 2>/dev/null || echo 65536) 2>/dev/null || ulimit -s unlimited 2>/dev/null || true
 
 # Prevent multi-threaded BLAS/LAPACK runtime stack overflow in OpenBLAS / OMP
 export OPENBLAS_NUM_THREADS=1
@@ -27,7 +27,7 @@ fi
 
 # 3. Run the automated pytest regression suite
 if [ -f ".venv/bin/pytest" ]; then
-    PYTHONPATH=. .venv/bin/pytest tests/ -v
+    PYTHONPATH=. .venv/bin/pytest tests/ -v --tb=short
 else
-    PYTHONPATH=. pytest tests/ -v
+    PYTHONPATH=. pytest tests/ -v --tb=short
 fi
