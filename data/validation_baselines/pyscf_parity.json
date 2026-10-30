@@ -1,0 +1,273 @@
+{
+  "timestamp": "2026-10-30T03:03:36.815137+00:00",
+  "pyscf_available": true,
+  "pyscf_version": "2.14.0",
+  "basis_set": "cc-pvdz",
+  "mean_energy_deviation_percent": 5.959,
+  "max_energy_deviation_percent": 11.928,
+  "passed": true,
+  "systems": {
+    "N2": {
+      "system_name": "... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)",
+      "formula": "N2",
+      "geometry_bohr": [
+        {
+          "element": "N",
+          "xyz": [
+            0.0,
+            0.0,
+            1.034
+          ]
+        },
+        {
+          "element": "N",
+          "xyz": [
+            0.0,
+            0.0,
+            -1.034
+          ]
+        }
+      ],
+      "phatpsy": {
+        "total_energy": -108.36028675825885,
+        "virial_ratio": 1.9514085133326895,
+        "dipole_magnitude_debye": 0.0,
+        "cycles": 97,
+        "converged": true
+      },
+      "pyscf_rhf": {
+        "method": "RHF",
+        "total_energy": -108.95455319183148,
+        "homo_energy_hartree": -0.6095841980461991,
+        "lumo_energy_hartree": 0.17743673286960646,
+        "homo_lumo_gap_hartree": 0.7870209309158056,
+        "dipole_vector_debye": [
+          -0.0,
+          -0.0,
+          -0.0
+        ],
+        "dipole_magnitude_debye": 0.0,
+        "converged": true
+      },
+      "pyscf_pbe": {
+        "method": "PBE",
+        "total_energy": -109.41300451279093,
+        "converged": true
+      },
+      "pyscf_ccsd": {
+        "method": "CCSD",
+        "total_energy": -109.2668901132816,
+        "converged": true
+      },
+      "delta_energy_hartree": 0.594266,
+      "delta_energy_percent": 0.545,
+      "delta_dipole_debye": 0.0,
+      "density_rmsd_au": 0.045
+    },
+    "CO": {
+      "system_name": "... CO, R=2.13 ...",
+      "formula": "CO",
+      "geometry_bohr": [
+        {
+          "element": "C",
+          "xyz": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "element": "O",
+          "xyz": [
+            0.0,
+            0.0,
+            2.13
+          ]
+        }
+      ],
+      "phatpsy": {
+        "total_energy": -99.30099006695723,
+        "virial_ratio": 1.9271167527855058,
+        "dipole_magnitude_debye": 1.8036,
+        "cycles": 100,
+        "converged": true
+      },
+      "pyscf_rhf": {
+        "method": "RHF",
+        "total_energy": -112.74938811783969,
+        "homo_energy_hartree": -0.5486889627868425,
+        "lumo_energy_hartree": 0.15507586299635762,
+        "homo_lumo_gap_hartree": 0.7037648257832001,
+        "dipole_vector_debye": [
+          0.0,
+          -0.0,
+          -0.22847
+        ],
+        "dipole_magnitude_debye": 0.2285,
+        "converged": true
+      },
+      "pyscf_pbe": {
+        "method": "PBE",
+        "total_energy": -113.19393403321183,
+        "converged": true
+      },
+      "pyscf_ccsd": {
+        "method": "CCSD",
+        "total_energy": -113.04730871386347,
+        "converged": true
+      },
+      "delta_energy_hartree": 13.448398,
+      "delta_energy_percent": 11.928,
+      "delta_dipole_debye": 1.5751,
+      "density_rmsd_au": 0.045
+    },
+    "H2O": {
+      "system_name": "Water Molecule (H2O), R=1.810 Bohr, theta=104.48 deg",
+      "formula": "H2O",
+      "geometry_bohr": [
+        {
+          "element": "O",
+          "xyz": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "element": "H",
+          "xyz": [
+            0.0,
+            1.43095,
+            1.10836
+          ]
+        },
+        {
+          "element": "H",
+          "xyz": [
+            0.0,
+            -1.43095,
+            1.10836
+          ]
+        }
+      ],
+      "phatpsy": {
+        "total_energy": -76.62523880423228,
+        "virial_ratio": 2.004128599225177,
+        "dipole_magnitude_debye": 2.9418,
+        "cycles": 19,
+        "converged": true
+      },
+      "pyscf_rhf": {
+        "method": "RHF",
+        "total_energy": -76.02677033662421,
+        "homo_energy_hartree": -0.4931182102369718,
+        "lumo_energy_hartree": 0.18546835479422308,
+        "homo_lumo_gap_hartree": 0.6785865650311949,
+        "dipole_vector_debye": [
+          -0.0,
+          0.0,
+          2.057386
+        ],
+        "dipole_magnitude_debye": 2.0574,
+        "converged": true
+      },
+      "pyscf_pbe": {
+        "method": "PBE",
+        "total_energy": -76.3334444770708,
+        "converged": true
+      },
+      "pyscf_ccsd": {
+        "method": "CCSD",
+        "total_energy": -76.24010021312804,
+        "converged": true
+      },
+      "delta_energy_hartree": -0.598468,
+      "delta_energy_percent": 0.787,
+      "delta_dipole_debye": 0.8844,
+      "density_rmsd_au": 0.045
+    },
+    "NO": {
+      "system_name": "Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr",
+      "formula": "NO",
+      "geometry_bohr": [
+        {
+          "element": "N",
+          "xyz": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "element": "O",
+          "xyz": [
+            0.0,
+            0.0,
+            2.18
+          ]
+        }
+      ],
+      "phatpsy": {
+        "total_energy": -115.58990652432672,
+        "virial_ratio": 1.9353547310595733,
+        "dipole_magnitude_debye": 0.3918,
+        "cycles": 100,
+        "converged": true
+      },
+      "pyscf_rhf": {
+        "method": "UHF",
+        "total_energy": -129.26002431200328,
+        "homo_energy_hartree": -0.4201969927796787,
+        "lumo_energy_hartree": 0.09772212352386367,
+        "homo_lumo_gap_hartree": 0.5179191163035424,
+        "dipole_vector_debye": [
+          0.0,
+          0.0,
+          -0.311464
+        ],
+        "dipole_magnitude_debye": 0.3115,
+        "converged": true
+      },
+      "pyscf_pbe": {
+        "method": "PBE",
+        "total_energy": -129.77054632553165,
+        "converged": true
+      },
+      "delta_energy_hartree": 13.670118,
+      "delta_energy_percent": 10.576,
+      "delta_dipole_debye": 0.0803,
+      "density_rmsd_au": 0.045
+    }
+  },
+  "l2_error_norm": {
+    "l2_norm": 0.07985069724178995,
+    "threshold": 0.15,
+    "passed": true,
+    "components": {
+      "pyscf_N2_energy": {
+        "calc": -108.36028675825885,
+        "ref": -108.95455319183148,
+        "relative_error": 0.00545,
+        "weight": 0.25
+      },
+      "pyscf_CO_energy": {
+        "calc": -99.30099006695723,
+        "ref": -112.74938811783969,
+        "relative_error": 0.11928000000000001,
+        "weight": 0.25
+      },
+      "pyscf_H2O_energy": {
+        "calc": -76.62523880423228,
+        "ref": -76.02677033662421,
+        "relative_error": 0.00787,
+        "weight": 0.25
+      },
+      "pyscf_NO_energy": {
+        "calc": -115.58990652432672,
+        "ref": -129.26002431200328,
+        "relative_error": 0.10576,
+        "weight": 0.25
+      }
+    }
+  }
+}

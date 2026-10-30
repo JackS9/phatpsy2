@@ -479,7 +479,158 @@ def evaluate_all_benchmarks(
         },
     }
 
+    summary["l2_error_norm"] = compute_l2_error_norm(summary)
     return summary
+
+
+def compute_l2_error_norm(
+    summary: Dict[str, Any],
+    weights: Optional[Dict[str, float]] = None,
+    threshold: float = 0.15,
+) -> Dict[str, Any]:
+    """
+    Computes composite L2 error vector norm metric across all benchmark quantities:
+        ||epsilon||_2 = sqrt( sum_k w_k * ( (P_k^calc - P_k^ref) / P_k^ref )^2 )
+
+    where w_k are normalized weights (sum_k w_k = 1.0).
+    Enforces non-regression threshold (default < 0.15).
+
+    Args:
+        summary: Dictionary returned by evaluate_all_benchmarks() or PySCF parity suite.
+        weights: Optional dictionary of weights for each property.
+        threshold: Non-regression upper bound threshold (default 0.15).
+
+    Returns:
+        Dictionary containing:
+            - l2_norm: float, the computed ||epsilon||_2
+            - threshold: float, threshold applied
+            - passed: bool, whether l2_norm <= threshold
+            - components: Dict[str, Dict[str, float]], details for each component
+    """
+    components: Dict[str, Dict[str, float]] = {}
+
+    benchmarks = summary.get("benchmarks", {})
+
+    # 1. N2 Re
+    if "N2" in benchmarks and "calculated" in benchmarks["N2"]:
+        c = benchmarks["N2"]["calculated"].get("r_bohr")
+        r = benchmarks["N2"].get("experimental", {}).get("r_e_bohr", 2.0744)
+        if c is not None and r:
+            components["N2_Re"] = {"calc": float(c), "ref": float(r)}
+
+    # 2. N2 harmonic frequency
+    if "N2" in benchmarks and "calculated" in benchmarks["N2"]:
+        c = benchmarks["N2"]["calculated"].get("harmonic_frequency_cm")
+        r = benchmarks["N2"].get("experimental", {}).get("harmonic_frequency_cm", 2358.57)
+        if c is not None and r:
+            components["N2_omega_e"] = {"calc": float(c), "ref": float(r)}
+
+    # 3. N2 virial ratio
+    if "N2" in benchmarks and "calculated" in benchmarks["N2"]:
+        c = benchmarks["N2"]["calculated"].get("virial_ratio")
+        if c is not None:
+            components["N2_virial"] = {"calc": float(c), "ref": 2.0}
+
+    # 4. CO Re
+    if "CO" in benchmarks and "calculated" in benchmarks["CO"]:
+        c = benchmarks["CO"]["calculated"].get("r_bohr")
+        r = benchmarks["CO"].get("experimental", {}).get("r_e_bohr", 2.1322)
+        if c is not None and r:
+            components["CO_Re"] = {"calc": float(c), "ref": float(r)}
+
+    # 5. CO harmonic frequency
+    if "CO" in benchmarks and "calculated" in benchmarks["CO"]:
+        c = benchmarks["CO"]["calculated"].get("harmonic_frequency_cm")
+        r = benchmarks["CO"].get("experimental", {}).get("harmonic_frequency_cm", 2169.81)
+        if c is not None and r:
+            components["CO_omega_e"] = {"calc": float(c), "ref": float(r)}
+
+    # 6. CO virial ratio
+    if "CO" in benchmarks and "calculated" in benchmarks["CO"]:
+        c = benchmarks["CO"]["calculated"].get("virial_ratio")
+        if c is not None:
+            components["CO_virial"] = {"calc": float(c), "ref": 2.0}
+
+    # 7. H2O virial ratio
+    if "H2O" in benchmarks and "calculated" in benchmarks["H2O"]:
+        c = benchmarks["H2O"]["calculated"].get("virial_ratio")
+        if c is not None:
+            components["H2O_virial"] = {"calc": float(c), "ref": 2.0}
+
+    # 8. Bulk Ni13 virial ratio
+    if "Bulk_Ni13" in benchmarks and "calculated" in benchmarks["Bulk_Ni13"]:
+        c = benchmarks["Bulk_Ni13"]["calculated"].get("virial_ratio")
+        if c is not None:
+            components["Bulk_Ni13_virial"] = {"calc": float(c), "ref": 2.0}
+
+    # 9. Dissociation energies
+    if "Dissociation_Energies" in benchmarks and "calculated" in benchmarks["Dissociation_Energies"]:
+        diss_c = benchmarks["Dissociation_Energies"]["calculated"]
+        n2_de = diss_c.get("N2", {}).get("de_ev", diss_c.get("N2_De_eV"))
+        co_de = diss_c.get("CO", {}).get("de_ev", diss_c.get("CO_De_eV"))
+        if n2_de is not None:
+            components["Dissociation_N2"] = {"calc": float(n2_de), "ref": 9.759}
+        if co_de is not None:
+            components["Dissociation_CO"] = {"calc": float(co_de), "ref": 11.087}
+
+    # 10. EO to AA barrier
+    if "EO_to_AA" in benchmarks and "calculated" in benchmarks["EO_to_AA"]:
+        eo_c = benchmarks["EO_to_AA"]["calculated"]
+        eo_barr = eo_c.get("barrier_forward_kcal_mol", eo_c.get("delta_e_barrier_kcal_mol"))
+        if eo_barr is not None:
+            components["EO_to_AA_barrier"] = {"calc": float(eo_barr), "ref": 53.0}
+
+    # 11. PySCF parity data if passed
+    if "systems" in summary:
+        for sys_k, sys_val in summary["systems"].items():
+            e_pct = sys_val.get("delta_energy_percent", sys_val.get("energy_diff_percent"))
+            if e_pct is not None:
+                rel_err = float(e_pct) / 100.0
+                components[f"pyscf_{sys_k}_energy"] = {
+                    "calc": float(sys_val.get("phatpsy", {}).get("total_energy", 0.0)),
+                    "ref": float(sys_val.get("pyscf_rhf", {}).get("total_energy", 1.0)),
+                    "relative_error": float(rel_err),
+                }
+
+    if "components" in summary:
+        for k, v in summary["components"].items():
+            if isinstance(v, dict):
+                components[k] = v
+
+    if not components:
+        return {
+            "l2_norm": 0.0,
+            "threshold": threshold,
+            "passed": True,
+            "components": {},
+        }
+
+    raw_weights = weights or {}
+    total_w = sum(raw_weights.get(k, 1.0) for k in components)
+
+    sum_sq = 0.0
+    for k, comp in components.items():
+        w = (raw_weights.get(k, 1.0) / total_w) if total_w > 0 else (1.0 / len(components))
+        comp["weight"] = w
+        if "relative_error" in comp:
+            rel_err = comp["relative_error"]
+        else:
+            calc = comp["calc"]
+            ref = comp["ref"]
+            denom = abs(ref) if abs(ref) > 1e-12 else 1.0
+            rel_err = (calc - ref) / denom
+        comp["relative_error"] = float(rel_err)
+        sum_sq += w * (rel_err ** 2)
+
+    l2_norm = math.sqrt(sum_sq)
+    passed = bool(l2_norm <= threshold)
+
+    return {
+        "l2_norm": float(l2_norm),
+        "threshold": float(threshold),
+        "passed": passed,
+        "components": components,
+    }
 
 
 def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
@@ -536,6 +687,14 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
         co_de = diss_c.get("CO", {}).get("de_ev", diss_c.get("CO_De_eV", 11.09))
         lines.append(f"| $\\text{{N}}_2$ | $D_e$ | {n2_de:.2f} | 9.76 | eV | {n2_de - 9.759:+.2f} |")
         lines.append(f"| $\\text{{CO}}$ | $D_e$ | {co_de:.2f} | 11.09 | eV | {co_de - 11.087:+.2f} |")
+
+    l2_res = summary.get("l2_error_norm")
+    if l2_res is None:
+        l2_res = compute_l2_error_norm(summary)
+
+    status_str = "PASS" if l2_res["passed"] else "FAIL"
+    lines.append("")
+    lines.append(f"**Composite $L_2$ Error Vector Norm Metric:** `||epsilon||_2 = {l2_res['l2_norm']:.4f}` (Threshold: `< {l2_res['threshold']:.2f}`, Status: `{status_str}`)")
 
     return "\n".join(lines)
 

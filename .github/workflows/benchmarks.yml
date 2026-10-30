@@ -1,0 +1,57 @@
+# PHATPSY 2.0 Benchmarks — automated multi-level computational parity against PySCF & Layer B experimental literature.
+name: Benchmarks & Parity
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  pyscf-parity-benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Install Fortran toolchain and BLAS/LAPACK
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E apt-get update
+          sudo -E apt-get install -y --no-install-recommends gfortran libopenblas-dev liblapack-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create venv and install dependencies (including PySCF)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf pyscf
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Build extension and run canonical test loop
+        run: bash make_build_test.sh
+
+      - name: Run PySCF Parity Bridge Suite
+        run: |
+          .venv/bin/python tools/benchmark_pyscf_bridge.py -o data/validation_baselines/pyscf_parity.json -m data/validation_baselines/pyscf_parity_report.md --print-report
+
+      - name: Publish PySCF Parity Report to Step Summary
+        if: always()
+        run: |
+          if [ -f data/validation_baselines/pyscf_parity_report.md ]; then
+            echo "## PySCF Parity Report" >> $GITHUB_STEP_SUMMARY
+            cat data/validation_baselines/pyscf_parity_report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run Layer B Experimental Benchmarks Table and Publish
+        if: always()
+        run: |
+          echo "## Layer B Literature Benchmarks" >> $GITHUB_STEP_SUMMARY
+          .venv/bin/python phatpsy/benchmarks.py >> $GITHUB_STEP_SUMMARY
