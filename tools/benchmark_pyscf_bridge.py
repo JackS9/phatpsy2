@@ -382,7 +382,7 @@ def run_pyscf_parity_suite(
     driver = PhatpsyDriver(quiet=True)
 
     systems_map = {
-        "N2": ("examples/N2.yaml", "N2"),
+        "N2": ("examples/n2.yaml", "N2"),
         "CO": ("examples/CO.yaml", "CO"),
         "H2O": ("examples/H2O.yaml", "H2O"),
         "NO": ("examples/NO.yaml", "NO"),

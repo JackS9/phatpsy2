@@ -32,7 +32,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf pyscf
+          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf setuptools pyscf
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Build extension and run canonical test loop
@@ -40,7 +40,7 @@ jobs:
 
       - name: Run PySCF Parity Bridge Suite
         run: |
-          .venv/bin/python tools/benchmark_pyscf_bridge.py -o data/validation_baselines/pyscf_parity.json -m data/validation_baselines/pyscf_parity_report.md --print-report
+          PYTHONPATH=. .venv/bin/python tools/benchmark_pyscf_bridge.py -o data/validation_baselines/pyscf_parity.json -m data/validation_baselines/pyscf_parity_report.md --print-report
 
       - name: Publish PySCF Parity Report to Step Summary
         if: always()
@@ -54,4 +54,4 @@ jobs:
         if: always()
         run: |
           echo "## Layer B Literature Benchmarks" >> $GITHUB_STEP_SUMMARY
-          .venv/bin/python phatpsy/benchmarks.py >> $GITHUB_STEP_SUMMARY
+          PYTHONPATH=. .venv/bin/python phatpsy/benchmarks.py >> $GITHUB_STEP_SUMMARY

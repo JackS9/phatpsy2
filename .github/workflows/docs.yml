@@ -41,7 +41,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf
+          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf setuptools pyscf
           .venv/bin/pip install -r docs/requirements.txt
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 

@@ -44,7 +44,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf
+          .venv/bin/pip install numpy scipy matplotlib pyyaml pytest meson ninja pypdf setuptools pyscf
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       # make_build_test.sh configures CMake against .venv's Python, builds

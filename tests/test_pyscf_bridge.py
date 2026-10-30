@@ -31,6 +31,7 @@ def test_pyscf_availability_flag():
     assert isinstance(HAS_PYSCF, bool)
 
 
+@pytest.mark.skipif(not HAS_PYSCF, reason="PySCF is not installed")
 def test_single_system_pyscf_calculation():
     """Verify PySCF execution for a small diatomic system (N2)."""
     deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
@@ -49,6 +50,7 @@ def test_single_system_pyscf_calculation():
     assert pbe["total_energy"] < -100.0
 
 
+@pytest.mark.skipif(not HAS_PYSCF, reason="PySCF is not installed")
 def test_system_parity_n2(driver):
     """Verify run_system_parity on N2 comparing PHATPSY and PySCF."""
     deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
