@@ -118,7 +118,6 @@ contains
             do iorb = 1, NORB
               occ(iorb, isp) = CDAMP * occ(iorb, isp) &
                              + (1.0d0 - CDAMP) * mol_ws%popul(IORBT + iorb, isp)
-              occ(iorb, isp) = max(0.0d0, min(1.0d0, occ(iorb, isp)))
             end do
           end do
         end if
@@ -328,8 +327,8 @@ contains
           write(IW, 24000) latom, jdifat, IP
         end if
 
-        mol_ws%popul(IORBT+1:IORBT+NORB, 1) = max(0.0d0, min(1.0d0, occ(1:NORB, 1)))
-        if (QOPEN) mol_ws%popul(IORBT+1:IORBT+NORB, 2) = max(0.0d0, min(1.0d0, occ(1:NORB, 2)))
+        mol_ws%popul(IORBT+1:IORBT+NORB, 1) = occ(1:NORB, 1)
+        if (QOPEN) mol_ws%popul(IORBT+1:IORBT+NORB, 2) = occ(1:NORB, 2)
         IORBT = IORBT + NORB
       end if
 
