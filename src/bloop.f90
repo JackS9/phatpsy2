@@ -297,8 +297,13 @@ contains
                   do iorbb = 1, NORBB
                     ediff  = evalb(iorbb, isp) - evala(iorba, isp)
                     esum   = 0.5d0 * (evala(iorba, isp) + evalb(iorbb, isp))
-                    fermia = 1.0d0 / (1.0d0 + exp((evala(iorba, isp) - esum) / THETA))
-                    fermib = 1.0d0 / (1.0d0 + exp((evalb(iorbb, isp) - esum) / THETA))
+                    if (THETA > 1.0d-12) then
+                      fermia = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evala(iorba, isp) - esum) / THETA))))
+                      fermib = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evalb(iorbb, isp) - esum) / THETA))))
+                    else
+                      fermia = merge(1.0d0, 0.0d0, evala(iorba, isp) <= esum)
+                      fermib = merge(1.0d0, 0.0d0, evalb(iorbb, isp) <= esum)
+                    end if
                     ct     = (occa(iorba, isp) + occb(iorbb, isp)) * fermia - occa(iorba, isp)
                     if (ct > 0.0d0) then
                       ct = min(ct, occb(iorbb, isp), occmx - occa(iorba, isp))

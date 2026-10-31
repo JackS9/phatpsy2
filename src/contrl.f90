@@ -435,6 +435,7 @@ contains
     EXCH_TYPE  = 1
     EXCH_ALPHA = 2.0d0 / 3.0d0
     CORR_TYPE  = 0
+    THETA      = 1.0d5
 
     read(IR, nml=CTLINP, iostat=ios)
     if (ios < 0) then
