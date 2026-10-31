@@ -97,14 +97,19 @@ python -m phatpsy elements Ni -b DZ
 Renders an interactive 3D molecular structure using Three.js:
 
 ```bash
-python -m phatpsy view deck.yaml --view
+python -m phatpsy view deck.yaml
 ```
+The visualizer opens in your default web browser automatically.
 
 * **Options:**
   * `-o`, `--output`: Save standalone HTML visualizer file.
-  * `--view`: Automatically open the visualizer in your default web browser.
-  * `-s`, `--spin`: Color atomic spheres by spin state (red = $\alpha$, blue = $\beta$).
-  * `-n`, `--no-bonds`: Disable automated covalent bond inference.
+  * `-s`, `--auto-spin`: Assign alternating-spin states before viewing.
+  * `-e`, `--edit`: Open the visualizer in interactive parameter editor mode.
+    Two panels appear alongside the 3D view: **System Controls & Basis** (default
+    basis set, SCF control parameters) and **Atom Inspector** (per-atom element,
+    position, basis override, spin, fixed/virtual flags). Edits update the 3D view
+    live; the modified deck can be exported client-side as YAML or JSON.
+  * `-n`, `--no-browser`: Do not open the web browser automatically.
 
 ---
 
@@ -121,7 +126,7 @@ python -m phatpsy supercell -e Ni -m 1,0,0 -l 3 -r 2,2 \
 
 * **Surface Flags:**
   * `-e`, `--element`: Metal element symbol (default: `Ni`).
-  * `-c`, `--crystal`: Crystal lattice type (`fcc`, `bcc`, `hcp`, `diamond`, `sc`).
+  * `-c`, `--crystal`: Crystal lattice type (`fcc`, `bcc`, `diamond`).
   * `-a`, `--lattice-constant`: Lattice constant $a$ in Ångströms.
   * `-m`, `--miller`: Miller indices for surface cleavage (e.g., `1,0,0` or `1,1,1`).
   * `-l`, `--layers`: Number of atomic substrate layers (default: 3).
@@ -180,7 +185,7 @@ python -m phatpsy scan examples/n2.yaml -b 0,1 -r 1.8:3.0:0.1 -o n2_pes.json -p 
 * **Coordinate Flags:**
   * `-b`, `--bond`: Bond stretch atom indices `i,j` (0-based).
   * `-a`, `--angle`: Valence angle atom indices `i,j,k` (0-based).
-  * `-c`, `--dihedral`: Dihedral angle atom indices `i,j,k,l` (0-based).
+  * `-c`, `--coord`: Custom coordinate specifier (e.g. a dihedral `i,j,k,l`, 0-based).
   * `-r`, `--range`: Scan range formatted as `start:stop:step` (in Bohrs or degrees).
   * `--bond2`, `--coord2`, `--range2`: Second coordinate specification for 2D PES surfaces.
 * **Execution Flags:**
@@ -244,7 +249,7 @@ python -m phatpsy md input.yaml -n 100 --dt 0.5 -T 300 -o trajectory.json --xyz 
   * `--dt <float>`: Integration time step in femtoseconds (default: 0.5 fs).
   * `-T`, `--temp <float>`: Target kinetic temperature in Kelvin (default: 300.0 K).
   * `--thermostat {nve,berendsen,rescale,andersen}`: Thermodynamic ensemble control (default: `nve`).
-  * `--tau <float>`: Berendsen thermostat coupling time constant in femtoseconds (default: 20.0 fs).
+  * `--tau <float>`: Berendsen thermostat coupling time constant in femtoseconds (default: 50.0 fs).
   * `--no-com-removal`: Retain initial center-of-mass linear momentum.
   * `--seed <int>`: Random seed for reproducible Maxwell-Boltzmann velocity initialization.
 * **Output Flags:**

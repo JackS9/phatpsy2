@@ -46,14 +46,16 @@ This script performs the following actions deterministically:
 3. Runs CMake to configure and compile the native binaries:
    * The modern Fortran 2018 library and standalone CLI: `bin/phatpsy_modern`.
    * The Python extension module: `_phatpsy_core.*.so`.
-4. Executes the validation smoke tests comparing legacy and modern outputs.
+4. Runs a modern Python driver smoke test on the N$_2$ YAML deck (`examples/n2.yaml`).
 5. Runs the complete `pytest` test suite.
 
 A healthy build will end with:
 
 ```text
-======================= 136 passed in 11.41s =======================
+======================= 267 passed =======================
 ```
+
+(267 test functions across 30 test files at the time of writing; the count grows with the suite.)
 
 ---
 

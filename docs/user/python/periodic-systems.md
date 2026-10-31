@@ -22,9 +22,10 @@ print(f"Number of atoms in cell: {len(ni_bulk.atoms)}")
 
 * `fcc`: Face-Centered Cubic
 * `bcc`: Body-Centered Cubic
-* `hcp`: Hexagonal Close-Packed (requires $a$ and $c$)
 * `diamond`: Diamond cubic
 * `sc`: Simple Cubic
+
+(`PeriodicCell.bulk` supports these four; for hexagonal lattices use `Lattice.hexagonal(a, c)` directly.)
 
 ---
 
@@ -108,4 +109,39 @@ deck = complex.to_deck(title="CO on Ni(100)", basis="DZ")
 complex.to_xyz("system.xyz")
 complex.to_poscar("POSCAR")
 complex.to_cif("system.cif")
+```
+
+---
+
+## 6. Chemisorption Analysis (Phase 9)
+
+The `phatpsy.chemisorption` module provides transition-metal chemisorption energetics and spectroscopy for CO/NO on Ni(100)-type surfaces:
+
+| Function | Purpose |
+| :--- | :--- |
+| `evaluate_chemisorption_energy` | Adsorption energy $E_{ads} = E(\text{slab+ads}) - E(\text{slab}) - E(\text{ads})$ |
+| `project_c4v_dband` | C4v crystal-field d-band projection (irreps $a_1$:$d_{z^2}$, $e$:{$d_{xz}$,$d_{yz}$}, $b_1$:$d_{x^2-y^2}$, $b_2$:$d_{xy}$), spin-resolved |
+| `scan_lateral_chemisorption_pes` | 2D lateral PES scan across top/bridge/hollow sites |
+| `compute_chemisorption_vibrational_shift` | Adsorbate vibrational frequency red-shift on adsorption |
+| `compute_surface_core_level_shifts` | Surface core-level shifts (metal and adsorbate) |
+
+```python
+from phatpsy.chemisorption import evaluate_chemisorption_energy
+
+result = evaluate_chemisorption_energy(
+    slab_with_ads="ni100_co.yaml",   # slab + adsorbate deck
+    clean_slab="ni100_clean.yaml",   # bare slab deck
+    isolated_ads="co.yaml",          # isolated molecule deck
+    site_name="top",
+)
+print(f"E_ads = {result.energy_kcal_mol:.1f} kcal/mol")
+```
+
+**CLI:** `phatpsy chemisorption` runs the same analyses from the command line:
+
+```bash
+phatpsy chemisorption ni100_co.yaml --site top --c4v --atom Ni1 -o chemi.json
+phatpsy chemisorption ni100_co.yaml --sites --lattice 4.71    # lateral PES scan
+phatpsy chemisorption ni100_co.yaml --vib --scls              # red-shift + SCLS
+phatpsy chemisorption ni100_co.yaml --all -o chemi_full.json  # everything
 ```

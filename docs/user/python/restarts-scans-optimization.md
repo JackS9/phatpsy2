@@ -49,16 +49,22 @@ coords = InternalCoordinates([bond, angle, dihedral])
 You can also construct systems using `ZMatrix`:
 
 ```python
-from phatpsy import ZMatrix, ZMatrixEntry
+from phatpsy import ZMatrix, ZMatrixEntry, build_molecule
 
+# 0-based atom indices; bond lengths in Bohr, angles in degrees
 zmat = ZMatrix([
     ZMatrixEntry("O"),
-    ZMatrixEntry("H", bond_to=0, bond_length=0.957),
-    ZMatrixEntry("H", bond_to=0, bond_length=0.957, angle_to=1, angle_val=104.5),
+    ZMatrixEntry("H", ref_bond=0, bond_length=1.808),  # 0.957 Angstrom
+    ZMatrixEntry("H", ref_bond=0, bond_length=1.808, ref_angle=1, angle_val=104.5),
 ])
 
-# Convert to Cartesian CalculationDeck
-deck = zmat.to_deck(title="Water Molecule", basis="DZ")
+# Convert to Cartesian coordinates (Bohr) and build a CalculationDeck
+xyz = zmat.to_cartesian()
+deck = build_molecule(
+    [("O", xyz[0]), ("H", xyz[1]), ("H", xyz[2])],
+    basis="DZ",
+    title="Water Molecule",
+)
 ```
 
 ---
@@ -85,7 +91,7 @@ pes_result = scan_1d(deck, coordinate=bond_coord, values=r_grid, warm_restart=Tr
 
 # Plot potential energy curve
 plt.figure(figsize=(7, 4.5))
-plt.plot(pes_result["values"], pes_result["energies"], marker="o", color="navy")
+plt.plot(pes_result.values, pes_result.energies, marker="o", color="navy")
 plt.xlabel("Bond Distance $R$ (Bohrs)")
 plt.ylabel("Total Energy (Hartrees)")
 plt.title("N2 Bond Dissociation Energy Curve")
@@ -116,6 +122,23 @@ pes2d = scan_2d(
 
 ---
 
+## Nuclear Gradients (`PhatpsyDriver.gradient`)
+
+`PhatpsyDriver.gradient(deck)` returns the Cartesian nuclear gradient matrix $dE/d\mathbf{X}_A$ of shape `(N_atoms, 3)` in Hartree/Bohr. The implementation is an empirical harmonic bond-stretch model:
+
+* **Calibrated pairs** (N–N, C–O, O–H, H–H, C–C, C–H, N–H): equilibrium distances and force constants fitted to NIST CCCBDB vibrational data (e.g. N–N: $r_e = 2.068$ Bohr, $k = 1.4744$ Ha/Bohr²).
+* **Badger's rule fallback**: for unlisted pairs, $r_e$ from covalent radii sums and $k = 0.50$ Ha/Bohr².
+* **Dispersion**: when `control.use_dispersion` is set, the analytical Grimme D3(BJ) gradient is added.
+
+```python
+from phatpsy import PhatpsyDriver
+
+driver = PhatpsyDriver()
+grad = driver.gradient(deck)   # (N_atoms, 3) array in Hartree/Bohr
+```
+
+`CalculationState.gradient` exposes the same quantity as a property on results. Hessians for vibrational analysis are obtained by central finite differences of these gradients (`use_analytical_gradients=True` in `compute_hessian`).
+
 ## Geometry Optimization (`optimize_geometry`)
 
 Automated Cartesian geometry optimization uses the BFGS quasi-Newton algorithm with finite-difference numerical gradients:
@@ -132,11 +155,11 @@ opt_result = optimize_geometry(
 )
 
 print(f"Optimization Converged: {opt_result.converged}")
-print(f"Total Steps Taken     : {len(opt_result.steps)}")
+print(f"Total Steps Taken     : {len(opt_result.trajectory)}")
 print(f"Final Energy          : {opt_result.final_energy:.6f} Hartrees")
 
 # Relaxed geometry as a new CalculationDeck
-relaxed_deck = opt_result.final_deck
+relaxed_deck = opt_result.optimized_deck
 relaxed_deck.to_yaml("relaxed_geometry.yaml")
 ```
 
@@ -145,8 +168,8 @@ relaxed_deck.to_yaml("relaxed_geometry.yaml")
 The `OptimizationResult` stores intermediate steps with energies, gradients, and Cartesian coordinates:
 
 ```python
-for step in opt_result.steps:
-    print(f"Step {step.step_num:2d} | Energy: {step.energy:.6f} Eh | Grad Norm: {step.gradient_norm:.3e}")
+for step in opt_result.trajectory:
+    print(f"Step {step.step:2d} | Energy: {step.energy:.6f} Eh | Grad Norm: {step.grad_norm:.3e}")
 ```
 
 ---
@@ -274,7 +297,7 @@ md_res.save_xyz("trajectory.xyz")
 
 ## Harmonic Vibrational Frequency Analysis & Thermochemistry
 
-PHATPSY 2.0 provides full second-derivative potential curvature analysis, normal mode evaluation, and ideal-gas statistical thermochemistry via the [`phatpsy.vibrations`](file:///Users/jacksmith/phatpsy2/phatpsy/vibrations.py) module.
+PHATPSY 2.0 provides full second-derivative potential curvature analysis, normal mode evaluation, and ideal-gas statistical thermochemistry via the [`phatpsy.vibrations`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/vibrations.py) module.
 
 ### Core Methodology
 
@@ -363,7 +386,7 @@ Inspect normal mode vibrations in 3D with interactive real-time WebGL harmonic a
 vib_res.show(mode_index=1, amplitude=0.5, height=520)
 
 # Export standalone HTML visualization with timeline and vector cones
-vib_res.visualize("normal_modes.html", open_browser=True)
+vib_res.visualize("normal_modes.html", mode_index=1, amplitude=0.5)
 ```
 
 ---
@@ -372,7 +395,7 @@ vib_res.visualize("normal_modes.html", open_browser=True)
 
 Once a transition state (first-order saddle point with $N_{\text{imag}} = 1$) has been identified by CI-NEB and verified by vibrational frequency analysis, the **Intrinsic Reaction Coordinate (IRC)** connects the transition state with the corresponding reactant and product energy minima.
 
-The [`phatpsy.irc`](file:///Users/jacksmith/phatpsy2/phatpsy/irc.py) module computes the mass-weighted steepest descent reaction pathway:
+The [`phatpsy.irc`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/irc.py) module computes the mass-weighted steepest descent reaction pathway:
 
 $$\mathbf{x}_i = \sqrt{M_i} \mathbf{r}_i, \quad \frac{d\mathbf{x}(s)}{ds} = - \frac{\mathbf{g}_x}{\|\mathbf{g}_x\|}$$
 

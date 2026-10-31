@@ -78,7 +78,7 @@ For diatomic nitrogen ($N_2$), the integrated value should equal $14.0 \pm 0.05$
 1. **One Calculation Per Driver:**
    Because the native Fortran core manages global state per calculation execution, instantiate a new `PhatpsyDriver()` instance for each run, or execute calculations in separate worker processes when running high-throughput loops.
 2. **Fortran Output Redirection:**
-   The Fortran core writes directly to C standard output (`stdout`, file descriptor 1). In Jupyter notebooks, use the `suppress_stdout()` context manager if you wish to suppress raw terminal output in notebook cells.
+   The Fortran core writes directly to C standard output (`stdout`, file descriptor 1). In Jupyter notebooks, use the `silence_stdout()` context manager (exported from `phatpsy`) if you wish to suppress raw terminal output in notebook cells. Note the driver itself is quiet by default (`PhatpsyDriver(quiet=True)`).
 3. **Gaussian Cube Precision:**
    Gaussian Cube files format numbers to 5 or 6 decimal places ($1.23456\times 10^{-2}$). When round-tripping Cube files in automated tests, use `np.isclose(rtol=1e-4)` rather than exact floating-point equality.
 4. **Memory Usage for Large Grids:**

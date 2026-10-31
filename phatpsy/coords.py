@@ -329,14 +329,23 @@ class ZMatrix:
         if n == 2:
             return coords
 
-        # Atom 2 in XZ-plane
+        # Atom 2 in XZ-plane (standard Z-matrix convention: angle_val is the
+        # angle at ref_bond between ref_angle and the new atom)
         e2 = self.entries[2]
         r = e2.bond_length or 0.0
         theta = math.radians(e2.angle_val or 0.0)
-        p1 = coords[e2.ref_angle or 0]
-        p2 = coords[e2.ref_bond or 1]
-        u_bond, _ = normalize_vector(p1 - p2)  # Direction towards ref_angle
-        coords[2] = p2 + np.array([r * math.sin(theta), 0.0, -r * math.cos(theta)])
+        p1 = coords[e2.ref_angle if e2.ref_angle is not None else 0]
+        p2 = coords[e2.ref_bond if e2.ref_bond is not None else 1]
+        u_bond, _ = normalize_vector(p1 - p2)  # Direction from ref_bond towards ref_angle
+        # Orthonormal basis: e3 = u_bond; e1 perpendicular, kept in the XZ-plane
+        # when possible (falls back to world X if u_bond is parallel to Y)
+        y_axis = np.array([0.0, 1.0, 0.0])
+        e1_raw = np.cross(u_bond, y_axis)
+        if np.linalg.norm(e1_raw) < 1e-10:
+            e1 = np.array([1.0, 0.0, 0.0])
+        else:
+            e1, _ = normalize_vector(e1_raw)
+        coords[2] = p2 + r * (math.sin(theta) * e1 + math.cos(theta) * u_bond)
         if n == 3:
             return coords
 

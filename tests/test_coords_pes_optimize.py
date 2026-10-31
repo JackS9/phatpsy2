@@ -187,6 +187,52 @@ def test_zmatrix_roundtrip_cartesian():
             assert d_orig == pytest.approx(d_recon, abs=1e-5), f"Distance mismatch for pair {i}-{j}"
 
 
+def test_zmatrix_triatomic_ref_index_zero():
+    """
+    Regression test for ZMatrix n=3 branch where ref_bond or ref_angle is index 0.
+    Ensures 0 is not falsely evaluated as falsy (which previously caused 0 or 1 -> 1).
+    """
+    import math
+
+    # Case 1: Atom 2 bonded to Atom 0 (ref_bond=0, ref_angle=1), e.g. H-O-H bend
+    zm_central_zero = ZMatrix(entries=[
+        ZMatrixEntry(element="O"),
+        ZMatrixEntry(element="H", ref_bond=0, bond_length=1.8),
+        ZMatrixEntry(element="H", ref_bond=0, bond_length=1.8, ref_angle=1, angle_val=104.5),
+    ])
+    coords1 = zm_central_zero.to_cartesian()
+    assert coords1.shape == (3, 3)
+
+    d01 = float(np.linalg.norm(coords1[1] - coords1[0]))
+    d02 = float(np.linalg.norm(coords1[2] - coords1[0]))
+    assert d01 == pytest.approx(1.8, abs=1e-5)
+    assert d02 == pytest.approx(1.8, abs=1e-5)
+
+    v01 = (coords1[1] - coords1[0]) / d01
+    v02 = (coords1[2] - coords1[0]) / d02
+    angle1 = math.degrees(math.acos(np.clip(np.dot(v01, v02), -1.0, 1.0)))
+    assert angle1 == pytest.approx(104.5, abs=1e-4)
+
+    # Case 2: Atom 2 bonded to Atom 1 with angle to Atom 0 (ref_bond=1, ref_angle=0), e.g. linear chain
+    zm_chain = ZMatrix(entries=[
+        ZMatrixEntry(element="C"),
+        ZMatrixEntry(element="C", ref_bond=0, bond_length=2.5),
+        ZMatrixEntry(element="O", ref_bond=1, bond_length=2.2, ref_angle=0, angle_val=120.0),
+    ])
+    coords2 = zm_chain.to_cartesian()
+    assert coords2.shape == (3, 3)
+
+    d10 = float(np.linalg.norm(coords2[0] - coords2[1]))
+    d12 = float(np.linalg.norm(coords2[2] - coords2[1]))
+    assert d10 == pytest.approx(2.5, abs=1e-5)
+    assert d12 == pytest.approx(2.2, abs=1e-5)
+
+    v10 = (coords2[0] - coords2[1]) / d10
+    v12 = (coords2[2] - coords2[1]) / d12
+    angle2 = math.degrees(math.acos(np.clip(np.dot(v10, v12), -1.0, 1.0)))
+    assert angle2 == pytest.approx(120.0, abs=1e-4)
+
+
 # ============================================================================
 # 3. 1D Potential Energy Surface Scan
 # ============================================================================

@@ -37,7 +37,7 @@ python -m phatpsy supercell \
   -b DZ -o ni100_co.yaml
 
 # 2. Verify geometry in the 3D viewer
-python -m phatpsy view ni100_co.yaml --view
+python -m phatpsy view ni100_co.yaml
 
 # 3. Solve the SCF ground state
 python -m phatpsy ni100_co.yaml -o ni100_co_res.json
@@ -121,7 +121,7 @@ Trace the minimum energy reaction pathway from a transition state saddle point d
 
 ```bash
 # 1. Locate transition state using Climbing-Image NEB
-python -m phatpsy neb reactant.yaml product.yaml -n 7 --climbing -o neb_pathway.json
+python -m phatpsy neb reactant.yaml product.yaml -n 7 -o neb_pathway.json
 
 # 2. Extract highest-energy saddle point deck and verify single imaginary frequency
 python -m phatpsy freq ts_candidate.yaml -m forward -o ts_vib.json

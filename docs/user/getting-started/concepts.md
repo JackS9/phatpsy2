@@ -70,7 +70,7 @@ PHATPSY utilizes the **Local Valence Bond (LVB)** initial spin assignment:
 
 Atoms in the `geometry:` block can be assigned special physical roles:
 
-* **`fixed: true`:** Prevents the optimizer from moving these atoms during geometry optimization or potential energy scans. Ideal for anchoring bottom layers of a crystal slab.
+* **`fixed: true`:** Freezes the atom in two senses — the optimizer will not move it during geometry optimization, MD, or potential energy scans, *and* its electronic state is frozen during SCF (`QFIXED=T`: orbitals and model potential computed once, never iterated). Ideal for anchoring bottom layers of a crystal slab.
 * **`virtual: true`:** Virtual (ghost) atoms carry projector potentials and basis functions to eliminate boundary edge effects or model Madelung potentials, but do not contribute active nuclear charges or electrons to the system.
 
 ---
@@ -89,9 +89,10 @@ geometry:
     id: N2
     xyz: [0.0, 0.0, -1.034]
     equivalent_to: N1
-    symmetry_op: -1
+    symmetry_op: -2
     symmetry_axis: 1
     spin: down
 ```
 
-Here, `N2` is generated from `N1` via inversion along the z-axis (`symmetry_axis: 1`, `symmetry_op: -1`).
+Here, `N2` is generated from `N1` via inversion through the origin
+(`symmetry_op: -2`; `symmetry_axis: 1` selects the $z$ axis, unused by inversion).

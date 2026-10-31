@@ -13,7 +13,7 @@ Every calculation and modernized kernel must satisfy the following physical qual
      $$\frac{-\langle V \rangle}{\langle T \rangle} \approx 2.000$$
    - In modern PHATPSY 2.0, standard benchmark systems ($N_2$, $CO$, bulk $Ni_{13}$) must converge with $|-V/T - 2.0| \le 0.05$.
 2. **Monotonic Total Energy Convergence:**
-   - Under standard clean defaults (`CDAMP = 0.5`, `VDAMP = 0.5`), the cycle-by-cycle total electronic energy must converge monotonically after initial atomic preparation.
+   - Under standard clean defaults (`charge_damp = 0.5`, `potential_damp = 0.5`), the cycle-by-cycle total electronic energy must converge monotonically after initial atomic preparation.
 3. **Spin Conservation in Localized Valence-Bond (LVB) States:**
    - For closed-shell molecules and embedded slabs treated with alternating spin (`spin="up"` / `spin="down"`), the net molecular spin must satisfy physical boundary conditions:
      $$\langle S_z \rangle = \frac{1}{2} (N_\alpha - N_\beta) = 0.000 \quad \text{(for singlets)}$$
@@ -22,7 +22,7 @@ Every calculation and modernized kernel must satisfy the following physical qual
 
 ## 2. Validation Methodology: Physics Invariants & External Benchmarks
 
-Historical legacy baselines (`data/validation_baselines/`) and legacy namelist input decks (`*.stdin`) have been formally retired. Rather than chasing exact numerical parity with 1980s legacy scratch-disk outputs, modern PHATPSY 2.0 validates against **fundamental physical invariants** and **external scientific benchmarks**.
+Historical legacy baselines (`data/validation_baselines/`) are **frozen** (see §6), and legacy namelist input decks (`*.stdin`) have been formally retired. Rather than chasing exact numerical parity with 1980s legacy scratch-disk outputs, modern PHATPSY 2.0 validates against **fundamental physical invariants** and **external scientific benchmarks**.
 
 In adherence to first-principles theory, **`PKSCAL = 1.0` is adopted as the standard default** across the codebase. Eliminating empirical scaling factors (like the legacy $0.80$ and $0.40$ settings) via the energy-dependent formulation $V_{PK}(E)$ and canonical Lowdin regularization provides numerical stability without hand-tuned knobs.
 
@@ -69,7 +69,7 @@ Documented in [`data/validation_baselines/experimental_benchmarks.json`](../../d
 
 ## 5. Benchmark Validation Engine & Error Vector Evaluation
 
-Phase 5 establishes an automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](../../phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](../../tests/test_benchmarks.py):
+An automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](../../phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](../../tests/test_benchmarks.py):
 - Compares calculated values under `ControlConfig.first_principles(pk_scale=1.0)` against external Layer B literature (NIST CCCBDB, CRC Handbook, Somorjai & Li).
 - Reports quantitative error vectors on bond lengths ($\Delta R_e$), harmonic vibrational frequencies ($\Delta \omega_e$), permanent dipole moments ($\Delta \mu$), virial theorem compliance ($-V/T \to 2.0$), and chemisorption energy ($E_{\text{ads}}$).
 - Formally retires empirical damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) in favor of self-consistent Pulay DIIS, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization.
@@ -82,7 +82,7 @@ Phase 5 establishes an automated literature benchmark evaluation engine in [`pha
 | :--- | :--- | :--- |
 | **Total Energy ($E_{\text{tot}}$)** | $\text{atol} = 2.5 \times 10^{-3}\text{ Hartree}$ | Modern LAPACK matrix diagonalizations and cross-BLAS portability (macOS Accelerate vs Linux OpenBLAS). |
 | **Virial Ratio ($-V/T$)** | $\text{atol} = 0.05$ | Physical virial boundary condition. |
-| **Harmonic Frequency ($\omega$)** | $\text{atol} = 10.0\text{ cm}^{-1}$ | Finite-difference numerical Hessian accuracy. |
+| **Harmonic Frequency ($\omega$)** | $\text{atol} = 15.0\text{ cm}^{-1}$ | Numerical Hessian accuracy (matches freeze manifest v1.1.0). |
 | **Dipole Moment ($\mu$)** | $\text{atol} = 0.05\text{ Debye}$ | EOM density and origin invariance. |
 | **Polarizability ($\bar{\alpha}$)** | $\text{atol} = 0.10\text{ a}_0^3$ | Sum-over-states dipole response. |
 | **Reaction Barrier ($E_a$)** | $\text{atol} = 1.0\text{ kcal/mol}$ | CI-NEB climbing image energy convergence. |
@@ -110,4 +110,19 @@ PYTHONPATH=. .venv/bin/pytest tests/test_benchmarks.py -v
 
 # Generate benchmark summary table directly
 PYTHONPATH=. .venv/bin/python -m phatpsy.benchmarks
+```
+
+---
+
+## 8. PySCF Parity Bridge & Composite L2 Metric (Phase 10)
+
+`tools/benchmark_pyscf_bridge.py` runs a real PySCF (v2.14.0, cc-pVDZ) RHF reference alongside PHATPSY 2.0 for the benchmark suite (N₂, H₂O, CO, NO) and compares total energies, dipoles, and virial ratios. The composite L2 error norm (`phatpsy.benchmarks.compute_l2_error_norm`) aggregates relative errors across all quantities:
+
+$$\|\epsilon\|_2 = \sqrt{\sum_k w_k \left(\frac{P_k^{\text{calc}} - P_k^{\text{ref}}}{P_k^{\text{ref}}}\right)^2}$$
+
+with normalized weights ($\sum_k w_k = 1$). The non-regression gate is $\|\epsilon\|_2 < 0.15$ (enforced in CI via `.github/workflows/benchmarks.yml`).
+
+```bash
+# Run the PySCF parity suite (requires PySCF installed)
+python tools/benchmark_pyscf_bridge.py -o parity_results.json
 ```

@@ -79,21 +79,21 @@ This document provides a line-of-sight mapping connecting key mathematical deriv
 
 | Operational Concept | Mathematical Operation | Legacy Routine | Modernized Code | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Equivalent Atom Spatial Mapping** | $\mathbf{R}_{\text{eq}} = \mathcal{R}_{\text{sym}} \mathbf{R}_{\text{gen}}$ | `src/symxyz.f` | `src/symxyz.f`, `phatpsy_atomic_mod.f90` | Generates XYZ coordinates for `NEQAT` atoms using `ISYM`/`IXYZ` |
-| **Orbital Symmetry Transformation** | $C_{\mu i}^{(\text{eq})} = D(R) C_{\mu i}^{(\text{gen})}$ | `src/symop.f` | `src/symop.f`, `phatpsy_atomic_mod.f90` | Transforms STO coefficients and model potential via Wigner $D$-matrices |
-| **Spin-Flipping on Symmetry** | $\alpha \leftrightarrow \beta$ | `src/flip.f` | `src/flip.f`, `phatpsy_atomic_mod.f90` | Exchanges spin manifolds when `QFLIP=T` (LVB singlet generation) |
-| **Fixed (Frozen) Environment Atoms** | $\delta V_{\text{fixed}} = 0, \delta C_{\text{fixed}} = 0$ | `src/atomic.f`, `scf.f`, `analys.f` | `phatpsy_scf_mod.f90`, `phatpsy_analys_mod.f90` | Freezes orbitals and potential (`QFIXED=T`); bypasses SCF iterations |
-| **Virtual Atoms (Coordination Completion)** | $V_{\text{ext}} \neq 0, \text{excluded at EWMO}$ | `src/atomic.f`, `bloop.f` | `phatpsy_atomic_mod.f90`, `phatpsy/schema.py` | Completes local coordination environment during atomic stage; excluded from molecular EWMO calculation (`QVIRTL=T`) |
+| **Equivalent Atom Spatial Mapping** | $\mathbf{R}_{\text{eq}} = \mathcal{R}_{\text{sym}} \mathbf{R}_{\text{gen}}$ | `src/symxyz.f` | `src/symmetry.f90`, `phatpsy/schema.py` | Generates XYZ coordinates for `NEQAT` atoms using `ISYM`/`IXYZ` |
+| **Orbital Symmetry Transformation** | $C_{\mu i}^{(\text{eq})} = D(R) C_{\mu i}^{(\text{gen})}$ | `src/symop.f` | `src/symmetry.f90`, `phatpsy/schema.py` | Transforms STO coefficients and model potential via Wigner $D$-matrices |
+| **Spin-Flipping on Symmetry** | $\alpha \leftrightarrow \beta$ | `src/flip.f` | `src/linalg.f90`, `phatpsy/schema.py` | Exchanges spin manifolds when `QFLIP=T` (LVB singlet generation) |
+| **Fixed (Frozen) Environment Atoms** | $\delta V_{\text{fixed}} = 0, \delta C_{\text{fixed}} = 0$ | `src/atomic.f`, `scf.f`, `analys.f` | `src/scf.f90`, `src/analys.f90` | Freezes orbitals and potential (`QFIXED=T`); bypasses SCF iterations |
+| **Virtual Atoms (Coordination Completion)** | $V_{\text{ext}} \neq 0, \text{excluded at EWMO}$ | `src/atomic.f`, `bloop.f` | `src/atomic.f90`, `phatpsy/schema.py` | Completes local coordination environment during atomic stage; excluded from molecular EWMO calculation (`QVIRTL=T`) |
 
 ---
 
-## 8. Dispersion & Polarized Basis Sets (Phase 6)
+## 8. Dispersion & Polarized Basis Sets (Phases 7–8)
 
 | Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **DFT-D3(BJ) Dispersion Energy** | $E_{\text{disp}} = -\frac{1}{2}\sum [s_6 \frac{C_6}{R^6 + R_0^6} + s_8 \frac{C_8}{R^8 + R_0^8}]$ | — | `phatpsy/dispersion.py` | Grimme D3 with Becke-Johnson rational damping |
 | **Analytical Dispersion Gradient** | $\mathbf{g}_{\text{disp}} = -\nabla E_{\text{disp}}$ | — | `phatpsy/dispersion.py` | Analytical Cartesian dispersion force vector |
-| **DZP Polarized STOs** | $2p$ on $\text{H}$, $3d$ on $\text{Li}$--$\text{Ar}$, $4f$ on metals | — | `phatpsy/data/polarized_sto.json`, `phatpsy/basis.py` | Polarization basis functions for directional bonding |
+| **DZP Polarized STOs** | $2p$ on $\text{H}$/$\text{He}$, $3d$ on $\text{Li}$--$\text{Ar}$ | — | `phatpsy/basis.py` (`POLARIZATION_PARAMETERS`) | Polarization basis functions for directional bonding |
 | **Slater Spherical Normalization** | $N_n(\zeta) = (2\zeta)^{n+1/2}/\sqrt{(2n)!}$ | `src/genfac.f`, `src/gennrm.f` | `src/modelpot.f90`, `phatpsy/basis.py` | Normalization of high-$l$ spherical harmonics |
 
 ---

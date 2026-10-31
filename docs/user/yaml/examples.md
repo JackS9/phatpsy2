@@ -27,7 +27,8 @@ geometry:
     spin: down
 
 elements:
-  - symbol: N
+  N:
+    symbol: N
     basis: DZ
 ```
 
@@ -61,9 +62,11 @@ geometry:
     spin: down
 
 elements:
-  - symbol: C
+  C:
+    symbol: C
     basis: DZ
-  - symbol: O
+  O:
+    symbol: O
     basis: DZ
 ```
 
@@ -99,7 +102,8 @@ geometry:
   # Additional coordination shell atoms...
 
 elements:
-  - symbol: Ag
+  Ag:
+    symbol: Ag
     basis: DZ
 ```
 
@@ -155,11 +159,14 @@ geometry:
     virtual: true
 
 elements:
-  - symbol: C
+  C:
+    symbol: C
     basis: DZ
-  - symbol: O
+  O:
+    symbol: O
     basis: DZ
-  - symbol: Ni
+  Ni:
+    symbol: Ni
     basis: DZ
 ```
 
@@ -189,12 +196,13 @@ geometry:
     id: N2
     xyz: [0.0, 0.0, -1.034]
     equivalent_to: N1
-    symmetry_op: -1
+    symmetry_op: -2
     symmetry_axis: 1
     spin: down
 
 elements:
-  - symbol: N
+  N:
+    symbol: N
     basis: DZ
 ```
 

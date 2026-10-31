@@ -40,10 +40,9 @@ ao_grid = compute_grid(res, grid_type="ao", ao_index=0, spacing=0.2)
 All grid functions return a `VolumetricGrid` object encapsulating the 3D data array and coordinate system:
 
 ```python
-print(f"Grid dimensions : {density_grid.shape}")
+print(f"Grid dimensions : {density_grid.dimensions}")
 print(f"Grid origin     : {density_grid.origin}")
-print(f"Grid spacing    : {density_grid.spacing} Bohrs")
-print(f"Physical bounds : {density_grid.bounds}")
+print(f"Voxel steps     : {density_grid.voxel_steps} Bohrs")
 ```
 
 ### Grid Arithmetic

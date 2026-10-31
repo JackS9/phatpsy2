@@ -33,7 +33,8 @@ geometry:
     spin: down
 
 elements:
-  - symbol: N
+  N:
+    symbol: N
     basis: DZ
 ```
 

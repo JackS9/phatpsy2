@@ -10,23 +10,13 @@ When working inside a Jupyter notebook:
 
 1. **Kernel Selection:** Ensure your Jupyter notebook kernel uses the project virtual environment (`.venv`).
 2. **One Calculation Per Process:** The legacy Fortran 2018 core maintains global state per driver run. For multiple independent calculations, instantiate a fresh `PhatpsyDriver` or run separate processes.
-3. **Suppressing Fortran Standard Output:** The Fortran engine writes convergence tables directly to C file descriptor `1` (`stdout`). If you prefer completely silent runs in a notebook cell, you can redirect file descriptor 1:
+3. **Suppressing Fortran Standard Output:** `PhatpsyDriver` is quiet by default (`quiet=True`). If you need to silence raw C-level `stdout` (file descriptor 1) around other calls in a notebook cell, use the built-in `silence_stdout` context manager:
 
 ```python
-import os
-import sys
-from contextlib import contextmanager
+from phatpsy import silence_stdout
 
-@contextmanager
-def suppress_stdout():
-    with open(os.devnull, "w") as devnull:
-        old_stdout = os.dup(1)
-        os.dup2(devnull.fileno(), 1)
-        try:
-            yield
-        finally:
-            os.dup2(old_stdout, 1)
-            os.close(old_stdout)
+with silence_stdout():
+    ...  # any calls that write to C stdout
 ```
 
 ---
@@ -147,6 +137,8 @@ deck.control = ControlConfig.first_principles(
     use_constrained_fit=True,
     use_dynamic_exponents=True,
     exchange_kernel="pbe",  # "hartree-fock" | "slater" | "becke88" | "pbe"
+    # Additional kwargs: use_global_fermi, use_pseudometric, charge_damp,
+    # potential_damp, default_basis, plus **kwargs passthrough
 )
 ```
 
@@ -169,7 +161,7 @@ For chemisorption surfaces, metal slabs, and complex active-site clusters:
 
 ```python
 decomp = res.subsystem_decomposition
-print(f"Total Energy:       {decomp.energy_total:.6f} Ha")
+print(f"Total Energy:       {decomp.total_energy:.6f} Ha")
 print(f"Active Cluster:     {decomp.energy_cluster:.6f} Ha")
 print(f"Bulk Environment:   {decomp.energy_environment:.6f} Ha")
 print(f"Embedding Energy:   {decomp.energy_embedding:.6f} Ha")

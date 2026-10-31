@@ -112,7 +112,8 @@ The system combines:
         spin: down
 
     elements:
-      - symbol: N
+      N:
+        symbol: N
         basis: DZ
     ```
 
