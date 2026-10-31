@@ -8,6 +8,7 @@ ulimit -s $(ulimit -H -s 2>/dev/null || echo 65536) 2>/dev/null || ulimit -s unl
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export OMP_STACKSIZE=1G
+export MPLBACKEND=Agg
 
 # 1. Configure and build legacy baseline, modern CLI, and Python f2py extension
 PY_EXE=""

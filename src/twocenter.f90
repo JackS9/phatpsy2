@@ -392,6 +392,7 @@ contains
   !---------------------------------------------------------------------
 
   subroutine ensure_tables_initialized()
+    use state,    only: init_block_data_and_defaults
     use modelpot, only: genbc, genfac
     use angular,  only: gencgc
     integer(int32) :: i, tc_lmax, tc_llmx, tc_llmxp1, tc_llmxp2, tc_l3mx, tc_nylm, tc_ncgc
@@ -399,6 +400,8 @@ contains
     logical(kind=1), parameter :: qrealy = .true.
 
     if (tc_tables_ready) return
+
+    call init_block_data_and_defaults()
 
     tc_lmax = 4
     tc_llmx = 2 * tc_lmax
