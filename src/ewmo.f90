@@ -190,8 +190,8 @@ contains
             call lowdin_pop(dens, mol_ws%ovlp(1, isp), lpop, totpop_l, NORBT, N2ORBT)
             do iorbt = 1, NORBT
               oldpop = mol_ws%popul(iorbt, isp)
-              mol_ws%popul(iorbt, isp) = lpop(iorbt)
-              ct = ORBOCC * (lpop(iorbt) - oldpop)
+              mol_ws%popul(iorbt, isp) = max(0.0d0, min(1.0d0, lpop(iorbt)))
+              ct = ORBOCC * (mol_ws%popul(iorbt, isp) - oldpop)
               CHTRAN = CHTRAN + 0.5d0 * abs(ct)
               DELTAE = DELTAE + evalmo(iorbt, isp) * ct
             end do
@@ -204,8 +204,8 @@ contains
             do jorbt = 1, NORBT
               sum_pop = sum_pop + occmo(jorbt, isp) * evecmo(iorbt, jorbt, isp)**2
             end do
-            mol_ws%popul(iorbt, isp) = sum_pop
-            ct     = ORBOCC * (sum_pop - oldpop)
+            mol_ws%popul(iorbt, isp) = max(0.0d0, min(1.0d0, sum_pop))
+            ct     = ORBOCC * (mol_ws%popul(iorbt, isp) - oldpop)
             CHTRAN = CHTRAN + 0.5d0 * abs(ct)
             DELTAE = DELTAE + evalmo(iorbt, isp) * ct
           end do

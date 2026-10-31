@@ -210,6 +210,14 @@ class PhatpsyDriver:
                 if custom_damping_hook is not None:
                     custom_damping_hook(state)
 
+                # Enforce physical non-negative occupation bounds [0.0, 1.0]
+                norbt_val = int(state.norbt)
+                ispin_val = 2 if bool(state.qopen) else 1
+                pop_val = state.get_popul(norbt_val, ispin_val)
+                if np.any((pop_val < 0.0) | (pop_val > 1.0)):
+                    pop_val = np.clip(pop_val, 0.0, 1.0)
+                    state.set_popul(pop_val)
+
             done_after_scf = contrl.contrl_step_scf()
 
             # Record granular per-cycle diagnostics

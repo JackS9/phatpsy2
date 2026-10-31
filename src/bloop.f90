@@ -307,7 +307,7 @@ contains
                     end if
                     popsum = popsum + ct * block_ab(iorba, iorbb, isp)**2
                   end do
-                  mol_ws%popul(IORBT + iorba, isp) = mol_ws%popul(IORBT + iorba, isp) + popsum
+                  mol_ws%popul(IORBT + iorba, isp) = max(0.0d0, min(occmx, mol_ws%popul(IORBT + iorba, isp) + popsum))
                 end do
               end do
             end if

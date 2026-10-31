@@ -45,7 +45,7 @@ contains
         do iorba = 1, NORB
           korbta = korbta + 1
           mol_ws%evalx(korbta, isp) = evala(iorba, isp)
-          mol_ws%occx(korbta, isp)  = occa(iorba, isp)
+          mol_ws%occx(korbta, isp)  = max(0.0d0, min(1.0d0, occa(iorba, isp)))
           kstota = JSTOT
           do jstoa = 1, MSTO
             kstota = kstota + 1
