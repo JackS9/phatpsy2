@@ -4,8 +4,8 @@
 !=======================================================================
 module twocenter
   use iso_fortran_env, only: real64, int32
-  use state,           only: EXPMIN, FACT, BINOM, state_nsto => NSTO, state_nstob => NSTOB, &
-                             HALF, ROOTPI, state_nvtrmb => NVTRMB
+  use state,           only: EXPMIN, FACT, BINOM, &
+                             HALF, ROOTPI
   use elliptical,      only: absum, anmbnm, ogen
   use angular,         only: dcoef, cgcoef, gendc, ndxmax
   use symmetry,        only: rotsab
@@ -177,13 +177,13 @@ contains
     integer(int32) :: ila, la, l2a, lmin, imlmx, iml, ml, iabsml, mlp1
     integer(int32) :: limi, limj, limij, nvterm
 
-    nvterm = state_nvtrmb
+    nvterm = size(vexp)
     rhalf  = half * rab
     cnorm  = pi * rootpi * rab * rab
 
     ij = 0
 
-    do i = 1, state_nsto
+    do i = 1, size(n)
       etai  = eta(i)
       ni    = n(i)
       li    = l(i)
@@ -449,8 +449,6 @@ contains
 
     call ensure_tables_initialized()
 
-    state_nsto = nstoa
-    state_nstob = nstob
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call gensab(ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
                 nstob, rab, a, b, omegai, omegaj, scrplm, tc_index_arr, tc_ylmnrm)
@@ -469,8 +467,6 @@ contains
 
     call ensure_tables_initialized()
 
-    state_nsto = nstoa
-    state_nstob = nstob
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
                   nstob, rab, a, b, omegai, omegaj, scrplm, tc_index_arr, tc_ylmnrm)
@@ -502,8 +498,6 @@ contains
     lmax_val = min(4, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
 
-    state_nsto = nsto
-    state_nvtrmb = nvtrm
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call genvab(stvab, n, l, eta, rab, lv, mv, vexp, &
                 omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
@@ -536,8 +530,6 @@ contains
     lmax_val = min(4, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
 
-    state_nsto = nsto
-    state_nvtrmb = nvtrm
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
                   omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
