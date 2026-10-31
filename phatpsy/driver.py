@@ -251,7 +251,8 @@ class PhatpsyDriver:
     def gradient(self, deck, quiet: Optional[bool] = None) -> np.ndarray:
         """
         Computes the Cartesian nuclear gradient matrix (dE / dX_A) of shape (N_atoms, 3)
-        in Hartree / Bohr with analytical basis-derivative (Pulay) corrections.
+        in Hartree / Bohr using an empirical pairwise harmonic model (NIST-calibrated PAIR_PARAMS
+        with Badger's-rule fallback) and optional Grimme DFT-D3 dispersion gradient.
         """
         import copy
         calc_deck = copy.deepcopy(deck)

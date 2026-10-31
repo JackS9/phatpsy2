@@ -209,7 +209,7 @@ class CalculationState(dict):
 
     @property
     def gradient(self) -> np.ndarray:
-        """Cartesian nuclear gradient (dE/dX_A) in Hartree / Bohr with Pulay basis corrections."""
+        """Cartesian nuclear gradient (dE/dX_A) in Hartree / Bohr evaluated via empirical harmonic pair model + optional D3 dispersion gradient."""
         if "gradient" not in self and self._deck is not None:
             from phatpsy.driver import PhatpsyDriver
             d = PhatpsyDriver(quiet=True)

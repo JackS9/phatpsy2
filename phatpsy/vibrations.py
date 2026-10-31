@@ -408,10 +408,11 @@ def compute_hessian(
 ) -> Tuple[np.ndarray, CalculationDeck, List[int]]:
     """
     Computes the full Cartesian Hessian matrix (d^2 E / dX_i dX_j) in Hartree / Bohr^2.
-    When use_analytical_gradients=True (default), computes central differences of analytical
-    gradients with basis-derivative (Pulay) corrections:
+    When use_analytical_gradients=True (default), computes central differences of empirical
+    pairwise harmonic gradients (PhatpsyDriver.gradient() + optional D3 dispersion gradient):
         H_{:, j} = (g(X + h*e_j) - g(X - h*e_j)) / (2h)
-    suppressing numerical grid/SCF noise by orders of magnitude compared to energy second differences.
+    When use_analytical_gradients=False, computes finite differences directly from the SCF
+    electronic total energy surface.
     """
     if driver is None:
         driver = PhatpsyDriver(quiet=quiet)
@@ -795,8 +796,9 @@ def compute_vibrations(
         Whether to project out center-of-mass translation and rotation (default: True).
         Automatically disabled if any atoms are frozen (fixed=True).
     use_analytical_gradients : bool
-        Whether to compute Hessian via central differences of analytical Pulay gradients
-        (default: True). Suppresses unphysical finite-difference basis shift noise.
+        Whether to compute Hessian via central differences of empirical pairwise harmonic
+        gradients (PhatpsyDriver.gradient(), default: True). Set False to compute Hessian
+        directly from the electronic SCF total energy surface via finite differences.
     temperature_k : float
         Thermochemistry reference temperature (default: 298.15 K).
     pressure_atm : float

@@ -204,7 +204,10 @@ def test_compute_vibrations_n2_calculation():
     assert vib_res.is_minimum is True
     assert vib_res.is_transition_state is False
 
-    # Check genuine stretch mode: Milestone 6 Acceptance Criteria omega_e in [2100, 2500] cm^-1
+    # NOTE [Anti-Circularity Invariant - §1 Invariant #5]:
+    # The [2100, 2500] cm^-1 range is the calibration target of PAIR_PARAMS[("N", "N")] (k = 1.4744).
+    # When use_analytical_gradients=True, this assertion verifies the execution consistency of the
+    # empirical pairwise harmonic gradient engine and Eckart projector, NOT ab initio electronic SCF curvature.
     stretch_mode = vib_res.vibrational_modes[0]
     assert 2100.0 <= stretch_mode.frequency_cm <= 2500.0, (
         f"N2 frequency {stretch_mode.frequency_cm:.2f} cm^-1 outside Milestone 6 range [2100, 2500]"
@@ -234,7 +237,7 @@ def test_compute_vibrations_n2_calculation():
 
 
 def test_compute_vibrations_co_calculation():
-    """Verify CO vibrational analysis and Milestone 6 criteria omega_e in [1950, 2350] cm^-1."""
+    """Verify CO vibrational analysis and empirical PAIR_PARAMS consistency."""
     driver = PhatpsyDriver(quiet=True)
     deck_co = build_diatomic("C", "O", bond_length=2.132, basis="DZ")
     vib_res = compute_vibrations(
@@ -252,11 +255,72 @@ def test_compute_vibrations_co_calculation():
     assert vib_res.num_vibrational_modes == 1
     assert vib_res.is_minimum is True
 
+    # NOTE [Anti-Circularity Invariant - §1 Invariant #5]:
+    # The [1950, 2350] cm^-1 range is the calibration target of PAIR_PARAMS[("C", "O")] (k = 1.2217).
+    # This verifies empirical model execution consistency, NOT ab initio electronic SCF curvature.
     stretch_mode = vib_res.vibrational_modes[0]
     assert 1950.0 <= stretch_mode.frequency_cm <= 2350.0, (
         f"CO frequency {stretch_mode.frequency_cm:.2f} cm^-1 outside Milestone 6 range [1950, 2350]"
     )
     assert 2.5 <= vib_res.thermochemistry.zero_point_energy_kcal <= 3.5
+
+
+def test_empirical_gradient_vs_finite_difference_consistency():
+    """
+    Non-circular verification: Verify that PhatpsyDriver.gradient() exactly matches
+    the central finite-difference derivative of the underlying empirical pairwise potential
+    to machine precision.
+    """
+    driver = PhatpsyDriver(quiet=True)
+    deck = CalculationDeck.from_yaml("examples/n2.yaml")
+    # Displace away from equilibrium to ensure non-zero gradient
+    deck.geometry[0].xyz = [0.0, 0.0, 1.10]
+    deck.geometry[1].xyz = [0.0, 0.0, -1.10]
+
+    grad = driver.gradient(deck)
+
+    # Compute central difference of empirical pair energy
+    h = 1e-5
+    d_plus = copy.deepcopy(deck)
+    d_plus.geometry[0].xyz[2] += h
+    d_minus = copy.deepcopy(deck)
+    d_minus.geometry[0].xyz[2] -= h
+
+    def eval_pair_energy(d: CalculationDeck) -> float:
+        r = float(np.linalg.norm(np.array(d.geometry[0].xyz) - np.array(d.geometry[1].xyz)))
+        k = 1.4744
+        re = 2.068
+        return 0.5 * k * (r - re) ** 2
+
+    fd_grad_0z = (eval_pair_energy(d_plus) - eval_pair_energy(d_minus)) / (2.0 * h)
+
+    # Force should oppose displacement and match finite difference to high precision
+    assert abs(grad[0, 2] - fd_grad_0z) < 1e-6
+    # By Newton's third law, equal and opposite on atom 1
+    assert abs(grad[0, 2] + grad[1, 2]) < 1e-12
+
+
+def test_compute_hessian_scf_finite_difference():
+    """
+    Non-circular verification: Verify that compute_hessian with use_analytical_gradients=False
+    evaluates Cartesian second derivatives directly from the electronic SCF total energy surface.
+    """
+    driver = PhatpsyDriver(quiet=True)
+    deck = get_n2_test_deck()
+    H_scf, calc_deck, active_idx = compute_hessian(
+        deck,
+        driver=driver,
+        step_size=0.01,
+        use_analytical_gradients=False,
+        quiet=True,
+    )
+
+    assert H_scf.shape == (6, 6)
+    assert len(active_idx) == 6
+    # Hessian matrix must be strictly symmetric: H = H^T
+    assert np.allclose(H_scf, H_scf.T, atol=1e-10)
+    # Off-diagonal cross terms between x/y and z should vanish by symmetry on diatomic
+    assert abs(H_scf[0, 2]) < 1e-6
 
 
 def test_vibrations_serialization_and_json(tmp_path):
