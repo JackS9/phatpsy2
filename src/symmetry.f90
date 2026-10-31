@@ -109,13 +109,12 @@ contains
   !---------------------------------------------------------------------
   subroutine symop(isym, ixyz, stevec, vcoef, l, lv, d, scrat, &
                    nsto, msto, norb, ispin, nvterm, lmax, llmxp1)
-    use state, only: L3MX
     integer(int32), intent(in)    :: isym, ixyz
     integer(int32), intent(in)    :: nsto, msto, norb, ispin, nvterm, lmax, llmxp1
     real(real64),   intent(inout) :: stevec(msto, norb, ispin)
     real(real64),   intent(inout) :: vcoef(*)
     integer(int32), intent(in)    :: l(nsto), lv(*)
-    real(real64),   intent(inout) :: d(L3MX, 2)
+    real(real64),   intent(inout) :: d(:, :)
     real(real64),   intent(inout) :: scrat(*)
 
     real(real64)   :: pi, angle, parity, alpha, beta, gamma, coef
