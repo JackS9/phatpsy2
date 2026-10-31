@@ -4,18 +4,25 @@
 !=======================================================================
 module twocenter
   use iso_fortran_env, only: real64, int32
-  use state,           only: EXPMIN, NNMX, NNMXM1, NABDIM, state_nsto => NSTO, state_nstob => NSTOB, &
-                             NYLM, L3MX, NCGC, FACT, BINOM, HALF, ROOTPI,              &
-                             state_nvtrmb => NVTRMB, LLMXP1, LLMXP2, mol_ws,          &
-                             init_block_data_and_defaults,                             &
-                             compute_derived_dimensions_and_allocate
+  use state,           only: EXPMIN, FACT, BINOM, state_nsto => NSTO, state_nstob => NSTOB, &
+                             HALF, ROOTPI, state_nvtrmb => NVTRMB
   use elliptical,      only: absum, anmbnm, ogen
-  use angular,         only: dcoef, cgcoef, gendc
+  use angular,         only: dcoef, cgcoef, gendc, ndxmax
   use symmetry,        only: rotsab
   implicit none
 
   real(real64), parameter :: PI    = 3.141592653589793238462643383279502884d0
   real(real64), parameter :: TWOPI = 6.283185307179586476925286766559005768d0
+
+  ! Dedicated in-module workspace for standalone two-center evaluations
+  integer(int32), allocatable :: tc_index_arr(:)
+  real(real64),   allocatable :: tc_cgc(:)
+  real(real64),   allocatable :: tc_ylmnrm(:)
+  real(real64),   allocatable :: tc_d(:, :)
+  real(real64),   allocatable :: tc_scrat(:, :)
+  real(real64)                :: tc_binom(70)
+  real(real64)                :: tc_fact(25)
+  logical                     :: tc_tables_ready = .false.
 
   private
   public :: rbeta, rbeta2, gensab, genvab, d_gensab, d_genvab, &
@@ -124,9 +131,9 @@ contains
           limj  = nbj - iabsml
           limij = limi + limj
 
-          call ogen( nai, lai, ml, rhalf, omegai, nnmxm1, binom, fact, index_arr, scrplm)
-          call ogen(-nbj, lbj, ml, rhalf, omegaj, nnmxm1, binom, fact, index_arr, scrplm)
-          call anmbnm(a, retai, b, retaj, limij, iabsml, nabdim)
+          call ogen( nai, lai, ml, rhalf, omegai, size(omegai, 1), BINOM, FACT, index_arr, scrplm)
+          call ogen(-nbj, lbj, ml, rhalf, omegaj, size(omegaj, 1), BINOM, FACT, index_arr, scrplm)
+          call anmbnm(a, retai, b, retaj, limij, iabsml, size(a))
           call absum(sum_val, a, b, omegai, omegaj, limi, limj, 0)
 
           if (ml /= 0) sum_val = half * sum_val
@@ -262,9 +269,9 @@ contains
                   limj  = nb - iabsml
                   limij = limi + limj
 
-                  call ogen( na, la, ml, rhalf, omegai, nnmxm1, binom, fact, index_arr, scrplm)
-                  call ogen(-nb, lb, ml, rhalf, omegaj, nnmxm1, binom, fact, index_arr, scrplm)
-                  call anmbnm(a, retai, b, retaj, limij, iabsml, nabdim)
+                  call ogen( na, la, ml, rhalf, omegai, size(omegai, 1), BINOM, FACT, index_arr, scrplm)
+                  call ogen(-nb, lb, ml, rhalf, omegaj, size(omegaj, 1), BINOM, FACT, index_arr, scrplm)
+                  call anmbnm(a, retai, b, retaj, limij, iabsml, size(a))
                   call absum(sum_val, a, b, omegai, omegaj, limi, limj, 1)
 
                   if (ml /= 0) sum_val = half * sum_val
@@ -386,29 +393,48 @@ contains
 
   subroutine ensure_tables_initialized()
     use modelpot, only: genbc, genfac
-    use angular,  only: gencgc, gendc
-    integer(int32) :: i, ndxdim, mxfact, nfact, nbinom
+    use angular,  only: gencgc
+    integer(int32) :: i, tc_lmax, tc_llmx, tc_llmxp1, tc_llmxp2, tc_l3mx, tc_nylm, tc_ncgc
+    integer(int32) :: ndxdim, mxfact, nfact, nbinom, tc_nnmx, tc_nnmxm1
     logical(kind=1), parameter :: qrealy = .true.
 
-    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
-        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
-      call init_block_data_and_defaults()
-      call compute_derived_dimensions_and_allocate()
-    end if
+    if (tc_tables_ready) return
+
+    tc_lmax = 4
+    tc_llmx = 2 * tc_lmax
+    tc_llmxp1 = tc_llmx + 1
+    tc_llmxp2 = tc_llmxp1 + 1
+    tc_l3mx = ((tc_llmx + 1) * (tc_llmx + 2) * (tc_llmx + 3)) / 6
+    tc_nylm = tc_llmxp1 * (tc_lmax + 1)
+    tc_ncgc = ndxmax(tc_lmax)
+    tc_nnmx = 12
+    tc_nnmxm1 = tc_nnmx - 1
+    ndxdim = 64
+
+    allocate(tc_index_arr(ndxdim))
+    allocate(tc_cgc(tc_ncgc))
+    allocate(tc_ylmnrm(tc_nylm))
+    allocate(tc_d(tc_l3mx, 2))
+    allocate(tc_scrat(tc_llmxp2, 2))
+
+    do i = 1, ndxdim
+      tc_index_arr(i) = (i * (i - 1)) / 2
+    end do
+
+    mxfact = max(4 * tc_lmax + 1, tc_nnmx)
+    nfact  = mxfact + 1
+    call genfac(tc_fact, size(tc_fact))
+    nbinom = tc_index_arr(tc_nnmx)
+    call genbc(tc_binom, nbinom, tc_nnmxm1, tc_index_arr)
+    call gencgc(tc_cgc, tc_ncgc, tc_scrat, tc_llmxp2, &
+                tc_ylmnrm, tc_nylm, tc_fact, nfact, qrealy)
 
     if (abs(BINOM(1)) < 1.0d-12) then
-      ndxdim = size(mol_ws%index_arr)
-      do i = 1, ndxdim
-        mol_ws%index_arr(i) = (i * (i - 1)) / 2
-      end do
-      mxfact = max(4 * 2 + 1, NNMX)
-      nfact  = mxfact + 1
       call genfac(FACT, size(FACT))
-      nbinom = mol_ws%index_arr(NNMX)
-      call genbc(BINOM, nbinom, NNMXM1, mol_ws%index_arr)
-      call gencgc(mol_ws%cgc, NCGC, mol_ws%scrat, LLMXP2, &
-                  mol_ws%ylmnrm, NYLM, FACT, nfact, qrealy)
+      call genbc(BINOM, tc_index_arr(12), 11, tc_index_arr)
     end if
+
+    tc_tables_ready = .true.
   end subroutine ensure_tables_initialized
 
   subroutine compute_gensab(ovrlap, llmxp1, na, la, etaa, anorm, nstoa, &
@@ -425,9 +451,9 @@ contains
 
     state_nsto = nstoa
     state_nstob = nstob
-    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call gensab(ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
-                nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
+                nstob, rab, a, b, omegai, omegaj, scrplm, tc_index_arr, tc_ylmnrm)
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_gensab
 
@@ -445,14 +471,13 @@ contains
 
     state_nsto = nstoa
     state_nstob = nstob
-    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
-                  nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
+                  nstob, rab, a, b, omegai, omegaj, scrplm, tc_index_arr, tc_ylmnrm)
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_d_gensab
 
   subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
-    use state,   only: ALPHA_ANG, BETA_ANG
     use angular, only: gendc
     integer(int32), intent(in)  :: m2sto, nvtrm, nsto
     integer(int32), intent(in)  :: n(nsto), l(nsto)
@@ -465,25 +490,28 @@ contains
     real(real64),   intent(out) :: stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+    real(real64)   :: alpha_val, beta_val
+    integer(int32) :: lmax_val
 
     call ensure_tables_initialized()
-    ALPHA_ANG = 0.0d0
-    BETA_ANG  = 0.0d0
-    if (present(alpha)) ALPHA_ANG = alpha
-    if (present(beta))  BETA_ANG  = beta
-    call gendc(mol_ws%d, LLMXP1 - 1, BETA_ANG)
+    alpha_val = 0.0d0
+    beta_val  = 0.0d0
+    if (present(alpha)) alpha_val = alpha
+    if (present(beta))  beta_val  = beta
+    lmax_val = max(maxval(l), maxval(abs(lv)))
+    lmax_val = min(4, max(lmax_val, 2))
+    call gendc(tc_d, lmax_val, beta_val)
 
     state_nsto = nsto
     state_nvtrmb = nvtrm
-    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call genvab(stvab, n, l, eta, rab, lv, mv, vexp, &
-                omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &
-                mol_ws%ylmnrm, mol_ws%d, mol_ws%cgc, qrealy)
+                omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
+                tc_ylmnrm, tc_d, tc_cgc, qrealy)
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_genvab
 
   subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
-    use state,   only: ALPHA_ANG, BETA_ANG
     use angular, only: gendc
     integer(int32), intent(in)  :: m2sto, nvtrm, nsto
     integer(int32), intent(in)  :: n(nsto), l(nsto)
@@ -496,25 +524,28 @@ contains
     real(real64),   intent(out) :: d_stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+    real(real64)   :: alpha_val, beta_val
+    integer(int32) :: lmax_val
 
     call ensure_tables_initialized()
-    ALPHA_ANG = 0.0d0
-    BETA_ANG  = 0.0d0
-    if (present(alpha)) ALPHA_ANG = alpha
-    if (present(beta))  BETA_ANG  = beta
-    call gendc(mol_ws%d, LLMXP1 - 1, BETA_ANG)
+    alpha_val = 0.0d0
+    beta_val  = 0.0d0
+    if (present(alpha)) alpha_val = alpha
+    if (present(beta))  beta_val  = beta
+    lmax_val = max(maxval(l), maxval(abs(lv)))
+    lmax_val = min(4, max(lmax_val, 2))
+    call gendc(tc_d, lmax_val, beta_val)
 
     state_nsto = nsto
     state_nvtrmb = nvtrm
-    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
     call d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
-                  omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &
-                  mol_ws%ylmnrm, mol_ws%d, mol_ws%cgc, qrealy)
+                  omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
+                  tc_ylmnrm, tc_d, tc_cgc, qrealy)
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_d_genvab
 
   subroutine compute_rotsab(stovlp, llmxp1, nstoa, mstoa, la, nstob, mstob, lb, ovrlap, alpha, beta)
-    use state,   only: ALPHA_ANG, BETA_ANG
     use angular, only: gendc
     integer(int32), intent(in)  :: llmxp1, nstoa, mstoa, nstob, mstob
     integer(int32), intent(in)  :: la(nstoa), lb(nstob)
@@ -522,25 +553,27 @@ contains
     real(real64),   intent(in)  :: alpha, beta
     real(real64),   intent(out) :: stovlp(mstoa, mstob)
 
+    integer(int32) :: lmax_val
+
     call ensure_tables_initialized()
-    ALPHA_ANG = alpha
-    BETA_ANG  = beta
-    call gendc(mol_ws%d, LLMXP1 - 1, beta)
-    call rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, mol_ws%d)
+    lmax_val = max(maxval(la), maxval(lb))
+    lmax_val = min(4, max(lmax_val, 2))
+    call gendc(tc_d, lmax_val, beta)
+    call rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, tc_d)
   end subroutine compute_rotsab
 
   subroutine compute_dcoef(dc, l, m, isigma, alpha, beta)
-    use state,   only: ALPHA_ANG, BETA_ANG
     use angular, only: gendc, dcoef
     integer(int32), intent(in)  :: l, m, isigma
     real(real64),   intent(in)  :: alpha, beta
     real(real64),   intent(out) :: dc
 
+    integer(int32) :: lmax_val
+
     call ensure_tables_initialized()
-    ALPHA_ANG = alpha
-    BETA_ANG  = beta
-    call gendc(mol_ws%d, LLMXP1 - 1, beta)
-    dc = dcoef(mol_ws%d, l, m, isigma, alpha)
+    lmax_val = min(4, max(l, 2))
+    call gendc(tc_d, lmax_val, beta)
+    dc = dcoef(tc_d, l, m, isigma, alpha)
   end subroutine compute_dcoef
 
 end module twocenter
