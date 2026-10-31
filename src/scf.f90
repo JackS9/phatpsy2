@@ -22,12 +22,96 @@ contains
     real(real64),   intent(out)   :: eval_all(msto), onevec(msto, norb)
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
-    real(real64),   allocatable :: z_full(:,:), work(:)
+    real(real64),   allocatable :: a_full(:,:), work(:), ap_copy(:)
+    integer(int32), allocatable :: iwork(:)
+    real(real64) :: work_query(1)
+    integer(int32) :: iwork_query(1)
+    integer(int32) :: lwork, liwork, i, j, ij
 
-    allocate(z_full(msto, msto), work(3 * msto))
-    call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
-    onevec(:, 1:norb) = z_full(:, 1:norb)
-    deallocate(z_full, work)
+    if (msto <= 0) then
+      ierr = 0
+      return
+    end if
+
+    if (msto == 1) then
+      eval_all(1) = onfock(1)
+      onevec(1, 1:norb) = 1.0d0
+      ierr = 0
+      return
+    end if
+
+    ! Unpack packed symmetric onfock into full square matrix A(msto, msto)
+    allocate(a_full(msto, msto))
+    ij = 0
+    do j = 1, msto
+      do i = 1, j
+        ij = ij + 1
+        a_full(i, j) = onfock(ij)
+        a_full(j, i) = onfock(ij)
+      end do
+    end do
+
+    ! Tier 1: Modern divide-and-conquer DSYEVD on full storage
+    call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work_query, -1, iwork_query, -1, ierr)
+    if (ierr == 0 .and. work_query(1) > 0.0d0) then
+      lwork = int(work_query(1), int32)
+      liwork = iwork_query(1)
+      allocate(work(lwork), iwork(liwork))
+      call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work, lwork, iwork, liwork, ierr)
+      deallocate(work, iwork)
+    else
+      ierr = -1
+    end if
+
+    if (ierr == 0) then
+      onevec(:, 1:norb) = a_full(:, 1:norb)
+      deallocate(a_full)
+      return
+    end if
+
+    ! Tier 2 Fallback: Full-matrix standard QR eigensolver DSYEV
+    ij = 0
+    do j = 1, msto
+      do i = 1, j
+        ij = ij + 1
+        a_full(i, j) = onfock(ij)
+        a_full(j, i) = onfock(ij)
+      end do
+    end do
+
+    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work_query, -1, ierr)
+    if (ierr == 0 .and. work_query(1) > 0.0d0) then
+      lwork = max(int(work_query(1), int32), 3 * msto)
+      allocate(work(lwork))
+      call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
+      deallocate(work)
+      if (ierr == 0) then
+        onevec(:, 1:norb) = a_full(:, 1:norb)
+        deallocate(a_full)
+        return
+      end if
+    end if
+    deallocate(a_full)
+
+    ! Tier 3 Fallback: Packed divide-and-conquer DSPEVD
+    allocate(ap_copy(m2sto), a_full(msto, msto))
+    ap_copy = onfock
+    lwork = 1 + 6 * msto + msto * msto
+    liwork = 3 + 5 * msto
+    allocate(work(lwork), iwork(liwork))
+    call DSPEVD('V', 'U', msto, ap_copy, eval_all, a_full, msto, work, lwork, iwork, liwork, ierr)
+    deallocate(work, iwork, ap_copy)
+    if (ierr == 0) then
+      onevec(:, 1:norb) = a_full(:, 1:norb)
+      deallocate(a_full)
+      return
+    end if
+
+    ! Tier 4 Fallback: Legacy packed QR eigensolver DSPEV
+    allocate(work(3 * msto))
+    call DSPEV('V', 'U', msto, onfock, eval_all, a_full, msto, work, ierr)
+    onevec(:, 1:norb) = a_full(:, 1:norb)
+    deallocate(work, a_full)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()
