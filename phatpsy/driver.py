@@ -263,9 +263,9 @@ class PhatpsyDriver:
             from phatpsy.gradients import compute_scf_finite_difference_gradient
             return compute_scf_finite_difference_gradient(self, deck)
         elif method == "analytical":
-            from phatpsy.gradients import compute_diatomic_analytical_gradient
+            from phatpsy.gradients import compute_polyatomic_analytical_gradient
             res = self.run_deck(deck, quiet=quiet)
-            return compute_diatomic_analytical_gradient(res, deck)
+            return compute_polyatomic_analytical_gradient(res, deck)
 
         import copy
         calc_deck = copy.deepcopy(deck)

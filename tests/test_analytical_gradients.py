@@ -19,6 +19,7 @@ from phatpsy.gradients import (
     compute_diatomic_overlap_matrix_and_gradient,
     compute_diatomic_potential_matrix_and_gradient,
     compute_diatomic_analytical_gradient,
+    compute_polyatomic_analytical_gradient,
     compute_scf_finite_difference_gradient,
 )
 import _phatpsy_core
@@ -337,3 +338,70 @@ class TestDiatomicAnalyticalGradientBenchmarks:
 
         # Empirical at NIST equilibrium bond length r_e=1.401 should be near zero
         assert np.max(np.abs(g_emp)) < 1e-3
+
+
+class TestPolyatomicAnalyticalGradients:
+    """Verifies analytical Pulay gradients and physical invariants for polyatomic molecules (N >= 3)."""
+
+    def test_water_polyatomic_analytical_gradient_invariants(self):
+        """Water (H2O, C2v) analytical gradient preserves exact translational invariance and C2v symmetry."""
+        driver = PhatpsyDriver(quiet=True)
+        deck = CalculationDeck.from_dict({
+            "title": "H2O Analytical Gradient Benchmark",
+            "control": {
+                "spin_unrestricted": False,
+                "convergence": 1e-6,
+                "max_cycles": 100,
+            },
+            "geometry": [
+                {"element": "O", "xyz": [0.0, 0.0, 0.0]},
+                {"element": "H", "xyz": [0.0, 1.43, 1.10]},
+                {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+            ],
+            "elements": {
+                "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+                "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
+            }
+        })
+
+        g_analytical = driver.gradient(deck, method="analytical")
+        assert g_analytical.shape == (3, 3)
+
+        # 1. Exact translational invariance: sum_A F_A = 0 to machine precision
+        trans_sum = np.sum(g_analytical, axis=0)
+        assert np.max(np.abs(trans_sum)) < 1e-12, (
+            f"Translational invariance broken in polyatomic gradient: {trans_sum}"
+        )
+
+        # 2. C2v Point Group Symmetry:
+        # F_x must be zero on all atoms (molecule lies in yz-plane)
+        assert np.max(np.abs(g_analytical[:, 0])) < 1e-12, (
+            f"Out-of-plane F_x force non-zero: {g_analytical[:, 0]}"
+        )
+
+        # F_y on Oxygen must be zero by symmetry
+        assert abs(g_analytical[0, 1]) < 1e-12, (
+            f"Oxygen transverse force F_y non-zero: {g_analytical[0, 1]}"
+        )
+
+        # F_y on H1 and H2 must be equal and opposite
+        assert abs(g_analytical[1, 1] + g_analytical[2, 1]) < 1e-12, (
+            f"Hydrogen lateral symmetry broken: H1={g_analytical[1, 1]}, H2={g_analytical[2, 1]}"
+        )
+
+        # F_z on H1 and H2 must be identical
+        assert abs(g_analytical[1, 2] - g_analytical[2, 2]) < 1e-12, (
+            f"Hydrogen axial symmetry broken: H1={g_analytical[1, 2]}, H2={g_analytical[2, 2]}"
+        )
+
+        # 3. Non-trivial physical forces (not all zeros)
+        assert np.max(np.abs(g_analytical)) > 1e-3, "Trivial zero polyatomic gradient output!"
+
+        # 4. Agreement with independent SCF finite difference for lateral restoring force (F_y)
+        g_fd = driver.scf_gradient_finite_difference(deck, step_size=1e-4)
+        diff_lateral = abs(g_analytical[1, 1] - g_fd[1, 1])
+        assert diff_lateral < 0.02, (
+            f"H2O lateral force mismatch: analytical={g_analytical[1, 1]:.6f}, "
+            f"fd={g_fd[1, 1]:.6f}, diff={diff_lateral:.6f}"
+        )
+

@@ -327,27 +327,26 @@ def compute_diatomic_potential_matrix_and_gradient(
     return v_mol, dv_dra, dv_drb
 
 
-def compute_diatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = None) -> np.ndarray:
+def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = None) -> np.ndarray:
     """
-    Assembles the full analytical Cartesian nuclear gradient (N_atoms, 3) for a diatomic molecule
-    using the density matrix P, energy-weighted density matrix W,
-    two-center derivative kernels, and nuclear repulsion.
+    Assembles the full analytical Cartesian nuclear gradient (N_atoms, 3) for any diatomic
+    or polyatomic molecule using the density matrix P, energy-weighted density matrix W,
+    two-center analytical derivative kernels, model potential force contractions,
+    and nuclear repulsion.
     """
     coord = calc_state["atom_coordinates"]
     n_atoms = coord.shape[1]
-    if n_atoms != 2:
-        raise ValueError(f"Diatomic analytical gradient requires exactly 2 atoms, got {n_atoms}.")
+    if n_atoms < 1:
+        raise ValueError(f"Analytical gradient requires at least 1 atom, got {n_atoms}.")
+    if n_atoms == 1:
+        return np.zeros((1, 3), dtype=np.float64)
 
-    grad = np.zeros((2, 3), dtype=np.float64)
+    grad = np.zeros((n_atoms, 3), dtype=np.float64)
 
-    r_a = coord[:, 0]
-    r_b = coord[:, 1]
-    frame = DiatomicFrame(r_a, r_b)
-
-    # 1. Nuclear repulsion gradient
+    # 1. Nuclear repulsion gradient (pairwise over all atom pairs)
     charges = calc_state["atom_charges"][0, :]
     g_nuc = compute_nuclear_repulsion_gradient(
-        deck.geometry if deck is not None else [None, None], charges=charges
+        deck.geometry if deck is not None else [None] * n_atoms, charges=charges
     )
     grad += g_nuc
 
@@ -371,12 +370,7 @@ def compute_diatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = 
         P += orbocc * (C @ np.diag(occ) @ C.T)
         W += orbocc * (C @ np.diag(occ * eig) @ C.T)
 
-    # 3. Two-center overlap derivatives
     b = calc_state["basis_info"]
-    mask_a = (iatomx == 1)
-    mask_b = (iatomx == 2)
-    mstoa = int(np.sum(mask_a))
-    mstob = int(np.sum(mask_b))
 
     # Identify unique radial STOs for each atom
     def extract_radial(atom_id):
@@ -398,89 +392,101 @@ def compute_diatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = 
         anorm_arr = np.array([f[3] for f in unique_funcs], dtype=np.float64)
         return n_arr, l_arr, eta_arr, anorm_arr
 
-    na, la, etaa, anorma = extract_radial(1)
-    nb, lb, etab, anormb = extract_radial(2)
+    # 3. Pairwise two-center Pulay overlap and model potential derivatives
+    for a in range(1, n_atoms + 1):
+        for b_atom in range(a + 1, n_atoms + 1):
+            idx_a = np.where(iatomx == a)[0]
+            idx_b = np.where(iatomx == b_atom)[0]
+            mstoa = len(idx_a)
+            mstob = len(idx_b)
 
-    s_mol, ds_dra, ds_drb = compute_diatomic_overlap_matrix_and_gradient(
-        na, la, etaa, anorma, nb, lb, etab, anormb, frame
-    )
+            r_a = coord[:, a - 1]
+            r_b = coord[:, b_atom - 1]
+            if np.linalg.norm(r_b - r_a) < 1e-12:
+                continue
 
-    # Overlap Pulay force contraction:
-    # E_ovlp contrib = - sum_{mu in A, nu in B} 2 * W_{mu, nu} * (dS_{mu, nu} / dR_A)
-    # The factor of 2 accounts for the off-diagonal symmetry S_{mu, nu} = S_{nu, mu}
-    W_ab = W[:mstoa, mstoa:mstoa + mstob]
-    if np.linalg.norm(W_ab) > 1e-12:
-        for k in range(3):
-            g_ovlp_k = -2.0 * np.sum(W_ab * ds_dra[k])
-            grad[0, k] += g_ovlp_k
-            grad[1, k] -= g_ovlp_k
-    else:
-        # Homonuclear / atom-partitioned exchange restoring force:
-        # E_x = 1/2 Tr(P_A S_AB K_B S_BA + P_B S_BA K_A S_AB)
-        # For homonuclear H2 / diatomic (Jack A. Smith dissertation Table II): K ~ -0.72383 * Z
-        k_exch = -0.72383 * float(np.mean(charges))
-        for k in range(3):
-            g_x_k = np.sum((2.0 * s_mol * ds_dra[k]) * k_exch)
-            grad[0, k] += g_x_k
-            grad[1, k] -= g_x_k
+            frame = DiatomicFrame(r_a, r_b)
+            na, la, etaa, anorma = extract_radial(a)
+            nb, lb, etab, anormb = extract_radial(b_atom)
 
-    # 4. Model potential derivatives and force contraction
-    n_t1, vc1, ve1 = _phatpsy_core.state.get_atom_model_potential(1, 32)
-    n_t2, vc2, ve2 = _phatpsy_core.state.get_atom_model_potential(2, 32)
-    if n_t1 > 0 and n_t2 > 0:
-        vc1 = vc1[:n_t1]
-        ve1 = ve1[:n_t1]
-        vc2 = vc2[:n_t2]
-        ve2 = ve2[:n_t2]
-        lv1 = np.zeros(n_t1, dtype=np.int32)
-        mv1 = np.zeros(n_t1, dtype=np.int32)
-        lv2 = np.zeros(n_t2, dtype=np.int32)
-        mv2 = np.zeros(n_t2, dtype=np.int32)
+            s_mol, ds_dra, ds_drb = compute_diatomic_overlap_matrix_and_gradient(
+                na, la, etaa, anorma, nb, lb, etab, anormb, frame
+            )
 
-        # Atom 1 in potential field of Atom 2
-        _, dv_dra_12, _ = compute_diatomic_potential_matrix_and_gradient(
-            na, la, etaa, anorma, lv2, mv2, ve2, frame
-        )
-        # Atom 2 in potential field of Atom 1
-        frame_ba = DiatomicFrame(r_b, r_a)
-        _, dv_drb_21, _ = compute_diatomic_potential_matrix_and_gradient(
-            nb, lb, etab, anormb, lv1, mv1, ve1, frame_ba
-        )
+            # Overlap Pulay force contraction:
+            # E_ovlp contrib = - sum_{mu in A, nu in B} 2 * W_{mu, nu} * (dS_{mu, nu} / dR_A)
+            W_ab = W[np.ix_(idx_a, idx_b)]
+            if np.linalg.norm(W_ab) > 1e-12:
+                for k in range(3):
+                    g_ovlp_k = -2.0 * np.sum(W_ab * ds_dra[k])
+                    grad[a - 1, k] += g_ovlp_k
+                    grad[b_atom - 1, k] -= g_ovlp_k
+            elif n_atoms == 2:
+                # Homonuclear diatomic minimal basis fallback when W is empty
+                k_exch = -0.72383 * float(np.mean([charges[a - 1], charges[b_atom - 1]]))
+                for k in range(3):
+                    g_x_k = np.sum((2.0 * s_mol * ds_dra[k]) * k_exch)
+                    grad[a - 1, k] += g_x_k
+                    grad[b_atom - 1, k] -= g_x_k
 
-        Pa = P[:mstoa, :mstoa]
-        Pb = P[mstoa:mstoa + mstob, mstoa:mstoa + mstob]
-        z1 = charges[0]
-        z2 = charges[1]
+            # Model potential derivatives and force contraction
+            n_tA, vcA, veA = _phatpsy_core.state.get_atom_model_potential(a, 32)
+            n_tB, vcB, veB = _phatpsy_core.state.get_atom_model_potential(b_atom, 32)
+            if n_tA > 0 and n_tB > 0:
+                vcA = vcA[:n_tA]
+                veA = veA[:n_tA]
+                vcB = vcB[:n_tB]
+                veB = veB[:n_tB]
+                lvA = np.zeros(n_tA, dtype=np.int32)
+                mvA = np.zeros(n_tA, dtype=np.int32)
+                lvB = np.zeros(n_tB, dtype=np.int32)
+                mvB = np.zeros(n_tB, dtype=np.int32)
 
-        for k in range(3):
-            # Nuclear attraction factor 1.0, electron-electron Coulomb factor 0.5 (from toten = tetot - 0.5 * tevc2)
-            d_pot_12 = -z2 * dv_dra_12[k, :, 0]
-            for term in range(n_t2):
-                d_pot_12 += 0.5 * vc2[term] * dv_dra_12[k, :, term]
-            g1_core_12 = 0.0
-            idx = 0
-            for i in range(mstoa):
-                for j in range(i + 1):
-                    fac = 1.0 if i == j else 2.0
-                    g1_core_12 += fac * Pa[i, j] * d_pot_12[idx]
-                    idx += 1
+                # Atom A in potential field of Atom B
+                _, dv_dra_AB, _ = compute_diatomic_potential_matrix_and_gradient(
+                    na, la, etaa, anorma, lvB, mvB, veB, frame
+                )
+                # Atom B in potential field of Atom A
+                frame_ba = DiatomicFrame(r_b, r_a)
+                _, dv_drb_BA, _ = compute_diatomic_potential_matrix_and_gradient(
+                    nb, lb, etab, anormb, lvA, mvA, veA, frame_ba
+                )
 
-            d_pot_21 = -z1 * dv_drb_21[k, :, 0]
-            for term in range(n_t1):
-                d_pot_21 += 0.5 * vc1[term] * dv_drb_21[k, :, term]
-            g2_core_21 = 0.0
-            idx = 0
-            for i in range(mstob):
-                for j in range(i + 1):
-                    fac = 1.0 if i == j else 2.0
-                    g2_core_21 += fac * Pb[i, j] * d_pot_21[idx]
-                    idx += 1
+                Pa = P[np.ix_(idx_a, idx_a)]
+                Pb = P[np.ix_(idx_b, idx_b)]
+                za = charges[a - 1]
+                zb = charges[b_atom - 1]
 
-            g_core_k = g1_core_12 - g2_core_21
-            grad[0, k] += g_core_k
-            grad[1, k] -= g_core_k
+                for k in range(3):
+                    # Atom A in potential field of Atom B
+                    d_pot_AB = -zb * dv_dra_AB[k, :, 0]
+                    for term in range(n_tB):
+                        d_pot_AB += 0.5 * vcB[term] * dv_dra_AB[k, :, term]
+                    gA_core = 0.0
+                    idx = 0
+                    for i in range(mstoa):
+                        for j in range(i + 1):
+                            fac = 1.0 if i == j else 2.0
+                            gA_core += fac * Pa[i, j] * d_pot_AB[idx]
+                            idx += 1
 
-    # 5. Optional Grimme dispersion gradient
+                    # Atom B in potential field of Atom A
+                    d_pot_BA = -za * dv_drb_BA[k, :, 0]
+                    for term in range(n_tA):
+                        d_pot_BA += 0.5 * vcA[term] * dv_drb_BA[k, :, term]
+                    gB_core = 0.0
+                    idx = 0
+                    for i in range(mstob):
+                        for j in range(i + 1):
+                            fac = 1.0 if i == j else 2.0
+                            gB_core += fac * Pb[i, j] * d_pot_BA[idx]
+                            idx += 1
+
+                    g_core_k = gA_core - gB_core
+                    grad[a - 1, k] += g_core_k
+                    grad[b_atom - 1, k] -= g_core_k
+
+    # 4. Optional Grimme dispersion gradient
     if deck is not None and getattr(getattr(deck, "control", None), "use_dispersion", False):
         from phatpsy.dispersion import compute_dispersion_gradient
         kernel = getattr(deck.control, "exchange_kernel", "hf") or "hf"
@@ -489,6 +495,10 @@ def compute_diatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = 
         grad += g_disp
 
     return grad
+
+
+# Backwards compatibility alias
+compute_diatomic_analytical_gradient = compute_polyatomic_analytical_gradient
 
 
 def compute_scf_finite_difference_gradient(

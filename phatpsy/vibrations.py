@@ -404,12 +404,13 @@ def compute_hessian(
     step_size: float = 0.005,
     method: str = "central",
     use_analytical_gradients: bool = True,
+    gradient_method: str = "empirical",
     quiet: bool = True,
 ) -> Tuple[np.ndarray, CalculationDeck, List[int]]:
     """
     Computes the full Cartesian Hessian matrix (d^2 E / dX_i dX_j) in Hartree / Bohr^2.
-    When use_analytical_gradients=True (default), computes central differences of empirical
-    pairwise harmonic gradients (PhatpsyDriver.gradient() + optional D3 dispersion gradient):
+    When use_analytical_gradients=True (default), computes central differences of gradients
+    via driver.gradient(method=gradient_method) + optional D3 dispersion gradient:
         H_{:, j} = (g(X + h*e_j) - g(X - h*e_j)) / (2h)
     When use_analytical_gradients=False, computes finite differences directly from the SCF
     electronic total energy surface.
@@ -449,11 +450,11 @@ def compute_hessian(
 
             d_plus = copy.deepcopy(calc_deck)
             d_plus.geometry[atom_idx].xyz[coord_idx] += h
-            g_plus = driver.gradient(d_plus, quiet=quiet).flatten()
+            g_plus = driver.gradient(d_plus, method=gradient_method, quiet=quiet).flatten()
 
             d_minus = copy.deepcopy(calc_deck)
             d_minus.geometry[atom_idx].xyz[coord_idx] -= h
-            g_minus = driver.gradient(d_minus, quiet=quiet).flatten()
+            g_minus = driver.gradient(d_minus, method=gradient_method, quiet=quiet).flatten()
 
             H[:, j] = (g_plus - g_minus) / (2.0 * h)
 
@@ -772,6 +773,7 @@ def compute_vibrations(
     method: str = "central",
     project_tr: bool = True,
     use_analytical_gradients: bool = True,
+    gradient_method: str = "empirical",
     temperature_k: float = 298.15,
     pressure_atm: float = 1.0,
     symmetry_number: Optional[int] = None,
@@ -796,9 +798,10 @@ def compute_vibrations(
         Whether to project out center-of-mass translation and rotation (default: True).
         Automatically disabled if any atoms are frozen (fixed=True).
     use_analytical_gradients : bool
-        Whether to compute Hessian via central differences of empirical pairwise harmonic
-        gradients (PhatpsyDriver.gradient(), default: True). Set False to compute Hessian
-        directly from the electronic SCF total energy surface via finite differences.
+        Whether to compute Hessian via central differences of gradients (default: True).
+        Set False to compute Hessian directly from the electronic SCF total energy surface.
+    gradient_method : str
+        Gradient evaluation method: "empirical" (default) or "analytical".
     temperature_k : float
         Thermochemistry reference temperature (default: 298.15 K).
     pressure_atm : float
@@ -825,6 +828,7 @@ def compute_vibrations(
         step_size=step_size,
         method=method,
         use_analytical_gradients=use_analytical_gradients,
+        gradient_method=gradient_method,
         quiet=quiet,
     )
 

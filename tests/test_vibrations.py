@@ -323,6 +323,46 @@ def test_compute_hessian_scf_finite_difference():
     assert abs(H_scf[0, 2]) < 1e-6
 
 
+def test_compute_hessian_analytical_gradients():
+    """Verify that compute_hessian with use_analytical_gradients=True and gradient_method='analytical'
+    evaluates a symmetric Cartesian Hessian from analytical Pulay gradients."""
+    driver = PhatpsyDriver(quiet=True)
+    deck = CalculationDeck.from_dict({
+        "title": "HF Analytical Hessian",
+        "control": {
+            "spin_unrestricted": False,
+            "convergence": 1e-6,
+            "max_cycles": 100,
+        },
+        "geometry": [
+            {"element": "H", "xyz": [0.0, 0.0, 0.0]},
+            {"element": "F", "xyz": [0.0, 0.0, 1.7328]},
+        ],
+        "elements": {
+            "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
+            "F": {"symbol": "F", "atomic_number": 9, "basis": "DZ"},
+        }
+    })
+    H_ana, calc_deck, active_idx = compute_hessian(
+        deck,
+        driver=driver,
+        step_size=0.01,
+        use_analytical_gradients=True,
+        gradient_method="analytical",
+        quiet=True,
+    )
+
+    assert H_ana.shape == (6, 6)
+    assert len(active_idx) == 6
+    # Symmetric Hessian matrix
+    assert np.allclose(H_ana, H_ana.T, atol=1e-8)
+    # Axial force constant along z should be non-zero
+    assert abs(H_ana[2, 2]) > 0.01
+    # Translational invariance: sum over atoms for z coordinate vanishes
+    assert abs(H_ana[2, 2] + H_ana[2, 5]) < 1e-8
+
+
+
 def test_vibrations_serialization_and_json(tmp_path):
     """Verify dictionary conversion and JSON file export of vibration results."""
     driver = PhatpsyDriver(quiet=True)
