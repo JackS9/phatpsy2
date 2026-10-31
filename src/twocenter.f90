@@ -392,7 +392,7 @@ contains
   !---------------------------------------------------------------------
 
   subroutine ensure_tables_initialized()
-    use state,    only: init_block_data_and_defaults
+    use state,    only: init_block_data_and_defaults, NCGC, LLMXP1, LLMXP2, L3MX
     use modelpot, only: genbc, genfac
     use angular,  only: gencgc
     integer(int32) :: i, tc_lmax, tc_llmx, tc_llmxp1, tc_llmxp2, tc_l3mx, tc_nylm, tc_ncgc
@@ -409,10 +409,15 @@ contains
     tc_llmxp2 = tc_llmxp1 + 1
     tc_l3mx = ((tc_llmx + 1) * (tc_llmx + 2) * (tc_llmx + 3)) / 6
     tc_nylm = tc_llmxp1 * (tc_lmax + 1)
-    tc_ncgc = ndxmax(tc_lmax)
+    tc_ncgc = ndxmax(tc_llmx)
     tc_nnmx = 12
     tc_nnmxm1 = tc_nnmx - 1
     ndxdim = 64
+
+    NCGC   = tc_ncgc
+    LLMXP1 = tc_llmxp1
+    LLMXP2 = tc_llmxp2
+    L3MX   = tc_l3mx
 
     allocate(tc_index_arr(ndxdim))
     allocate(tc_cgc(tc_ncgc))
@@ -432,10 +437,8 @@ contains
     call gencgc(tc_cgc, tc_ncgc, tc_scrat, tc_llmxp2, &
                 tc_ylmnrm, tc_nylm, tc_fact, nfact, qrealy)
 
-    if (abs(BINOM(1)) < 1.0d-12) then
-      call genfac(FACT, size(FACT))
-      call genbc(BINOM, tc_index_arr(12), 11, tc_index_arr)
-    end if
+    call genfac(FACT, size(FACT))
+    call genbc(BINOM, 91, 13, tc_index_arr)
 
     tc_tables_ready = .true.
   end subroutine ensure_tables_initialized

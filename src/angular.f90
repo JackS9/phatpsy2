@@ -349,7 +349,7 @@ contains
     real(real64), parameter :: FOURPI = 4.0d0 * PI
 
     integer(int32) :: llmxp1, lmxp1, lmax, il, ll, im, m, lm
-    integer(int32) :: imm, mm, m1mn, m1mx, im1, m1, m2, i
+    integer(int32) :: imm, mm, m1mn, m1mx, im1, m1, m2, i, idx_cg
     integer(int32) :: l1mn, l1mx, il1, l1, llmn, llmx, ill
     integer(int32) :: l2mn, l2mx, il2, l2
     real(real64)   :: area, cg, term_prev
@@ -393,7 +393,9 @@ contains
         else
           cg = fact(1 + mm) / (fact(1 + m1) * fact(1 + m2)) * &
                sqrt(fact(2 * m1 + 2) * fact(2 * m2 + 2) / (FOURPI * fact(2 * mm + 2)))
-          cgc(ndxcg(mm, m1, m2, mm, m1, m2)) = cg
+          idx_cg = ndxcg(mm, m1, m2, mm, m1, m2)
+          if (ncgc_in > 0 .and. idx_cg > ncgc_in) idx_cg = 3
+          cgc(idx_cg) = cg
         end if
         cgcscr(imm, 1) = cg
 
@@ -430,7 +432,9 @@ contains
                         sqrt(real((l1 - m1 - 1) * (l1 + m1 - 1), kind=real64) / real((2 * l1 - 3) * (2 * l1 - 1), kind=real64)) * &
                         cgcscr(ill, 1)) * &
                         sqrt(real((2 * l1 - 1) * (2 * l1 + 1), kind=real64) / real((l1 - m1) * (l1 + m1), kind=real64))
-                  cgc(ndxcg(mm, m1, m2, ll, l1, m2)) = cg
+                  idx_cg = ndxcg(mm, m1, m2, ll, l1, m2)
+                  if (ncgc_in > 0 .and. idx_cg > ncgc_in) idx_cg = 3
+                  cgc(idx_cg) = cg
                 end if
                 cgcscr(ill, 1) = cg
                 cgcscr(ill, 2) = cg
@@ -466,7 +470,9 @@ contains
                       sqrt(real((l2 - m2 - 1) * (l2 + m2 - 1), kind=real64) / real((2 * l2 - 3) * (2 * l2 - 1), kind=real64)) * &
                       cgcscr(ill, 2)) * &
                       sqrt(real((2 * l2 - 1) * (2 * l2 + 1), kind=real64) / real((l2 - m2) * (l2 + m2), kind=real64))
-                cgc(ndxcg(mm, m1, m2, ll, l1, l2)) = cg
+                idx_cg = ndxcg(mm, m1, m2, ll, l1, l2)
+                if (ncgc_in > 0 .and. idx_cg > ncgc_in) idx_cg = 3
+                cgc(idx_cg) = cg
                 cgcscr(ill, 2) = cg
               end do
             end do

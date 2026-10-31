@@ -524,8 +524,8 @@ subroutine rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, d)
   implicit none
   integer(int32), intent(in)  :: nstoa, mstoa, nstob, mstob
   real(real64),   intent(out) :: stovlp(mstoa, mstob)
-  real(real64),   intent(in)  :: ovrlap(LLMXP1, nstoa, nstob)
+  real(real64),   intent(in)  :: ovrlap(max(1, LLMXP1), nstoa, nstob)
   integer(int32), intent(in)  :: la(nstoa), lb(nstob)
-  real(real64),   intent(in)  :: d(L3MX, 2)
+  real(real64),   intent(in)  :: d(max(1, L3MX), 2)
   call mod_rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, d)
 end subroutine rotsab
