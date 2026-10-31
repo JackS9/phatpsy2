@@ -5,16 +5,19 @@
 module twocenter
   use iso_fortran_env, only: real64, int32
   use state,           only: EXPMIN, NNMXM1, NABDIM, NSTO, NYLM, L3MX, NCGC, &
-                             FACT, BINOM, HALF, ROOTPI, NVTRMB
+                             FACT, BINOM, HALF, ROOTPI, NVTRMB, LLMXP1,       &
+                             mol_ws, init_block_data_and_defaults,           &
+                             compute_derived_dimensions_and_allocate
   use elliptical,      only: absum, anmbnm, ogen
-  use angular,         only: dcoef, cgcoef
+  use angular,         only: dcoef, cgcoef, gendc
   implicit none
 
   real(real64), parameter :: PI    = 3.141592653589793238462643383279502884d0
   real(real64), parameter :: TWOPI = 6.283185307179586476925286766559005768d0
 
   private
-  public :: rbeta, rbeta2, gensab, genvab, d_gensab, d_genvab
+  public :: rbeta, rbeta2, gensab, genvab, d_gensab, d_genvab, &
+            compute_gensab, compute_d_gensab, compute_genvab, compute_d_genvab
 
 contains
 
@@ -23,8 +26,8 @@ contains
   ! between atom IATOM and atom JATOM from Cartesian coordinates.
   !---------------------------------------------------------------------
   subroutine rbeta(coord, natom, iatom, jatom, rab, alph, beta)
-    real(real64),   intent(in)  :: coord(:, :)
     integer(int32), intent(in)  :: natom, iatom, jatom
+    real(real64),   intent(in)  :: coord(3, natom)
     real(real64),   intent(out) :: rab, alph, beta
 
     real(real64) :: x12, y12, z12
@@ -162,15 +165,18 @@ contains
     integer(int32) :: ldifp1, lsump1, lljp1, mjhi, mjplp1, mj, mdif, msum, msign
     integer(int32) :: madif, masum, ilamn, ilamx, k, lb, nb, mb, l2b
     integer(int32) :: ila, la, l2a, lmin, imlmx, iml, ml, iabsml, mlp1
-    integer(int32) :: limi, limj, limij, nvterm
+    integer(int32) :: limi, limj, limij, nvterm, nsto_val
 
-    nvterm = NVTRMB
+    nvterm = size(vexp)
+    if (nvterm <= 0) nvterm = NVTRMB
+    nsto_val = size(n)
+    if (nsto_val <= 0) nsto_val = NSTO
     rhalf  = half * rab
     cnorm  = pi * rootpi * rab * rab
 
     ij = 0
 
-    do i = 1, NSTO
+    do i = 1, nsto_val
       etai  = eta(i)
       ni    = n(i)
       li    = l(i)
@@ -374,4 +380,103 @@ contains
     deallocate(v_p2, v_p1, v_m1, v_m2)
   end subroutine d_genvab
 
+  !---------------------------------------------------------------------
+  ! High-level Python / Driver Wrappers with Automatic Buffer Management
+  !---------------------------------------------------------------------
+
+  subroutine compute_gensab(ovrlap, llmxp1, na, la, etaa, anorm, nstoa, &
+                            nb, lb, etab, bnorm, nstob, rab)
+    integer(int32), intent(in)  :: llmxp1, nstoa, nstob
+    integer(int32), intent(in)  :: na(nstoa), la(nstoa), nb(nstob), lb(nstob)
+    real(real64),   intent(in)  :: etaa(nstoa), anorm(nstoa), etab(nstob), bnorm(nstob)
+    real(real64),   intent(in)  :: rab
+    real(real64),   intent(out) :: ovrlap(llmxp1, nstoa, nstob)
+
+    real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+
+    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm)) then
+      call init_block_data_and_defaults()
+      call compute_derived_dimensions_and_allocate()
+    end if
+
+    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    call gensab(ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
+    deallocate(a, b, omegai, omegaj, scrplm)
+  end subroutine compute_gensab
+
+  subroutine compute_d_gensab(d_ovrlap, llmxp1, na, la, etaa, anorm, nstoa, &
+                              nb, lb, etab, bnorm, nstob, rab)
+    integer(int32), intent(in)  :: llmxp1, nstoa, nstob
+    integer(int32), intent(in)  :: na(nstoa), la(nstoa), nb(nstob), lb(nstob)
+    real(real64),   intent(in)  :: etaa(nstoa), anorm(nstoa), etab(nstob), bnorm(nstob)
+    real(real64),   intent(in)  :: rab
+    real(real64),   intent(out) :: d_ovrlap(llmxp1, nstoa, nstob)
+
+    real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+
+    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm)) then
+      call init_block_data_and_defaults()
+      call compute_derived_dimensions_and_allocate()
+    end if
+
+    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    call d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
+                  nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
+    deallocate(a, b, omegai, omegaj, scrplm)
+  end subroutine compute_d_gensab
+
+  subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+    integer(int32), intent(in)  :: m2sto, nvtrm, nsto
+    integer(int32), intent(in)  :: n(nsto), l(nsto)
+    real(real64),   intent(in)  :: eta(nsto), anorm(nsto)
+    real(real64),   intent(in)  :: rab
+    integer(int32), intent(in)  :: lv(nvtrm), mv(nvtrm)
+    real(real64),   intent(in)  :: vexp(nvtrm)
+    logical(kind=1), intent(in) :: qrealy
+    real(real64),   intent(out) :: stvab(m2sto, nvtrm)
+
+    real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+
+    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
+        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
+      call init_block_data_and_defaults()
+      call compute_derived_dimensions_and_allocate()
+    end if
+    call gendc(mol_ws%d, LLMXP1 - 1)
+
+    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    call genvab(stvab, n, l, eta, rab, lv, mv, vexp, &
+                omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &
+                mol_ws%ylmnrm, mol_ws%d, mol_ws%cgc, qrealy)
+    deallocate(a, b, omegai, omegaj, scrplm)
+  end subroutine compute_genvab
+
+  subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+    integer(int32), intent(in)  :: m2sto, nvtrm, nsto
+    integer(int32), intent(in)  :: n(nsto), l(nsto)
+    real(real64),   intent(in)  :: eta(nsto), anorm(nsto)
+    real(real64),   intent(in)  :: rab
+    integer(int32), intent(in)  :: lv(nvtrm), mv(nvtrm)
+    real(real64),   intent(in)  :: vexp(nvtrm)
+    logical(kind=1), intent(in) :: qrealy
+    real(real64),   intent(out) :: d_stvab(m2sto, nvtrm)
+
+    real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
+
+    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
+        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
+      call init_block_data_and_defaults()
+      call compute_derived_dimensions_and_allocate()
+    end if
+    call gendc(mol_ws%d, LLMXP1 - 1)
+
+    allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
+    call d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
+                  omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &
+                  mol_ws%ylmnrm, mol_ws%d, mol_ws%cgc, qrealy)
+    deallocate(a, b, omegai, omegaj, scrplm)
+  end subroutine compute_d_genvab
+
 end module twocenter
+
