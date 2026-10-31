@@ -181,8 +181,12 @@ def compute_diatomic_overlap_matrix_and_gradient(
     llmxp1: int = 5,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Computes the molecular-frame two-center overlap matrix S(R_AB) and its exact
+    Computes the molecular-frame two-center overlap matrix S(R_AB) and its
     Cartesian derivative tensors (dS/dRA, dS/dRB).
+
+    NOTE (Phase 11.1 Stopgap): Radial derivatives (dS_diat/dR) are evaluated via
+    the Fortran 5-point numerical stencil kernel (twocenter.d_gensab), while
+    the coordinate frame transformations and angular derivatives are strictly analytical.
 
     Returns:
         s_mol: shape (mstoa, mstob)

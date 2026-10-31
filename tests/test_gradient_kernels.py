@@ -1,8 +1,12 @@
 """
 Unit tests for Phase 11.1: Two-Center Integral Derivative Kernels (twocenter.f90).
-Verifies that exposed Fortran kernels d_gensab and d_genvab match numerical
-finite differences of gensab and genvab to high precision across diverse
-internuclear separations and orbital angular momenta.
+Verifies numerical consistency between the exposed 5-point finite-difference
+kernels (d_gensab, d_genvab) and 2-point central difference baselines.
+
+NOTE (Anti-Circularity Invariant): d_gensab and d_genvab in twocenter.f90 are
+operational numerical stopgaps (5-point stencils with h=1e-5 Bohr), not analytical
+recurrence relations. These tests verify stencil consistency and exposure integrity;
+they do NOT verify true analytical derivatives.
 """
 import math
 import numpy as np
@@ -17,13 +21,13 @@ def compute_slater_norm(n: int, eta: float) -> float:
 
 
 class TestTwoCenterIntegralDerivatives:
-    """Rigorous non-circular verification of analytical two-center integral derivatives."""
+    """Consistency verification for Phase 11.1 numerical-stencil derivative kernels."""
 
 
     @pytest.mark.parametrize("rab", [1.0, 1.5, 2.068, 3.0, 4.5])
     def test_d_gensab_vs_finite_difference_homonuclear(self, rab):
         """
-        Verify d_gensab matches numerical finite differences of gensab
+        Verify d_gensab 5-point stencil matches 2-point central difference of gensab
         for multi-shell s and p STO orbitals (N2 valence-like basis).
         """
         # 1s, 2s, 2p basis
@@ -39,7 +43,7 @@ class TestTwoCenterIntegralDerivatives:
 
         llmxp1 = 5  # LMAX = 2 -> 2*2 + 1 = 5
 
-        # Analytical derivative kernel
+        # 5-point stencil derivative kernel (Phase 11.1 stopgap)
         d_ovrlap = _phatpsy_core.twocenter.compute_d_gensab(
             llmxp1, na, la, etaa, anorm, nb, lb, etab, bnorm, rab
         )

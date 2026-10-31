@@ -297,9 +297,11 @@ contains
   end subroutine genvab
 
   !---------------------------------------------------------------------
-  ! D_GENSAB: Compute analytical derivative of diatomic two-center overlap
+  ! D_GENSAB: Numerical derivative stopgap for diatomic two-center overlap
   ! integrals with respect to internuclear distance R_AB (d S / d R_AB).
-  ! Evaluated via 4th-order stencil on gensab.
+  ! Evaluated via 5-point finite-difference stencil on gensab.
+  ! NOTE: This is an operational stopgap (Phase 11.1). True analytical
+  ! recurrences via dA_n/dalpha = -A_{n+1} are scheduled for Phase 11.3.
   !---------------------------------------------------------------------
   subroutine d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
                       nstob, rab, a, b, omegai, omegaj, scrplm, index_arr, ylmnrm)
@@ -340,9 +342,11 @@ contains
   end subroutine d_gensab
 
   !---------------------------------------------------------------------
-  ! D_GENVAB: Compute analytical derivative of diatomic two-center model
+  ! D_GENVAB: Numerical derivative stopgap for diatomic two-center model
   ! potential matrix elements with respect to internuclear distance R_AB.
-  ! Evaluated via 4th-order stencil on genvab.
+  ! Evaluated via 5-point finite-difference stencil on genvab.
+  ! NOTE: This is an operational stopgap (Phase 11.1). True analytical
+  ! recurrences are scheduled for Phase 11.3.
   !---------------------------------------------------------------------
   subroutine d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
                       omegai, omegaj, a, b, scrplm, index_arr, &
