@@ -54,6 +54,7 @@ class TestTwoCenterIntegralDerivatives:
         )
         d_ovrlap_fd = (s_plus - s_minus) / (2.0 * h)
 
+        assert np.max(np.abs(d_ovrlap)) > 1e-4, f"Trivial zero kernel output at R={rab}"
         diff = np.max(np.abs(d_ovrlap - d_ovrlap_fd))
         assert diff < 1e-6, f"d_gensab mismatch at R={rab}: max diff={diff:.3e}"
 
@@ -89,6 +90,7 @@ class TestTwoCenterIntegralDerivatives:
         )
         d_ovrlap_fd = (s_plus - s_minus) / (2.0 * h)
 
+        assert np.max(np.abs(d_ovrlap)) > 1e-4, f"Trivial zero kernel output at R={rab}"
         diff = np.max(np.abs(d_ovrlap - d_ovrlap_fd))
         assert diff < 1e-6, f"Heteronuclear d_gensab mismatch at R={rab}: max diff={diff:.3e}"
 
@@ -124,5 +126,6 @@ class TestTwoCenterIntegralDerivatives:
         )
         d_stvab_fd = (v_plus - v_minus) / (2.0 * h)
 
+        assert np.max(np.abs(d_stvab)) > 1e-4, f"Trivial zero kernel output at R={rab}"
         diff = np.max(np.abs(d_stvab - d_stvab_fd))
         assert diff < 1e-6, f"d_genvab mismatch at R={rab}: max diff={diff:.3e}"

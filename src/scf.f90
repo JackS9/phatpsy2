@@ -5,7 +5,6 @@ module scf
   use symmetry, only: symop
   use modelpot, only: regularize_pk_projector
   use exchange_dft, only: compute_dft_exchange
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
   implicit none
   private
   public :: run_scf_element, USE_LAPACK_EIG, FOCK_MIX_ALPHA
@@ -17,72 +16,18 @@ module scf
 contains
 
   subroutine solve_orthonormal_fock(onfock, eval_all, onevec, scrat2, msto, m2sto, norb, ierr)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
     integer(int32), intent(in)    :: msto, m2sto, norb
     integer(int32), intent(out)   :: ierr
     real(real64),   intent(inout) :: onfock(m2sto)
     real(real64),   intent(out)   :: eval_all(msto), onevec(msto, norb)
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
-    real(real64),   allocatable :: z_full(:,:), work(:), ap_copy(:), a_full(:,:)
-    integer(int32) :: lwork, i, j, ij
+    real(real64),   allocatable :: z_full(:,:), work(:)
 
-    if (msto <= 0) then
-      ierr = 0
-      return
-    end if
-
-    if (msto == 1) then
-      eval_all(1) = onfock(1)
-      onevec(1, 1:norb) = 1.0d0
-      ierr = 0
-      return
-    end if
-
-    ! Tier 1: Primary packed symmetric eigensolver (LAPACK DSPEV)
-    ! Operates on a copy of onfock to preserve matrix if fallback is needed
-    allocate(ap_copy(m2sto), z_full(msto, msto), work(3 * msto))
-    ap_copy = onfock
-    call DSPEV('V', 'U', msto, ap_copy, eval_all, z_full, msto, work, ierr)
-    if (ierr == 0) then
-      onevec(:, 1:norb) = z_full(:, 1:norb)
-      deallocate(ap_copy, z_full, work)
-      return
-    end if
-    deallocate(ap_copy, z_full, work)
-
-    ! Tier 2 Fallback: Full-matrix Householder QR eigensolver (LAPACK DSYEV)
-    ! Unpack onfock into full symmetric matrix A(msto, msto)
-    allocate(a_full(msto, msto))
-    ij = 0
-    do j = 1, msto
-      do i = 1, j
-        ij = ij + 1
-        a_full(i, j) = onfock(ij)
-        a_full(j, i) = onfock(ij)
-      end do
-    end do
-
-    lwork = max(1, 3 * msto)
-    allocate(work(lwork))
-    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
-    deallocate(work)
-
-    if (ierr == 0) then
-      onevec(:, 1:norb) = a_full(:, 1:norb)
-      deallocate(a_full)
-      return
-    end if
-
-    ! If ierr > 0 after both DSPEV and DSYEV:
-    ! In LAPACK, INFO > 0 indicates that intermediate tridiagonal QL did not reach
-    ! machine zero for an off-diagonal term, but eigenvectors/eigenvalues are still computed.
-    ! If solutions are non-NaN, accept them and clear ierr to allow SCF to converge self-consistently.
-    if (.not. any(ieee_is_nan(eval_all(1:norb)))) then
-      onevec(:, 1:norb) = a_full(:, 1:norb)
-      ierr = 0
-    end if
-    deallocate(a_full)
+    allocate(z_full(msto, msto), work(3 * msto))
+    call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
+    onevec(:, 1:norb) = z_full(:, 1:norb)
+    deallocate(z_full, work)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()
@@ -270,7 +215,7 @@ contains
               call BOMB(17)
             else if (ierr > 0) then
               call WARN(15, qdummy)
-              if (any(ieee_is_nan(scrat1(1:NORB, 1, 1)))) call BOMB(16)
+              if (ierr <= NORB) call BOMB(16)
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)

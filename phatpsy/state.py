@@ -607,6 +607,20 @@ def extract_calculation_state(
 
         current_orb_offset += atom_norb
 
+        # Retrieve model potential if available
+        try:
+            n_terms, vcoef_raw, vexp_raw = core_state.get_atom_model_potential(i, 32)
+            if n_terms > 0:
+                mod_pot = {
+                    "n_terms": int(n_terms),
+                    "vcoef": [float(c) for c in vcoef_raw[:n_terms]],
+                    "vexp": [float(e) for e in vexp_raw[:n_terms]],
+                }
+            else:
+                mod_pot = None
+        except Exception:
+            mod_pot = None
+
         emb_state = EmbeddedAtomState(
             atom_id=atom_id,
             element=elem_sym,
@@ -620,6 +634,7 @@ def extract_calculation_state(
             net_spin=net_sp,
             basis_functions=radial_funcs,
             orbitals=atom_orbitals,
+            model_potential=mod_pot,
             dipole=atom_dipoles[:, atom_idx].tolist(),
             fixed=is_fixed,
             virtual=is_virtual,

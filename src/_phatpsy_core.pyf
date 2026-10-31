@@ -92,6 +92,16 @@ python module _phatpsy_core
                 real(kind=real64) intent(out) :: rms_exchange
                 real(kind=real64) intent(out) :: charge_transfer
             end subroutine get_cycle_diagnostics
+            subroutine get_atom_model_potential(iatom, max_terms, n_terms, vcoef_out, vexp_out)
+                integer intent(in) :: iatom, max_terms
+                integer intent(out) :: n_terms
+                real(kind=real64) intent(out), dimension(max_terms), depend(max_terms) :: vcoef_out
+                real(kind=real64) intent(out), dimension(max_terms), depend(max_terms) :: vexp_out
+            end subroutine get_atom_model_potential
+            subroutine get_atom_record_stevec(iatom, m, n, nspin, out_vec)
+                integer intent(in) :: iatom, m, n, nspin
+                real(kind=real64) intent(out), dimension(m, n, nspin) :: out_vec
+            end subroutine get_atom_record_stevec
         end module state
 
         module contrl
@@ -483,7 +493,7 @@ python module _phatpsy_core
                 real(kind=real64) intent(in) :: rab
                 real(kind=real64) intent(out), dimension(llmxp1, nstoa, nstob), depend(llmxp1, nstoa, nstob) :: d_ovrlap
             end subroutine compute_d_gensab
-            subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+            subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
                 integer(kind=int32) intent(in) :: m2sto
                 integer(kind=int32) optional, depend(lv) :: nvtrm = shape(lv, 0)
                 integer(kind=int32) optional, depend(n) :: nsto = shape(n, 0)
@@ -493,9 +503,11 @@ python module _phatpsy_core
                 integer(kind=int32) intent(in), dimension(nvtrm) :: lv, mv
                 real(kind=real64) intent(in), dimension(nvtrm), depend(nvtrm) :: vexp
                 logical(kind=1) intent(in) :: qrealy
+                real(kind=real64) intent(in), optional :: alpha = 0.0
+                real(kind=real64) intent(in), optional :: beta = 0.0
                 real(kind=real64) intent(out), dimension(m2sto, nvtrm), depend(m2sto, nvtrm) :: stvab
             end subroutine compute_genvab
-            subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+            subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
                 integer(kind=int32) intent(in) :: m2sto
                 integer(kind=int32) optional, depend(lv) :: nvtrm = shape(lv, 0)
                 integer(kind=int32) optional, depend(n) :: nsto = shape(n, 0)
@@ -505,8 +517,27 @@ python module _phatpsy_core
                 integer(kind=int32) intent(in), dimension(nvtrm) :: lv, mv
                 real(kind=real64) intent(in), dimension(nvtrm), depend(nvtrm) :: vexp
                 logical(kind=1) intent(in) :: qrealy
+                real(kind=real64) intent(in), optional :: alpha = 0.0
+                real(kind=real64) intent(in), optional :: beta = 0.0
                 real(kind=real64) intent(out), dimension(m2sto, nvtrm), depend(m2sto, nvtrm) :: d_stvab
             end subroutine compute_d_genvab
+            subroutine compute_rotsab(stovlp, llmxp1, nstoa, mstoa, la, nstob, mstob, lb, ovrlap, alpha, beta)
+                integer(kind=int32) intent(in) :: llmxp1
+                integer(kind=int32) optional, depend(la) :: nstoa = shape(la, 0)
+                integer(kind=int32) intent(in) :: mstoa
+                integer(kind=int32) intent(in), dimension(nstoa) :: la
+                integer(kind=int32) optional, depend(lb) :: nstob = shape(lb, 0)
+                integer(kind=int32) intent(in) :: mstob
+                integer(kind=int32) intent(in), dimension(nstob) :: lb
+                real(kind=real64) intent(in), dimension(llmxp1, nstoa, nstob), depend(llmxp1, nstoa, nstob) :: ovrlap
+                real(kind=real64) intent(in) :: alpha, beta
+                real(kind=real64) intent(out), dimension(mstoa, mstob), depend(mstoa, mstob) :: stovlp
+            end subroutine compute_rotsab
+            subroutine compute_dcoef(dc, l, m, isigma, alpha, beta)
+                integer(kind=int32) intent(in) :: l, m, isigma
+                real(kind=real64) intent(in) :: alpha, beta
+                real(kind=real64) intent(out) :: dc
+            end subroutine compute_dcoef
         end module twocenter
     end interface
 end python module _phatpsy_core

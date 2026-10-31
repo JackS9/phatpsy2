@@ -248,12 +248,25 @@ class PhatpsyDriver:
             res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
         return res
 
-    def gradient(self, deck, quiet: Optional[bool] = None) -> np.ndarray:
+    def gradient(self, deck, method: str = "empirical", quiet: Optional[bool] = None) -> np.ndarray:
         """
         Computes the Cartesian nuclear gradient matrix (dE / dX_A) of shape (N_atoms, 3)
-        in Hartree / Bohr using an empirical pairwise harmonic model (NIST-calibrated PAIR_PARAMS
-        with Badger's-rule fallback) and optional Grimme DFT-D3 dispersion gradient.
+        in Hartree / Bohr.
+
+        Methods:
+          - "empirical": NIST-calibrated pairwise harmonic model (default, fast geometry optimization).
+          - "analytical": Ab initio analytical gradient using Pulay overlap derivatives,
+                          Hellmann-Feynman model potential force contractions, and nuclear repulsion.
+          - "finite_difference": Central finite differences of active electronic SCF energy surface.
         """
+        if method == "finite_difference":
+            from phatpsy.gradients import compute_scf_finite_difference_gradient
+            return compute_scf_finite_difference_gradient(self, deck)
+        elif method == "analytical":
+            from phatpsy.gradients import compute_diatomic_analytical_gradient
+            res = self.run_deck(deck, quiet=quiet)
+            return compute_diatomic_analytical_gradient(res, deck)
+
         import copy
         calc_deck = copy.deepcopy(deck)
         calc_deck.resolve_coordinates()
@@ -325,3 +338,12 @@ class PhatpsyDriver:
             grad += g_disp
 
         return grad
+
+    def scf_gradient_finite_difference(self, deck, step_size: float = 1e-4) -> np.ndarray:
+        """
+        Computes Cartesian nuclear gradients of the active electronic SCF energy surface
+        using central finite differences:
+            g_{A, k} = (E(R_{A, k} + h) - E(R_{A, k} - h)) / (2h)
+        """
+        from phatpsy.gradients import compute_scf_finite_difference_gradient
+        return compute_scf_finite_difference_gradient(self, deck, step_size=step_size)

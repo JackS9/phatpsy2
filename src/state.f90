@@ -183,6 +183,8 @@ module state
     real(real64), allocatable :: cpot2(:)
     real(real64), allocatable :: vfit2(:)
     real(real64), allocatable :: vcoef(:)
+    real(real64), allocatable :: vexp(:)
+    integer(int32)            :: ielem = 0
     real(real64), allocatable :: pkpot(:,:,:)
     real(real64), allocatable :: zpot2(:)
     real(real64)    :: toten = 0.0d0, zzrep = 0.0d0, rmax = 0.0d0
@@ -631,6 +633,61 @@ contains
     charge_transfer = CHTRAN
   end subroutine get_cycle_diagnostics
 
+  subroutine get_atom_model_potential(iatom, max_terms, n_terms, vcoef_out, vexp_out)
+    integer(int32), intent(in)  :: iatom, max_terms
+    integer(int32), intent(out) :: n_terms
+    real(real64),   intent(out) :: vcoef_out(max_terms), vexp_out(max_terms)
+
+    integer(int32) :: k
+
+    n_terms = 0
+    vcoef_out = 0.0d0
+    vexp_out = 0.0d0
+
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    if (allocated(mol_ws%unit3_stream%records(iatom)%vcoef)) then
+      n_terms = size(mol_ws%unit3_stream%records(iatom)%vcoef)
+      k = min(max_terms, n_terms)
+      vcoef_out(1:k) = mol_ws%unit3_stream%records(iatom)%vcoef(1:k)
+    end if
+
+    if (allocated(mol_ws%unit3_stream%records(iatom)%vexp)) then
+      k = min(max_terms, size(mol_ws%unit3_stream%records(iatom)%vexp))
+      vexp_out(1:k) = mol_ws%unit3_stream%records(iatom)%vexp(1:k)
+    else if (allocated(mol_ws%elem_stream)) then
+      k = mol_ws%unit3_stream%records(iatom)%ielem
+      if (k >= 1 .and. k <= size(mol_ws%elem_stream)) then
+        if (allocated(mol_ws%elem_stream(k)%vexp)) then
+          k = min(max_terms, size(mol_ws%elem_stream(k)%vexp))
+          vexp_out(1:k) = mol_ws%elem_stream(mol_ws%unit3_stream%records(iatom)%ielem)%vexp(1:k)
+        end if
+      end if
+    end if
+  end subroutine get_atom_model_potential
+
+  subroutine get_atom_record_stevec(iatom, m, n, nspin, out_vec)
+    integer(int32), intent(in)  :: iatom, m, n, nspin
+    real(real64),   intent(out) :: out_vec(m, n, nspin)
+
+    out_vec = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%stevec)) then
+      out_vec = 999.0d0
+      return
+    end if
+    out_vec(1:min(m, size(mol_ws%unit3_stream%records(iatom)%stevec, 1)), &
+            1:min(n, size(mol_ws%unit3_stream%records(iatom)%stevec, 2)), &
+            1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%stevec, 3))) = &
+      mol_ws%unit3_stream%records(iatom)%stevec( &
+        1:min(m, size(mol_ws%unit3_stream%records(iatom)%stevec, 1)), &
+        1:min(n, size(mol_ws%unit3_stream%records(iatom)%stevec, 2)), &
+        1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%stevec, 3)))
+  end subroutine get_atom_record_stevec
+
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
   !---------------------------------------------------------------------
@@ -743,6 +800,12 @@ contains
       mol_ws%unit3_stream%records(idx)%cpot2  = cpot2
       mol_ws%unit3_stream%records(idx)%vfit2  = vfit2
       mol_ws%unit3_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit3_stream%records(idx)%ielem  = IELEM
+      if (allocated(mol_ws%elem_stream) .and. IELEM >= 1 .and. IELEM <= size(mol_ws%elem_stream)) then
+        if (allocated(mol_ws%elem_stream(IELEM)%vexp)) then
+          mol_ws%unit3_stream%records(idx)%vexp = mol_ws%elem_stream(IELEM)%vexp
+        end if
+      end if
       mol_ws%unit3_stream%records(idx)%pkpot  = pkpot
       mol_ws%unit3_stream%records(idx)%zpot2  = zpot2
       mol_ws%unit3_stream%records(idx)%toten  = toten
@@ -818,6 +881,12 @@ contains
       mol_ws%unit3_stream%records(idx)%cpot2  = cpot2
       mol_ws%unit3_stream%records(idx)%vfit2  = vfit2
       mol_ws%unit3_stream%records(idx)%vcoef  = vcoef
+      mol_ws%unit3_stream%records(idx)%ielem  = IELEM
+      if (allocated(mol_ws%elem_stream) .and. IELEM >= 1 .and. IELEM <= size(mol_ws%elem_stream)) then
+        if (allocated(mol_ws%elem_stream(IELEM)%vexp)) then
+          mol_ws%unit3_stream%records(idx)%vexp = mol_ws%elem_stream(IELEM)%vexp
+        end if
+      end if
       mol_ws%unit3_stream%records(idx)%pkpot  = pkpot
       mol_ws%unit3_stream%records(idx)%zpot2  = zpot2
       mol_ws%unit3_stream%records(idx)%toten  = toten

@@ -4,13 +4,14 @@
 !=======================================================================
 module twocenter
   use iso_fortran_env, only: real64, int32
-  use state,           only: EXPMIN, NNMXM1, NABDIM, state_nsto => NSTO, state_nstob => NSTOB, &
+  use state,           only: EXPMIN, NNMX, NNMXM1, NABDIM, state_nsto => NSTO, state_nstob => NSTOB, &
                              NYLM, L3MX, NCGC, FACT, BINOM, HALF, ROOTPI,              &
-                             state_nvtrmb => NVTRMB, LLMXP1, mol_ws,                   &
+                             state_nvtrmb => NVTRMB, LLMXP1, LLMXP2, mol_ws,          &
                              init_block_data_and_defaults,                             &
                              compute_derived_dimensions_and_allocate
   use elliptical,      only: absum, anmbnm, ogen
   use angular,         only: dcoef, cgcoef, gendc
+  use symmetry,        only: rotsab
   implicit none
 
   real(real64), parameter :: PI    = 3.141592653589793238462643383279502884d0
@@ -18,7 +19,8 @@ module twocenter
 
   private
   public :: rbeta, rbeta2, gensab, genvab, d_gensab, d_genvab, &
-            compute_gensab, compute_d_gensab, compute_genvab, compute_d_genvab
+            compute_gensab, compute_d_gensab, compute_genvab, compute_d_genvab, &
+            compute_rotsab, compute_dcoef
 
 contains
 
@@ -382,6 +384,33 @@ contains
   ! High-level Python / Driver Wrappers with Automatic Buffer Management
   !---------------------------------------------------------------------
 
+  subroutine ensure_tables_initialized()
+    use modelpot, only: genbc, genfac
+    use angular,  only: gencgc, gendc
+    integer(int32) :: i, ndxdim, mxfact, nfact, nbinom
+    logical(kind=1), parameter :: qrealy = .true.
+
+    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
+        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
+      call init_block_data_and_defaults()
+      call compute_derived_dimensions_and_allocate()
+    end if
+
+    if (abs(BINOM(1)) < 1.0d-12) then
+      ndxdim = size(mol_ws%index_arr)
+      do i = 1, ndxdim
+        mol_ws%index_arr(i) = (i * (i - 1)) / 2
+      end do
+      mxfact = max(4 * 2 + 1, NNMX)
+      nfact  = mxfact + 1
+      call genfac(FACT, size(FACT))
+      nbinom = mol_ws%index_arr(NNMX)
+      call genbc(BINOM, nbinom, NNMXM1, mol_ws%index_arr)
+      call gencgc(mol_ws%cgc, NCGC, mol_ws%scrat, LLMXP2, &
+                  mol_ws%ylmnrm, NYLM, FACT, nfact, qrealy)
+    end if
+  end subroutine ensure_tables_initialized
+
   subroutine compute_gensab(ovrlap, llmxp1, na, la, etaa, anorm, nstoa, &
                             nb, lb, etab, bnorm, nstob, rab)
     integer(int32), intent(in)  :: llmxp1, nstoa, nstob
@@ -392,10 +421,7 @@ contains
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
 
-    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm)) then
-      call init_block_data_and_defaults()
-      call compute_derived_dimensions_and_allocate()
-    end if
+    call ensure_tables_initialized()
 
     state_nsto = nstoa
     state_nstob = nstob
@@ -415,10 +441,7 @@ contains
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
 
-    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm)) then
-      call init_block_data_and_defaults()
-      call compute_derived_dimensions_and_allocate()
-    end if
+    call ensure_tables_initialized()
 
     state_nsto = nstoa
     state_nstob = nstob
@@ -428,7 +451,9 @@ contains
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_d_gensab
 
-  subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+  subroutine compute_genvab(stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
+    use state,   only: ALPHA_ANG, BETA_ANG
+    use angular, only: gendc
     integer(int32), intent(in)  :: m2sto, nvtrm, nsto
     integer(int32), intent(in)  :: n(nsto), l(nsto)
     real(real64),   intent(in)  :: eta(nsto), anorm(nsto)
@@ -436,16 +461,17 @@ contains
     integer(int32), intent(in)  :: lv(nvtrm), mv(nvtrm)
     real(real64),   intent(in)  :: vexp(nvtrm)
     logical(kind=1), intent(in) :: qrealy
+    real(real64),   intent(in), optional :: alpha, beta
     real(real64),   intent(out) :: stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
 
-    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
-        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
-      call init_block_data_and_defaults()
-      call compute_derived_dimensions_and_allocate()
-    end if
-    call gendc(mol_ws%d, LLMXP1 - 1)
+    call ensure_tables_initialized()
+    ALPHA_ANG = 0.0d0
+    BETA_ANG  = 0.0d0
+    if (present(alpha)) ALPHA_ANG = alpha
+    if (present(beta))  BETA_ANG  = beta
+    call gendc(mol_ws%d, LLMXP1 - 1, BETA_ANG)
 
     state_nsto = nsto
     state_nvtrmb = nvtrm
@@ -456,7 +482,9 @@ contains
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_genvab
 
-  subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy)
+  subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
+    use state,   only: ALPHA_ANG, BETA_ANG
+    use angular, only: gendc
     integer(int32), intent(in)  :: m2sto, nvtrm, nsto
     integer(int32), intent(in)  :: n(nsto), l(nsto)
     real(real64),   intent(in)  :: eta(nsto), anorm(nsto)
@@ -464,16 +492,17 @@ contains
     integer(int32), intent(in)  :: lv(nvtrm), mv(nvtrm)
     real(real64),   intent(in)  :: vexp(nvtrm)
     logical(kind=1), intent(in) :: qrealy
+    real(real64),   intent(in), optional :: alpha, beta
     real(real64),   intent(out) :: d_stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
 
-    if (.not. allocated(mol_ws%index_arr) .or. .not. allocated(mol_ws%ylmnrm) .or. &
-        .not. allocated(mol_ws%cgc) .or. .not. allocated(mol_ws%d)) then
-      call init_block_data_and_defaults()
-      call compute_derived_dimensions_and_allocate()
-    end if
-    call gendc(mol_ws%d, LLMXP1 - 1)
+    call ensure_tables_initialized()
+    ALPHA_ANG = 0.0d0
+    BETA_ANG  = 0.0d0
+    if (present(alpha)) ALPHA_ANG = alpha
+    if (present(beta))  BETA_ANG  = beta
+    call gendc(mol_ws%d, LLMXP1 - 1, BETA_ANG)
 
     state_nsto = nsto
     state_nvtrmb = nvtrm
@@ -483,6 +512,36 @@ contains
                   mol_ws%ylmnrm, mol_ws%d, mol_ws%cgc, qrealy)
     deallocate(a, b, omegai, omegaj, scrplm)
   end subroutine compute_d_genvab
+
+  subroutine compute_rotsab(stovlp, llmxp1, nstoa, mstoa, la, nstob, mstob, lb, ovrlap, alpha, beta)
+    use state,   only: ALPHA_ANG, BETA_ANG
+    use angular, only: gendc
+    integer(int32), intent(in)  :: llmxp1, nstoa, mstoa, nstob, mstob
+    integer(int32), intent(in)  :: la(nstoa), lb(nstob)
+    real(real64),   intent(in)  :: ovrlap(llmxp1, nstoa, nstob)
+    real(real64),   intent(in)  :: alpha, beta
+    real(real64),   intent(out) :: stovlp(mstoa, mstob)
+
+    call ensure_tables_initialized()
+    ALPHA_ANG = alpha
+    BETA_ANG  = beta
+    call gendc(mol_ws%d, LLMXP1 - 1, beta)
+    call rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, mol_ws%d)
+  end subroutine compute_rotsab
+
+  subroutine compute_dcoef(dc, l, m, isigma, alpha, beta)
+    use state,   only: ALPHA_ANG, BETA_ANG
+    use angular, only: gendc, dcoef
+    integer(int32), intent(in)  :: l, m, isigma
+    real(real64),   intent(in)  :: alpha, beta
+    real(real64),   intent(out) :: dc
+
+    call ensure_tables_initialized()
+    ALPHA_ANG = alpha
+    BETA_ANG  = beta
+    call gendc(mol_ws%d, LLMXP1 - 1, beta)
+    dc = dcoef(mol_ws%d, l, m, isigma, alpha)
+  end subroutine compute_dcoef
 
 end module twocenter
 
