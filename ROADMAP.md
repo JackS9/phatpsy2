@@ -60,14 +60,14 @@ This roadmap defines the scientific, modeling, algorithmic, and architectural go
   - **Automated CI/CD Workflow (`.github/workflows/benchmarks.yml`):** Implemented GitHub Actions CI workflow running on push, PR, and weekly schedule, executing the full canonical build loop, PySCF parity suite, and literature benchmarks, automatically publishing formatted parity tables and $L_2$ metrics directly to `$GITHUB_STEP_SUMMARY`.
   - **Automated Test Suite (`tests/test_pyscf_bridge.py`):** Verified PySCF parity calculations, synthetic and exact $L_2$ norm evaluation, threshold rejection, and structured JSON/Markdown report serialization.
 
-- [ ] **Phase 11: Full Analytical Pulay Molecular Gradients & Non-Circular Basis Force Derivatives [PLANNED]**
-  - **Fortran Derivative Kernel Exposure:** Expose `d_gensab` (two-center overlap derivatives $\partial S/\partial R_{AB}$) and `d_genvab` (two-center model potential derivatives $\partial V/\partial R_{AB}$) from [`src/twocenter.f90`](file:///Users/jacksmith/phatpsy2/src/twocenter.f90) via `src/_phatpsy_core.pyf`.
-  - **Cartesian & Angular Transformations:** Implement diatomic-to-Cartesian rotational transformation derivatives ($\partial D(\alpha, \beta, \gamma) / \partial X_A$) for off-axis diatomic bonds and general polyatomic geometries.
-  - **Phillips-Kleinman Pseudopotential Derivatives:** Evaluate core-valence projection operator gradients:
+- [ ] **Phase 11: Full Analytical Pulay Molecular Gradients & Non-Circular Basis Force Derivatives [IN PROGRESS]**
+  - [x] **Fortran Derivative Kernel Exposure (Phase 11.1) [COMPLETED]:** Expose `d_gensab` (two-center overlap derivatives $\partial S/\partial R_{AB}$) and `d_genvab` (two-center model potential derivatives $\partial V/\partial R_{AB}$) from [`src/twocenter.f90`](src/twocenter.f90) via `src/_phatpsy_core.pyf`. Validated non-circularly against finite differences of base kernels across homonuclear and heteronuclear systems in [`tests/test_gradient_kernels.py`](tests/test_gradient_kernels.py).
+  - [ ] **Cartesian & Angular Transformations (Phase 11.2):** Implement diatomic-to-Cartesian rotational transformation derivatives ($\partial D(\alpha, \beta, \gamma) / \partial X_A$) for off-axis diatomic bonds and general polyatomic geometries.
+  - [ ] **Phillips-Kleinman Pseudopotential Derivatives:** Evaluate core-valence projection operator gradients:
     $$\frac{\partial V_{\text{PK}}}{\partial X_A} = \sum_c \left( \left|\frac{\partial \phi_c}{\partial X_A}\right\rangle (-2 \epsilon_c) \langle \phi_c| + |\phi_c\rangle (-2 \epsilon_c) \left\langle \frac{\partial \phi_c}{\partial X_A}\right| \right)$$
-  - **Density Matrix Contraction:** Assemble full analytical Cartesian forces by contracting one-electron core Hamiltonian derivatives, two-electron derivatives, and overlap derivatives against the valence density matrix $P$ and energy-weighted density matrix $W$:
+  - [ ] **Density Matrix Contraction:** Assemble full analytical Cartesian forces by contracting one-electron core Hamiltonian derivatives, two-electron derivatives, and overlap derivatives against the valence density matrix $P$ and energy-weighted density matrix $W$:
     $$g_A = \sum_{\mu\nu} P_{\mu\nu} \frac{\partial H_{\mu\nu}^{\text{core}}}{\partial X_A} - \sum_{\mu\nu} W_{\mu\nu} \frac{\partial S_{\mu\nu}}{\partial X_A} + \frac{\partial V_{NN}}{\partial X_A}$$
-  - **Non-Circular Acceptance Gate:** Replace all empirical `PAIR_PARAMS` calibrations with direct agreement ($< 10^{-5}\text{ Ha/Bohr}$) against finite-difference gradients of the ab initio SCF electronic total energy surface across $\text{N}_2$, $\text{CO}$, and $\text{H}_2\text{O}$.
+  - [ ] **Non-Circular Acceptance Gate:** Replace all empirical `PAIR_PARAMS` calibrations with direct agreement ($< 10^{-5}\text{ Ha/Bohr}$) against finite-difference gradients of the ab initio SCF electronic total energy surface across $\text{N}_2$, $\text{CO}$, and $\text{H}_2\text{O}$.
 
 
 ---
