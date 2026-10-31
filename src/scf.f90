@@ -22,12 +22,34 @@ contains
     real(real64),   intent(out)   :: eval_all(msto), onevec(msto, norb)
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
-    real(real64),   allocatable :: z_full(:,:), work(:)
+    real(real64),   allocatable :: a_full(:,:), work(:)
+    integer(int32)              :: i, j, k, lwork
 
-    allocate(z_full(msto, msto), work(3 * msto))
-    call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
-    onevec(:, 1:norb) = z_full(:, 1:norb)
-    deallocate(z_full, work)
+    allocate(a_full(msto, msto))
+    lwork = max(1, 3 * msto)
+    allocate(work(lwork))
+
+    ! Unpack packed upper triangular matrix onfock into full symmetric a_full
+    k = 0
+    do j = 1, msto
+      do i = 1, j
+        k = k + 1
+        a_full(i, j) = onfock(k)
+        a_full(j, i) = onfock(k)
+      end do
+    end do
+
+    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
+
+    if (ierr == 0) then
+      onevec(:, 1:norb) = a_full(:, 1:norb)
+    else
+      ! Fallback to DSPEV if needed
+      call DSPEV('V', 'U', msto, onfock, eval_all, a_full, msto, work, ierr)
+      onevec(:, 1:norb) = a_full(:, 1:norb)
+    end if
+
+    deallocate(a_full, work)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()
