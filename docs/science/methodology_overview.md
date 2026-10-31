@@ -14,7 +14,7 @@ Non-empirical electronic structure calculations on large polyatomic molecules, c
 
 **PHATPSY** (Projected Hamiltonian Approach to Polyatomic Systems) implements a non-empirical self-consistent field (SCF) methodology that circumvents these bottlenecks through:
 - **Atom-in-Molecule Subspace Partitioning:** Partitioning the molecular Hilbert space into local atomic subspaces centered on individual nuclei ($\mathcal{H} = \mathcal{H}_A \oplus \mathcal{H}_B \oplus \dots$).
-- **Interatomic Phillips-Kleinman Pseudopotentials:** Enforcing orthogonality and Pauli exclusion between atomic orbitals on neighboring atoms (atom-atom partitioning) using generalized **Phillips-Kleinman pseudopotentials** and **pseudometrics**.
+- **Interatomic Phillips-Kleinman Pseudopotentials:** Enforcing Pauli exclusion between an atomic center and the occupied orbital space of neighboring atoms — via a generalized **Phillips-Kleinman pseudopotential** whose projection manifold is atom-partitioned (summed over neighboring centers) and core-selective through energy weighting — with **pseudometrics** handling the energy dependence.
 - **Model Interatomic Potentials:** Replacing costly multi-center electron-electron integrals with rigorous, self-consistently fitted local spherical model potentials.
 - **Slater-Type Orbital (STO) Basis Functions:** Employing analytical exponential basis functions rather than contracted Gaussians for accurate cusp behavior and long-range asymptotic decay.
 
@@ -41,9 +41,9 @@ $$|\psi_i^A\rangle = Q |\tilde{\psi}_i^A\rangle = (1 - P) |\tilde{\psi}_i^A\rang
 
 ---
 
-## 3. The Phillips-Kleinman Pseudopotential for Atom-Atom Partitioning (Chapter 3)
+## 3. The Atom-Partitioned Phillips-Kleinman Pseudopotential (Chapter 3)
 
-The key conceptual insight in PHATPSY is utilizing the **Phillips-Kleinman pseudopotential formulation for atom-atom partitioning** rather than traditional core-valence separation. 
+The key conceptual insight in PHATPSY is a **generalized Phillips-Kleinman pseudopotential with an atom-partitioned projection manifold**: the projector sums the occupied orbital spaces of neighboring atomic centers, atom by atom, while the $(\varepsilon - \varepsilon_i^B)$ energy dependence dynamically suppresses valence-like contributions — so the traditional core-valence separation emerges as the *effective* behavior without requiring explicit core/valence labeling (thesis Eq. III-24).
 
 Substituting the projected atomic orbital $(1 - P)|\tilde{\psi}_i^A\rangle$ into the secular equation yields:
 $$(1 - P) (F - \varepsilon_i) (1 - P) |\tilde{\psi}_i^A\rangle = 0$$
@@ -60,7 +60,7 @@ In **PHATPSY 2.0**:
 1. **Theoretical Lock `PKSCAL = 1.0`:** The arbitrary empirical scaling parameter has been eliminated.
 2. **Generalized Pseudometric & Dynamic Projection:** The energy dependence is handled dynamically via the regularized pseudometric ($M = I - P$) and standard LAPACK eigensolvers (`DSPEVD`), completely stabilizing 12-coordinated bulk metals ($\text{Ni}_{13}$ FCC cluster) under pure theory `PKSCAL = 1.0` without requiring manual reference energy overrides.
 3. **Symmetrized Operator:** Evaluated as a symmetric matrix in [`src/modelpot.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/modelpot.f90) (`pkepot`/`epkpot_core`), preserving exact Hermiticity, exact total energy conservation, and physical virial ratios ($-V/T \approx 2.0$).
-4. **Hydrogen Core-Exemption Invariant ($Z=1$):** Because the Phillips-Kleinman operator is fundamentally an interatomic core projector ($V_{\text{PK}} = \sum_{j \in \text{core}} (\varepsilon - \varepsilon_j) |\phi_j\rangle\langle\phi_j|$), and Hydrogen possesses zero core electrons ($N_{\text{core}} = 0$), Hydrogen centers are exempt from core projection at the engine level in [`src/modelpot.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/modelpot.f90). The overlap metric on Hydrogen remains unperturbed ($M = \mathbf{S}$), and Hydrogen emits zero core projection onto neighboring atoms. This prevents unphysical valence over-projection, allowing pure theoretical unit scaling (`PKSCAL = 1.0`, `use_pseudometric: true`) to serve as the universal default across all polyatomics without per-molecule tuning.
+4. **Hydrogen Core-Exemption Invariant ($Z=1$):** Because the energy-weighted operator $V_{\text{PK}} = \sum_{j \in \text{occ}} (\varepsilon - \varepsilon_j) |\phi_j\rangle\langle\phi_j|$ (thesis Eq. III-24) dynamically suppresses valence-like contributions, and Hydrogen's sole occupied orbital ($1s$) is valence-like in energy, Hydrogen's projector contribution is negligible in the energy-weighted Fock term — while in the *unweighted* pseudometric ($M = \mathbf{S} - P$) it would enter at full weight and unphysically remove H's bonding $1s$ from the overlap metric. Hydrogen centers are therefore exempt from projection at the engine level (`nucz > 1.5` gates in [`src/scf.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/scf.f90)). The overlap metric on Hydrogen remains unperturbed ($M = \mathbf{S}$), and Hydrogen contributes zero projection onto neighboring atoms. For heavier atoms the projector is core-dominated, making Hydrogen the singular pure-valence case. This prevents unphysical valence over-projection, allowing pure theoretical unit scaling (`PKSCAL = 1.0`, `use_pseudometric: true`) to serve as the universal default across all polyatomics without per-molecule tuning.
 
 ---
 

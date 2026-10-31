@@ -131,6 +131,9 @@ contains
         ! Construct pseudometric and Löwdin transformation matrix TRANX
         do isp = 1, ISPIN
           stovl = stovl_bak
+          ! Hydrogen exemption (thesis Eq. III-24): H 1s is valence-like, so the
+          ! energy-weighted projector is negligible; the unweighted pseudometric
+          ! would unphysically remove the bonding orbital -> M = S for H.
           if (QPSMET .and. nucz > 1.5d0) then
             call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, 1.0d-3)
             stovl = stovl - pkpot(:, 1, isp)
@@ -207,7 +210,7 @@ contains
           end if
 
           do isp = 1, ISPIN
-            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)
+            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)  ! H exempt: no PK projection
             call UTHU(MSTO, stfock(1,isp), tranx(1,1,isp), scrat1, onfock)
             call solve_orthonormal_fock(onfock, scrat1, onevec, scrat2, &
                                         MSTO, M2STO, NORB, ierr)
@@ -244,7 +247,7 @@ contains
               call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
             end if
 
-            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)
+            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
             call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
                         stovl, MSTO, M2STO, NORB, qnword)
             if (qnword) then
@@ -284,6 +287,7 @@ contains
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
+          ! Hydrogen exemption: H emits no projector onto neighboring atoms.
           if (nucz <= 1.5d0) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
@@ -399,6 +403,7 @@ contains
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
               call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
+              ! Hydrogen exemption: H emits no projector onto neighboring atoms.
               if (nucz <= 1.5d0) then
                 pkpot(:, 4, isp) = 0.0d0
                 pkpot(:, 5, isp) = 0.0d0

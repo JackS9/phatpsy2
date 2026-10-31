@@ -17,9 +17,9 @@ These rules apply whenever modifying, inspecting, or testing scientific algorith
 
 ## 2. Core Scientific Invariants
  
- 1. **Atom-Atom Subspace Partitioning & Phillips-Kleinman Projection:**
+ 1. **Atom-in-Molecule Partitioning & Phillips-Kleinman Projection:**
     - PHATPSY employs an **atom-in-molecule partitioning**, structuring molecular wavefunctions via localized atomic spin-orbitals centered on each nucleus.
-    - The Phillips-Kleinman pseudopotential is applied specifically for **atom-atom partitioning** (not core-valence separation) to enforce interatomic orthogonality and simulate Pauli exclusion between interacting atomic centers ($\langle \phi_i^A | \phi_j^B \rangle \approx 0$).
+    - The Phillips-Kleinman pseudopotential uses an **atom-partitioned projection manifold** (occupied states of neighboring centers, summed atom-by-atom per thesis Eq. III-24); the $(\varepsilon - \varepsilon_i^B)$ energy weighting makes it core-selective in effect, generalizing — not replacing — core-valence separation. Pauli exclusion is enforced energetically through $V_{\text{PK}}$ and metrically through the pseudometric $M = S - P$; the operator does not impose strict $\langle \phi_i^A | \phi_j^B \rangle = 0$ orthogonality.
     - Because the Phillips-Kleinman operator is inherently **energy-dependent**, it cannot be solved as a static potential across all states simultaneously. It is treated through regularized projection, dynamic eigenvalue scaling ($V_{\text{PK}}(E)$), and canonical Lowdin regularization.
 
  2. **LAPACK Linear Algebra Standard:**
