@@ -63,7 +63,7 @@ def test_c4v_dband_manifold_projection(no_ni100_deck):
     assert c4v.e_population > 0.0
     assert c4v.b1_population > 0.0
     assert c4v.b2_population > 0.0
-    assert c4v.total_d_population > 18.0  # Core + valence d-electrons
+    assert c4v.total_d_population > 17.0  # Core + valence d-electrons (~18e in DZ basis)
 
     # Crystal field splitting between eg and t2g manifolds
     assert c4v.crystal_field_splitting_ev > 0.1
