@@ -168,10 +168,10 @@ flowchart TD
 
 | Model System | Property | Literature / High-Level Target | Current Status | Owning Phase |
 | :--- | :--- | :--- | :--- | :--- |
-| $\text{N}_2$ | $R_e$ | $2.0744\text{ Bohr}$ (NIST CCCBDB) | $2.0744\text{ Bohr}$ ✓ | 5 |
+| $\text{N}_2$ | $R_e$ | $2.0744\text{ Bohr}$ (NIST CCCBDB) | $2.0744\text{ Bohr}$ (input geometry) | — |
 | $\text{N}_2$ | $\omega_e$ | $2358.6\text{ cm}^{-1}$ (Herzberg) | Empirical model only (circular); analytical → Phase 11 | 11 |
-| $\text{N}_2$ | $D_e$ | $9.76\text{ eV}$ (CRC) | $9.759\text{ eV}$ ✓ | 8 |
-| $\text{CO}$ | $R_e$ | $2.1322\text{ Bohr}$ (NIST CCCBDB) | $2.1322\text{ Bohr}$ ✓ | 5 |
+| $\text{N}_2$ | $D_e$ | $9.76\text{ eV}$ $D_0$ (CRC) | Open — mixed-Hamiltonian reference (HF atoms vs model-potential molecule); needs PHATPSY-consistent atomic energies | — |
+| $\text{CO}$ | $R_e$ | $2.1322\text{ Bohr}$ (NIST CCCBDB) | $2.1322\text{ Bohr}$ (input geometry) | — |
 | $\text{CO}$ | $\mu$ | $0.112\text{ D}$ ($C^{\delta-}O^{\delta+}$, NIST) | $1.08\text{ D}$, correct polarity (reported) | 7 |
 | $\text{CO}$ | $\omega_e$ | $2169.8\text{ cm}^{-1}$ (Herzberg) | Empirical model only (circular); analytical → Phase 11 | 11 |
 | $\text{H}_2\text{O}$ | $\mu$ | $1.855\text{ D}$ (NIST CCCBDB) | $1.63\text{ D}$ (reported) | 7 |
