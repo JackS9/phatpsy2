@@ -23,28 +23,11 @@ contains
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
     real(real64),   allocatable :: z_full(:,:), work(:)
-    integer(int32), allocatable :: iwork(:)
-    integer(int32) :: lwork, liwork
 
-    allocate(z_full(msto, msto))
-    if (USE_LAPACK_EIG) then
-      lwork  = 1 + 6 * msto + 2 * msto * msto
-      liwork = 3 + 5 * msto
-      allocate(work(lwork), iwork(liwork))
-      call DSPEVD('V', 'U', msto, onfock, eval_all, z_full, msto, work, lwork, iwork, liwork, ierr)
-      deallocate(work, iwork)
-      if (ierr /= 0) then
-        allocate(work(3 * msto))
-        call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
-        deallocate(work)
-      end if
-    else
-      allocate(work(3 * msto))
-      call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
-      deallocate(work)
-    end if
+    allocate(z_full(msto, msto), work(3 * msto))
+    call DSPEV('V', 'U', msto, onfock, eval_all, z_full, msto, work, ierr)
     onevec(:, 1:norb) = z_full(:, 1:norb)
-    deallocate(z_full)
+    deallocate(z_full, work)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()
