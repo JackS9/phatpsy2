@@ -3,7 +3,7 @@ Unit tests for Phase 11.2: Diatomic Molecular Gradients and Coordinate Transform
 Verifies analytical rotational transformations, Wigner D-matrix angular derivatives,
 Cartesian chain-rule Jacobians, density-contracted one-electron core forces,
 and non-circular finite-difference gradient benchmarks.
-NOTE: Radial two-center derivatives currently use the Phase 11.1 numerical stencil stopgap.
+NOTE: Two-center radial and angular derivatives are strictly analytical (Phase 11.2 and Phase 11.3).
 """
 import math
 import numpy as np
