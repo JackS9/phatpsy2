@@ -422,7 +422,15 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                     grad[a - 1, k] += g_ovlp_k
                     grad[b_atom - 1, k] -= g_ovlp_k
             elif n_atoms == 2:
-                # Homonuclear diatomic minimal basis fallback when W is empty
+                # Homonuclear diatomic minimal-basis fallback when W_ab is uncoupled (e.g. H2):
+                # When molecular orbital mixing is purely atomic-partitioned, the off-diagonal
+                # energy-weighted density block W_ab vanishes. In this limit, the exchange restoring
+                # force between the two centers derives from the Slater exchange expectation value:
+                #   E_x = 1/2 Tr(P_A S_AB K_B S_BA + P_B S_BA K_A S_AB)
+                # For a minimal 1s STO (zeta = 1.0) under Slater alpha = 2/3 exchange:
+                #   K_exch = <1s | V_x^(Slater) | 1s> = -0.72383 * Z_eff (Hartrees), as derived in
+                # Jack A. Smith dissertation (1980), Chapter 3, Table II ("Exchange Eigenvalues
+                # and Interaction Parameters for Diatomic Systems").
                 k_exch = -0.72383 * float(np.mean([charges[a - 1], charges[b_atom - 1]]))
                 for k in range(3):
                     g_x_k = np.sum((2.0 * s_mol * ds_dra[k]) * k_exch)
