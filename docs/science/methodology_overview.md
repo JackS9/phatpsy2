@@ -2,7 +2,7 @@
 
 > **Status:** DRAFT (Pending User / Author Review)  
 > **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems*, Ph.D. Dissertation, Department of Chemistry & Quantum Theory Project, University of Florida (1980).  
-> **Reference Text:** [`PhD_Thesis/PHATPSY.tex`](../../PhD_Thesis/PHATPSY.tex) | Archival Scanned: [`PhD_Thesis/projectedhamilto00smit.pdf`](../../PhD_Thesis/projectedhamilto00smit.pdf)
+> **Reference Text:** [`PhD_Thesis/PHATPSY.tex`](https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/PHATPSY.tex) | Archival Scanned: [`PhD_Thesis/projectedhamilto00smit.pdf`](https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/projectedhamilto00smit.pdf)
 
 ---
 
@@ -104,7 +104,7 @@ For open-shell surface clusters, polar diatomics, and chemisorption complexes:
 For chemisorption and metal clusters with radical character but overall zero net molecular spin:
 - Orbitals are treated in an Unrestricted Hartree-Fock (UHF) framework with local spin polarization.
 - Alpha ($\alpha$) and Beta ($\beta$) spins are assigned to alternating atomic centers (`QFLIP=T` or `spin="down"`).
-- Automated via a bipartite graph solver in [`phatpsy/spin.py`](../../phatpsy/spin.py), yielding decoupled electron pairs with zero net spin ($S_z = 0$).
+- Automated via a bipartite graph solver in [`phatpsy/spin.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/spin.py), yielding decoupled electron pairs with zero net spin ($S_z = 0$).
 
 ---
 
@@ -168,7 +168,7 @@ In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on tran
 
 While the projected Hamiltonian accurately captures valence electron pairing, Pauli exclusion via $V_{\text{PK}}$, and local electrostatic interactions, long-range London dispersion forces arise from non-local dynamic electron correlations that fall outside single-determinant self-consistent field frameworks.
 
-In **PHATPSY 2.0**, long-range dispersion is incorporated via Grimme's **DFT-D3(BJ)** methodology with Becke-Johnson rational damping ([`phatpsy/dispersion.py`](../../phatpsy/dispersion.py)):
+In **PHATPSY 2.0**, long-range dispersion is incorporated via Grimme's **DFT-D3(BJ)** methodology with Becke-Johnson rational damping ([`phatpsy/dispersion.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/dispersion.py)):
 $$E_{\text{disp}} = -\frac{1}{2} \sum_{A \neq B} \left[ s_6 \frac{C_6^{AB}}{R_{AB}^6 + [R_0^{AB}(a_1, a_2)]^6} + s_8 \frac{C_8^{AB}}{R_{AB}^8 + [R_0^{AB}(a_1, a_2)]^8} \right]$$
 where the Becke-Johnson rational cutoff radius is:
 $$R_0^{AB}(a_1, a_2) = a_1 \sqrt{\frac{C_8^{AB}}{C_6^{AB}}} + a_2 = a_1 \sqrt{3 R_{0,A} R_{0,B}} + a_2$$
@@ -199,7 +199,7 @@ where $S_{lm}$ are real spherical harmonics with exact orthonormalization $\int 
 
 ## 11. Equation-of-Motion (EOM) Polarizability & Spectroscopic Properties (Phase 6)
 
-Phase 6 introduces the Equation-of-Motion (EOM) and response property engine in [`phatpsy/eom.py`](../../phatpsy/eom.py):
+Phase 6 introduces the Equation-of-Motion (EOM) and response property engine in [`phatpsy/eom.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/eom.py):
 
 ### A. Origin-Invariant Dipole & Traceless Quadrupole Tensors
 To eliminate origin-dependence in charged or asymmetric polyatomics, moments are referenced to the center of nuclear charge $\mathbf{R}_0 = \sum_A Z_A \mathbf{R}_A / \sum_A Z_A$:
@@ -224,7 +224,7 @@ $$\boldsymbol{\chi}_{\text{para}} = \frac{e^2}{2 m_e^2 c^2} \sum_{i \in \text{oc
 
 ## 12. Analytical Cartesian Gradients & Physical Invariants (Phase 6)
 
-Geometry optimization, path finding, and molecular dynamics require Cartesian nuclear forces $\mathbf{F}_A = -\nabla_A E$. In [`phatpsy/driver.py`](../../phatpsy/driver.py):
+Geometry optimization, path finding, and molecular dynamics require Cartesian nuclear forces $\mathbf{F}_A = -\nabla_A E$. In [`phatpsy/driver.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/driver.py):
 $$\mathbf{g}_A = -\mathbf{F}_A = \mathbf{g}_A^{\text{elec}} + \mathbf{g}_A^{\text{nuc}} + \mathbf{g}_A^{\text{disp}}$$
 
 To preserve physical boundary conditions on unconstrained finite molecules:
@@ -237,7 +237,7 @@ To preserve physical boundary conditions on unconstrained finite molecules:
 
 ## 13. Harmonic Vibrational Frequencies & Statistical Thermochemistry (Phase 7)
 
-Second derivatives of the electronic energy define the Cartesian Hessian matrix ([`phatpsy/vibrations.py`](../../phatpsy/vibrations.py)):
+Second derivatives of the electronic energy define the Cartesian Hessian matrix ([`phatpsy/vibrations.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/vibrations.py)):
 $$H_{Ai, Bj} = \frac{\partial^2 E}{\partial R_{Ai} \partial R_{Bj}} \approx \frac{g_{Ai}(R_{Bj} + h) - g_{Ai}(R_{Bj} - h)}{2h}$$
 
 ### Eckart-Sayvetz Translation/Rotation Projection:
@@ -259,7 +259,7 @@ From the normal mode spectrum $\{\nu_k\}$ and moments of inertia:
 
 ## 14. Born-Oppenheimer Molecular Dynamics (BOMD) (Phase 7)
 
-Time-dependent nuclear dynamics on the Born-Oppenheimer ground-state potential energy surface are integrated via the **Velocity Verlet algorithm** ([`phatpsy/md.py`](../../phatpsy/md.py)):
+Time-dependent nuclear dynamics on the Born-Oppenheimer ground-state potential energy surface are integrated via the **Velocity Verlet algorithm** ([`phatpsy/md.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/md.py)):
 $$\mathbf{R}(t + \Delta t) = \mathbf{R}(t) + \mathbf{v}(t) \Delta t + \frac{1}{2} \mathbf{a}(t) \Delta t^2$$
 $$\mathbf{v}(t + \Delta t) = \mathbf{v}(t) + \frac{1}{2} [\mathbf{a}(t) + \mathbf{a}(t + \Delta t)] \Delta t$$
 where $\mathbf{a}_A = -\mathbf{g}_A / M_A$.
@@ -279,7 +279,7 @@ where $\mathbf{a}_A = -\mathbf{g}_A / M_A$.
 Phase 8 provides a unified suite for mapping chemical reaction mechanisms, finding first-order saddle points, and tracing reaction coordinates:
 
 ### A. Climbing-Image Nudged Elastic Band (CI-NEB)
-The CI-NEB method ([`phatpsy/neb.py`](../../phatpsy/neb.py)) discretizes the transition path between a reactant and product into an elastic band of $N$ images $\{\mathbf{R}_0, \mathbf{R}_1, \dots, \mathbf{R}_{N-1}\}$.
+The CI-NEB method ([`phatpsy/neb.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/neb.py)) discretizes the transition path between a reactant and product into an elastic band of $N$ images $\{\mathbf{R}_0, \mathbf{R}_1, \dots, \mathbf{R}_{N-1}\}$.
 1. **Henkelman-Jónsson Improved Tangents:** Tangents $\hat{\boldsymbol{\tau}}_i$ are evaluated using the energy ordering of neighboring images to prevent artificial kinking and corner-cutting:
    $$\boldsymbol{\tau}_i = \begin{cases} 
    \boldsymbol{\tau}_i^+ & \text{if } V_{i+1} > V_i > V_{i-1} \\
@@ -294,7 +294,7 @@ The CI-NEB method ([`phatpsy/neb.py`](../../phatpsy/neb.py)) discretizes the tra
 4. **QuickMin Optimizer:** Accelerates convergence by projecting velocities along the force vector $\mathbf{v} \to (\mathbf{v} \cdot \hat{\mathbf{F}}) \hat{\mathbf{F}}$ and resetting $\mathbf{v} = \mathbf{0}$ whenever $\mathbf{v} \cdot \mathbf{F} < 0$.
 
 ### B. Dimer Method for Saddle Point Refinement
-The Heyden/Bell/Henkelman Dimer method ([`phatpsy/dimer.py`](../../phatpsy/dimer.py)) refines saddle points using only first derivatives (gradients), bypassing full Hessian evaluations:
+The Heyden/Bell/Henkelman Dimer method ([`phatpsy/dimer.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/dimer.py)) refines saddle points using only first derivatives (gradients), bypassing full Hessian evaluations:
 1. Two images separated by $2\Delta R$ define a dimer with orientation vector $\hat{\mathbf{N}}$:
    $$\mathbf{R}_1 = \mathbf{R}_0 + \Delta R \hat{\mathbf{N}}, \quad \mathbf{R}_2 = \mathbf{R}_0 - \Delta R \hat{\mathbf{N}}$$
 2. **Rotational Search:** The dimer rotates to align $\hat{\mathbf{N}}$ with the lowest curvature eigenmode:
@@ -307,7 +307,7 @@ The Heyden/Bell/Henkelman Dimer method ([`phatpsy/dimer.py`](../../phatpsy/dimer
    translating uphill along the lowest mode and downhill in all other degrees of freedom.
 
 ### C. Intrinsic Reaction Coordinate (IRC)
-The IRC path ([`phatpsy/irc.py`](../../phatpsy/irc.py)) defines the steepest-descent path in mass-weighted coordinates from a transition state to reactants and products:
+The IRC path ([`phatpsy/irc.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/irc.py)) defines the steepest-descent path in mass-weighted coordinates from a transition state to reactants and products:
 $$\frac{d\mathbf{x}}{ds} = -\frac{\mathbf{g}_x}{\|\mathbf{g}_x\|}, \quad \mathbf{x}_A = \sqrt{M_A} \mathbf{R}_A$$
 Initiated along the forward and backward directions of the imaginary transition normal mode $\hat{\mathbf{Q}}_{\text{imag}}$, verifying that the transition state rigorously connects the postulated reactant and product minima.
 

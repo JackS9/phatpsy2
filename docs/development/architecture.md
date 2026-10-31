@@ -10,7 +10,7 @@ PHATPSY 2.0 employs a two-tier hybrid architecture:
 1. **Computational Core (Modern Fortran 2018):** High-performance linear algebra, dynamic array allocation, Slater-Type Orbital (STO) evaluation, and quantum state updates.
 2. **User Experience & Driver Layer (Python 3.10+):** Input parsing, format conversion (YAML/JSON/.stdin), molecular building, STO basis ingestion, 3D WebGL visualization, and execution orchestration.
 
-```
+```text
                     +------------------------------------+
                     |  User Interface / Notebooks / CLI  |
                     |    (phatpsy.visualizer, Three.js)  |
@@ -70,9 +70,9 @@ The original FORTRAN 66 program partitioned matrix storage across static common 
 ## 3. The f2py Bridge Layer
 
 The Fortran core is compiled into a high-performance Python C-extension (`_phatpsy_core.so`) using `numpy.f2py`:
-- **Interface Definition:** [`src/_phatpsy_core.pyf`](../../src/_phatpsy_core.pyf) maps Fortran module subroutines and state arrays to Python callable functions.
-- **Type Stubs:** [`_phatpsy_core.pyi`](../../_phatpsy_core.pyi) provides full type hints for VS Code, Pylance, and Pyright, ensuring complete autocomplete and static verification.
-- **Python Driver:** [`phatpsy/driver.py`](../../phatpsy/driver.py) interacts with the Fortran modules via memory buffers, allowing end-to-end calculations without writing scratch decks to disk.
+- **Interface Definition:** [`src/_phatpsy_core.pyf`](https://github.com/JackS9/phatpsy2/blob/master/src/_phatpsy_core.pyf) maps Fortran module subroutines and state arrays to Python callable functions.
+- **Type Stubs:** [`_phatpsy_core.pyi`](https://github.com/JackS9/phatpsy2/blob/master/_phatpsy_core.pyi) provides full type hints for VS Code, Pylance, and Pyright, ensuring complete autocomplete and static verification.
+- **Python Driver:** [`phatpsy/driver.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/driver.py) interacts with the Fortran modules via memory buffers, allowing end-to-end calculations without writing scratch decks to disk.
 
 ---
 

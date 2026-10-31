@@ -1,6 +1,6 @@
 # Core Concepts
 
-This chapter introduces the fundamental scientific and computational concepts employed by PHATPSY 2.0. For complete mathematical formulations, consult the [Science & Methodology](../../science/methodology_overview.md) documentation.
+This chapter introduces the fundamental scientific and computational concepts employed by PHATPSY 2.0. For complete mathematical formulations, consult the [`Science & Methodology`](https://github.com/JackS9/phatpsy2/blob/master/science/methodology_overview.md) documentation.
 
 ---
 

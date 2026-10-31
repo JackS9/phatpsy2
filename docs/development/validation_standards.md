@@ -54,7 +54,7 @@ For surface and solid-state calculations, PHATPSY supports embedding active subs
 
 ## 4. Layer B: Experimental Literature Benchmarks
 
-Documented in [`data/validation_baselines/experimental_benchmarks.json`](../../data/validation_baselines/experimental_benchmarks.json), compiled from NIST CCCBDB, CRC Handbook, and Herzberg:
+Documented in [`data/validation_baselines/experimental_benchmarks.json`](https://github.com/JackS9/phatpsy2/blob/master/data/validation_baselines/experimental_benchmarks.json), compiled from NIST CCCBDB, CRC Handbook, and Herzberg:
 
 - **$N_2$:** $R_e = 1.0977\text{ \AA}$, $\omega_e = 2358.57\text{ cm}^{-1}$, $D_0 = 9.759\text{ eV}$ ($225.06\text{ kcal/mol}$), $I_p = 15.58\text{ eV}$.
 - **$CO$:** $R_e = 1.1283\text{ \AA}$, $\omega_e = 2169.81\text{ cm}^{-1}$, $\mu = 0.112\text{ D}$ ($C^-O^+$), $D_0 = 11.087\text{ eV}$, $I_p = 14.01\text{ eV}$.
@@ -69,7 +69,7 @@ Documented in [`data/validation_baselines/experimental_benchmarks.json`](../../d
 
 ## 5. Benchmark Validation Engine & Error Vector Evaluation
 
-An automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](../../phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](../../tests/test_benchmarks.py):
+An automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](https://github.com/JackS9/phatpsy2/blob/master/tests/test_benchmarks.py):
 - Compares calculated values under `ControlConfig.first_principles(pk_scale=1.0)` against external Layer B literature (NIST CCCBDB, CRC Handbook, Somorjai & Li).
 - Reports quantitative error vectors on bond lengths ($\Delta R_e$), harmonic vibrational frequencies ($\Delta \omega_e$), permanent dipole moments ($\Delta \mu$), virial theorem compliance ($-V/T \to 2.0$), and chemisorption energy ($E_{\text{ads}}$).
 - Formally retires empirical damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) in favor of self-consistent Pulay DIIS, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization.
@@ -126,3 +126,18 @@ with normalized weights ($\sum_k w_k = 1$). The non-regression gate is $\|\epsil
 # Run the PySCF parity suite (requires PySCF installed)
 python tools/benchmark_pyscf_bridge.py -o parity_results.json
 ```
+
+---
+
+## 9. Anti-Circularity Standard & Executable Documentation
+
+### Anti-Circularity Invariant:
+A milestone acceptance test or benchmark comparison fails its purpose if the asserted values also appear as hardcoded fitted constants in the implementation.
+- **Rule:** Acceptance criteria must be *computed* by the active physical code path under test.
+- **Gate:** If an expected test value appears verbatim or as a calibration target in the implementation (e.g. empirical lookup tables like `PAIR_PARAMS`), the test is circular and the milestone is not verified, regardless of commit claims.
+- **Reviewer Control:** For every accepted numerical quantity, the reviewer must be able to trace and verify the algorithmic code path that evaluates it from fundamental inputs.
+
+### Executable Documentation Gate:
+Prose rots while tests do not. All user-facing documentation code blocks (YAML calculation decks and Python API usage) are continuously parsed, resolved, and verified in CI via `tests/test_docs_examples.py`.
+- Any public API change, parameter renaming, or schema deprecation that causes a documentation example to fail immediately breaks the build.
+

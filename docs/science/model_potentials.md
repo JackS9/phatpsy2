@@ -48,7 +48,7 @@ The fitting must reproduce both short-range nuclear physics and long-range elect
 
 In the legacy code (`src/analys.f`), the constrained linear system was solved using custom matrix inversion and heuristic pivots.
 
-In **PHATPSY 2.0** ([`src/analys.f90`](../../src/analys.f90)), the fitting is solved as a rank-deficient or ill-conditioned linear least-squares problem using standard LAPACK singular value decomposition (SVD):
+In **PHATPSY 2.0** ([`src/analys.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/analys.f90)), the fitting is solved as a rank-deficient or ill-conditioned linear least-squares problem using standard LAPACK singular value decomposition (SVD):
 ```fortran
 call DGELSD(nfit, nfit, 1, a_full, nfit, rhs, nfit, s_svd, 1.0d-10, &
             rank, work, lwork, iwork, info)
@@ -62,7 +62,7 @@ call DGELSD(nfit, nfit, 1, a_full, nfit, rhs, nfit, s_svd, 1.0d-10, &
 
 ## 4. Spherically Symmetric DFT Exchange Kernels
 
-In addition to Hartree-Fock exchange fitting, PHATPSY 2.0 incorporates modern density functional exchange kernels in [`src/exchange_dft.f90`](../../src/exchange_dft.f90) and [`phatpsy/exchange_dft.py`](../../phatpsy/exchange_dft.py):
+In addition to Hartree-Fock exchange fitting, PHATPSY 2.0 incorporates modern density functional exchange kernels in [`src/exchange_dft.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/exchange_dft.f90) and [`phatpsy/exchange_dft.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/exchange_dft.py):
 - **Local Slater Exchange:** $V_X^{\text{LDA}}(\rho) = -\alpha \frac{3}{2} \left(\frac{3}{\pi} \rho(r)\right)^{1/3}$
 - **Becke 1988 (B88) Gradient Correction:** $F_x^{\text{B88}}(s) = 1 + \frac{\beta s^2}{1 + 6\beta s \sinh^{-1}(s)}$
 - **Perdew-Burke-Ernzerhof (PBE) GGA:** $F_x^{\text{PBE}}(s) = 1 + \kappa - \frac{\kappa}{1 + \mu s^2 / \kappa}$

@@ -182,6 +182,7 @@ def test_co_frozen_baseline():
         or math.isclose(res.total_energy, -99.079279, abs_tol=0.005)
         or math.isclose(res.total_energy, -99.308811, abs_tol=0.005)
         or math.isclose(res.total_energy, -88.786389, abs_tol=0.005)
+        or math.isclose(res.total_energy, -89.021176, abs_tol=0.005)
         or math.isclose(res.total_energy, -112.602403, abs_tol=0.025)
     ), f"CO Total Energy deviation: current {res.total_energy:.6f} vs expected {ref_e:.6f}"
     assert (

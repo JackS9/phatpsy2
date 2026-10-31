@@ -144,6 +144,6 @@ Save full calculation states to JSON or NumPy archive format:
 res.save("n2_calculation.json")
 
 # Load saved state from JSON
-from phatpsy.driver import CalculationState
+from phatpsy import CalculationState
 saved_state = CalculationState.load("n2_calculation.json")
 ```
