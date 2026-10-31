@@ -24,8 +24,6 @@ contains
 
     real(real64),   allocatable :: a_full(:,:), work(:), ap_copy(:)
     integer(int32), allocatable :: iwork(:)
-    real(real64) :: work_query(1)
-    integer(int32) :: iwork_query(1)
     integer(int32) :: lwork, liwork, i, j, ij
 
     if (msto <= 0) then
@@ -52,16 +50,13 @@ contains
     end do
 
     ! Tier 1: Modern divide-and-conquer DSYEVD on full storage
-    call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work_query, -1, iwork_query, -1, ierr)
-    if (ierr == 0 .and. work_query(1) > 0.0d0) then
-      lwork = int(work_query(1), int32)
-      liwork = iwork_query(1)
-      allocate(work(lwork), iwork(liwork))
-      call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work, lwork, iwork, liwork, ierr)
-      deallocate(work, iwork)
-    else
-      ierr = -1
-    end if
+    ! LAPACK guaranteed workspace bounds for DSYEVD with JOBZ='V':
+    ! LWORK >= 1 + 6*N + 2*N^2, LIWORK >= 3 + 5*N
+    lwork = 1 + 6 * msto + 2 * msto * msto
+    liwork = 3 + 5 * msto
+    allocate(work(lwork), iwork(liwork))
+    call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work, lwork, iwork, liwork, ierr)
+    deallocate(work, iwork)
 
     if (ierr == 0) then
       onevec(:, 1:norb) = a_full(:, 1:norb)
@@ -70,6 +65,7 @@ contains
     end if
 
     ! Tier 2 Fallback: Full-matrix standard QR eigensolver DSYEV
+    ! Reload unpacked a_full since DSYEVD might have overwritten it
     ij = 0
     do j = 1, msto
       do i = 1, j
@@ -79,28 +75,26 @@ contains
       end do
     end do
 
-    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work_query, -1, ierr)
-    if (ierr == 0 .and. work_query(1) > 0.0d0) then
-      lwork = max(int(work_query(1), int32), 3 * msto)
-      allocate(work(lwork))
-      call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
-      deallocate(work)
-      if (ierr == 0) then
-        onevec(:, 1:norb) = a_full(:, 1:norb)
-        deallocate(a_full)
-        return
-      end if
+    lwork = max(1, 3 * msto)
+    allocate(work(lwork))
+    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
+    deallocate(work)
+
+    if (ierr == 0) then
+      onevec(:, 1:norb) = a_full(:, 1:norb)
+      deallocate(a_full)
+      return
     end if
-    deallocate(a_full)
 
     ! Tier 3 Fallback: Packed divide-and-conquer DSPEVD
-    allocate(ap_copy(m2sto), a_full(msto, msto))
+    allocate(ap_copy(m2sto))
     ap_copy = onfock
     lwork = 1 + 6 * msto + msto * msto
     liwork = 3 + 5 * msto
     allocate(work(lwork), iwork(liwork))
     call DSPEVD('V', 'U', msto, ap_copy, eval_all, a_full, msto, work, lwork, iwork, liwork, ierr)
     deallocate(work, iwork, ap_copy)
+
     if (ierr == 0) then
       onevec(:, 1:norb) = a_full(:, 1:norb)
       deallocate(a_full)
