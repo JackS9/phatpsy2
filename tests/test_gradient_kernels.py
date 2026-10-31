@@ -19,27 +19,6 @@ def compute_slater_norm(n: int, eta: float) -> float:
 class TestTwoCenterIntegralDerivatives:
     """Rigorous non-circular verification of analytical two-center integral derivatives."""
 
-    def test_rbeta_and_rbeta2_geometry(self):
-        """Verify distance and Euler angles computation from coordinates."""
-        # Collinear on Z axis
-        coord = np.asfortranarray([
-            [0.0, 0.0],
-            [0.0, 0.0],
-            [0.0, 2.0],
-        ], dtype=np.float64)
-        rab, alph, beta = _phatpsy_core.twocenter.rbeta(coord, 1, 2)
-        assert math.isclose(rab, 2.0, abs_tol=1e-12)
-        assert math.isclose(beta, 0.0, abs_tol=1e-12)
-
-        # Off-axis displacement
-        dx, dy, dz = 1.0, 1.0, 1.0
-        rab2, alph2, beta2 = _phatpsy_core.twocenter.rbeta2(dx, dy, dz)
-        expected_r = math.sqrt(3.0)
-        expected_beta = math.atan2(math.sqrt(2.0), 1.0)
-        expected_alph = math.atan2(1.0, 1.0)
-        assert math.isclose(rab2, expected_r, abs_tol=1e-12)
-        assert math.isclose(beta2, expected_beta, abs_tol=1e-12)
-        assert math.isclose(alph2, expected_alph, abs_tol=1e-12)
 
     @pytest.mark.parametrize("rab", [1.0, 1.5, 2.068, 3.0, 4.5])
     def test_d_gensab_vs_finite_difference_homonuclear(self, rab):

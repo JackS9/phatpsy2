@@ -4,9 +4,10 @@
 !=======================================================================
 module twocenter
   use iso_fortran_env, only: real64, int32
-  use state,           only: EXPMIN, NNMXM1, NABDIM, NSTO, NYLM, L3MX, NCGC, &
-                             FACT, BINOM, HALF, ROOTPI, NVTRMB, LLMXP1,       &
-                             mol_ws, init_block_data_and_defaults,           &
+  use state,           only: EXPMIN, NNMXM1, NABDIM, state_nsto => NSTO, state_nstob => NSTOB, &
+                             NYLM, L3MX, NCGC, FACT, BINOM, HALF, ROOTPI,              &
+                             state_nvtrmb => NVTRMB, LLMXP1, mol_ws,                   &
+                             init_block_data_and_defaults,                             &
                              compute_derived_dimensions_and_allocate
   use elliptical,      only: absum, anmbnm, ogen
   use angular,         only: dcoef, cgcoef, gendc
@@ -26,8 +27,8 @@ contains
   ! between atom IATOM and atom JATOM from Cartesian coordinates.
   !---------------------------------------------------------------------
   subroutine rbeta(coord, natom, iatom, jatom, rab, alph, beta)
+    real(real64),   intent(in)  :: coord(:, :)
     integer(int32), intent(in)  :: natom, iatom, jatom
-    real(real64),   intent(in)  :: coord(3, natom)
     real(real64),   intent(out) :: rab, alph, beta
 
     real(real64) :: x12, y12, z12
@@ -165,18 +166,15 @@ contains
     integer(int32) :: ldifp1, lsump1, lljp1, mjhi, mjplp1, mj, mdif, msum, msign
     integer(int32) :: madif, masum, ilamn, ilamx, k, lb, nb, mb, l2b
     integer(int32) :: ila, la, l2a, lmin, imlmx, iml, ml, iabsml, mlp1
-    integer(int32) :: limi, limj, limij, nvterm, nsto_val
+    integer(int32) :: limi, limj, limij, nvterm
 
-    nvterm = size(vexp)
-    if (nvterm <= 0) nvterm = NVTRMB
-    nsto_val = size(n)
-    if (nsto_val <= 0) nsto_val = NSTO
+    nvterm = state_nvtrmb
     rhalf  = half * rab
     cnorm  = pi * rootpi * rab * rab
 
     ij = 0
 
-    do i = 1, nsto_val
+    do i = 1, state_nsto
       etai  = eta(i)
       ni    = n(i)
       li    = l(i)
@@ -399,6 +397,8 @@ contains
       call compute_derived_dimensions_and_allocate()
     end if
 
+    state_nsto = nstoa
+    state_nstob = nstob
     allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
     call gensab(ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
                 nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
@@ -420,6 +420,8 @@ contains
       call compute_derived_dimensions_and_allocate()
     end if
 
+    state_nsto = nstoa
+    state_nstob = nstob
     allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
     call d_gensab(d_ovrlap, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, &
                   nstob, rab, a, b, omegai, omegaj, scrplm, mol_ws%index_arr, mol_ws%ylmnrm)
@@ -445,6 +447,8 @@ contains
     end if
     call gendc(mol_ws%d, LLMXP1 - 1)
 
+    state_nsto = nsto
+    state_nvtrmb = nvtrm
     allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
     call genvab(stvab, n, l, eta, rab, lv, mv, vexp, &
                 omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &
@@ -471,6 +475,8 @@ contains
     end if
     call gendc(mol_ws%d, LLMXP1 - 1)
 
+    state_nsto = nsto
+    state_nvtrmb = nvtrm
     allocate(a(NABDIM), b(NABDIM), omegai(NNMXM1, NNMXM1), omegaj(NNMXM1, NNMXM1), scrplm(NYLM))
     call d_genvab(d_stvab, n, l, eta, rab, lv, mv, vexp, &
                   omegai, omegaj, a, b, scrplm, mol_ws%index_arr, anorm, &

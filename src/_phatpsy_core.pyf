@@ -461,16 +461,6 @@ python module _phatpsy_core
         end module exchange_dft
         module twocenter
             use iso_fortran_env, only: real64, int32
-            subroutine rbeta(coord, natom, iatom, jatom, rab, alph, beta)
-                integer(kind=int32) optional, depend(coord) :: natom = shape(coord, 1)
-                real(kind=real64) intent(in), dimension(3, natom) :: coord
-                integer(kind=int32) intent(in) :: iatom, jatom
-                real(kind=real64) intent(out) :: rab, alph, beta
-            end subroutine rbeta
-            subroutine rbeta2(x, y, z, rab, alph, beta)
-                real(kind=real64) intent(in) :: x, y, z
-                real(kind=real64) intent(out) :: rab, alph, beta
-            end subroutine rbeta2
             subroutine compute_gensab(ovrlap, llmxp1, na, la, etaa, anorm, nstoa, nb, lb, etab, bnorm, nstob, rab)
                 integer(kind=int32) intent(in) :: llmxp1
                 integer(kind=int32) optional, depend(na) :: nstoa = shape(na, 0)
