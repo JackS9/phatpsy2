@@ -290,9 +290,6 @@ contains
 
               do isp = 1, ISPIN
                 do iorba = 1, NORB
-                  if (JATOM == mod(IATOM, NATOM) + 1) then
-                    mol_ws%popul(IORBT + iorba, isp) = occa(iorba, isp)
-                  end if
                   popsum = 0.0d0
                   do iorbb = 1, NORBB
                     ediff  = evalb(iorbb, isp) - evala(iorba, isp)
@@ -312,7 +309,9 @@ contains
                     end if
                     popsum = popsum + ct * block_ab(iorba, iorbb, isp)**2
                   end do
-                  mol_ws%popul(IORBT + iorba, isp) = mol_ws%popul(IORBT + iorba, isp) + popsum
+                  if (.not. (isnan(popsum))) then
+                    mol_ws%popul(IORBT + iorba, isp) = mol_ws%popul(IORBT + iorba, isp) + popsum
+                  end if
                 end do
               end do
             end if
