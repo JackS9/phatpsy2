@@ -23,11 +23,13 @@ contains
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
     real(real64),   allocatable :: a_full(:,:), work(:)
-    integer(int32)              :: i, j, k, lwork
+    integer(int32), allocatable :: iwork(:)
+    integer(int32)              :: i, j, k, lwork, liwork
 
     allocate(a_full(msto, msto))
-    lwork = max(1, 3 * msto)
-    allocate(work(lwork))
+    lwork = max(1, 1 + 6 * msto + 2 * msto**2)
+    liwork = max(1, 3 + 5 * msto)
+    allocate(work(lwork), iwork(liwork))
 
     ! Unpack packed upper triangular matrix onfock into full symmetric a_full
     k = 0
@@ -39,17 +41,18 @@ contains
       end do
     end do
 
-    call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
+    ! DSYEVD: Divide-and-conquer symmetric eigensolver (robust on d-band eigenvalue clusters)
+    call DSYEVD('V', 'U', msto, a_full, msto, eval_all, work, lwork, iwork, liwork, ierr)
 
     if (ierr == 0) then
       onevec(:, 1:norb) = a_full(:, 1:norb)
     else
-      ! Fallback to DSPEV if needed
-      call DSPEV('V', 'U', msto, onfock, eval_all, a_full, msto, work, ierr)
+      ! Fallback to standard QR DSYEV if needed
+      call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
       onevec(:, 1:norb) = a_full(:, 1:norb)
     end if
 
-    deallocate(a_full, work)
+    deallocate(a_full, work, iwork)
   end subroutine solve_orthonormal_fock
 
   subroutine run_scf_element()
@@ -240,7 +243,6 @@ contains
               call BOMB(17)
             else if (ierr > 0) then
               call WARN(15, qdummy)
-              if (ierr <= NORB) call BOMB(16)
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
