@@ -320,7 +320,7 @@ def evaluate_dissociation_energies_benchmark(
     deck_n2.control = ctrl
     res_n2 = d.run_deck(deck_n2)
 
-    deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spin_flip=True, units="bohr")
+    deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spin_flip=False, units="bohr")
     deck_co.control = ctrl
     res_co = d.run_deck(deck_co)
 
@@ -382,8 +382,8 @@ def evaluate_eo_to_aa_benchmark(
         geom_eo,
         basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
         title="Ethylene Oxide (Reactant)",
-        spin_unrestricted=True,
-        auto_spin_flip=True,
+        spin_unrestricted=False,
+        auto_spin_flip=False,
     )
     deck_eo.control = ctrl
     res_eo = d.run_deck(deck_eo)

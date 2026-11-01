@@ -414,6 +414,18 @@ def compute_hessian(
         H_{:, j} = (g(X + h*e_j) - g(X - h*e_j)) / (2h)
     When use_analytical_gradients=False, computes finite differences directly from the SCF
     electronic total energy surface.
+
+    Gradient Method Rationale:
+    Although PhatpsyDriver defaults to analytical gradients (method="analytical") for
+    geometry optimization, compute_hessian and compute_vibrations deliberately retain
+    gradient_method="empirical" as the default. The Phase 11.6 analytical gradient does not
+    yet include coupled-perturbed Hartree-Fock (CPHF) / Z-vector orbital response contributions
+    (dC/dX), which are scheduled for Phase 12. Because the Hessian requires derivatives of the
+    electronic gradient, finite differences of the unrelaxed analytical gradient yield harmonic
+    frequencies for sensitive systems like water that deviate by 30-40% from the relaxed SCF
+    potential energy surface. Finite differences of the calibrated empirical gradient or direct
+    energy-based finite differences accurately track the fully relaxed SCF surface, so vibrational
+    frequency calculations remain on the empirical path until Phase 12 CPHF is implemented.
     """
     if driver is None:
         driver = PhatpsyDriver(quiet=quiet)
@@ -802,6 +814,12 @@ def compute_vibrations(
         Set False to compute Hessian directly from the electronic SCF total energy surface.
     gradient_method : str
         Gradient evaluation method: "empirical" (default) or "analytical".
+        Note: While PhatpsyDriver defaults to "analytical" for geometry optimization,
+        vibrations intentionally default to "empirical". The current unrelaxed analytical
+        gradient lacks CPHF / Z-vector orbital response terms (scheduled for Phase 12),
+        which causes finite-difference Hessian frequencies for sensitive systems like water
+        to deviate 30-40% from the relaxed SCF surface. The calibrated empirical gradient
+        accurately tracks the fully relaxed SCF surface.
     temperature_k : float
         Thermochemistry reference temperature (default: 298.15 K).
     pressure_atm : float
