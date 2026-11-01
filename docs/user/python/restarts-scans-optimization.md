@@ -124,20 +124,38 @@ pes2d = scan_2d(
 
 ## Nuclear Gradients (`PhatpsyDriver.gradient`)
 
-`PhatpsyDriver.gradient(deck)` returns the Cartesian nuclear gradient matrix $dE/d\mathbf{X}_A$ of shape `(N_atoms, 3)` in Hartree/Bohr. The implementation is an empirical harmonic bond-stretch model:
+`PhatpsyDriver.gradient(deck, method="analytical")` returns the Cartesian nuclear gradient matrix $dE/d\mathbf{X}_A$ of shape `(N_atoms, 3)` in Hartree/Bohr.
 
-* **Calibrated pairs** (N–N, C–O, O–H, H–H, C–C, C–H, N–H): equilibrium distances and force constants fitted to NIST CCCBDB vibrational data (e.g. N–N: $r_e = 2.068$ Bohr, $k = 1.4744$ Ha/Bohr²).
-* **Badger's rule fallback**: for unlisted pairs, $r_e$ from covalent radii sums and $k = 0.50$ Ha/Bohr².
-* **Dispersion**: when `control.use_dispersion` is set, the analytical Grimme D3(BJ) gradient is added.
+Starting in PHATPSY 2.0 (Phase 11.6), `method="analytical"` is the default. It evaluates first-principles closed-form matrix derivatives without empirical parameter tables:
+
+* **Classical Coulomb repulsion**: $-Z_A \sum_{B \ne A} Z_B \frac{\mathbf{R}_{AB}}{R_{AB}^3}$
+* **Polyatomic Pulay overlap forces**: contracted with the energy-weighted density matrix $\mathbf{W} = 2 \sum_i^{\text{occ}} \varepsilon_i \mathbf{c}_i \mathbf{c}_i^T$
+* **Two-center model potentials**: exact radial auxiliary function recurrences rotated into the global molecular frame
+* **Phillips-Kleinman (PK) pseudopotentials & exchange residuals**: atom-partitioned non-local core projection and exchange operators with hydrogen core exemption ($Z \le 1$)
+* **Dispersion**: analytical Grimme DFT-D3(BJ) gradient when `control.use_dispersion` is enabled
 
 ```python
 from phatpsy import PhatpsyDriver
 
 driver = PhatpsyDriver()
+# Returns first-principles unrelaxed analytical gradient:
 grad = driver.gradient(deck)   # (N_atoms, 3) array in Hartree/Bohr
+
+# Legacy empirical harmonic bond-stretch fallback:
+grad_emp = driver.gradient(deck, method="empirical")
 ```
 
-`CalculationState.gradient` exposes the same quantity as a property on results. Hessians for vibrational analysis are obtained by central finite differences of these gradients (`use_analytical_gradients=True` in `compute_hessian`).
+!!! note "CPHF / Z-Vector Orbital Relaxation Caveat"
+    The analytical gradient evaluates the **unrelaxed** force on the converged electronic state (fixed density $\mathbf{P}$). In non-variational model potential methods, finite differences of the self-consistent total energy surface contain an additional Coupled-Perturbed Hartree-Fock (CPHF / Z-vector) orbital relaxation response $\operatorname{Tr}\left(\frac{\partial E}{\partial \mathbf{P}} \frac{\mathrm{d}\mathbf{P}}{\mathrm{d}\mathbf{R}}\right)$. On purely variational systems ($\text{H}_2$), the unrelaxed analytical gradient matches the SCF energy surface to $< 0.1\%$; on systems with fitted model potentials, unrelaxed gradients match frozen-density numerical derivatives to machine precision ($< 10^{-7}\text{ Ha/Bohr}$). Explicit Z-vector orbital response is scheduled for Phase 12. For complete derivations and discussion, see [Analytical Cartesian Gradients §10](https://github.com/JackS9/phatpsy2/blob/master/docs/science/analytical_gradients.md#10-unrelaxed-analytical-gradients-vs-full-scf-surface-cphf-z-vector-response).
+
+`CalculationState.gradient` exposes the analytical gradient as a property on completed calculation results.
+
+### Legacy Empirical Gradient Fallback (`method="empirical"`)
+
+Passing `method="empirical"` activates the legacy harmonic bond-stretch model:
+* **Calibrated pairs** (N–N, C–O, O–H, H–H, C–C, C–H, N–H): equilibrium distances and force constants fitted to NIST CCCBDB vibrational data (e.g. N–N: $r_e = 2.068$ Bohr, $k = 1.4744$ Ha/Bohr²).
+* **Badger's rule fallback**: for unlisted pairs, $r_e$ from covalent radii sums and $k = 0.50$ Ha/Bohr².
+
 
 ## Geometry Optimization (`optimize_geometry`)
 
@@ -465,7 +483,7 @@ irc_res.visualize("irc_pathway.html", open_browser=True)
 
 ## Transition-State Refinement: Dimer Method (Dimer-over-RFO)
 
-Because PHATPSY calculates numerical finite-difference gradients and does not construct analytic Hessians, traditional Hessian-based partitioned Rational Function Optimization (P-RFO) is computationally prohibitive ($O(3N)$ or $(3N)^2$ SCF evaluations per step) and fragile against numerical SCF noise.
+Because PHATPSY calculates unrelaxed analytical gradients and does not construct analytic second-derivative Hessians, traditional Hessian-based partitioned Rational Function Optimization (P-RFO) is computationally prohibitive ($O(3N)$ gradient evaluations per step) and fragile against numerical SCF noise.
 
 PHATPSY 2.0 adopts the **Dimer method** (Heyden/Bell variant) for transition-state refinement:
 

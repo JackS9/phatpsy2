@@ -149,14 +149,6 @@ $$\mathbf{g}_A^{\text{PK}} = \sum_{B \ne A} \left[ \operatorname{Tr}\left( \math
 By translational symmetry, $\nabla_{\mathbf{R}_B} \mathbf{S}_{AB} = -\nabla_{\mathbf{R}_A} \mathbf{S}_{AB}$, which guarantees:
 $$\sum_A \mathbf{g}_A^{\text{PK}} = \mathbf{0}$$
 
-### Unrelaxed Analytical Gradient vs. Full SCF Surface (CPHF / Z-Vector Response)
-In standard variational quantum chemistry methods, the orbital coefficients minimize the exact molecular energy functional ($\partial E / \partial \mathbf{C} = \mathbf{0}$), so the wave function response term $\sum \frac{\partial E}{\partial C_{\mu i}} \frac{\partial C_{\mu i}}{\partial \mathbf{R}}$ vanishes identically by Pulay's theorem.
-
-In PHATPSY, the SCF solves atomic Secular equations embedded in fitted spherical model potentials ($V_c^B(r) = \sum_k c_k e^{-\alpha_k r}$), which carry finite RMS fitting errors ($\approx 0.28\text{ Ha}$ on second-row atoms). The total molecular energy evaluated in `analys.f90` includes the fitted potentials alongside exact non-local projections and exchange residuals. Consequently, the energy functional evaluated is not strictly at its variational minimum with respect to the atomic coefficients ($\partial E / \partial \mathbf{C} \ne \mathbf{0}$).
-
-- **Unrelaxed Analytical Gradient (`method="analytical"`):** Evaluates the direct Hellmann-Feynman, Pulay overlap, model potential, and PK force contractions on the converged electronic state. On frozen-density states, this matches numerical finite differences of the exact electronic expectation value to $< 10^{-7}\text{ Ha/Bohr}$ (machine precision). On purely variational systems ($\text{H}_2$), it matches the full SCF surface finite difference to $0.07\%$ ($< 2 \times 10^{-4}\text{ Ha/Bohr}$).
-- **Relaxed SCF Total Energy Surface Derivative ($dE/d\mathbf{R}$):** Numerical finite differences of the self-consistent total energy incorporate both the unrelaxed force and the implicit Coupled-Perturbed (CPHF / Z-vector) orbital relaxation channel $\operatorname{Tr}\left(\frac{\partial \mathbf{P}}{\partial \mathbf{R}} \mathbf{F}\right)$. Implementation of the Z-vector orbital response for non-variational model potential systems is scheduled for Phase 12.
-
 ### Hydrogen Core-Exemption Invariant ($Z=1$)
 Because Hydrogen possesses no core orbitals ($1s$ is valence-like with $\varepsilon_{1s} \approx -0.5\text{ Ha}$), Hydrogen atoms contribute zero projection onto neighboring centers:
 $$Z_B \le 1 \implies \mathbf{K}_B = \mathbf{0}$$
@@ -164,7 +156,18 @@ This maintains the thesis Eq. III-24 invariant and ensures that unpolarized bond
 
 ---
 
-## 10. Semi-Classical Dispersion Gradients (DFT-D3)
+## 10. Unrelaxed Analytical Gradients vs. Full SCF Surface (CPHF / Z-Vector Response)
+
+In standard variational quantum chemistry methods, the orbital coefficients minimize the exact molecular energy functional ($\partial E / \partial \mathbf{C} = \mathbf{0}$), so the wave function response term $\sum \frac{\partial E}{\partial C_{\mu i}} \frac{\partial C_{\mu i}}{\partial \mathbf{R}}$ vanishes identically by Pulay's theorem.
+
+In PHATPSY, the SCF solves atomic Secular equations embedded in fitted spherical model potentials ($V_c^B(r) = \sum_k c_k e^{-\alpha_k r}$), which carry finite RMS fitting errors ($\approx 0.28\text{ Ha}$ on second-row atoms). The total molecular energy evaluated in `analys.f90` includes the fitted potentials alongside exact non-local projections and exchange residuals. Consequently, the energy functional evaluated is not strictly at its variational minimum with respect to the atomic coefficients ($\partial E / \partial \mathbf{C} \ne \mathbf{0}$).
+
+- **Unrelaxed Analytical Gradient (`method="analytical"`):** Evaluates the direct Hellmann-Feynman, Pulay overlap, model potential, and PK force contractions on the converged electronic state. On frozen-density states, this matches numerical finite differences of the exact electronic expectation value to $< 10^{-7}\text{ Ha/Bohr}$ (machine precision). On purely variational systems ($\text{H}_2$), it matches the full SCF surface finite difference to $0.07\%$ ($< 2 \times 10^{-4}\text{ Ha/Bohr}$).
+- **Relaxed SCF Total Energy Surface Derivative ($dE/d\mathbf{R}$):** Numerical finite differences of the self-consistent total energy incorporate both the unrelaxed force and the implicit Coupled-Perturbed (CPHF / Z-vector) orbital relaxation channel $\operatorname{Tr}\left(\frac{\partial \mathbf{P}}{\partial \mathbf{R}} \mathbf{F}\right)$. Implementation of the Z-vector orbital response for non-variational model potential systems is scheduled for Phase 12.
+
+---
+
+## 11. Semi-Classical Dispersion Gradients (DFT-D3)
 
 For non-covalent interactions, long-range London dispersion is evaluated via Grimme DFT-D3(BJ):
 $$E_{\text{disp}} = -\frac{1}{2} \sum_{A \neq B} \sum_{n=6, 8} s_n \frac{C_n^{AB}}{R_{AB}^n + [R_0^{AB}]^n}$$
@@ -173,7 +176,7 @@ $$\mathbf{g}_A^{\text{disp}} = \sum_{B \neq A} \left[ \frac{6 s_6 C_6^{AB} R_{AB
 
 ---
 
-## 11. Invariant Conservation & Point Group Symmetry
+## 12. Invariant Conservation & Point Group Symmetry
 
 To satisfy quantum mechanical boundary conditions, all analytical gradients in PHATPSY 2.0 strictly fulfill:
 

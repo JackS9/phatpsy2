@@ -234,7 +234,7 @@ where:
 - $\mathbf{g}_A^{\text{pk}}$ is the atom-partitioned Phillips-Kleinman pseudopotential force $\operatorname{Tr}(\mathbf{P}_A \nabla_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T + \mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \nabla_A \mathbf{S}_{BA}^T)$, with exact core projection exemption for hydrogen atoms ($Z \le 1$).
 - $\mathbf{g}_A^{\text{disp}} = -\nabla_A E_{\text{disp}}$ is the Grimme DFT-D3(BJ) dispersion force.
 
-For the complete mathematical derivations, including elliptical auxiliary function recurrences $dA_n/d\alpha = -A_{n+1}$, $dB_m/d\beta = -B_{m+1}$, diatomic Cartesian Jacobians, and Wigner rotation matrix transformations, consult [Analytical Cartesian Gradients](analytical_gradients.md).
+For the complete mathematical derivations, including elliptical auxiliary function recurrences $dA_n/d\alpha = -A_{n+1}$, $dB_m/d\beta = -B_{m+1}$, diatomic Cartesian Jacobians, and Wigner rotation matrix transformations, consult [Analytical Cartesian Gradients](analytical_gradients.md). Note that the current analytical gradient evaluates the unrelaxed force at frozen electronic density; Coupled-Perturbed Hartree-Fock (CPHF / Z-vector) orbital relaxation response is scheduled for Phase 12 (see [Analytical Cartesian Gradients §10](analytical_gradients.md#10-unrelaxed-analytical-gradients-vs-full-scf-surface-cphf-z-vector-response)).
 
 ### Physical Boundary Conditions and Invariants
 To preserve physical boundary conditions on unconstrained finite molecules:
