@@ -1,4 +1,5 @@
 title: Ni(100) 3-Layer Surface Slab (Surface, Subsurface, Fixed Bulk)
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 25

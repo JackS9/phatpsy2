@@ -1,4 +1,5 @@
 title: '... Ag-Ag, R=4.68 (2.48 A)  - Experimental De = 1.65 eV (0.0607 au)'
+net_spin: 0
 control:
   spin_unrestricted: true
   max_cycles: 100

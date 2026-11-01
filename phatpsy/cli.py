@@ -100,12 +100,18 @@ def handle_elements(args):
 
 def handle_build(args):
     from phatpsy.builder import build_molecule
+    spins_val = None
+    if getattr(args, "spins", None):
+        spins_val = [s.strip() for s in args.spins.split(",")] if "," in args.spins else args.spins.strip()
+    net_spin_val = getattr(args, "net_spin", None)
     deck = build_molecule(
         args.xyz_file,
         basis=args.basis,
         title=args.title or f"PHATPSY calculation for {Path(args.xyz_file).stem}",
         units=args.units,
-        auto_spin_flip=args.auto_spin,
+        spins=spins_val,
+        net_spin=net_spin_val,
+        auto_spin_flip=args.auto_spin if args.auto_spin else None,
     )
     out_path = Path(args.output) if args.output else None
     out_suffix = out_path.suffix.lower() if out_path else ".yaml"
@@ -864,7 +870,9 @@ def main(argv=None):
         parser.add_argument("-b", "--basis", default="DZ", help="Basis set name ('DZ', 'SZ', 'THAKKAR', default: DZ)")
         parser.add_argument("-u", "--units", default="angstrom", help="Coordinate units ('angstrom' or 'bohr', default: angstrom)")
         parser.add_argument("-t", "--title", default=None, help="Calculation title")
-        parser.add_argument("-s", "--auto-spin", action="store_true", help="Automatically assign alternating spin ('up'/'down') states")
+        parser.add_argument("--spins", default=None, help="Explicit per-atom spins (e.g. 'up,down' or 'up')")
+        parser.add_argument("--net-spin", type=int, default=None, help="Net spin (n_up - n_down, default: 0)")
+        parser.add_argument("-s", "--auto-spin", action="store_true", help="[DEPRECATED] Automatically assign alternating spin states")
         parser.add_argument("-o", "--output", default=None, help="Output calculation deck file (.yaml, .json, .stdin)")
         args = parser.parse_args(argv[1:])
         return handle_build(args)

@@ -85,7 +85,8 @@ from phatpsy import PhatpsyDriver, CalculationDeck, build_molecule
 deck = build_molecule(
     geometry="examples/CO.stdin",
     basis="DZ",
-    auto_spin_flip=True
+    spins=["up", "up"],
+    net_spin=2,
 )
 
 # Render 3D viewer inside Jupyter Notebook

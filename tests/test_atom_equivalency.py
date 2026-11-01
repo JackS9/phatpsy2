@@ -169,10 +169,10 @@ def test_yaml_roundtrip_with_atom_ids(tmp_path):
 
 
 def test_invalid_equivalent_reference_raises():
-    deck = CalculationDeck(
-        geometry=[
-            AtomConfig(id="O2", element="O", equivalent_to="NonExistentAtom"),
-        ]
-    )
     with pytest.raises(ValueError, match="no reference atom with that ID was found"):
-        deck.to_stdin_text()
+        CalculationDeck(
+            geometry=[
+                AtomConfig(id="O2", element="O", equivalent_to="NonExistentAtom", spin="up"),
+            ],
+            net_spin=1,
+        )

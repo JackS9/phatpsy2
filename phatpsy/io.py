@@ -255,11 +255,16 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
                 last_atom_in_elem = eq_atom
                 geometry.append(eq_atom)
 
+    n_up = sum(1 for a in geometry if a.spin == "up")
+    n_down = sum(1 for a in geometry if a.spin == "down")
+    calc_net_spin = n_up - n_down
+
     return CalculationDeck(
         title=title,
         control=control,
         geometry=geometry,
         elements=elements,
+        net_spin=calc_net_spin,
     )
 
 

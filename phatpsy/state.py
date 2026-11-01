@@ -411,11 +411,13 @@ class CalculationState(dict):
                     charge=ea.net_charge,
                     fixed=ea.fixed,
                     virtual=ea.virtual,
-                    spin="down" if ea.net_spin < -0.01 else ("up" if ea.net_spin > 0.01 else None),
+                    spin="down" if ea.net_spin < -0.01 else "up",
                 ))
+            calc_net = sum(1 for a in geom if a.spin == "up") - sum(1 for a in geom if a.spin == "down")
             new_deck = CalculationDeck(
                 title=title or "PHATPSY Warm Restart",
                 geometry=geom,
+                net_spin=calc_net,
             )
 
         if title is not None:

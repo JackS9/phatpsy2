@@ -1,4 +1,5 @@
 title: '... Ethylene Oxide -> Acetaldehyde Transition State ...'
+net_spin: 3
 control:
   spin_unrestricted: true
   max_cycles: 20

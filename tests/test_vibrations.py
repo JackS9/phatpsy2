@@ -329,14 +329,15 @@ def test_compute_hessian_analytical_gradients():
     driver = PhatpsyDriver(quiet=True)
     deck = CalculationDeck.from_dict({
         "title": "HF Analytical Hessian",
+        "net_spin": 2,
         "control": {
             "spin_unrestricted": False,
             "convergence": 1e-6,
             "max_cycles": 100,
         },
         "geometry": [
-            {"element": "H", "xyz": [0.0, 0.0, 0.0]},
-            {"element": "F", "xyz": [0.0, 0.0, 1.7328]},
+            {"element": "H", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+            {"element": "F", "xyz": [0.0, 0.0, 1.7328], "spin": "up"},
         ],
         "elements": {
             "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
@@ -472,7 +473,8 @@ def test_nonlinear_triatomic_vibrational_frequencies():
         basis={"O": "SZ", "H": "THAKKAR"},
         title="Water H2O Vibrations",
         spin_unrestricted=True,
-        auto_spin_flip=True,
+        spins=["up", "down", "down"],
+        net_spin=-1,
     )
 
     # Forward finite-difference Hessian is fast and validates the 3N-6 = 3 projection
@@ -512,15 +514,16 @@ def test_non_circular_ab_initio_vibrational_frequencies_water():
     driver = PhatpsyDriver(quiet=True)
     deck_h2o = CalculationDeck.from_dict({
         "title": "H2O Pure Ab Initio SCF Vibrations",
+        "net_spin": 3,
         "control": {
             "spin_unrestricted": False,
             "convergence": 1e-6,
             "max_cycles": 100,
         },
         "geometry": [
-            {"element": "O", "xyz": [0.0, 0.0, 0.0]},
-            {"element": "H", "xyz": [0.0, 1.43, 1.10]},
-            {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+            {"element": "O", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+            {"element": "H", "xyz": [0.0, 1.43, 1.10], "spin": "up"},
+            {"element": "H", "xyz": [0.0, -1.43, 1.10], "spin": "up"},
         ],
         "elements": {
             "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
@@ -568,15 +571,16 @@ def test_analytical_gradient_vibrational_frequencies_water():
     driver = PhatpsyDriver(quiet=True)
     deck_h2o = CalculationDeck.from_dict({
         "title": "H2O Analytical Gradient Vibrations",
+        "net_spin": 3,
         "control": {
             "spin_unrestricted": False,
             "convergence": 1e-6,
             "max_cycles": 100,
         },
         "geometry": [
-            {"element": "O", "xyz": [0.0, 0.0, 0.0]},
-            {"element": "H", "xyz": [0.0, 1.43, 1.10]},
-            {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+            {"element": "O", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+            {"element": "H", "xyz": [0.0, 1.43, 1.10], "spin": "up"},
+            {"element": "H", "xyz": [0.0, -1.43, 1.10], "spin": "up"},
         ],
         "elements": {
             "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},

@@ -1,4 +1,5 @@
 title: '... Ag(100)-O, R(Ag-O)=4.0, R(Ag-Ag)=5.46, 5(FC) Ag + O(3P) ...'
+net_spin: 2
 control:
   spin_unrestricted: true
   max_cycles: 10

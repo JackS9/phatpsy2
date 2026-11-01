@@ -203,9 +203,10 @@ def test_deck_with_pbe_xc_and_dispersion():
             use_dispersion=True,
         ),
         geometry=[
-            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037]),
-            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037]),
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037], spin="up"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037], spin="down"),
         ],
+        net_spin=0,
     )
 
     deck_text = deck.to_stdin_text()

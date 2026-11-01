@@ -285,6 +285,11 @@ class AtomConfig:
     starting_orbitals: Optional[List[Any]] = None
 
     def __post_init__(self):
+        # Defensively handle positional AtomConfig("N", [x, y, z]) where xyz was passed as 2nd arg (id)
+        if isinstance(self.id, (list, tuple)):
+            self.xyz = [float(c) for c in self.id]
+            self.id = None
+
         # 1. Normalize spin
         if self.spin is not None:
             s = str(self.spin).strip().lower()
@@ -525,6 +530,13 @@ class CalculationDeck:
     geometry: List[AtomConfig] = field(default_factory=list)
     elements: Dict[str, ElementConfig] = field(default_factory=dict)
     basis: Optional[str] = None
+    net_spin: int = 0
+    ferromagnetic_links: List[Tuple[str, str]] = field(default_factory=list)
+    ferromagnetic_reports: List[Any] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.geometry:
+            self.validate()
 
     @property
     def atoms(self) -> List[AtomConfig]:
@@ -534,6 +546,102 @@ class CalculationDeck:
     @atoms.setter
     def atoms(self, val: List[AtomConfig]) -> None:
         self.geometry = val
+
+    @property
+    def spins(self) -> List[str]:
+        """Returns the explicit per-atom spin assignments ('up' or 'down')."""
+        return [a.spin for a in self.geometry if a.spin is not None]
+
+    def validate(self) -> None:
+        """
+        Validates calculation deck invariants:
+        1. Explicit per-atom spins, no None: Every atom in a built deck carries spin 'up' or 'down'.
+        2. Net spin conservation: (n_up - n_down) == self.net_spin.
+        3. Pairings sanity check: Genuine symmetry-equivalent centers for spin-flip pairing,
+           and bipartite flip-pairing graph without odd cycles.
+        4. Ferromagnetic links consistency: links reference existing atoms and have parallel spins.
+        """
+        if not self.geometry:
+            return
+
+        self.ensure_atom_ids()
+        id_map = {a.id: a for a in self.geometry if a.id}
+
+        n_up = 0
+        n_down = 0
+        for a in self.geometry:
+            if a.spin not in ("up", "down"):
+                raise ValueError(
+                    f"Atom '{a.id or a.element}' has unassigned or invalid spin ({a.spin!r}). "
+                    f"Every atom in a built calculation deck must carry an explicit spin ('up' or 'down'). "
+                    f"None anywhere in the spin path is forbidden."
+                )
+            if a.spin == "up":
+                n_up += 1
+            else:
+                n_down += 1
+
+        calc_net = n_up - n_down
+        if calc_net != self.net_spin:
+            raise ValueError(
+                f"Net spin mismatch: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
+                f"but deck net_spin is {self.net_spin}. "
+                f"Explicit per-atom spins must satisfy (n_up - n_down) == net_spin."
+            )
+
+        # Sanity-check symmetry pairings and bipartiteness
+        pair_adj: Dict[str, List[str]] = {a.id: [] for a in self.geometry if a.id}
+        for a in self.geometry:
+            if a.equivalent_to:
+                ref = id_map.get(a.equivalent_to)
+                if not ref:
+                    raise ValueError(
+                        f"Atom '{a.id}' has equivalent_to='{a.equivalent_to}', "
+                        f"but no reference atom with that ID was found."
+                    )
+                if ref.element.strip().capitalize() != a.element.strip().capitalize():
+                    raise ValueError(
+                        f"Invalid spin-pairing: Atom '{a.id}' ({a.element}) references '{ref.id}' ({ref.element}) by symmetry, "
+                        f"but they are different elements. Spin-flip symmetry pairing requires genuine symmetry equivalents."
+                    )
+                if a.spin != ref.spin:
+                    pair_adj[a.id].append(ref.id)
+                    pair_adj[ref.id].append(a.id)
+
+        atom_ids = list(pair_adj.keys())
+        id_to_idx = {aid: idx for idx, aid in enumerate(atom_ids)}
+        adj_indices = [
+            [id_to_idx[nbr] for nbr in pair_adj[aid]]
+            for aid in atom_ids
+        ]
+        from phatpsy.spin import find_odd_cycle, NonBipartiteSpinGraphError
+        odd_cycle = find_odd_cycle(adj_indices)
+        if odd_cycle is not None:
+            cycle_atoms = [atom_ids[idx] for idx in odd_cycle]
+            raise NonBipartiteSpinGraphError(
+                f"Flip-pairing graph contains an odd cycle (frustrated symmetry ring): {cycle_atoms}. "
+                f"Flip-pairing graphs must be bipartite."
+            )
+
+        # Validate ferromagnetic_links if declared
+        if self.ferromagnetic_links:
+            for link in self.ferromagnetic_links:
+                if len(link) != 2:
+                    raise ValueError(f"Invalid ferromagnetic link {link}: expected 2-tuple of atom IDs.")
+                id1, id2 = str(link[0]), str(link[1])
+                a1 = id_map.get(id1)
+                a2 = id_map.get(id2)
+                if not a1:
+                    raise ValueError(f"Ferromagnetic link references atom '{id1}', but no atom with that ID was found.")
+                if not a2:
+                    raise ValueError(f"Ferromagnetic link references atom '{id2}', but no atom with that ID was found.")
+                if a1.spin != a2.spin:
+                    raise ValueError(
+                        f"Ferromagnetic link ({id1}, {id2}) has antiparallel spins ({a1.spin} vs {a2.spin}). "
+                        f"Ferromagnetic links represent parallel spin couplings forced by non-bipartite frustration."
+                    )
+
+
 
     def get_effective_basis_for_atom(self, atom: AtomConfig) -> str:
         """
@@ -884,7 +992,7 @@ class CalculationDeck:
                     flags.append("QFIXED=T")
                 if p_atom.virtual:
                     flags.append("QVIRTL=T")
-                if p_atom.is_spin_down:
+                if group_idx > 0 and p_atom.is_spin_down and p_atom.spin != primary_groups[0]["primary"].spin:
                     flags.append("QFLIP=T")
                 has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals)
                 if group_idx > 0 and has_custom_orbs:
@@ -958,13 +1066,49 @@ class CalculationDeck:
 
         return "\n".join(lines) + "\n"
 
-    def assign_alternating_spin(self, start_spin: str = "up") -> "CalculationDeck":
+    def summary(self) -> str:
+        """Returns a human-readable summary of the calculation deck."""
+        lines = [
+            f"CalculationDeck: {self.title}",
+            f"Atoms: {len(self.geometry)}, Basis: {self.basis or 'DZ'}, Net Spin: {self.net_spin}",
+            f"Spins: {', '.join(f'{a.id}:{a.spin}' for a in self.geometry)}",
+        ]
+        if self.ferromagnetic_links:
+            lines.append(f"Ferromagnetic Links (non-bipartite frustration): {self.ferromagnetic_links}")
+            for rep in self.ferromagnetic_reports:
+                if hasattr(rep, "atom_pair"):
+                    lines.append(
+                        f"  - Ring {rep.ring_atoms} (size {rep.ring_size}): "
+                        f"parallel spins on {rep.atom_pair} (d = {rep.distance_bohr:.3f} Bohr, {rep.reason})"
+                    )
+        return "\n".join(lines)
+
+    def assign_alternating_spin(
+        self,
+        start_spin: str = "up",
+        ferromagnetic_links: Optional[List[Tuple[Union[str, int], Union[str, int]]]] = None,
+        require_bipartite: bool = False,
+        quiet: bool = True,
+    ) -> "CalculationDeck":
         """
         Computes and assigns optimal alternating-spin (Néel / Localized Valence-Bond)
         labels ('up' / 'down') to the geometry based on molecular connectivity.
+        Non-bipartite rings identify and report their ferromagnetic coupling anomaly.
         """
         from phatpsy.spin import assign_alternating_spin
-        self.geometry = assign_alternating_spin(self.geometry, start_spin=start_spin)
+        self.geometry, reports = assign_alternating_spin(
+            self.geometry,
+            start_spin=start_spin,
+            ferromagnetic_links=ferromagnetic_links,
+            require_bipartite=require_bipartite,
+            return_reports=True,
+            quiet=quiet,
+        )
+        self.ferromagnetic_reports = reports
+        self.ferromagnetic_links = [r.atom_pair for r in reports]
+        n_up = sum(1 for a in self.geometry if a.spin == "up")
+        n_down = sum(1 for a in self.geometry if a.spin == "down")
+        self.net_spin = n_up - n_down
         return self
 
     def visualize(self, output_path: Optional[Union[str, Path]] = None, auto_open: bool = False, edit_mode: bool = False) -> str:
@@ -986,7 +1130,10 @@ class CalculationDeck:
             "title": self.title,
             "control": self.control.to_dict(),
             "geometry": [a.to_dict() for a in self.geometry],
+            "net_spin": self.net_spin,
         }
+        if self.ferromagnetic_links:
+            res["ferromagnetic_links"] = [list(link) for link in self.ferromagnetic_links]
         if self.elements:
             res["elements"] = {k: v.to_dict() for k, v in self.elements.items()}
         if self.basis:
@@ -1025,7 +1172,18 @@ class CalculationDeck:
                 v["symbol"] = k
             elements[k] = ElementConfig.from_dict(v)
         basis = data.get("basis")
-        deck = cls(title=title, control=control, geometry=geometry, elements=elements, basis=basis)
+        net_spin = int(data.get("net_spin", 0))
+        raw_f_links = data.get("ferromagnetic_links", [])
+        ferromagnetic_links = [tuple(link) for link in raw_f_links]
+        deck = cls(
+            title=title,
+            control=control,
+            geometry=geometry,
+            elements=elements,
+            basis=basis,
+            net_spin=net_spin,
+            ferromagnetic_links=ferromagnetic_links,
+        )
         deck.resolve_coordinates()
         return deck
 
@@ -1087,6 +1245,8 @@ class CalculationDeck:
         control: Optional[ControlConfig] = None,
         units: str = "bohr",
         spin_unrestricted: bool = True,
+        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        net_spin: Optional[int] = None,
         extra_namelist: Optional[Dict[str, Any]] = None,
     ) -> "CalculationDeck":
         """
@@ -1100,6 +1260,8 @@ class CalculationDeck:
             control=control,
             units=units,
             spin_unrestricted=spin_unrestricted,
+            spins=spins,
+            net_spin=net_spin,
             extra_namelist=extra_namelist,
         )
 
@@ -1112,6 +1274,8 @@ class CalculationDeck:
         basis: Union[str, Dict[str, str]] = "DZ",
         units: str = "bohr",
         use_symmetry: bool = True,
+        spins: Optional[Union[List[str], Tuple[str, str]]] = None,
+        net_spin: Optional[int] = None,
         spin_flip: Optional[bool] = None,
         title: Optional[str] = None,
         control: Optional[ControlConfig] = None,
@@ -1128,8 +1292,11 @@ class CalculationDeck:
             basis=basis,
             units=units,
             use_symmetry=use_symmetry,
+            spins=spins,
+            net_spin=net_spin,
             spin_flip=spin_flip,
             title=title,
             control=control,
             extra_namelist=extra_namelist,
         )
+

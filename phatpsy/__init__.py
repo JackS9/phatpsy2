@@ -32,7 +32,11 @@ from phatpsy.basis import (
     list_available_elements,
     POLARIZATION_PARAMETERS,
 )
-from phatpsy.spin import assign_alternating_spin
+from phatpsy.spin import (
+    assign_alternating_spin,
+    NonBipartiteSpinGraphError,
+    pp_vb_diatomic_spins,
+)
 from phatpsy.visualizer import (
     visualize_deck,
     show_deck,
@@ -178,6 +182,8 @@ __all__ = [
     "parse_geometry",
     "BOHR_PER_ANGSTROM",
     "assign_alternating_spin",
+    "NonBipartiteSpinGraphError",
+    "pp_vb_diatomic_spins",
     "visualize_deck",
     "show_deck",
     "visualize_grid",

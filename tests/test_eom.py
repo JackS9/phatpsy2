@@ -41,7 +41,7 @@ from phatpsy.visualizer import (
 @pytest.fixture(scope="module")
 def n2_eom_result():
     """Compute EOM properties for N2 at experimental equilibrium bond length (2.068 Bohr)."""
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     driver = PhatpsyDriver(quiet=True)
     res = compute_eom(
         deck=deck,
@@ -175,7 +175,7 @@ def test_open_shell_curie_susceptibility():
     """Verify that open-shell systems with net spin S > 0 have non-zero Curie susceptibility."""
     # Build single nitrogen atom (quartet ground state, S = 3/2, 3 unpaired spins)
     from phatpsy.builder import build_molecule
-    deck = build_molecule([("N", [0.0, 0.0, 0.0])], basis="SZ", spin_unrestricted=True)
+    deck = build_molecule([("N", [0.0, 0.0, 0.0])], basis="SZ", spin_unrestricted=True, spins="up", net_spin=1)
     driver = PhatpsyDriver(quiet=True)
     res = compute_eom(deck=deck, driver=driver, grid_spacing=0.35, temperature_k=300.0, quiet=True)
 
@@ -187,7 +187,7 @@ def test_open_shell_curie_susceptibility():
 
 def test_eom_cli_execution(tmp_path):
     """Test CLI subcommand 'phatpsy eom' end-to-end with file outputs."""
-    deck = build_diatomic("N", "N", 2.068, basis="SZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck_path = tmp_path / "n2_test.yaml"
     deck.to_yaml(deck_path)
 
@@ -226,7 +226,8 @@ def test_dipole_origin_invariance():
         basis={"O": "SZ", "H": "THAKKAR"},
         title="Water H2O Reference",
         spin_unrestricted=True,
-        auto_spin_flip=True,
+        spins=["up", "down", "down"],
+        net_spin=-1,
     )
     eom = compute_eom(deck, driver=driver, quiet=True)
     dip = eom.dipole
@@ -244,7 +245,8 @@ def test_dipole_origin_invariance():
         basis={"O": "SZ", "H": "THAKKAR"},
         title="Water H2O Shifted",
         spin_unrestricted=True,
-        auto_spin_flip=True,
+        spins=["up", "down", "down"],
+        net_spin=-1,
     )
     eom_shifted = compute_eom(deck_shifted, driver=driver, quiet=True)
     dip_shifted = eom_shifted.dipole
@@ -272,7 +274,8 @@ def test_water_nonlinear_dipole_and_polarizability():
         basis={"O": "SZ", "H": "THAKKAR"},
         title="Water H2O",
         spin_unrestricted=True,
-        auto_spin_flip=True,
+        spins=["up", "down", "down"],
+        net_spin=-1,
     )
     eom_h2o = compute_eom(deck_h2o, driver=driver, quiet=True)
 

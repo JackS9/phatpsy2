@@ -1,4 +1,5 @@
 title: 'NO on Ni(100), R(NO)=2.18 Bohr, R(NiN)=3.40 Bohr, C4v Top Site'
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 40

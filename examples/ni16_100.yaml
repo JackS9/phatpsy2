@@ -1,4 +1,5 @@
 title: '... Ni14(100), R(Ni-Ni)=4.71'
+net_spin: -6
 control:
   spin_unrestricted: true
   max_cycles: 10

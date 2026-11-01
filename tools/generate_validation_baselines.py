@@ -366,6 +366,7 @@ def main():
         ),
         geometry=slab_atoms,
         elements=copy.deepcopy(deck_ni13.elements),
+        net_spin=1,
     )
     res_slab = driver.run_deck(deck_slab)
 

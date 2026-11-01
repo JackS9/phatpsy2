@@ -170,9 +170,10 @@ def test_exchange_dft_deck_run(tmp_path):
             exchange_alpha=2.0 / 3.0
         ),
         geometry=[
-            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037]),
-            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037]),
-        ]
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037], spin="up"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037], spin="down"),
+        ],
+        net_spin=0,
     )
 
     deck_text = deck.to_stdin_text()
@@ -200,9 +201,10 @@ def test_pbe_deck_run(tmp_path):
             exchange_kernel="pbe"
         ),
         geometry=[
-            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037]),
-            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037]),
-        ]
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037], spin="up"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037], spin="down"),
+        ],
+        net_spin=0,
     )
 
     deck_text = deck.to_stdin_text()

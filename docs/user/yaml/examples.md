@@ -78,6 +78,7 @@ A 13-atom silver nanocluster consisting of a central silver atom surrounded by 1
 
 ```yaml
 title: "Ag13 Nanocluster (Cuboctahedral)"
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 80
@@ -118,6 +119,7 @@ This deck models carbon monoxide adsorbed in an on-top site over a 3-layer nicke
 
 ```yaml
 title: "CO Adsorption on Ni(100) (2x2 Slab, 3 Layers)"
+net_spin: 0
 control:
   spin_unrestricted: true
   max_cycles: 120
@@ -157,6 +159,7 @@ geometry:
     id: Ni_virt_1
     xyz: [9.42, 0.0, 0.0]
     virtual: true
+    spin: down
 
 elements:
   C:

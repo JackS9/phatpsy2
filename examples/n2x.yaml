@@ -1,4 +1,5 @@
 title: '... N-N, R=2.168, N(4S) + N(4S)'
+net_spin: 0
 control:
   spin_unrestricted: true
   max_cycles: 100

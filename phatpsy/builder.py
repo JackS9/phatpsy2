@@ -262,7 +262,11 @@ def build_molecule(
     control: Optional[ControlConfig] = None,
     units: str = "bohr",
     spin_unrestricted: bool = True,
-    auto_spin_flip: bool = False,
+    spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+    net_spin: Optional[int] = None,
+    ferromagnetic_links: Optional[List[Tuple[Union[str, int], Union[str, int]]]] = None,
+    auto_spin_flip: Optional[bool] = None,
+    require_bipartite: bool = False,
     embedded_atoms: Optional[Dict[Union[str, int], Any]] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
@@ -277,8 +281,14 @@ def build_molecule(
         control: Optional ControlConfig instance.
         units: 'bohr' (default) or 'angstrom'.
         spin_unrestricted: True for UHF (QOPEN=T), False for RHF.
-        auto_spin_flip: If True, automatically assigns alternating spin ('up'/'down')
-                        using molecular graph connectivity for Localized Valence-Bond pairing.
+        spins: Explicit per-atom spin assignments ('up' or 'down'). Can be a list of strings
+               matching atoms, a dict of {atom_id: 'up'/'down'}, or a uniform string.
+        net_spin: Integer (n_up - n_down), default 0. Asserts (n_up - n_down) == net_spin.
+        ferromagnetic_links: Optional list of bond pairs [(id1, id2), ...] selected as
+                             ferromagnetic couplings in frustrated (non-bipartite) rings.
+        auto_spin_flip: [DEPRECATED] Automated alternating spin guessing. Identifies and
+                        reports ferromagnetic couplings, or raises if require_bipartite=True.
+        require_bipartite: If True, strictly refuses non-bipartite graphs with NonBipartiteSpinGraphError.
         embedded_atoms: Optional mapping of atom ID, index, or element to EmbeddedAtomState
                         or dict, overriding default basis starting orbitals.
         extra_namelist: Additional &CTLINP parameters.
@@ -286,6 +296,7 @@ def build_molecule(
     Returns:
         A ready-to-run CalculationDeck.
     """
+    import warnings
     atoms = parse_geometry(geometry, units=units)
     if not atoms:
         raise ValueError("Cannot build molecule deck from empty geometry.")
@@ -296,6 +307,75 @@ def build_molecule(
         elem_counts[sym] = elem_counts.get(sym, 0) + 1
         if not a.id:
             a.id = f"{sym}{elem_counts[sym]}"
+
+    detected_ferromagnetic_reports: List[Any] = []
+    detected_ferromagnetic_links: List[Tuple[str, str]] = []
+
+    # Deprecated auto_spin_flip shim
+    if auto_spin_flip is not None:
+        warnings.warn(
+            "The 'auto_spin_flip' parameter in build_molecule is deprecated and will be removed in a future release. "
+            "Specify explicit per-atom spins or pass 'spins' parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if auto_spin_flip and spins is None:
+            from phatpsy.spin import assign_alternating_spin
+            atoms, reports = assign_alternating_spin(
+                atoms,
+                ferromagnetic_links=ferromagnetic_links,
+                require_bipartite=require_bipartite,
+                return_reports=True,
+            )
+            detected_ferromagnetic_reports = reports
+            detected_ferromagnetic_links = [r.atom_pair for r in reports]
+
+
+    # Assign explicit spins if provided
+    if spins is not None:
+        if isinstance(spins, (list, tuple)):
+            if len(spins) != len(atoms):
+                raise ValueError(
+                    f"Length of explicit spins list ({len(spins)}) must match number of atoms ({len(atoms)})."
+                )
+            for idx, s in enumerate(spins):
+                if s is None:
+                    raise ValueError(f"Explicit spin at index {idx} is None. Spin must be 'up' or 'down'.")
+                atoms[idx].spin = s
+        elif isinstance(spins, dict):
+            for idx, a in enumerate(atoms):
+                s = spins.get(a.id) if a.id else None
+                if s is None:
+                    s = spins.get(idx, spins.get(str(idx), spins.get(a.element)))
+                if s is not None:
+                    atoms[idx].spin = s
+        elif isinstance(spins, str):
+            for a in atoms:
+                a.spin = spins
+
+    # Enforce Requirement 1: Explicit per-atom spins, no None
+    for a in atoms:
+        if a.spin not in ("up", "down"):
+            raise ValueError(
+                f"Atom '{a.id or a.element}' has unassigned or invalid spin ({a.spin!r}). "
+                f"Every atom in a built deck must carry an explicit spin ('up' or 'down'). "
+                f"None anywhere in the spin path is a hard error."
+            )
+
+    # Enforce Requirement 2: Net spin check (n_up - n_down == net_spin)
+    n_up = sum(1 for a in atoms if a.spin == "up")
+    n_down = sum(1 for a in atoms if a.spin == "down")
+    calc_net = n_up - n_down
+
+    if net_spin is None:
+        resolved_net_spin = calc_net
+    else:
+        if calc_net != net_spin:
+            raise ValueError(
+                f"Net spin mismatch in build_molecule: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
+                f"but net_spin={net_spin} was requested."
+            )
+        resolved_net_spin = net_spin
 
     if embedded_atoms:
         for idx, atom in enumerate(atoms):
@@ -360,15 +440,19 @@ def build_molecule(
                 functions=ed.functions,
             )
 
+    resolved_f_links = detected_ferromagnetic_links or (
+        [tuple(str(x) for x in link) for link in ferromagnetic_links] if ferromagnetic_links else []
+    )
     deck = CalculationDeck(
         title=title,
         control=control,
         geometry=atoms,
         elements=elements_dict,
         basis=(basis if isinstance(basis, str) else None),
+        net_spin=resolved_net_spin,
+        ferromagnetic_links=resolved_f_links,
+        ferromagnetic_reports=detected_ferromagnetic_reports,
     )
-    if auto_spin_flip:
-        deck.assign_alternating_spin()
     return deck
 
 
@@ -379,20 +463,21 @@ def build_diatomic(
     basis: Union[str, Dict[str, str]] = "DZ",
     units: str = "bohr",
     use_symmetry: bool = True,
+    spins: Optional[Union[List[str], Tuple[str, str]]] = None,
+    net_spin: Optional[int] = None,
     spin_flip: Optional[bool] = None,
     title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
     """
-    Convenience builder for diatomic molecules.
+    Convenience builder for diatomic molecules with explicit spin assignment.
 
-    In PHATPSY methodology, spin-flipping (QFLIP=T) is heavily utilized even
-    for nominally 'closed-shell' molecules to set up an alternating-spin
-    Perfect-Pairing Valence-Bond (PP-VB) representation. By swapping alpha and
-    beta spin roles across bonded atom centers, electrons pair across the bond
-    in localized, atomic-like channels with zero net molecular spin, preventing
-    the spurious ionic configurations of standard single-determinant RHF.
+    In PHATPSY methodology, spin-flipping (QFLIP=T) is utilized for homonuclear
+    diatomics (e.g. N2, H2) to generate an alternating-spin Perfect-Pairing
+    Valence-Bond (PP-VB) state (['up', 'down'], net_spin=0).
+    For heteronuclear diatomics (e.g. CO), atoms default to un-flipped configuration
+    (['up', 'up'], net_spin=2) reproducing the physical closed-shell ground-state basin.
 
     Args:
         element1: Symbol of the first atom (e.g. 'N', 'C', 'Ag').
@@ -401,33 +486,86 @@ def build_diatomic(
         basis: Basis set ('DZ', 'SZ', 'THAKKAR').
         units: 'bohr' or 'angstrom'.
         use_symmetry: If True and homodiatomic, use reflection/inversion symmetry card.
-        spin_flip: Whether to spin-flip the second atom (QFLIP=T). Defaults to True
-                   for homonuclear diatomics to generate the alternating-spin PP-VB state.
+        spins: Explicit 2-element spin list (e.g. ['up', 'down'] or ['up', 'up']).
+        net_spin: Integer (n_up - n_down). Defaults to 0 for alternating spins, 2 for un-flipped.
+        spin_flip: [DEPRECATED] Backward compatibility shim. Maps to spins=['up', 'down'] (True)
+                   or spins=['up', 'up'] (False). Emits DeprecationWarning.
         title: Deck title.
         control: ControlConfig options.
         extra_namelist: Additional namelist options.
 
     Returns:
-        CalculationDeck for the diatomic system.
+        CalculationDeck for the diatomic system with validated explicit spins.
     """
+    import warnings
+
     sym1 = element1.strip().capitalize()
     sym2 = (element2 or element1).strip().capitalize()
+    is_homo = (sym1 == sym2)
+
+    # Deprecated spin_flip migration shim
+    if spin_flip is not None:
+        warnings.warn(
+            "The 'spin_flip' parameter in build_diatomic is deprecated and will be removed in a future release. "
+            "Use explicit 'spins' (e.g. spins=['up', 'down']) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if spins is None:
+            spins = ["up", "down"] if spin_flip else ["up", "up"]
+
+    # Explicit default spin lists (Requirement 4 & 6)
+    if spins is None:
+        if is_homo:
+            # Homonuclear PP-VB alternating pattern
+            spins = ["up", "down"]
+        else:
+            # Heteronuclear diatomic gets no flip unless explicitly requested
+            spins = ["up", "up"]
+
+    if len(spins) != 2:
+        raise ValueError(f"Diatomic spins must contain exactly 2 spin values, got {len(spins)}: {spins}")
+
+    s1_raw = str(spins[0]).strip().lower() if spins[0] is not None else None
+    s2_raw = str(spins[1]).strip().lower() if spins[1] is not None else None
+
+    spin_map = {"up": "up", "alpha": "up", "+1": "up", "1": "up", "+": "up",
+                "down": "down", "beta": "down", "-1": "down", "-": "down"}
+    s1 = spin_map.get(s1_raw)
+    s2 = spin_map.get(s2_raw)
+
+    if s1 is None or s2 is None:
+        raise ValueError(
+            f"Explicit spins must be 'up' or 'down', got {spins}. None anywhere in spin path is forbidden."
+        )
+
+    n_up = (1 if s1 == "up" else 0) + (1 if s2 == "up" else 0)
+    n_down = (1 if s1 == "down" else 0) + (1 if s2 == "down" else 0)
+    calc_net = n_up - n_down
+
+    if net_spin is None:
+        resolved_net_spin = calc_net
+    else:
+        if calc_net != net_spin:
+            raise ValueError(
+                f"Net spin mismatch in build_diatomic: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net} "
+                f"from spins={spins}, but net_spin={net_spin} was requested."
+            )
+        resolved_net_spin = net_spin
 
     to_bohr = BOHR_PER_ANGSTROM if units.lower() in ("angstrom", "angstroms", "aa", "a") else 1.0
     r_bohr = bond_length * to_bohr
 
-    # For homonuclear diatomics, default to alternating-spin PP-VB representation
-    is_homo = (sym1 == sym2)
-    do_flip = is_homo if spin_flip is None else bool(spin_flip)
-
     if title is None:
         title = f"{sym1}{sym2} Diatomic (R={r_bohr:.3f} Bohr)"
+
+    do_flip = (s1 != s2)
 
     if is_homo and use_symmetry:
         # Homonuclear diatomic with symmetry along Z axis
         z_half = r_bohr / 2.0
         geometry = [
-            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, z_half], spin="up"),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, z_half], spin=s1),
             AtomConfig(
                 id=f"{sym1}2",
                 element=sym1,
@@ -437,14 +575,14 @@ def build_diatomic(
                 symmetry_axis=1,
                 symmetry=SymmetrySpec(ixyz=1, isym=-1, qflip=do_flip),
                 spin_flip=do_flip,
-                spin="down" if do_flip else "up",
+                spin=s2,
             ),
         ]
     else:
         # Heteronuclear or explicit coordinates
         geometry = [
-            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin="up" if is_homo else None),
-            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin_flip=do_flip, spin="down" if do_flip else None),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin=s1),
+            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin=s2, spin_flip=do_flip if is_homo else False),
         ]
 
     return build_molecule(
@@ -453,5 +591,8 @@ def build_diatomic(
         title=title,
         control=control,
         units="bohr",
+        spins=[s1, s2],
+        net_spin=resolved_net_spin,
         extra_namelist=extra_namelist,
     )
+

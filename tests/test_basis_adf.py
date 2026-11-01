@@ -106,7 +106,7 @@ def test_adf_h2o_scf_convergence():
         ("H", [0.000000, 0.757000, -0.469200]),
         ("H", [0.000000, -0.757000, -0.469200]),
     ]
-    deck = build_molecule(geom, basis="ADF-TZP", units="angstrom")
+    deck = build_molecule(geom, basis="ADF-TZP", units="angstrom", spins="up", net_spin=3)
     deck.control.use_diis = True
     res = driver.run_deck(deck, quiet=True)
     assert res.converged

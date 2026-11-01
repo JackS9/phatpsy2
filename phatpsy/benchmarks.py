@@ -54,7 +54,7 @@ def evaluate_n2_benchmark(
     ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
     r_expt = 2.0744
 
-    deck = build_diatomic("N", "N", r_expt, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", r_expt, basis="DZ", spins=["up", "down"], units="bohr")
     deck.control = ctrl
     res = d.run_deck(deck)
 
@@ -89,7 +89,7 @@ def evaluate_co_benchmark(
     ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
     r_expt = 2.1322
 
-    deck = build_diatomic("C", "O", r_expt, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("C", "O", r_expt, basis="DZ", spins=["up", "up"], units="bohr")
     deck.control = ctrl
     res = d.run_deck(deck)
 
@@ -136,7 +136,8 @@ def evaluate_h2o_benchmark(
         basis="DZ",
         title="Water H2O Benchmark",
         spin_unrestricted=True,
-        auto_spin_flip=True,
+        spins=["up", "down", "down"],
+        net_spin=-1,
     )
     deck.control = ctrl
     res = d.run_deck(deck)
@@ -316,11 +317,11 @@ def evaluate_dissociation_energies_benchmark(
         use_dispersion=True,
     )
 
-    deck_n2 = build_diatomic("N", "N", 2.0744, basis="DZ", spin_flip=True, units="bohr")
+    deck_n2 = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], units="bohr")
     deck_n2.control = ctrl
     res_n2 = d.run_deck(deck_n2)
 
-    deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spin_flip=False, units="bohr")
+    deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spins=["up", "up"], units="bohr")
     deck_co.control = ctrl
     res_co = d.run_deck(deck_co)
 
@@ -383,7 +384,8 @@ def evaluate_eo_to_aa_benchmark(
         basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
         title="Ethylene Oxide (Reactant)",
         spin_unrestricted=False,
-        auto_spin_flip=False,
+        spins="up",
+        net_spin=7,
     )
     deck_eo.control = ctrl
     res_eo = d.run_deck(deck_eo)

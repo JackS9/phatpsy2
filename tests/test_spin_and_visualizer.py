@@ -51,7 +51,11 @@ def test_solve_alternating_spin_frustrated_ag3():
     # Equilateral triangle Ag3 (frustrated)
     # 0 - 1, 1 - 2, 2 - 0
     adj = [[1, 2], [0, 2], [0, 1]]
-    spins = solve_alternating_spin(adj, start_spin="up")
+    from phatpsy.spin import NonBipartiteSpinGraphError
+    with pytest.raises(NonBipartiteSpinGraphError):
+        solve_alternating_spin(adj, start_spin="up", require_bipartite=True)
+
+    spins = solve_alternating_spin(adj, start_spin="up", require_bipartite=False)
     assert len(spins) == 3
     n_up = sum(1 for s in spins if s == "up")
     n_down = sum(1 for s in spins if s == "down")
@@ -106,7 +110,8 @@ def test_visualization_data_generation():
     deck = CalculationDeck.from_diatomic("N", bond_length=2.068, basis="DZ", use_symmetry=True)
     # Add virtual and fixed attributes to test visualizer encoding
     deck.geometry[0].fixed = True
-    deck.geometry.append(AtomConfig(element="H", xyz=[0.0, 1.5, 0.0], virtual=True))
+    deck.geometry.append(AtomConfig(element="H", xyz=[0.0, 1.5, 0.0], virtual=True, spin="up"))
+    deck.net_spin = 1
 
     data = generate_visualization_data(deck)
     assert data["stats"]["total_atoms"] == 3
@@ -122,9 +127,10 @@ def test_generate_html_content(tmp_path):
         geometry=[
             ("C", [0.0, 0.0, 0.0], {"fixed": True, "spin": "up"}),
             ("O", [0.0, 0.0, 2.13], {"spin": "down"}),
-            ("Gh.H", [0.0, 1.5, 0.0]),
+            ("Gh.H", [0.0, 1.5, 0.0], {"spin": "up"}),
         ],
         basis="SZ",
+        net_spin=1,
     )
     html_file = tmp_path / "view.html"
     html_text = visualize_deck(deck, output_path=html_file, auto_open=False)

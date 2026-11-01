@@ -1,4 +1,5 @@
 title: '... Ni13, R(Ni-Ni)=4.71'
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 20

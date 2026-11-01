@@ -10,6 +10,7 @@ A valid PHATPSY calculation deck contains four primary keys:
 
 ```yaml
 title: "Molecule or System Description"
+net_spin: 1
 
 control:
   # Convergence and numerical iteration options
@@ -147,12 +148,15 @@ The ADF tiers (van Lenthe & Baerends, *J. Comput. Chem.* **24**, 1142 (2003)) pr
 ```yaml
 control:
   default_basis: DZ        # fallback for all atoms
+net_spin: 0
 geometry:
   - element: Ni
     xyz: [0.0, 0.0, 0.0]
+    spin: up
     basis: ADF-TZP          # override: larger basis on the active center
   - element: Ni
     xyz: [0.0, 0.0, 4.0]
+    spin: down
     # inherits default_basis: DZ
 ```
 

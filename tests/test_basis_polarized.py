@@ -93,6 +93,8 @@ class TestPolarizedBasisDefinition:
             "O 0.0 0.0 0.0; H 0.0 1.43 1.11; H 0.0 -1.43 1.11",
             basis="DZP",
             title="H2O LMAX Check",
+            spins="up",
+            net_spin=3,
         )
         stdin_text = deck.to_stdin_text()
         assert "LMAX=2" in stdin_text
@@ -125,6 +127,8 @@ class TestPolarizedCalculations:
             "O 0.0 0.0 0.0; H 0.0 1.4304 1.1072; H 0.0 -1.4304 1.1072",
             basis="DZ",
             title="H2O DZ",
+            spins="up",
+            net_spin=3,
         )
         deck_dz.control.use_diis = True
         state_dz = driver.run_deck(deck_dz)
@@ -136,6 +140,8 @@ class TestPolarizedCalculations:
             "O 0.0 0.0 0.0; H 0.0 1.4304 1.1072; H 0.0 -1.4304 1.1072",
             basis="DZP",
             title="H2O DZP",
+            spins="up",
+            net_spin=3,
         )
         deck_dzp.control.use_diis = True
         state_dzp = driver.run_deck(deck_dzp)
@@ -222,6 +228,8 @@ class TestPolarizedCalculations:
             geometry=[("O", o), ("H", h1), ("H", h2)],
             basis="DZP",
             title="H2O DZP Orig",
+            spins="up",
+            net_spin=3,
         )
         deck_orig.control.use_diis = True
         state_orig = driver.run_deck(deck_orig)
@@ -247,6 +255,8 @@ class TestPolarizedCalculations:
             ],
             basis="DZP",
             title="H2O DZP Shifted",
+            spins="up",
+            net_spin=3,
         )
         deck_shifted.control.use_diis = True
         state_shifted = driver.run_deck(deck_shifted)

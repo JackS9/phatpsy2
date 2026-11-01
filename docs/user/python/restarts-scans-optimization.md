@@ -588,7 +588,7 @@ from phatpsy.driver import PhatpsyDriver
 from phatpsy.eom import compute_eom
 
 driver = PhatpsyDriver(quiet=True)
-deck = build_diatomic("N", "N", 2.068, basis="SZ", spin_flip=True, units="bohr")
+deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
 
 eom_res = compute_eom(
     deck=deck,

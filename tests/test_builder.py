@@ -104,7 +104,7 @@ def test_build_molecule_water_mixed_basis():
     H  0.000000  1.427599 -0.890365
     H  0.000000 -1.427599 -0.890365
     """
-    deck = build_molecule(xyz_water, basis="DZ", units="bohr")
+    deck = build_molecule(xyz_water, basis="DZ", units="bohr", spins="up", net_spin=3)
     assert len(deck.geometry) == 3
     assert "O" in deck.elements
     assert "H" in deck.elements
@@ -123,7 +123,7 @@ def test_calculation_deck_classmethods():
     deck1 = CalculationDeck.from_diatomic("N", bond_length=2.068, basis="SZ")
     assert len(deck1.geometry) == 2
 
-    deck2 = CalculationDeck.from_geometry([("C", [0, 0, 0]), ("O", [0, 0, 2.13])], basis="SZ")
+    deck2 = CalculationDeck.from_geometry([("C", [0, 0, 0]), ("O", [0, 0, 2.13])], basis="SZ", spins=["up", "up"], net_spin=2)
     assert len(deck2.geometry) == 2
     assert "C" in deck2.elements
     assert "O" in deck2.elements
@@ -134,7 +134,7 @@ def test_cli_build_command(tmp_path):
     xyz_path.write_text("2\nN2 molecule\nN 0 0 0\nN 0 0 1.094\n")
 
     out_yaml = tmp_path / "n2_built.yaml"
-    ret = cli_main(["build", str(xyz_path), "-b", "DZ", "-o", str(out_yaml)])
+    ret = cli_main(["build", str(xyz_path), "-b", "DZ", "--spins", "up,down", "-o", str(out_yaml)])
     assert ret == 0
     assert out_yaml.exists()
     content = out_yaml.read_text()
@@ -151,6 +151,8 @@ def test_driver_run_molecule_scf():
         geometry=[("N", [0.0, 0.0, 1.034]), ("N", [0.0, 0.0, -1.034])],
         basis="DZ",
         title="N2 DZ Builder Test",
+        spins=["up", "down"],
+        net_spin=0,
         extra_namelist={"MXCYCL": 5, "CONVRG": 1e-3},
     )
     assert res is not None
@@ -192,6 +194,8 @@ def test_virtual_ghost_atoms(tmp_path):
     deck1 = build_molecule(
         geometry=[("N", [0.0, 0.0, 1.0]), ("N", [0.0, 0.0, -1.0], {"virtual": True})],
         basis="SZ",
+        spins=["up", "down"],
+        net_spin=0,
     )
     assert deck1.geometry[1].virtual is True
     stdin1 = deck1.to_stdin_text()
@@ -200,8 +204,8 @@ def test_virtual_ghost_atoms(tmp_path):
     # 2. Via ghost prefix in XYZ string
     xyz_ghost = """2
     N2 with ghost center
-    N    0.0  0.0  1.0
-    Gh.N 0.0  0.0 -1.0
+    N    0.0  0.0  1.0 up
+    Gh.N 0.0  0.0 -1.0 down
     """
     deck2 = build_molecule(geometry=xyz_ghost, basis="SZ")
     assert deck2.geometry[0].virtual is False
@@ -221,6 +225,8 @@ def test_fixed_atoms(tmp_path):
     deck = build_molecule(
         geometry=[("C", [0.0, 0.0, 0.0], {"fixed": True}), ("O", [0.0, 0.0, 2.13])],
         basis="SZ",
+        spins=["up", "up"],
+        net_spin=2,
     )
     assert deck.geometry[0].fixed is True
     assert deck.geometry[1].fixed is False
@@ -242,6 +248,8 @@ def test_spin_flipped_atoms(tmp_path):
     deck = build_molecule(
         geometry=[("N", [0.0, 0.0, 1.0]), ("N", [0.0, 0.0, -1.0], {"spin_flip": True})],
         basis="SZ",
+        spins=["up", "down"],
+        net_spin=0,
     )
     assert deck.geometry[0].spin_flip is False
     assert deck.geometry[1].spin_flip is True
@@ -385,7 +393,8 @@ def test_cascading_basis_hierarchy():
     deck1 = CalculationDeck(
         title="Cascading Test 1",
         control=ControlConfig(default_basis="ADF-TZP"),
-        geometry=[AtomConfig(element="C", id="C1"), AtomConfig(element="H", id="H1")],
+        geometry=[AtomConfig(element="C", id="C1", spin="up"), AtomConfig(element="H", id="H1", spin="down")],
+        net_spin=0,
     )
     assert deck1.get_effective_basis_for_atom(deck1.geometry[0]) == "ADF-TZP"
     assert deck1.get_effective_basis_for_atom(deck1.geometry[1]) == "ADF-TZP"
@@ -395,9 +404,10 @@ def test_cascading_basis_hierarchy():
         title="Cascading Test 2",
         control=ControlConfig(default_basis="ADF-DZ"),
         geometry=[
-            AtomConfig(element="C", id="C1", basis="ADF-TZ2P"),
-            AtomConfig(element="C", id="C2"),
+            AtomConfig(element="C", id="C1", basis="ADF-TZ2P", spin="up"),
+            AtomConfig(element="C", id="C2", spin="down"),
         ],
+        net_spin=0,
     )
     assert deck2.get_effective_basis_for_atom(deck2.geometry[0]) == "ADF-TZ2P"
     assert deck2.get_effective_basis_for_atom(deck2.geometry[1]) == "ADF-DZ"
@@ -407,7 +417,8 @@ def test_cascading_basis_hierarchy():
         title="Cascading Test 3",
         control=ControlConfig(default_basis="DZ"),
         elements={"C": ElementConfig(symbol="C", basis="ADF-QZ4P")},
-        geometry=[AtomConfig(element="C", id="C1"), AtomConfig(element="H", id="H1")],
+        geometry=[AtomConfig(element="C", id="C1", spin="up"), AtomConfig(element="H", id="H1", spin="down")],
+        net_spin=0,
     )
     assert deck3.get_effective_basis_for_atom(deck3.geometry[0]) == "ADF-QZ4P"
     assert deck3.get_effective_basis_for_atom(deck3.geometry[1]) == "DZ"
@@ -418,9 +429,10 @@ def test_cascading_basis_hierarchy():
         control=ControlConfig(default_basis="SZ"),
         elements={"C": ElementConfig(symbol="C", basis="ADF-DZ")},
         geometry=[
-            AtomConfig(element="C", id="C1", basis="ADF-TZ2P"),
-            AtomConfig(element="C", id="C2"),
+            AtomConfig(element="C", id="C1", basis="ADF-TZ2P", spin="up"),
+            AtomConfig(element="C", id="C2", spin="down"),
         ],
+        net_spin=0,
     )
     assert deck4.get_effective_basis_for_atom(deck4.geometry[0]) == "ADF-TZ2P"
     assert deck4.get_effective_basis_for_atom(deck4.geometry[1]) == "ADF-DZ"
@@ -429,6 +441,8 @@ def test_cascading_basis_hierarchy():
     deck5 = build_molecule(
         geometry=[("C", [0.0, 0.0, 0.0]), ("C", [0.0, 0.0, 2.5]), ("H", [0.0, 1.5, 0.0])],
         basis={"C1": "ADF-TZ2P", "C2": "ADF-DZ", "default": "SZ"},
+        spins=["up", "down", "up"],
+        net_spin=1,
     )
     assert deck5.geometry[0].basis == "ADF-TZ2P"
     assert deck5.geometry[1].basis == "ADF-DZ"
@@ -450,6 +464,8 @@ def test_mixed_basis_deck_stdin_generation():
             ("C", [0.0, 0.0, 2.5]),
         ],
         basis={"C1": "ADF-TZ2P", "C2": "ADF-DZ"},
+        spins=["up", "down"],
+        net_spin=0,
     )
 
     elem_map = deck.resolve_elements()

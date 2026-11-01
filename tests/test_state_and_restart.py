@@ -185,6 +185,8 @@ def test_warm_restart_on_modified_geometry():
         [("N", [0.0, 0.0, 1.034]), ("N", [0.0, 0.0, -1.034])],
         basis="SZ",
         units="bohr",
+        spins="up",
+        net_spin=2,
     )
     state_eq = driver.run_deck(deck_eq)
     assert state_eq.converged is True
@@ -218,6 +220,8 @@ def test_override_reading_starting_orbitals_from_embedded_atom():
         basis="SZ",
         units="bohr",
         control=ControlConfig(pk_scale=0.0),
+        spins=["up", "down"],
+        net_spin=0,
     )
     state_ref = driver.run_deck(deck_ref)
     n1_embedded = state_ref.get_embedded_atom(0)
@@ -229,6 +233,8 @@ def test_override_reading_starting_orbitals_from_embedded_atom():
         units="bohr",
         control=ControlConfig(pk_scale=0.0),
         embedded_atoms={"N1": n1_embedded},
+        spins=["up", "down"],
+        net_spin=0,
     )
 
     # Verify that the generated stdin text contains the overridden embedded orbital energies

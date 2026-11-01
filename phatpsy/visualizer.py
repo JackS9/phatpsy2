@@ -3683,10 +3683,12 @@ def generate_irc_visualization_data(irc_result: Any) -> Dict[str, Any]:
                 xyz=a["xyz"],
                 fixed=a.get("fixed", False),
                 virtual=a.get("virtual", False),
+                spin=a.get("spin", "up"),
             )
             for a in pt.geometry
         ]
-        deck_mock = CalculationDeck(geometry=atom_list)
+        calc_net_spin = sum(1 for at in atom_list if at.spin == "up") - sum(1 for at in atom_list if at.spin == "down")
+        deck_mock = CalculationDeck(geometry=atom_list, net_spin=calc_net_spin)
         frame_vis = generate_visualization_data(deck_mock)
 
         frames.append({
@@ -4225,15 +4227,18 @@ def generate_dimer_visualization_data(dimer_result: Any) -> Dict[str, Any]:
             el = atoms_ref[idx].element if idx < len(atoms_ref) else "X"
             fixed = atoms_ref[idx].fixed if idx < len(atoms_ref) else False
             virtual = atoms_ref[idx].virtual if idx < len(atoms_ref) else False
+            sp = atoms_ref[idx].spin if (idx < len(atoms_ref) and atoms_ref[idx].spin in ("up", "down")) else "up"
             atom_list.append(
                 AtomConfig(
                     element=el,
                     xyz=c,
                     fixed=fixed,
                     virtual=virtual,
+                    spin=sp,
                 )
             )
-        deck_mock = CalculationDeck(geometry=atom_list)
+        calc_net_spin = sum(1 for at in atom_list if at.spin == "up") - sum(1 for at in atom_list if at.spin == "down")
+        deck_mock = CalculationDeck(geometry=atom_list, net_spin=calc_net_spin)
         frame_vis = generate_visualization_data(deck_mock)
 
         frames.append({

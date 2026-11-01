@@ -1,4 +1,5 @@
 title: '... CO on Ni(100), R(CO)=2.13, R(NiC)=3.59...'
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 40

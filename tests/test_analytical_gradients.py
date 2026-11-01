@@ -250,9 +250,10 @@ class TestDiatomicAnalyticalGradientBenchmarks:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "H", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "H", "xyz": [0.0, 0.0, 1.40]},
+                {"element": "H", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 0.0, 1.40], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
             }
@@ -290,9 +291,10 @@ class TestDiatomicAnalyticalGradientBenchmarks:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "H", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "F", "xyz": [0.0, 0.0, 1.7328]},
+                {"element": "H", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "F", "xyz": [0.0, 0.0, 1.7328], "spin": "up"},
             ],
+            "net_spin": 2,
             "elements": {
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
                 "F": {"symbol": "F", "atomic_number": 9, "basis": "DZ"},
@@ -322,9 +324,10 @@ class TestDiatomicAnalyticalGradientBenchmarks:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "H", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "H", "xyz": [0.0, 0.0, 1.401]},
+                {"element": "H", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 0.0, 1.401], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
             }
@@ -376,10 +379,11 @@ class TestPolyatomicAnalyticalGradients:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "O", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "H", "xyz": [0.0, 1.43, 1.10]},
-                {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+                {"element": "O", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 1.43, 1.10], "spin": "up"},
+                {"element": "H", "xyz": [0.0, -1.43, 1.10], "spin": "up"},
             ],
+            "net_spin": 3,
             "elements": {
                 "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
@@ -441,9 +445,10 @@ class TestPhillipsKleinmanPseudopotentialGradients:
             "title": "N2 Analytical PK Gradient",
             "control": {"convergence": 1e-6, "max_cycles": 50},
             "geometry": [
-                {"element": "N", "xyz": [0.0, 0.0, -1.05]},
-                {"element": "N", "xyz": [0.0, 0.0, 1.05]},
+                {"element": "N", "xyz": [0.0, 0.0, -1.05], "spin": "up"},
+                {"element": "N", "xyz": [0.0, 0.0, 1.05], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}
             }
@@ -470,9 +475,10 @@ class TestPhillipsKleinmanPseudopotentialGradients:
             "title": "CO Analytical PK Gradient",
             "control": {"convergence": 1e-6, "max_cycles": 50},
             "geometry": [
-                {"element": "C", "xyz": [0.0, 0.0, -1.066]},
-                {"element": "O", "xyz": [0.0, 0.0, 1.066]},
+                {"element": "C", "xyz": [0.0, 0.0, -1.066], "spin": "up"},
+                {"element": "O", "xyz": [0.0, 0.0, 1.066], "spin": "up"},
             ],
+            "net_spin": 2,
             "elements": {
                 "C": {"symbol": "C", "atomic_number": 6, "basis": "DZ"},
                 "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
@@ -499,9 +505,10 @@ class TestPhillipsKleinmanPseudopotentialGradients:
             "title": "H2 PK Exemption Test",
             "control": {"convergence": 1e-6, "max_cycles": 50},
             "geometry": [
-                {"element": "H", "xyz": [0.0, 0.0, -0.7]},
-                {"element": "H", "xyz": [0.0, 0.0, 0.7]},
+                {"element": "H", "xyz": [0.0, 0.0, -0.7], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 0.0, 0.7], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "SZ"}
             }
@@ -537,9 +544,10 @@ class TestNonCircularAcceptanceGate:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "N", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068]},
+                {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"},
             }
@@ -581,9 +589,10 @@ class TestNonCircularAcceptanceGate:
             "title": "N2 PK Operator Test",
             "control": {"spin_unrestricted": False, "convergence": 1e-6, "max_cycles": 100},
             "geometry": [
-                {"element": "N", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068]},
+                {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {"N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}}
         })
         res = driver.run_deck(deck)
@@ -660,9 +669,10 @@ class TestNonCircularAcceptanceGate:
             "title": "N2 Frozen Density Test",
             "control": {"spin_unrestricted": False, "convergence": 1e-6, "max_cycles": 100},
             "geometry": [
-                {"element": "N", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068]},
+                {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {"N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}}
         })
         res0 = driver.run_deck(deck)
@@ -780,9 +790,10 @@ class TestNonCircularAcceptanceGate:
             "title": "H2 Variational Diatomic",
             "control": {"spin_unrestricted": False, "convergence": 1e-6, "max_cycles": 100},
             "geometry": [
-                {"element": "H", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "H", "xyz": [0.0, 0.0, 1.401]},
+                {"element": "H", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 0.0, 1.401], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {"H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"}}
         })
         g_ana = driver.gradient(deck, method="analytical")
@@ -811,9 +822,10 @@ class TestNonCircularAcceptanceGate:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "N", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068]},
+                {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
             ],
+            "net_spin": 0,
             "elements": {
                 "N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"},
             }
@@ -862,9 +874,10 @@ class TestNonCircularAcceptanceGate:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "C", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "O", "xyz": [0.0, 0.0, 2.132]},
+                {"element": "C", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "O", "xyz": [0.0, 0.0, 2.132], "spin": "up"},
             ],
+            "net_spin": 2,
             "elements": {
                 "C": {"symbol": "C", "atomic_number": 6, "basis": "DZ"},
                 "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
@@ -910,10 +923,11 @@ class TestNonCircularAcceptanceGate:
                 "max_cycles": 100,
             },
             "geometry": [
-                {"element": "O", "xyz": [0.0, 0.0, 0.0]},
-                {"element": "H", "xyz": [0.0, 1.43, 1.10]},
-                {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+                {"element": "O", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
+                {"element": "H", "xyz": [0.0, 1.43, 1.10], "spin": "up"},
+                {"element": "H", "xyz": [0.0, -1.43, 1.10], "spin": "up"},
             ],
+            "net_spin": 3,
             "elements": {
                 "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
                 "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},

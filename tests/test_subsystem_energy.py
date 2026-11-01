@@ -53,7 +53,7 @@ def test_subsystem_energy_conservation_pure_cluster(driver):
     Verify exact subsystem energy decomposition on a pure active cluster (N2).
     E_total = E_cluster + E_env + E_embed, with E_env = 0.
     """
-    deck = build_diatomic("N", "N", 2.074, basis="SZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", 2.074, basis="SZ", spins=["up", "down"], units="bohr")
     deck.control.max_cycles = 15
     deck.control.convergence = 1e-5
 
@@ -145,11 +145,11 @@ def test_ghost_virtual_atoms_in_subsystem():
     Verify virtual ghost atoms are correctly isolated and do not add to cluster or env reference energies.
     """
     geom = [
-        AtomConfig(element="Ni", id="Ni1", xyz=[0.0, 0.0, 0.0], fixed=False),
-        AtomConfig(element="Ni", id="Ni_bulk", xyz=[0.0, 0.0, -3.0], fixed=True),
-        AtomConfig(element="Ni", id="Ni_ghost", xyz=[0.0, 0.0, 3.0], virtual=True),
+        AtomConfig(element="Ni", id="Ni1", xyz=[0.0, 0.0, 0.0], fixed=False, spin="up"),
+        AtomConfig(element="Ni", id="Ni_bulk", xyz=[0.0, 0.0, -3.0], fixed=True, spin="down"),
+        AtomConfig(element="Ni", id="Ni_ghost", xyz=[0.0, 0.0, 3.0], virtual=True, spin="up"),
     ]
-    deck = CalculationDeck(title="Virtual Ghost Test", geometry=geom)
+    deck = CalculationDeck(title="Virtual Ghost Test", geometry=geom, net_spin=1)
 
     decomp = decompose_subsystem_energies(deck, total_energy=-3000.0)
     assert decomp.active_atoms == ["Ni1"]
@@ -170,7 +170,7 @@ def test_cycle_history_and_diagnostics(driver):
     - Projection energy penalty dE_PK
     - Charge transfer delta q
     """
-    deck = build_diatomic("C", "O", 2.132, basis="SZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("C", "O", 2.132, basis="SZ", spins=["up", "up"], units="bohr")
     deck.control.max_cycles = 10
     deck.control.convergence = 1e-5
 

@@ -210,7 +210,7 @@ class PeriodicAtom:
     cart_coords: np.ndarray  # (x, y, z) in Bohr
     fixed: bool = False      # QFIXED=T in PHATPSY
     virtual: bool = False    # QVIRTL=T in PHATPSY
-    spin: Optional[str] = None  # 'up', 'down', or None
+    spin: str = "up"            # 'up' or 'down'
     layer: Optional[int] = None # Atomic layer index in slab
     tag: Optional[str] = None   # Custom label (e.g. 'substrate', 'adsorbate', 'buffer')
     grid_indices: Tuple[int, int, int] = (0, 0, 0) # Supercell translation indices (ix, iy, iz)
@@ -221,7 +221,7 @@ class PeriodicAtom:
             xyz=[float(c) for c in self.cart_coords],
             fixed=self.fixed,
             virtual=self.virtual,
-            spin=self.spin,
+            spin=self.spin if self.spin in ("up", "down") else "up",
         )
 
 
@@ -374,14 +374,33 @@ class PeriodicCell:
             title=f"{self.title} ({nx}x{ny}x{nz} supercell)",
         )
 
-    def to_deck(self, basis: str = "SZ", title: Optional[str] = None) -> CalculationDeck:
+    def to_deck(
+        self,
+        basis: str = "SZ",
+        title: Optional[str] = None,
+        spins: Optional[Union[List[str], str]] = None,
+        net_spin: Optional[int] = None,
+    ) -> CalculationDeck:
         """Converts the periodic cell atoms to a PHATPSY CalculationDeck."""
         atom_configs = [a.to_atom_config() for a in self.atoms]
+        if spins is not None:
+            if isinstance(spins, str):
+                sp_list = [spins] * len(atom_configs)
+            else:
+                sp_list = list(spins)
+            for a, sp in zip(atom_configs, sp_list):
+                a.spin = sp
+
+        calc_net = sum(1 for a in atom_configs if a.spin == "up") - sum(1 for a in atom_configs if a.spin == "down")
+        if net_spin is None:
+            net_spin = calc_net
+
         c_title = title or self.title
         deck = CalculationDeck(
             title=c_title,
             control=ControlConfig(),
             geometry=atom_configs,
+            net_spin=net_spin,
         )
         deck.resolve_elements()
         return deck

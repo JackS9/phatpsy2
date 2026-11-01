@@ -66,10 +66,11 @@ def test_interpolate_images_validation_errors():
         title="Triatomic",
         control=ControlConfig(),
         geometry=[
-            AtomConfig("N", [0.0, 0.0, 0.0]),
-            AtomConfig("N", [0.0, 0.0, 1.0]),
-            AtomConfig("N", [0.0, 0.0, 2.0]),
+            AtomConfig("N", [0.0, 0.0, 0.0], spin="up"),
+            AtomConfig("N", [0.0, 0.0, 1.0], spin="down"),
+            AtomConfig("N", [0.0, 0.0, 2.0], spin="up"),
         ],
+        net_spin=1,
     )
     with pytest.raises(ValueError, match="Atom count mismatch"):
         interpolate_images(deck1, deck3, num_images=5)
@@ -277,8 +278,8 @@ def test_neb_molecular_eo_to_aa_isomerization():
     geom_r = [("N", [0.0, 0.0, z_n])] + [("H", h) for h in h_coords]
     geom_p = [("N", [0.0, 0.0, -z_n])] + [("H", h) for h in h_coords]
 
-    deck_r = build_molecule(geom_r, basis="SZ", title="NH3 Pyramidal Up")
-    deck_p = build_molecule(geom_p, basis="SZ", title="NH3 Pyramidal Down")
+    deck_r = build_molecule(geom_r, basis="SZ", title="NH3 Pyramidal Up", spins="up", net_spin=4)
+    deck_p = build_molecule(geom_p, basis="SZ", title="NH3 Pyramidal Down", spins="up", net_spin=4)
 
     driver = PhatpsyDriver(quiet=True)
     res = neb_search(

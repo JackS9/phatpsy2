@@ -130,9 +130,10 @@ def test_calculation_deck_yaml_and_json_roundtrip(tmp_path):
         title="Roundtrip Test",
         control=ControlConfig(spin_unrestricted=True, max_cycles=42),
         geometry=[
-            AtomConfig(element="N", xyz=[0.0, 0.0, 1.0]),
-            AtomConfig(element="N", xyz=[0.0, 0.0, -1.0]),
-        ]
+            AtomConfig(element="N", xyz=[0.0, 0.0, 1.0], spin="up"),
+            AtomConfig(element="N", xyz=[0.0, 0.0, -1.0], spin="down"),
+        ],
+        net_spin=0,
     )
 
     # Test YAML roundtrip
@@ -179,8 +180,10 @@ control:
 geometry:
   - element: N
     xyz: [0.0, 0.0, 1.034]
+    spin: "up"
   - element: N
     xyz: [0.0, 0.0, 0.0]
+    spin: "down"
     symmetry:
       ixyz: 1
       isym: -1
@@ -263,8 +266,9 @@ def test_calculation_deck_with_thakkar_basis():
     deck = CalculationDeck(
         title="Silicon Atom with Thakkar Basis",
         control=ControlConfig(spin_unrestricted=True, max_cycles=1),
-        geometry=[AtomConfig(element="Si", xyz=[0.0, 0.0, 0.0])],
-        elements={"Si": ElementConfig(symbol="Si", basis="THAKKAR")}
+        geometry=[AtomConfig(element="Si", xyz=[0.0, 0.0, 0.0], spin="up")],
+        elements={"Si": ElementConfig(symbol="Si", basis="THAKKAR")},
+        net_spin=1,
     )
 
     stdin_text = deck.to_stdin_text()
@@ -283,7 +287,7 @@ def test_diis_charge_acceleration():
     from phatpsy.driver import PhatpsyDriver
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("C", "O", 2.132, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("C", "O", 2.132, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck.control.max_cycles = 15
     deck.control.use_diis = True
 
@@ -300,7 +304,7 @@ def test_global_fermi_equilibration():
     from phatpsy.driver import PhatpsyDriver
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("N", "N", 2.068, basis="SZ", spin_flip=False, units="bohr")
+    deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "up"], net_spin=2, units="bohr")
     deck.control.max_cycles = 10
     deck.control.use_global_fermi = True
     deck.control.fermi_temperature = 1000.0

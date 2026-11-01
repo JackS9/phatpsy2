@@ -34,7 +34,7 @@ def test_pyscf_availability_flag():
 @pytest.mark.skipif(not HAS_PYSCF, reason="PySCF is not installed")
 def test_single_system_pyscf_calculation():
     """Verify PySCF execution for a small diatomic system (N2)."""
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     pyscf_res = run_single_pyscf_system(deck, basis="sto-3g")
 
     rhf = pyscf_res["rhf"]
@@ -53,7 +53,7 @@ def test_single_system_pyscf_calculation():
 @pytest.mark.skipif(not HAS_PYSCF, reason="PySCF is not installed")
 def test_system_parity_n2(driver):
     """Verify run_system_parity on N2 comparing PHATPSY and PySCF."""
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     rec = run_system_parity(deck, formula="N2", driver=driver, basis_pyscf="sto-3g")
 
     assert rec.formula == "N2"
