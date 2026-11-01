@@ -248,16 +248,17 @@ class PhatpsyDriver:
             res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
         return res
 
-    def gradient(self, deck, method: str = "empirical", quiet: Optional[bool] = None) -> np.ndarray:
+    def gradient(self, deck, method: str = "analytical", quiet: Optional[bool] = None) -> np.ndarray:
         """
         Computes the Cartesian nuclear gradient matrix (dE / dX_A) of shape (N_atoms, 3)
         in Hartree / Bohr.
 
         Methods:
-          - "empirical": NIST-calibrated pairwise harmonic model (default, fast geometry optimization).
           - "analytical": Ab initio analytical gradient using Pulay overlap derivatives,
-                          Hellmann-Feynman model potential force contractions, and nuclear repulsion.
+                          Hellmann-Feynman model potential force contractions, Phillips-Kleinman
+                          pseudopotential derivatives, and nuclear repulsion (default).
           - "finite_difference": Central finite differences of active electronic SCF energy surface.
+          - "empirical": NIST-calibrated pairwise harmonic model (legacy fallback).
         """
         if method == "finite_difference":
             from phatpsy.gradients import compute_scf_finite_difference_gradient

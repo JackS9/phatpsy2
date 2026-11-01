@@ -277,7 +277,7 @@ def test_empirical_gradient_vs_finite_difference_consistency():
     deck.geometry[0].xyz = [0.0, 0.0, 1.10]
     deck.geometry[1].xyz = [0.0, 0.0, -1.10]
 
-    grad = driver.gradient(deck)
+    grad = driver.gradient(deck, method="empirical")
 
     # Compute central difference of empirical pair energy
     h = 1e-5
@@ -500,4 +500,104 @@ def test_nonlinear_triatomic_vibrational_frequencies():
     assert thermo.zero_point_energy_kcal > 0.0
     assert thermo.entropy_cal_mol_k["rotation"] > 0.0
     assert thermo.total_gibbs_free_energy_g_t < 0.0
+
+
+def test_non_circular_ab_initio_vibrational_frequencies_water():
+    """
+    Phase 11.6 Non-Circular Acceptance Gate.
+    Verifies that vibrational frequencies and normal modes are computed directly from the
+    active ab initio electronic SCF total energy surface (use_analytical_gradients=False),
+    bypassing all empirical parameter tables (PAIR_PARAMS).
+    """
+    driver = PhatpsyDriver(quiet=True)
+    deck_h2o = CalculationDeck.from_dict({
+        "title": "H2O Pure Ab Initio SCF Vibrations",
+        "control": {
+            "spin_unrestricted": False,
+            "convergence": 1e-6,
+            "max_cycles": 100,
+        },
+        "geometry": [
+            {"element": "O", "xyz": [0.0, 0.0, 0.0]},
+            {"element": "H", "xyz": [0.0, 1.43, 1.10]},
+            {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+        ],
+        "elements": {
+            "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+            "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
+        }
+    })
+
+    vib_res = compute_vibrations(
+        deck=deck_h2o,
+        driver=driver,
+        step_size=0.005,
+        method="central",
+        project_tr=True,
+        use_analytical_gradients=False,
+        quiet=True,
+    )
+
+    # 3 atoms -> 9 degrees of freedom
+    assert vib_res.num_atoms == 3
+    assert vib_res.num_modes == 9
+    assert vib_res.num_vibrational_modes == 3
+    assert vib_res.num_imaginary == 0
+    assert vib_res.is_minimum is True
+
+    freqs = [m.frequency_cm for m in vib_res.vibrational_modes]
+    freqs.sort()
+
+    # Mode 1: Bending mode (~1594 cm^-1, experimental ~1595 cm^-1)
+    assert 1400.0 <= freqs[0] <= 1800.0, f"Water bend frequency {freqs[0]:.1f} cm^-1 outside [1400, 1800]"
+    # Mode 2: Symmetric stretch (~2917 cm^-1)
+    assert 2600.0 <= freqs[1] <= 3200.0, f"Water symmetric stretch {freqs[1]:.1f} cm^-1 outside [2600, 3200]"
+    # Mode 3: Asymmetric stretch (~3362 cm^-1)
+    assert 3000.0 <= freqs[2] <= 3600.0, f"Water asymmetric stretch {freqs[2]:.1f} cm^-1 outside [3000, 3600]"
+
+    # Thermochemistry from electronic curvature
+    assert vib_res.thermochemistry.zero_point_energy_kcal > 10.0
+
+
+def test_analytical_gradient_vibrational_frequencies_water():
+    """
+    Phase 11.6 Non-Circular Acceptance Gate.
+    Verifies that vibrational frequency analysis executes using the first-principles
+    analytical Pulay + PK pseudopotential gradient engine (gradient_method='analytical').
+    """
+    driver = PhatpsyDriver(quiet=True)
+    deck_h2o = CalculationDeck.from_dict({
+        "title": "H2O Analytical Gradient Vibrations",
+        "control": {
+            "spin_unrestricted": False,
+            "convergence": 1e-6,
+            "max_cycles": 100,
+        },
+        "geometry": [
+            {"element": "O", "xyz": [0.0, 0.0, 0.0]},
+            {"element": "H", "xyz": [0.0, 1.43, 1.10]},
+            {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+        ],
+        "elements": {
+            "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+            "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
+        }
+    })
+
+    vib_res = compute_vibrations(
+        deck=deck_h2o,
+        driver=driver,
+        step_size=0.005,
+        method="central",
+        project_tr=True,
+        use_analytical_gradients=True,
+        gradient_method="analytical",
+        quiet=True,
+    )
+
+    assert vib_res.num_vibrational_modes == 3
+    assert vib_res.num_imaginary == 0
+    assert vib_res.is_minimum is True
+    assert vib_res.thermochemistry.zero_point_energy_kcal > 0.0
+
 

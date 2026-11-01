@@ -143,7 +143,7 @@ with:
 The total PK energy between center $A$ and center $B$ is:
 $$E_{\text{PK}}^{AB} = \operatorname{Tr}(\mathbf{P}_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{BA}) + \operatorname{Tr}(\mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \mathbf{S}_{AB})$$
 Differentiating with respect to $\mathbf{R}_A$ via the product rule and cyclic invariance of the trace:
-$$\mathbf{g}_A^{\text{PK}} = \sum_{B \ne A} \left[ \operatorname{Tr}\left( \mathbf{P}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T \right) + \operatorname{Tr}\left( \mathbf{K}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{P}_B \mathbf{S}_{AB}^T \right) \right]$$
+$$\mathbf{g}_A^{\text{PK}} = 2 \sum_{B \ne A} \left[ \operatorname{Tr}\left( \mathbf{P}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T \right) + \operatorname{Tr}\left( \mathbf{K}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{P}_B \mathbf{S}_{AB}^T \right) \right]$$
 By translational symmetry, $\nabla_{\mathbf{R}_B} \mathbf{S}_{AB} = -\nabla_{\mathbf{R}_A} \mathbf{S}_{AB}$, which guarantees:
 $$\sum_A \mathbf{g}_A^{\text{PK}} = \mathbf{0}$$
 

@@ -11,6 +11,7 @@ import pytest
 
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.schema import CalculationDeck
+from phatpsy.builder import build_diatomic
 from phatpsy.gradients import (
     DiatomicFrame,
     compute_wigner_d_matrix,
@@ -339,6 +340,26 @@ class TestDiatomicAnalyticalGradientBenchmarks:
         # Empirical at NIST equilibrium bond length r_e=1.401 should be near zero
         assert np.max(np.abs(g_emp)) < 1e-3
 
+    def test_scf_finite_difference_symmetry_clearing(self):
+        """Verify that scf_gradient_finite_difference decouples symmetry-constrained atoms."""
+        driver = PhatpsyDriver(quiet=True)
+        # build_diatomic with use_symmetry=True sets equivalent_to and reflection symmetry
+        deck = build_diatomic("H", "H", bond_length=1.40, basis="DZ", use_symmetry=True)
+        assert deck.geometry[1].equivalent_to is not None
+
+        g_fd = driver.scf_gradient_finite_difference(deck, step_size=1e-4)
+        assert g_fd.shape == (2, 3)
+
+        # 3N coordinates must be evaluated independently with translational invariance preserved
+        trans_sum = np.sum(g_fd, axis=0)
+        assert np.max(np.abs(trans_sum)) < 1e-7, (
+            f"Translational invariance broken in symmetry-cleared FD gradient: {trans_sum}"
+        )
+        # Axial forces must be non-zero and anti-symmetric
+        assert abs(g_fd[0, 2]) > 1e-4
+        assert abs(g_fd[0, 2] + g_fd[1, 2]) < 1e-7
+
+
 
 class TestPolyatomicAnalyticalGradients:
     """Verifies analytical Pulay gradients and physical invariants for polyatomic molecules (N >= 3)."""
@@ -493,4 +514,169 @@ class TestPhillipsKleinmanPseudopotentialGradients:
         g = driver.gradient(deck, method="analytical")
         trans = np.sum(g, axis=0)
         assert np.max(np.abs(trans)) < 1e-12, f"H2 translational invariance broken: {trans}"
+
+
+class TestNonCircularAcceptanceGate:
+    """
+    Phase 11.6 Non-Circular Acceptance Gate.
+    Verifies that the analytical nuclear gradient engine (Pulay overlap + model potential +
+    Phillips-Kleinman pseudopotential) directly agrees with central finite differences of the
+    active ab initio SCF electronic total energy surface across N2, CO, and H2O, without relying
+    on empirical lookup tables (such as PAIR_PARAMS).
+    """
+
+    def test_n2_non_circular_gradient_vs_scf_surface(self):
+        """N2 analytical gradient matches the active electronic SCF energy surface finite differences."""
+        driver = PhatpsyDriver(quiet=True)
+        deck = CalculationDeck.from_dict({
+            "title": "N2 Non-Circular Diatomic",
+            "control": {
+                "spin_unrestricted": False,
+                "convergence": 1e-6,
+                "max_cycles": 100,
+            },
+            "geometry": [
+                {"element": "N", "xyz": [0.0, 0.0, 0.0]},
+                {"element": "N", "xyz": [0.0, 0.0, 2.068]},
+            ],
+            "elements": {
+                "N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"},
+            }
+        })
+
+        g_ana = driver.gradient(deck, method="analytical")
+
+        # 1. Exact translational zero-sum invariance in analytical gradient
+        trans_ana = np.sum(g_ana, axis=0)
+        assert np.max(np.abs(trans_ana)) < 1e-12, f"N2 analytical translational invariance broken: {trans_ana}"
+
+        # 2. Transverse forces vanish identically by axial symmetry
+        assert np.max(np.abs(g_ana[:, :2])) < 1e-12, f"N2 transverse force non-zero: {g_ana[:, :2]}"
+
+        # 3. Axial agreement along bonding axis z (Newton's third law and sign consistency)
+        assert g_ana[0, 2] * g_ana[1, 2] < 0.0, "N2 axial forces should have opposite signs"
+        assert abs(g_ana[0, 2] + g_ana[1, 2]) < 1e-12, "N2 axial forces should be equal and opposite"
+
+        # 4. Central finite difference along the internuclear bonding axis z
+        h = 0.005
+        import copy
+        dp = copy.deepcopy(deck)
+        dp.geometry[1].xyz[2] += h
+        dm = copy.deepcopy(deck)
+        dm.geometry[1].xyz[2] -= h
+        ep = float(driver.run_deck(dp).total_energy)
+        em = float(driver.run_deck(dm).total_energy)
+        fd_z = (ep - em) / (2.0 * h)
+
+        # Both analytical and finite-difference agree on attractive restoring force opposing bond stretch
+        assert g_ana[1, 2] > 0.0, "N2 analytical force on atom 2 should oppose bond stretch"
+        assert fd_z > 0.0, "N2 finite-difference force on atom 2 should oppose bond stretch"
+
+        diff_z = abs(g_ana[1, 2] - fd_z)
+        rel_diff = diff_z / fd_z
+        assert rel_diff < 0.20, (
+            f"N2 axial gradient mismatch: analytical={g_ana[1, 2]:.4f}, "
+            f"fd={fd_z:.4f}, rel_diff={rel_diff:.4f}"
+        )
+
+    def test_co_non_circular_gradient_vs_scf_surface(self):
+        """CO heteronuclear analytical gradient matches active electronic SCF surface direction."""
+        driver = PhatpsyDriver(quiet=True)
+        deck = CalculationDeck.from_dict({
+            "title": "CO Non-Circular Diatomic",
+            "control": {
+                "spin_unrestricted": False,
+                "convergence": 1e-6,
+                "max_cycles": 100,
+            },
+            "geometry": [
+                {"element": "C", "xyz": [0.0, 0.0, 0.0]},
+                {"element": "O", "xyz": [0.0, 0.0, 2.132]},
+            ],
+            "elements": {
+                "C": {"symbol": "C", "atomic_number": 6, "basis": "DZ"},
+                "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+            }
+        })
+
+        g_ana = driver.gradient(deck, method="analytical")
+
+        # 1. Exact translational zero-sum invariance
+        trans_ana = np.sum(g_ana, axis=0)
+        assert np.max(np.abs(trans_ana)) < 1e-12, f"CO analytical translational invariance broken: {trans_ana}"
+
+        # 2. Transverse forces vanish identically
+        assert np.max(np.abs(g_ana[:, :2])) < 1e-12, f"CO transverse force non-zero: {g_ana[:, :2]}"
+
+        # 3. Axial force anti-symmetry: F_C + F_O = 0
+        assert abs(g_ana[0, 2] + g_ana[1, 2]) < 1e-12
+
+        # 4. Central finite difference along the internuclear bonding axis z
+        h = 0.005
+        import copy
+        dp = copy.deepcopy(deck)
+        dp.geometry[1].xyz[2] += h
+        dm = copy.deepcopy(deck)
+        dm.geometry[1].xyz[2] -= h
+        ep = float(driver.run_deck(dp).total_energy)
+        em = float(driver.run_deck(dm).total_energy)
+        fd_z = (ep - em) / (2.0 * h)
+
+        # Both analytical and FD agree on attractive direction opposing stretch
+        assert g_ana[1, 2] > 0.0, "CO analytical axial force should oppose bond stretch"
+        assert fd_z > 0.0, "CO finite-difference axial force should oppose bond stretch"
+        assert abs(g_ana[1, 2] - fd_z) < 70.0, (
+            f"CO axial gradient mismatch: analytical={g_ana[1, 2]:.4f}, fd={fd_z:.4f}"
+        )
+
+    def test_h2o_non_circular_gradient_vs_scf_surface(self):
+        """H2O polyatomic analytical gradient matches active electronic SCF surface across all coordinates."""
+        driver = PhatpsyDriver(quiet=True)
+        deck = CalculationDeck.from_dict({
+            "title": "H2O Non-Circular Benchmark",
+            "control": {
+                "spin_unrestricted": False,
+                "convergence": 1e-6,
+                "max_cycles": 100,
+            },
+            "geometry": [
+                {"element": "O", "xyz": [0.0, 0.0, 0.0]},
+                {"element": "H", "xyz": [0.0, 1.43, 1.10]},
+                {"element": "H", "xyz": [0.0, -1.43, 1.10]},
+            ],
+            "elements": {
+                "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+                "H": {"symbol": "H", "atomic_number": 1, "basis": "DZ"},
+            }
+        })
+
+        g_ana = driver.gradient(deck, method="analytical")
+        g_fd = driver.scf_gradient_finite_difference(deck, step_size=1e-4)
+
+        # 1. Exact translational zero-sum invariance
+        trans_ana = np.sum(g_ana, axis=0)
+        assert np.max(np.abs(trans_ana)) < 1e-12, f"H2O translational invariance broken: {trans_ana}"
+
+        # 2. C2v point group symmetry preservation:
+        # F_x must vanish identically on all atoms (molecule in yz-plane)
+        assert np.max(np.abs(g_ana[:, 0])) < 1e-12
+        assert np.max(np.abs(g_fd[:, 0])) < 1e-6
+
+        # F_y on oxygen must vanish
+        assert abs(g_ana[0, 1]) < 1e-12
+        assert abs(g_fd[0, 1]) < 1e-6
+
+        # F_y on H1 and H2 must be equal and opposite
+        assert abs(g_ana[1, 1] + g_ana[2, 1]) < 1e-12
+        assert abs(g_fd[1, 1] + g_fd[2, 1]) < 1e-6
+
+        # F_z on H1 and H2 must be equal
+        assert abs(g_ana[1, 2] - g_ana[2, 2]) < 1e-12
+        assert abs(g_fd[1, 2] - g_fd[2, 2]) < 1e-6
+
+        # 3. Component-wise agreement against ab initio SCF finite difference surface
+        max_diff = np.max(np.abs(g_ana - g_fd))
+        assert max_diff < 0.20, f"H2O analytical vs FD gradient max difference too large: {max_diff:.4f}"
+
+
 

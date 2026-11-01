@@ -532,7 +532,7 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                             K_B = e_bar_A * D_proj_B - D_eps_B
                             Pa_s = P[np.ix_(idx_a, idx_a)]
                             for k in range(3):
-                                g_pk_k = np.trace(Pa_s @ ds_dra[k] @ K_B @ s_mol.T)
+                                g_pk_k = 2.0 * np.trace(Pa_s @ ds_dra[k] @ K_B @ s_mol.T)
                                 grad[a - 1, k] += g_pk_k
                                 grad[b_atom - 1, k] -= g_pk_k
                 except Exception:
@@ -555,7 +555,7 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                             K_A = e_bar_B * D_proj_A - D_eps_A
                             Pb_s = P[np.ix_(idx_b, idx_b)]
                             for k in range(3):
-                                g_pk_k = np.trace(K_A @ ds_dra[k] @ Pb_s @ s_mol)
+                                g_pk_k = 2.0 * np.trace(K_A @ ds_dra[k] @ Pb_s @ s_mol.T)
                                 grad[a - 1, k] += g_pk_k
                                 grad[b_atom - 1, k] -= g_pk_k
                 except Exception:
@@ -589,6 +589,16 @@ def compute_scf_finite_difference_gradient(
     import copy
     calc_deck = copy.deepcopy(deck)
     calc_deck.resolve_coordinates()
+
+    # Clear symmetry locks and equivalencies on active unfrozen atoms
+    # so all 3N coordinates can be perturbed independently
+    for a in calc_deck.geometry:
+        if not a.fixed and not a.virtual:
+            a.symmetry = None
+            a.symmetry_op = None
+            a.symmetry_axis = None
+            a.equivalent_to = None
+
     atoms = calc_deck.geometry
     n_atoms = len(atoms)
     grad = np.zeros((n_atoms, 3), dtype=np.float64)
