@@ -119,6 +119,7 @@ nav:
       - science/methodology_overview.md
       - science/equation_mapping.md
       - science/model_potentials.md
+      - science/analytical_gradients.md
   - Development:
       - development/architecture.md
       - development/validation_standards.md

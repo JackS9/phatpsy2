@@ -327,6 +327,20 @@ def compute_diatomic_potential_matrix_and_gradient(
     return v_mol, dv_dra, dv_drb
 
 
+def _unpack_packed(p: np.ndarray, n: int) -> np.ndarray:
+    """Unpacks a lower-triangular packed symmetric vector into a full (n, n) matrix."""
+    mat = np.zeros((n, n), dtype=np.float64)
+    idx = 0
+    for i in range(n):
+        for j in range(i + 1):
+            if idx < len(p):
+                val = float(p[idx])
+                mat[i, j] = val
+                mat[j, i] = val
+            idx += 1
+    return mat
+
+
 def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = None) -> np.ndarray:
     """
     Assembles the full analytical Cartesian nuclear gradient (N_atoms, 3) for any diatomic
@@ -493,6 +507,59 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                     g_core_k = gA_core - gB_core
                     grad[a - 1, k] += g_core_k
                     grad[b_atom - 1, k] -= g_core_k
+
+            # 3b. Phillips-Kleinman (PK) Pseudopotential Derivatives (Phase 11.5)
+            # Evaluates atom-partitioned core-projection operator gradients:
+            #   \partial V_PK / \partial R_A = Tr( P_A * (dS_AB/dRa) * K_B * S_AB^T )
+            # where K_B = e_bar_A * D_proj_B - D_eps_B
+            za = charges[a - 1]
+            zb = charges[b_atom - 1]
+
+            if zb > 1.5:
+                try:
+                    m2_b = (mstob * (mstob + 1)) // 2
+                    pkB = _phatpsy_core.state.get_atom_record_pkpot(b_atom, m2_b, 6, ispin)
+                    evalA = _phatpsy_core.state.get_atom_record_eval(a, mstoa, ispin)
+                    occA = _phatpsy_core.state.get_atom_record_occ(a, mstoa, ispin)
+                    if np.max(np.abs(pkB)) > 1e-12:
+                        for s in range(ispin):
+                            D_proj_B = _unpack_packed(pkB[:, 3, s], mstob)
+                            D_eps_B = _unpack_packed(pkB[:, 4, s], mstob)
+                            occ_s = occA[:, s]
+                            eval_s = evalA[:, s]
+                            occ_mask = (occ_s > 1e-4)
+                            e_bar_A = float(np.average(eval_s[occ_mask], weights=occ_s[occ_mask])) if np.any(occ_mask) else 0.0
+                            K_B = e_bar_A * D_proj_B - D_eps_B
+                            Pa_s = P[np.ix_(idx_a, idx_a)]
+                            for k in range(3):
+                                g_pk_k = np.trace(Pa_s @ ds_dra[k] @ K_B @ s_mol.T)
+                                grad[a - 1, k] += g_pk_k
+                                grad[b_atom - 1, k] -= g_pk_k
+                except Exception:
+                    pass
+
+            if za > 1.5:
+                try:
+                    m2_a = (mstoa * (mstoa + 1)) // 2
+                    pkA = _phatpsy_core.state.get_atom_record_pkpot(a, m2_a, 6, ispin)
+                    evalB = _phatpsy_core.state.get_atom_record_eval(b_atom, mstob, ispin)
+                    occB = _phatpsy_core.state.get_atom_record_occ(b_atom, mstob, ispin)
+                    if np.max(np.abs(pkA)) > 1e-12:
+                        for s in range(ispin):
+                            D_proj_A = _unpack_packed(pkA[:, 3, s], mstoa)
+                            D_eps_A = _unpack_packed(pkA[:, 4, s], mstoa)
+                            occ_s = occB[:, s]
+                            eval_s = evalB[:, s]
+                            occ_mask = (occ_s > 1e-4)
+                            e_bar_B = float(np.average(eval_s[occ_mask], weights=occ_s[occ_mask])) if np.any(occ_mask) else 0.0
+                            K_A = e_bar_B * D_proj_A - D_eps_A
+                            Pb_s = P[np.ix_(idx_b, idx_b)]
+                            for k in range(3):
+                                g_pk_k = np.trace(K_A @ ds_dra[k] @ Pb_s @ s_mol)
+                                grad[a - 1, k] += g_pk_k
+                                grad[b_atom - 1, k] -= g_pk_k
+                except Exception:
+                    pass
 
     # 4. Optional Grimme dispersion gradient
     if deck is not None and getattr(getattr(deck, "control", None), "use_dispersion", False):

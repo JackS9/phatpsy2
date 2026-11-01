@@ -688,6 +688,56 @@ contains
         1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%stevec, 3)))
   end subroutine get_atom_record_stevec
 
+  subroutine get_atom_record_eval(iatom, n, nspin, out_eval)
+    integer(int32), intent(in)  :: iatom, n, nspin
+    real(real64),   intent(out) :: out_eval(n, nspin)
+
+    out_eval = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%eval)) return
+    out_eval(1:min(n, size(mol_ws%unit3_stream%records(iatom)%eval, 1)), &
+             1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%eval, 2))) = &
+      mol_ws%unit3_stream%records(iatom)%eval( &
+        1:min(n, size(mol_ws%unit3_stream%records(iatom)%eval, 1)), &
+        1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%eval, 2)))
+  end subroutine get_atom_record_eval
+
+  subroutine get_atom_record_occ(iatom, n, nspin, out_occ)
+    integer(int32), intent(in)  :: iatom, n, nspin
+    real(real64),   intent(out) :: out_occ(n, nspin)
+
+    out_occ = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%occ)) return
+    out_occ(1:min(n, size(mol_ws%unit3_stream%records(iatom)%occ, 1)), &
+            1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%occ, 2))) = &
+      mol_ws%unit3_stream%records(iatom)%occ( &
+        1:min(n, size(mol_ws%unit3_stream%records(iatom)%occ, 1)), &
+        1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%occ, 2)))
+  end subroutine get_atom_record_occ
+
+  subroutine get_atom_record_pkpot(iatom, m2, nterm, nspin, out_pk)
+    integer(int32), intent(in)  :: iatom, m2, nterm, nspin
+    real(real64),   intent(out) :: out_pk(m2, nterm, nspin)
+
+    out_pk = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%pkpot)) return
+    out_pk(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%pkpot, 1)), &
+           1:min(nterm, size(mol_ws%unit3_stream%records(iatom)%pkpot, 2)), &
+           1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%pkpot, 3))) = &
+      mol_ws%unit3_stream%records(iatom)%pkpot( &
+        1:min(m2, size(mol_ws%unit3_stream%records(iatom)%pkpot, 1)), &
+        1:min(nterm, size(mol_ws%unit3_stream%records(iatom)%pkpot, 2)), &
+        1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%pkpot, 3)))
+  end subroutine get_atom_record_pkpot
+
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
   !---------------------------------------------------------------------

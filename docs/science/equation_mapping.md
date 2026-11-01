@@ -134,3 +134,20 @@ This document provides a line-of-sight mapping connecting key mathematical deriv
 | **Dimer Method Saddle Refinement** | $\mathbf{F}^\dagger = -\mathbf{F} + 2(\mathbf{F}\cdot\hat{\mathbf{N}})\hat{\mathbf{N}}$ | — | `phatpsy/dimer.py` | Gradient-only saddle search along lowest eigenmode |
 | **Intrinsic Reaction Coordinate** | $d\mathbf{x}/ds = -\mathbf{g}_x / \|\mathbf{g}_x\|$ | — | `phatpsy/irc.py` | Mass-weighted steepest descent from transition state |
 | **Activation Barriers** | $\Delta E_f^\ddagger, \Delta E_r^\ddagger, \Delta E_{\text{rxn}}$ | — | `phatpsy/neb.py`, `phatpsy/irc.py` | Forward/reverse barriers and reaction thermodynamics |
+
+---
+
+## 12. Analytical Cartesian Gradients (Phase 11)
+
+| Operational Concept | Mathematical Expression | Legacy Routine | Modernized Code | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Coulomb Nuclear Repulsion Gradient** | $\mathbf{g}_A^{\text{nuc}} = -Z_A \sum_{B \neq A} Z_B \frac{\mathbf{R}_{AB}}{R_{AB}^3}$ | — | `phatpsy/gradients.py` (`_eval_grad_nuc`) | Pairwise Coulomb internuclear point-charge force |
+| **Elliptical Auxiliary Recurrences** | $\frac{dA_n}{d\alpha} = -A_{n+1},\; \frac{dB_m}{d\beta} = -B_{m+1}$ | `src/auxil.f` | `src/twocenter.f90` (`calc_two_center_sto_derivs`) | Closed-form derivatives of prolate spheroidal integrals |
+| **Internuclear Frame Cartesian Jacobian** | $\nabla_A = -\hat{\mathbf{R}} \frac{\partial}{\partial R} - \frac{1}{R}\left(\hat{\boldsymbol{\theta}} \frac{\partial}{\partial \theta} + \frac{\hat{\boldsymbol{\phi}}}{\sin\theta} \frac{\partial}{\partial \phi}\right)$ | — | `src/twocenter.f90`, `phatpsy/gradients.py` | Mapping internuclear derivatives $(R, \theta, \phi)$ to Cartesian $\mathbb{R}^3$ |
+| **Wigner $D$-Matrix Angular Derivatives** | $\frac{\partial \mathbf{D}(\Omega)}{\partial \theta}, \frac{\partial \mathbf{D}(\Omega)}{\partial \phi}$ | `src/rotmat.f` | `src/twocenter.f90` (`calc_two_center_sto_derivs`) | Closed-form spherical harmonic frame rotation derivatives |
+| **Pulay Overlap Gradient** | $\mathbf{g}_A^{\text{pulay}} = -\sum_{\mu\nu} W_{\mu\nu} \nabla_A S_{\mu\nu}$ | — | `phatpsy/gradients.py` (`_eval_grad_overlap`) | Energy-weighted density matrix $\mathbf{W}$ contraction |
+| **Model Potential Gradient** | $\mathbf{g}_A^{\text{mod}} = \sum_{\mu\nu} P_{\mu\nu} \nabla_A V_{\mu\nu}^{\text{mod}}$ | — | `src/twocenter.f90`, `phatpsy/gradients.py` (`_eval_grad_modpot`) | Closed-form one-electron attraction/exchange derivatives |
+| **Phillips-Kleinman Projector Gradient** | $\operatorname{Tr}(\mathbf{P}_A \nabla_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T + \mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \nabla_A \mathbf{S}_{BA}^T)$ | — | `src/state.f90`, `phatpsy/gradients.py` (`_eval_grad_pk`) | Atom-partitioned PK core projector gradient |
+| **Hydrogen Core Projection Exemption** | $\mathbf{K}_H = \mathbf{0}$ for $Z_A \le 1$ | — | `src/atomic.f90`, `src/state.f90`, `phatpsy/gradients.py` | Core projector rigorously zero for 1-electron atoms |
+| **Analytical Dispersion Gradient** | $\mathbf{g}_A^{\text{disp}} = -\nabla_A E_{\text{disp}}$ | — | `phatpsy/dispersion.py` (`dispersion_gradient`) | Grimme DFT-D3(BJ) analytical dispersion force |
+

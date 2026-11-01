@@ -405,3 +405,92 @@ class TestPolyatomicAnalyticalGradients:
             f"fd={g_fd[1, 1]:.6f}, diff={diff_lateral:.6f}"
         )
 
+
+class TestPhillipsKleinmanPseudopotentialGradients:
+    """
+    Unit tests for Phase 11.5: Phillips-Kleinman (PK) Pseudopotential Derivatives.
+    Verifies atom-partitioned core-projection operator gradients,
+    exact translational invariance, Hydrogen exemption, and molecular symmetry.
+    """
+
+    def test_pk_translational_invariance_and_symmetry_n2(self):
+        """Homonuclear diatomic N2 preserves exact translational invariance and axial symmetry under PK force."""
+        deck = CalculationDeck.from_dict({
+            "title": "N2 Analytical PK Gradient",
+            "control": {"convergence": 1e-6, "max_cycles": 50},
+            "geometry": [
+                {"element": "N", "xyz": [0.0, 0.0, -1.05]},
+                {"element": "N", "xyz": [0.0, 0.0, 1.05]},
+            ],
+            "elements": {
+                "N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}
+            }
+        })
+        driver = PhatpsyDriver()
+        g = driver.gradient(deck, method="analytical")
+        assert g.shape == (2, 3)
+
+        # 1. Exact translational invariance: F_A + F_B = 0
+        trans = np.sum(g, axis=0)
+        assert np.max(np.abs(trans)) < 1e-12, f"N2 translational invariance broken: {trans}"
+
+        # 2. Axial collinear symmetry: F_x = F_y = 0
+        assert np.max(np.abs(g[:, 0])) < 1e-12, f"N2 transverse F_x non-zero: {g[:, 0]}"
+        assert np.max(np.abs(g[:, 1])) < 1e-12, f"N2 transverse F_y non-zero: {g[:, 1]}"
+
+        # 3. Equal and opposite axial restoring force
+        assert abs(g[0, 2] + g[1, 2]) < 1e-12, f"N2 axial asymmetry: {g[:, 2]}"
+        assert abs(g[1, 2]) > 0.01, f"N2 force should be non-zero at displaced geometry, got {g[1, 2]}"
+
+    def test_pk_heteronuclear_invariance_and_symmetry_co(self):
+        """Heteronuclear diatomic CO preserves exact translational invariance and non-zero core projection."""
+        deck = CalculationDeck.from_dict({
+            "title": "CO Analytical PK Gradient",
+            "control": {"convergence": 1e-6, "max_cycles": 50},
+            "geometry": [
+                {"element": "C", "xyz": [0.0, 0.0, -1.066]},
+                {"element": "O", "xyz": [0.0, 0.0, 1.066]},
+            ],
+            "elements": {
+                "C": {"symbol": "C", "atomic_number": 6, "basis": "DZ"},
+                "O": {"symbol": "O", "atomic_number": 8, "basis": "DZ"},
+            }
+        })
+        driver = PhatpsyDriver()
+        g = driver.gradient(deck, method="analytical")
+        assert g.shape == (2, 3)
+
+        # 1. Exact translational invariance: F_C + F_O = 0
+        trans = np.sum(g, axis=0)
+        assert np.max(np.abs(trans)) < 1e-12, f"CO translational invariance broken: {trans}"
+
+        # 2. Transverse zero
+        assert np.max(np.abs(g[:, :2])) < 1e-12, f"CO transverse force non-zero: {g[:, :2]}"
+
+        # 3. Axial force equal and opposite
+        assert abs(g[0, 2] + g[1, 2]) < 1e-12, f"CO axial asymmetry: {g[:, 2]}"
+        assert abs(g[1, 2]) > 0.01, f"CO force should be non-zero, got {g[1, 2]}"
+
+    def test_pk_hydrogen_exemption_h2(self):
+        """H2 (Z=1) is exempt from Phillips-Kleinman core pseudopotential projection."""
+        deck = CalculationDeck.from_dict({
+            "title": "H2 PK Exemption Test",
+            "control": {"convergence": 1e-6, "max_cycles": 50},
+            "geometry": [
+                {"element": "H", "xyz": [0.0, 0.0, -0.7]},
+                {"element": "H", "xyz": [0.0, 0.0, 0.7]},
+            ],
+            "elements": {
+                "H": {"symbol": "H", "atomic_number": 1, "basis": "SZ"}
+            }
+        })
+        driver = PhatpsyDriver()
+        res = driver.run_deck(deck)
+        # Verify atomic records emit no core projection for Z=1 (columns 4 and 5 in 1-based Fortran)
+        pk1 = _phatpsy_core.state.get_atom_record_pkpot(1, 1, 6, 1)
+        assert np.max(np.abs(pk1[:, 3:5, :])) < 1e-12, f"Hydrogen atom 1 should have zero PK projector, got {pk1[:, 3:5, :]}"
+
+        g = driver.gradient(deck, method="analytical")
+        trans = np.sum(g, axis=0)
+        assert np.max(np.abs(trans)) < 1e-12, f"H2 translational invariance broken: {trans}"
+

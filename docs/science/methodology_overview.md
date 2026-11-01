@@ -222,16 +222,27 @@ $$\boldsymbol{\chi}_{\text{para}} = \frac{e^2}{2 m_e^2 c^2} \sum_{i \in \text{oc
 
 ---
 
-## 12. Analytical Cartesian Gradients & Physical Invariants (Phase 6)
+## 12. Analytical Cartesian Gradients & Physical Invariants (Phase 11)
 
-Geometry optimization, path finding, and molecular dynamics require Cartesian nuclear forces $\mathbf{F}_A = -\nabla_A E$. In [`phatpsy/driver.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/driver.py):
-$$\mathbf{g}_A = -\mathbf{F}_A = \mathbf{g}_A^{\text{elec}} + \mathbf{g}_A^{\text{nuc}} + \mathbf{g}_A^{\text{disp}}$$
+Geometry optimization, transition state searches, reaction path finding, and molecular dynamics require accurate Cartesian nuclear forces $\mathbf{F}_A = -\nabla_A E$. In PHATPSY 2.0, all energy components possess closed-form analytical derivatives:
+$$\mathbf{g}_A = -\mathbf{F}_A = \mathbf{g}_A^{\text{nuc}} + \mathbf{g}_A^{\text{pulay}} + \mathbf{g}_A^{\text{mod}} + \mathbf{g}_A^{\text{pk}} + \mathbf{g}_A^{\text{disp}}$$
 
+where:
+- $\mathbf{g}_A^{\text{nuc}} = -Z_A \sum_{B \neq A} Z_B \frac{\mathbf{R}_{AB}}{R_{AB}^3}$ is the classical Coulomb nuclear repulsion force.
+- $\mathbf{g}_A^{\text{pulay}} = -\sum_{\mu\nu} W_{\mu\nu} \nabla_A S_{\mu\nu}$ is the Pulay overlap force contracted with the energy-weighted density matrix $\mathbf{W} = 2 \sum_i^{\text{occ}} \varepsilon_i \mathbf{c}_i \mathbf{c}_i^T$.
+- $\mathbf{g}_A^{\text{mod}} = \sum_{\mu\nu} P_{\mu\nu} \nabla_A V_{\mu\nu}^{\text{mod}}$ is the two-center model potential derivative evaluated via auxiliary spheroidal function recurrences.
+- $\mathbf{g}_A^{\text{pk}}$ is the atom-partitioned Phillips-Kleinman pseudopotential force $\operatorname{Tr}(\mathbf{P}_A \nabla_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T + \mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \nabla_A \mathbf{S}_{BA}^T)$, with exact core projection exemption for hydrogen atoms ($Z \le 1$).
+- $\mathbf{g}_A^{\text{disp}} = -\nabla_A E_{\text{disp}}$ is the Grimme DFT-D3(BJ) dispersion force.
+
+For the complete mathematical derivations, including elliptical auxiliary function recurrences $dA_n/d\alpha = -A_{n+1}$, $dB_m/d\beta = -B_{m+1}$, diatomic Cartesian Jacobians, and Wigner rotation matrix transformations, consult [Analytical Cartesian Gradients](analytical_gradients.md).
+
+### Physical Boundary Conditions and Invariants
 To preserve physical boundary conditions on unconstrained finite molecules:
 1. **Translational Invariance:** Total nuclear force vanishes identically:
    $$\sum_{A=1}^{N_{\text{atom}}} \mathbf{F}_A = \mathbf{0}$$
 2. **Rotational Invariance:** Total external torque vanishes identically:
    $$\sum_{A=1}^{N_{\text{atom}}} \mathbf{R}_A \times \mathbf{F}_A = \mathbf{0}$$
+3. **Point-Group Symmetry:** Gradients preserve the molecular point group (e.g. for homonuclear diatomics or symmetric polyatomics, orthogonal force components vanish identically).
 
 ---
 

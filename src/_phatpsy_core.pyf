@@ -102,6 +102,18 @@ python module _phatpsy_core
                 integer intent(in) :: iatom, m, n, nspin
                 real(kind=real64) intent(out), dimension(m, n, nspin) :: out_vec
             end subroutine get_atom_record_stevec
+            subroutine get_atom_record_eval(iatom, n, nspin, out_eval)
+                integer intent(in) :: iatom, n, nspin
+                real(kind=real64) intent(out), dimension(n, nspin) :: out_eval
+            end subroutine get_atom_record_eval
+            subroutine get_atom_record_occ(iatom, n, nspin, out_occ)
+                integer intent(in) :: iatom, n, nspin
+                real(kind=real64) intent(out), dimension(n, nspin) :: out_occ
+            end subroutine get_atom_record_occ
+            subroutine get_atom_record_pkpot(iatom, m2, nterm, nspin, out_pk)
+                integer intent(in) :: iatom, m2, nterm, nspin
+                real(kind=real64) intent(out), dimension(m2, nterm, nspin) :: out_pk
+            end subroutine get_atom_record_pkpot
         end module state
 
         module contrl
