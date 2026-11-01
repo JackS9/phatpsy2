@@ -70,7 +70,7 @@ Standing rules that every phase must satisfy:
 - [x] **Phase 8: Exchange-Correlation Functionals & Non-Covalent Dispersion (D3/D4) [COMPLETED]**
   - Integrated Perdew-Wang 92 (PW92) LDA and Perdew-Burke-Ernzerhof (PBE) GGA correlation functional kernels into `src/exchange_dft.f90` and `phatpsy/exchange_dft.py`, integrated into radial quadrature STO matrices via `ControlConfig(correlation_kernel="pbe")` and `CORR_TYPE` in namelist `/CTLINP/`.
   - Implemented Grimme DFT-D3(BJ) empirical dispersion in `phatpsy/dispersion.py` with analytical Cartesian nuclear gradients matching finite-difference forces to $< 10^{-8}\text{ Ha/Bohr}$ and machine-precision translational invariance ($< 10^{-12}$). Hooked into `ControlConfig(use_dispersion=True)` and `PhatpsyDriver.gradient()`.
-  - Validated bond dissociation energies ($D_e = 9.759\text{ eV}$ for $\text{N}_2$ within $[9.0, 10.0]\text{ eV}$; $11.087\text{ eV}$ for $\text{CO}$ within $[10.5, 11.5]\text{ eV}$) and unimolecular ring-opening activation barrier on $\text{EO} \to \text{AA}$ ($\Delta E_f^\ddagger = 53.0\text{ kcal/mol}$ matching CCSD(T)/CBS benchmark within $[50.0, 56.0]\text{ kcal/mol}$). Verified across 244 passing tests in canonical build loop.
+  - Validated electronic energy convergence and physical virial stability under PBE-D3 across diatomics ($\text{N}_2$, $\text{CO}$) and polyatomics ($\text{EO}$). Note: Quantitative bond dissociation energies ($D_e$) and unimolecular reaction barriers ($\text{EO} \to \text{AA}$) remain [OPEN] pending consistent atomic SCF reference baselines and fully relaxed NEB pathways (see Quantitative Parity Summary below). Verified across 244 passing tests in canonical build loop.
 
 - [x] **Phase 9: Transition-Metal Chemisorption & d-Band Coupling ($CO$ & $NO$ on $Ni(100)$) [COMPLETED]**
   - **$C_{4v}$ Crystal Field d-Band Projection:** Built `phatpsy/chemisorption.py` projecting the 5 d-orbitals into surface $C_{4v}$ irreducible representations ($a_1: d_{z^2}$, $e: d_{xz}, d_{yz}$, $b_1: d_{x^2-y^2}$, $b_2: d_{xy}$) on active surface metal sites. Evaluates crystal field splitting ($\Delta_{\text{CF}} \approx 0.48\text{ eV}$) and Blyholder coupling indices for synergistic $5\sigma$ donation and $2\pi^*$ back-donation into minority spin orbitals.
@@ -178,10 +178,11 @@ flowchart LR
 | $\text{CO}$ | $R_e$ | $2.1322\text{ Bohr}$ (NIST CCCBDB) | $2.1322\text{ Bohr}$ (input geometry) | — |
 | $\text{CO}$ | $\mu$ | $0.112\text{ D}$ ($C^{\delta-}O^{\delta+}$, NIST) | $1.08\text{ D}$, correct polarity (reported) | 7 |
 | $\text{CO}$ | $\omega_e$ | $2169.8\text{ cm}^{-1}$ (Herzberg) | Empirical model only (circular); analytical → Phase 11 | 11 |
+| $\text{CO}$ | $D_e$ | $11.09\text{ eV}$ $D_0$ (CRC) | Open — mixed-Hamiltonian reference (HF atoms vs model-potential molecule); needs PHATPSY-consistent atomic energies | — |
 | $\text{H}_2\text{O}$ | $\mu$ | $1.855\text{ D}$ (NIST CCCBDB) | $1.63\text{ D}$ (reported) | 7 |
 | $\text{H}_2\text{O}$ | $\nu_1$ | $3657.1\text{ cm}^{-1}$ (NIST CCCBDB) | Analytical vibrations → Phase 11 | 11 |
 | $\text{C}_2\text{H}_4$ | Torsional barrier | $65.0\text{ kcal/mol}$ (Expt / CCSD(T)) | Open | — |
-| $\text{EO} \to \text{AA}$ | $\Delta E^\ddagger$ | $53.0\text{ kcal/mol}$ (CCSD(T)/CBS) | $53.0\text{ kcal/mol}$ ✓ | 8 |
+| $\text{EO} \to \text{AA}$ | $\Delta E^\ddagger$ | $53.0\text{ kcal/mol}$ (CCSD(T)/CBS) | Open — reactant stability verified under PBE-D3; requires converged CI-NEB transition-state search | — |
 | Bulk $\text{Ni}_{13}$ | $\text{PKSCAL}$ lock | $1.00$ (theory) | $1.00$ ✓ | 5 |
 | Bulk $\text{Ni}_{13}$ | Cohesive energy/atom | $4.44\text{ eV}$ | Open | — |
 | $\text{Ni}(100)$ slab | Reusable $\text{Ni}_{\text{surf}}/\text{Ni}_{\text{sub}}$ | Transferable embedded states | ✓ | 5 |

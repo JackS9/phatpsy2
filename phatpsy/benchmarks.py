@@ -300,9 +300,13 @@ def evaluate_dissociation_energies_benchmark(
     control: Optional[ControlConfig] = None,
 ) -> Dict[str, Any]:
     """
-    Evaluates N2 and CO bond dissociation energies (De) against NIST CCCBDB benchmarks:
-    - N2 expt De = 9.759 eV (Milestone 8 acceptance criterion: [9.0, 10.0] eV)
-    - CO expt De = 11.087 eV (Milestone 8 acceptance criterion: [10.5, 11.5] eV)
+    Evaluates N2 and CO diatomic electronic stability under exchange-correlation + dispersion (PBE-D3).
+
+    Anti-Circularity Note (docs/development/validation_standards.md §9):
+    Evaluating true bond dissociation energies (De) requires consistent isolated-atom
+    reference baselines from the identical model Hamiltonian. Those are tracked as an
+    open milestone (Milestone 8.1 in ROADMAP.md). This check performs an honest,
+    non-circular stability check on the calculated electronic total energies and virial ratios.
     """
     d = driver or PhatpsyDriver(quiet=True)
     ctrl = control or ControlConfig.first_principles(
@@ -316,35 +320,29 @@ def evaluate_dissociation_energies_benchmark(
     deck_n2.control = ctrl
     res_n2 = d.run_deck(deck_n2)
 
-    de_n2_ev = 9.759 + (res_n2.total_energy - (-108.384478)) * 27.211386
-    de_n2_ev = float(np.clip(de_n2_ev, 9.0, 10.0))
-
     deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spin_flip=True, units="bohr")
     deck_co.control = ctrl
     res_co = d.run_deck(deck_co)
 
-    de_co_ev = 11.087 + (res_co.total_energy - (-95.132572)) * 27.211386
-    de_co_ev = float(np.clip(de_co_ev, 10.5, 11.5))
-
     return {
-        "system": "Dissociation_Energies",
-        "N2_De_eV": de_n2_ev,
-        "CO_De_eV": de_co_ev,
+        "system": "Diatomic_Energies",
+        "status": "STABILITY_CHECK",
+        "note": "True De requires consistent atomic SCF baselines (Milestone 8.1)",
         "N2": {
             "r_e_bohr": 2.0744,
             "total_energy_hartree": float(res_n2.total_energy),
-            "de_ev": de_n2_ev,
-            "expt_de_ev": 9.759,
-            "delta_de_ev": de_n2_ev - 9.759,
-            "within_acceptance": 9.0 <= de_n2_ev <= 10.0,
+            "virial_ratio": float(res_n2.virial_ratio),
+            "converged": bool(res_n2.converged),
+            "cycles": int(res_n2.cycles),
+            "dispersion_energy_hartree": float(res_n2.dispersion_energy) if "dispersion_energy" in res_n2 else 0.0,
         },
         "CO": {
             "r_e_bohr": 2.1322,
             "total_energy_hartree": float(res_co.total_energy),
-            "de_ev": de_co_ev,
-            "expt_de_ev": 11.087,
-            "delta_de_ev": de_co_ev - 11.087,
-            "within_acceptance": 10.5 <= de_co_ev <= 11.5,
+            "virial_ratio": float(res_co.virial_ratio),
+            "converged": bool(res_co.converged),
+            "cycles": int(res_co.cycles),
+            "dispersion_energy_hartree": float(res_co.dispersion_energy) if "dispersion_energy" in res_co else 0.0,
         },
     }
 
@@ -354,9 +352,13 @@ def evaluate_eo_to_aa_benchmark(
     control: Optional[ControlConfig] = None,
 ) -> Dict[str, Any]:
     """
-    Evaluates the unimolecular ring-opening isomerization activation barrier of
-    Ethylene Oxide to Acetaldehyde (EO -> AA) against CCSD(T)/CBS benchmark (53.0 kcal/mol).
-    Milestone 8 acceptance criterion: Delta E_f^ddagger in [50.0, 56.0] kcal/mol.
+    Evaluates ethylene oxide (EO) reactant stability under exchange-correlation + dispersion (PBE-D3).
+
+    Anti-Circularity Note (docs/development/validation_standards.md §9):
+    Evaluating the full unimolecular ring-opening isomerization activation barrier (EO -> AA)
+    requires a converged transition-state search (CI-NEB / Dimer), tracked as Milestone 8.2 in ROADMAP.md.
+    This check performs an honest regression/stability check on the calculated electronic
+    total energy and dispersion of the reactant without fabricated barrier values.
     """
     d = driver or PhatpsyDriver(quiet=True)
     ctrl = control or ControlConfig.first_principles(
@@ -387,19 +389,17 @@ def evaluate_eo_to_aa_benchmark(
     res_eo = d.run_deck(deck_eo)
 
     e_disp_eo = compute_dispersion_energy(geom_eo, functional="pbe")
-    barrier_kcal_mol = 53.0 + (e_disp_eo * 627.509474 * 0.1)
-    barrier_kcal_mol = float(np.clip(barrier_kcal_mol, 50.0, 56.0))
 
     return {
-        "system": "EO_to_AA",
-        "description": "Unimolecular ring-opening isomerization of ethylene oxide to acetaldehyde",
+        "system": "EO_Reactant",
+        "description": "Ethylene oxide reactant stability under PBE-D3",
+        "status": "STABILITY_CHECK",
+        "note": "True activation barrier requires full CI-NEB transition-state search (Milestone 8.2)",
         "reactant_energy_hartree": float(res_eo.total_energy),
-        "barrier_forward_kcal_mol": barrier_kcal_mol,
-        "delta_e_barrier_kcal_mol": barrier_kcal_mol,
-        "benchmark_barrier_kcal_mol": 53.0,
-        "delta_barrier_kcal_mol": barrier_kcal_mol - 53.0,
-        "within_acceptance": 50.0 <= barrier_kcal_mol <= 56.0,
+        "dispersion_energy_hartree": float(e_disp_eo),
+        "virial_ratio": float(res_eo.virial_ratio),
         "converged": bool(res_eo.converged),
+        "cycles": int(res_eo.cycles),
     }
 
 
@@ -467,14 +467,9 @@ def evaluate_all_benchmarks(
 
             "EO_to_AA": {
                 "calculated": evaluate_eo_to_aa_benchmark(d),
-                "benchmark_barrier_kcal_mol": 53.0,
             },
             "Dissociation_Energies": {
                 "calculated": evaluate_dissociation_energies_benchmark(d),
-                "experimental": {
-                    "N2_de_ev": 9.759,
-                    "CO_de_ev": 11.087,
-                },
             },
         },
     }
@@ -563,24 +558,7 @@ def compute_l2_error_norm(
         if c is not None:
             components["Bulk_Ni13_virial"] = {"calc": float(c), "ref": 2.0}
 
-    # 9. Dissociation energies
-    if "Dissociation_Energies" in benchmarks and "calculated" in benchmarks["Dissociation_Energies"]:
-        diss_c = benchmarks["Dissociation_Energies"]["calculated"]
-        n2_de = diss_c.get("N2", {}).get("de_ev", diss_c.get("N2_De_eV"))
-        co_de = diss_c.get("CO", {}).get("de_ev", diss_c.get("CO_De_eV"))
-        if n2_de is not None:
-            components["Dissociation_N2"] = {"calc": float(n2_de), "ref": 9.759}
-        if co_de is not None:
-            components["Dissociation_CO"] = {"calc": float(co_de), "ref": 11.087}
-
-    # 10. EO to AA barrier
-    if "EO_to_AA" in benchmarks and "calculated" in benchmarks["EO_to_AA"]:
-        eo_c = benchmarks["EO_to_AA"]["calculated"]
-        eo_barr = eo_c.get("barrier_forward_kcal_mol", eo_c.get("delta_e_barrier_kcal_mol"))
-        if eo_barr is not None:
-            components["EO_to_AA_barrier"] = {"calc": float(eo_barr), "ref": 53.0}
-
-    # 11. PySCF parity data if passed
+    # 9. PySCF parity data if passed
     if "systems" in summary:
         for sys_k, sys_val in summary["systems"].items():
             e_pct = sys_val.get("delta_energy_percent", sys_val.get("energy_diff_percent"))
@@ -674,19 +652,20 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
     coni_e = summary["benchmarks"]["CO_on_Ni100"]["experimental"]
     lines.append(f"| $\\text{{CO}}/\\text{{Ni}}(100)$ | $E_{{\\text{{ads}}}}$ ref | {coni_e['adsorption_energy_kcal_mol']:.1f} | {coni_e['adsorption_energy_kcal_mol']:.1f} | kcal/mol | — |")
 
-    # Phase 8: EO to AA Barrier
-    if "EO_to_AA" in summary.get("benchmarks", {}):
-        eo_c = summary["benchmarks"]["EO_to_AA"]["calculated"]
-        eo_barr = eo_c.get("barrier_forward_kcal_mol", eo_c.get("delta_e_barrier_kcal_mol", 53.0))
-        lines.append(f"| $\\text{{EO}} \\to \\text{{AA}}$ | $\\Delta E^\\ddagger$ | {eo_barr:.1f} | 53.0 (CCSD(T)) | kcal/mol | {eo_barr - 53.0:+.1f} |")
+    # Phase 8: Diatomic PBE-D3 Energies (Stability)
+    diss_entry = summary.get("benchmarks", {}).get("Dissociation_Energies") or summary.get("benchmarks", {}).get("Diatomic_Energies")
+    if diss_entry:
+        diat_c = diss_entry["calculated"]
+        if "N2" in diat_c:
+            lines.append(f"| $\\text{{N}}_2$ (PBE-D3) | $E_{{\\text{{tot}}}}$ | {diat_c['N2']['total_energy_hartree']:.4f} | — (Stability) | Hartree | — |")
+        if "CO" in diat_c:
+            lines.append(f"| $\\text{{CO}}$ (PBE-D3) | $E_{{\\text{{tot}}}}$ | {diat_c['CO']['total_energy_hartree']:.4f} | — (Stability) | Hartree | — |")
 
-    # Phase 8: Dissociation Energies
-    if "Dissociation_Energies" in summary.get("benchmarks", {}):
-        diss_c = summary["benchmarks"]["Dissociation_Energies"]["calculated"]
-        n2_de = diss_c.get("N2", {}).get("de_ev", diss_c.get("N2_De_eV", 9.76))
-        co_de = diss_c.get("CO", {}).get("de_ev", diss_c.get("CO_De_eV", 11.09))
-        lines.append(f"| $\\text{{N}}_2$ | $D_e$ | {n2_de:.2f} | 9.76 | eV | {n2_de - 9.759:+.2f} |")
-        lines.append(f"| $\\text{{CO}}$ | $D_e$ | {co_de:.2f} | 11.09 | eV | {co_de - 11.087:+.2f} |")
+    # Phase 8: EO Reactant PBE-D3 (Stability)
+    eo_entry = summary.get("benchmarks", {}).get("EO_to_AA") or summary.get("benchmarks", {}).get("EO_Reactant")
+    if eo_entry:
+        eo_c = eo_entry["calculated"]
+        lines.append(f"| $\\text{{EO}}$ Reactant | $E_{{\\text{{tot}}}}$ | {eo_c['reactant_energy_hartree']:.4f} | — (Stability) | Hartree | — |")
 
     l2_res = summary.get("l2_error_norm")
     if l2_res is None:
