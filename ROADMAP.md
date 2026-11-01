@@ -95,6 +95,9 @@ Standing rules that every phase must satisfy:
     where $K_B = \bar{\varepsilon}_A D_{\text{proj}}^B - D_{\varepsilon}^B$ is the energy-weighted core projection operator of atom $B$. Exposed low-level atomic record accessors (`get_atom_record_eval`, `get_atom_record_occ`, `get_atom_record_pkpot`) from Fortran core `src/state.f90` via `src/_phatpsy_core.pyf`. Validated exact translational invariance ($\sum_A \mathbf{F}_A = \mathbf{0}$ to $< 10^{-12}\text{ Ha/Bohr}$), Hydrogen core exemption ($Z \le 1 \implies K = \mathbf{0}$), collinear axial symmetry on $\text{N}_2$ and $\text{CO}$, and numerical agreement against central finite-difference baselines of the PK operator expectation value ($< 10^{-10}\text{ Ha/Bohr}$) in [`tests/test_analytical_gradients.py`](tests/test_analytical_gradients.py).
   - [x] **Non-Circular Acceptance Gate (Phase 11.6) [COMPLETED]:** Upgraded default `driver.gradient()` to first-principles unrelaxed `method="analytical"`, retaining empirical pairwise models as legacy fallbacks, and established the non-circular acceptance gate across $\text{H}_2$ ($< 0.1\%$), $\text{N}_2$, $\text{CO}$, and $\text{H}_2\text{O}$ in `tests/test_analytical_gradients.py` (`TestNonCircularAcceptanceGate`). Validated zero implementation error on core-containing systems ($\text{N}_2$ frozen-density expectation value derivative vs FD to $< 10^{-7}\text{ Ha/Bohr}$) and documented that total energy surface derivative agreement ($dE/d\mathbf{R}$) in non-variational / model-potential systems requires the Coupled-Perturbed (CPHF / Z-vector) orbital response (Phase 12). Decoupled finite-difference coordinate perturbation by clearing symmetry locks and equivalent atom maps on active degrees of freedom. Validated unconstrained non-circular water vibrational normal modes (bend $1593.6\text{ cm}^{-1}$, symmetric stretch $2916.9\text{ cm}^{-1}$, asymmetric stretch $3362.3\text{ cm}^{-1}$) directly from the electronic SCF total energy surface in `tests/test_vibrations.py`.
 
+- [ ] **Phase 12: Coupled-Perturbed (CPHF / Z-Vector) Orbital Response for Relaxed Gradients [PLANNED]**
+  - The Phase 11 analytical gradient is the *unrelaxed* Hellmann-Feynman/Pulay gradient at fixed converged density P. In non-variational / model-potential systems, quantitative agreement with the total energy surface derivative dE/dR requires the orbital relaxation response Tr((∂E/∂P)(dP/dR)). Implement the coupled-perturbed (CPHF / Z-vector) equations for the projected Hamiltonian to recover the fully relaxed gradient. Acceptance: relaxed analytical gradient vs central FD of the SCF total energy surface to ~1e-3 or better on N2, CO, and H2O.
+
 ```mermaid
 flowchart LR
     subgraph Part1["Part I: Foundational Modernization (Completed)"]
@@ -112,8 +115,9 @@ flowchart LR
         P8["Phase 8: Correlation Functionals & Dispersion (D3)"]
         P9["Phase 9: Transition-Metal Chemisorption & d-Band Coupling"]
         P10["Phase 10: Automated Multi-Level Parity Suite"]
-        P11["Phase 11: Analytical Pulay Gradients (In Progress)"]
-        P6 --> P7 --> P8 --> P9 --> P10 --> P11
+        P11["Phase 11: Analytical Pulay Gradients (Completed)"]
+        P12["Phase 12: CPHF / Z-Vector Response (Planned)"]
+        P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12
     end
 
     Part1 --> Part2
