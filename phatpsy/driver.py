@@ -254,10 +254,15 @@ class PhatpsyDriver:
         in Hartree / Bohr.
 
         Methods:
-          - "analytical": Ab initio analytical gradient using Pulay overlap derivatives,
-                          Hellmann-Feynman model potential force contractions, Phillips-Kleinman
-                          pseudopotential derivatives, and nuclear repulsion (default).
-          - "finite_difference": Central finite differences of active electronic SCF energy surface.
+          - "analytical": Ab initio unrelaxed (Hellmann-Feynman / Pulay) analytical gradient
+                          using exact auxiliary recurrence overlap derivatives, two-center model
+                          potential force contractions, Phillips-Kleinman pseudopotential derivatives,
+                          and nuclear repulsion (default). Note: In non-variational / model-potential
+                          systems, quantitative agreement with the total energy surface derivative
+                          (dE/dR) omits the Coupled-Perturbed (CPHF / Z-vector) orbital relaxation
+                          response, which is scheduled for Phase 12.
+          - "finite_difference": Central finite differences of active electronic SCF energy surface
+                                 (including full self-consistent wave function response).
           - "empirical": NIST-calibrated pairwise harmonic model (legacy fallback).
         """
         if method == "finite_difference":

@@ -139,13 +139,23 @@ with:
 - $\mathbf{D}_{\varepsilon}^B = \sum_c \mathbf{C}_{\cdot, c}^B (\mathbf{C}_{\cdot, c}^B)^T \varepsilon_c^B$ (energy-weighted projector density)
 - $\bar{\varepsilon}_A = \frac{\sum_{i \in \text{occ}} n_i^A \varepsilon_i^A}{\sum_{i \in \text{occ}} n_i^A}$ (average valence orbital eigenvalue of atom $A$)
 
-### Closed-Form PK Gradient Contraction
-The total PK energy between center $A$ and center $B$ is:
-$$E_{\text{PK}}^{AB} = \operatorname{Tr}(\mathbf{P}_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{BA}) + \operatorname{Tr}(\mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \mathbf{S}_{AB})$$
-Differentiating with respect to $\mathbf{R}_A$ via the product rule and cyclic invariance of the trace:
-$$\mathbf{g}_A^{\text{PK}} = 2 \sum_{B \ne A} \left[ \operatorname{Tr}\left( \mathbf{P}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T \right) + \operatorname{Tr}\left( \mathbf{K}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{P}_B \mathbf{S}_{AB}^T \right) \right]$$
+### Closed-Form PK & Exchange Residual Gradient Contraction
+In `analys.f90`, the two-center PK operator and the exchange residual $\mathbf{V}_6$ enter each atom's energy record with prefactor $0.5$ to prevent double-counting upon summation over all atoms:
+$$E_{\text{PK}}^{AB} = \frac{1}{2} \operatorname{Tr}(\mathbf{P}_A \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{BA}) + \frac{1}{2} \operatorname{Tr}(\mathbf{P}_B \mathbf{S}_{BA} \mathbf{K}_A \mathbf{S}_{AB})$$
+where the full projection and exchange residual operator matrix is:
+$$\mathbf{K}_B = (\bar{\varepsilon}_A \mathbf{D}_{\text{proj}}^B - \mathbf{D}_{\varepsilon}^B) + \mathbf{V}_6^B$$
+Differentiating with respect to $\mathbf{R}_A$ via the product rule on $\mathbf{S} \mathbf{K} \mathbf{S}^T$ produces a factor of 2, yielding the net prefactor $0.5 \times 2 = 1.0$:
+$$\mathbf{g}_A^{\text{PK}} = \sum_{B \ne A} \left[ \operatorname{Tr}\left( \mathbf{P}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{K}_B \mathbf{S}_{AB}^T \right) + \operatorname{Tr}\left( \mathbf{K}_A \nabla_{\mathbf{R}_A} \mathbf{S}_{AB} \mathbf{P}_B \mathbf{S}_{AB}^T \right) \right]$$
 By translational symmetry, $\nabla_{\mathbf{R}_B} \mathbf{S}_{AB} = -\nabla_{\mathbf{R}_A} \mathbf{S}_{AB}$, which guarantees:
 $$\sum_A \mathbf{g}_A^{\text{PK}} = \mathbf{0}$$
+
+### Unrelaxed Analytical Gradient vs. Full SCF Surface (CPHF / Z-Vector Response)
+In standard variational quantum chemistry methods, the orbital coefficients minimize the exact molecular energy functional ($\partial E / \partial \mathbf{C} = \mathbf{0}$), so the wave function response term $\sum \frac{\partial E}{\partial C_{\mu i}} \frac{\partial C_{\mu i}}{\partial \mathbf{R}}$ vanishes identically by Pulay's theorem.
+
+In PHATPSY, the SCF solves atomic Secular equations embedded in fitted spherical model potentials ($V_c^B(r) = \sum_k c_k e^{-\alpha_k r}$), which carry finite RMS fitting errors ($\approx 0.28\text{ Ha}$ on second-row atoms). The total molecular energy evaluated in `analys.f90` includes the fitted potentials alongside exact non-local projections and exchange residuals. Consequently, the energy functional evaluated is not strictly at its variational minimum with respect to the atomic coefficients ($\partial E / \partial \mathbf{C} \ne \mathbf{0}$).
+
+- **Unrelaxed Analytical Gradient (`method="analytical"`):** Evaluates the direct Hellmann-Feynman, Pulay overlap, model potential, and PK force contractions on the converged electronic state. On frozen-density states, this matches numerical finite differences of the exact electronic expectation value to $< 10^{-7}\text{ Ha/Bohr}$ (machine precision). On purely variational systems ($\text{H}_2$), it matches the full SCF surface finite difference to $0.07\%$ ($< 2 \times 10^{-4}\text{ Ha/Bohr}$).
+- **Relaxed SCF Total Energy Surface Derivative ($dE/d\mathbf{R}$):** Numerical finite differences of the self-consistent total energy incorporate both the unrelaxed force and the implicit Coupled-Perturbed (CPHF / Z-vector) orbital relaxation channel $\operatorname{Tr}\left(\frac{\partial \mathbf{P}}{\partial \mathbf{R}} \mathbf{F}\right)$. Implementation of the Z-vector orbital response for non-variational model potential systems is scheduled for Phase 12.
 
 ### Hydrogen Core-Exemption Invariant ($Z=1$)
 Because Hydrogen possesses no core orbitals ($1s$ is valence-like with $\varepsilon_{1s} \approx -0.5\text{ Ha}$), Hydrogen atoms contribute zero projection onto neighboring centers:

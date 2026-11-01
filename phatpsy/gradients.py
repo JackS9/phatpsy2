@@ -430,12 +430,15 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
             # Overlap Pulay force contraction:
             # E_ovlp contrib = - sum_{mu in A, nu in B} 2 * W_{mu, nu} * (dS_{mu, nu} / dR_A)
             W_ab = W[np.ix_(idx_a, idx_b)]
+            za = charges[a - 1]
+            zb = charges[b_atom - 1]
+
             if np.linalg.norm(W_ab) > 1e-12:
                 for k in range(3):
                     g_ovlp_k = -2.0 * np.sum(W_ab * ds_dra[k])
                     grad[a - 1, k] += g_ovlp_k
                     grad[b_atom - 1, k] -= g_ovlp_k
-            elif n_atoms == 2:
+            elif n_atoms == 2 and za <= 1.5 and zb <= 1.5:
                 # Homonuclear diatomic minimal-basis fallback when W_ab is uncoupled (e.g. H2):
                 # When molecular orbital mixing is purely atomic-partitioned, the off-diagonal
                 # energy-weighted density block W_ab vanishes. In this limit, the exchange restoring
@@ -445,7 +448,7 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                 #   K_exch = <1s | V_x^(Slater) | 1s> = -0.72383 * Z_eff (Hartrees), as derived in
                 # Jack A. Smith dissertation (1980), Chapter 3, Table II ("Exchange Eigenvalues
                 # and Interaction Parameters for Diatomic Systems").
-                k_exch = -0.72383 * float(np.mean([charges[a - 1], charges[b_atom - 1]]))
+                k_exch = -0.72383 * float(np.mean([za, zb]))
                 for k in range(3):
                     g_x_k = np.sum((2.0 * s_mol * ds_dra[k]) * k_exch)
                     grad[a - 1, k] += g_x_k
@@ -476,8 +479,6 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
 
                 Pa = P[np.ix_(idx_a, idx_a)]
                 Pb = P[np.ix_(idx_b, idx_b)]
-                za = charges[a - 1]
-                zb = charges[b_atom - 1]
 
                 for k in range(3):
                     # Atom A in potential field of Atom B
@@ -508,13 +509,13 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                     grad[a - 1, k] += g_core_k
                     grad[b_atom - 1, k] -= g_core_k
 
-            # 3b. Phillips-Kleinman (PK) Pseudopotential Derivatives (Phase 11.5)
-            # Evaluates atom-partitioned core-projection operator gradients:
+            # 3b. Phillips-Kleinman (PK) Pseudopotential & Exchange Residual Derivatives (Phase 11.5)
+            # Evaluates atom-partitioned core-projection and exchange-residual operator gradients:
             #   \partial V_PK / \partial R_A = Tr( P_A * (dS_AB/dRa) * K_B * S_AB^T )
-            # where K_B = e_bar_A * D_proj_B - D_eps_B
-            za = charges[a - 1]
-            zb = charges[b_atom - 1]
-
+            # In analys.f90, the two-center PK operator (tpkv2) and exchange residual (tevx2 / V6)
+            # enter the atomic energy record with coefficient 0.5d0 to prevent double-counting.
+            # Differentiating S * K * S^T via product rule yields a factor of 2.
+            # 0.5 * 2 = 1.0 net prefactor.
             if zb > 1.5:
                 try:
                     m2_b = (mstob * (mstob + 1)) // 2
@@ -525,14 +526,15 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                         for s in range(ispin):
                             D_proj_B = _unpack_packed(pkB[:, 3, s], mstob)
                             D_eps_B = _unpack_packed(pkB[:, 4, s], mstob)
+                            V6_B = _unpack_packed(pkB[:, 5, s], mstob)
                             occ_s = occA[:, s]
                             eval_s = evalA[:, s]
                             occ_mask = (occ_s > 1e-4)
                             e_bar_A = float(np.average(eval_s[occ_mask], weights=occ_s[occ_mask])) if np.any(occ_mask) else 0.0
-                            K_B = e_bar_A * D_proj_B - D_eps_B
+                            K_B = (e_bar_A * D_proj_B - D_eps_B) + V6_B
                             Pa_s = P[np.ix_(idx_a, idx_a)]
                             for k in range(3):
-                                g_pk_k = 2.0 * np.trace(Pa_s @ ds_dra[k] @ K_B @ s_mol.T)
+                                g_pk_k = 1.0 * np.trace(Pa_s @ ds_dra[k] @ K_B @ s_mol.T)
                                 grad[a - 1, k] += g_pk_k
                                 grad[b_atom - 1, k] -= g_pk_k
                 except Exception:
@@ -548,14 +550,15 @@ def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] 
                         for s in range(ispin):
                             D_proj_A = _unpack_packed(pkA[:, 3, s], mstoa)
                             D_eps_A = _unpack_packed(pkA[:, 4, s], mstoa)
+                            V6_A = _unpack_packed(pkA[:, 5, s], mstoa)
                             occ_s = occB[:, s]
                             eval_s = evalB[:, s]
                             occ_mask = (occ_s > 1e-4)
                             e_bar_B = float(np.average(eval_s[occ_mask], weights=occ_s[occ_mask])) if np.any(occ_mask) else 0.0
-                            K_A = e_bar_B * D_proj_A - D_eps_A
+                            K_A = (e_bar_B * D_proj_A - D_eps_A) + V6_A
                             Pb_s = P[np.ix_(idx_b, idx_b)]
                             for k in range(3):
-                                g_pk_k = 2.0 * np.trace(K_A @ ds_dra[k] @ Pb_s @ s_mol.T)
+                                g_pk_k = 1.0 * np.trace(K_A @ ds_dra[k] @ Pb_s @ s_mol.T)
                                 grad[a - 1, k] += g_pk_k
                                 grad[b_atom - 1, k] -= g_pk_k
                 except Exception:
