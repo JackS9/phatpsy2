@@ -269,3 +269,66 @@ def test_cli_cube_subcommand():
         assert rc2 == 0
         assert html_path.exists()
         assert "3D Isosurface Envelope" in html_path.read_text(encoding="utf-8")
+
+
+def test_hybrid_orbitals_volumetric_and_visualization():
+    """Tests 3D volumetric evaluation and isosurface extraction of hybridized atomic orbitals."""
+    from phatpsy.basis import get_element_basis
+    from phatpsy.hybrids import build_atom_orbitals
+    from phatpsy.volumetric import compute_hybrid_orbital_grid
+    from phatpsy.visualizer import (
+        generate_hybrid_orbitals_visualization_data,
+        generate_html,
+        HYBRID_GEOMETRY_PRESETS,
+    )
+
+    elem = get_element_basis("O", "DZ")
+    s1 = np.array([0.0, 0.0, 1.0])
+    s2 = np.array([0.0, 1.0, 0.0])
+    orbs = build_atom_orbitals(elem, "up", [s1, s2], [])
+
+    # Evaluate single hybrid orbital on 3D grid
+    grid = compute_hybrid_orbital_grid(orbs[3], elem, spacing=0.25, padding=3.5)
+    assert grid.dimensions[0] > 10
+    assert grid.min_value < -1e-2
+    assert grid.max_value > 1e-2
+
+    # Extract isosurface mesh
+    mesh = grid.extract_isosurface(0.04)
+    assert len(mesh["vertices"]) > 50
+    assert len(mesh["faces"]) > 50
+
+    # Test high-level visualizer generation
+    data = generate_hybrid_orbitals_visualization_data(
+        element="O",
+        basis="DZ",
+        geometry="water",
+        selected_orbitals=[1, 2, 3],
+        isovalue=0.04,
+        spacing=0.25,
+        padding=3.5,
+    )
+    assert data["field_type"] == "orbital"
+    assert len(data["surfaces"]) >= 3  # Dual phase or multiple orbitals
+    assert len(data["atoms"]) == 3     # O + 2 H partner atoms
+    assert len(data["bonds"]) == 2
+
+    # Generate HTML
+    html_out = generate_html(data)
+    assert "Oxygen" in html_out or "O Hybrid" in html_out
+    assert "MOL_DATA" in html_out
+
+    # Test visualize_hybrid_orbitals export
+    from phatpsy.visualizer import visualize_hybrid_orbitals, show_hybrid_orbitals
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_file = Path(tmpdir) / "hybrid_o.html"
+        html_browser = visualize_hybrid_orbitals("O", basis="DZ", geometry="water", output_path=out_file, auto_open=False)
+        assert out_file.exists()
+        assert out_file.stat().st_size > 1000
+        assert "MOL_DATA" in html_browser
+
+    # Test show_hybrid_orbitals with in_browser=True
+    badge = show_hybrid_orbitals("O", basis="DZ", geometry="water", in_browser=True)
+    assert badge is not None
+
+

@@ -8,7 +8,7 @@ Provides color-coded 3D representations of:
 - Symmetry elements: Mirror planes (ISYM=-1), rotation axes (ISYM=N), inversion centers,
   and generator-to-equivalent connector lines.
 """
-from typing import List, Dict, Optional, Union, Any, Tuple
+from typing import List, Dict, Optional, Union, Any, Tuple, Sequence
 
 from pathlib import Path
 import json
@@ -5273,5 +5273,812 @@ def show_eom(
             return HTML(iframe_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_eom() in Jupyter notebooks.")
+
+
+# -----------------------------------------------------------------------------
+# Hybrid Orbitals 3D Visualization
+# -----------------------------------------------------------------------------
+
+HYBRID_GEOMETRY_PRESETS: Dict[str, Dict[str, Any]] = {
+    # -------------------------------------------------------------------------
+    # Predefined Named Hybridization Types (Tinker-Toy Chemistry Model)
+    # -------------------------------------------------------------------------
+    "sp3": {
+        "name": "sp³ Tetrahedral (Td)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.087,
+        "hybridization": "sp3",
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0),
+            np.array([1.0, -1.0, -1.0]) / np.sqrt(3.0),
+            np.array([-1.0, 1.0, -1.0]) / np.sqrt(3.0),
+            np.array([-1.0, -1.0, 1.0]) / np.sqrt(3.0),
+        ],
+        "pi_dirs": [],
+    },
+    "sp2": {
+        "name": "sp² Trigonal Planar (D3h)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.087,
+        "hybridization": "sp2",
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([-0.5, np.sqrt(3.0) / 2.0, 0.0]),
+            np.array([-0.5, -np.sqrt(3.0) / 2.0, 0.0]),
+        ],
+        "pi_dirs": [
+            np.array([0.0, 0.0, 1.0]),
+        ],
+    },
+    "sp": {
+        "name": "sp Linear (Dinfh)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.060,
+        "hybridization": "sp",
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.060},
+            {"element": "H", "bond_length_aa": 1.060},
+        ],
+        "sigma_dirs": [
+            np.array([0.0, 0.0, 1.0]),
+            np.array([0.0, 0.0, -1.0]),
+        ],
+        "pi_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+        ],
+    },
+    "sp3_pyramidal": {
+        "name": "sp³ Trigonal Pyramidal (C3v)",
+        "default_element": "N",
+        "partner_element": "H",
+        "bond_length_aa": 1.012,
+        "hybridization": "sp3_pyramidal",
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.012},
+            {"element": "H", "bond_length_aa": 1.012},
+            {"element": "H", "bond_length_aa": 1.012},
+        ],
+        "sigma_dirs": [
+            np.array([
+                np.cos(phi) * np.sin(np.radians(107.8 / 2.0)),
+                np.sin(phi) * np.sin(np.radians(107.8 / 2.0)),
+                -np.cos(np.radians(107.8 / 2.0)),
+            ])
+            for phi in [0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0]
+        ],
+        "pi_dirs": [],
+    },
+    "sp3_bent": {
+        "name": "sp³ Bent (C2v)",
+        "default_element": "O",
+        "partner_element": "H",
+        "bond_length_aa": 0.958,
+        "hybridization": "sp3_bent",
+        "partners": [
+            {"element": "H", "bond_length_aa": 0.958},
+            {"element": "H", "bond_length_aa": 0.958},
+        ],
+        "sigma_dirs": [
+            np.array([np.sin(np.radians(104.5 / 2.0)), 0.0, np.cos(np.radians(104.5 / 2.0))]),
+            np.array([-np.sin(np.radians(104.5 / 2.0)), 0.0, np.cos(np.radians(104.5 / 2.0))]),
+        ],
+        "pi_dirs": [],
+    },
+    "sp2_bent": {
+        "name": "sp² Trigonal Planar Bent (C2v)",
+        "default_element": "O",
+        "partner_element": "O",
+        "bond_length_aa": 1.28,
+        "hybridization": "sp2_bent",
+        "partners": [
+            {"element": "O", "bond_length_aa": 1.28},
+            {"element": "O", "bond_length_aa": 1.28},
+        ],
+        "sigma_dirs": [
+            np.array([np.cos(np.radians(60.0)), np.sin(np.radians(60.0)), 0.0]),
+            np.array([np.cos(np.radians(60.0)), -np.sin(np.radians(60.0)), 0.0]),
+        ],
+        "pi_dirs": [
+            np.array([0.0, 0.0, 1.0]),
+        ],
+    },
+    "pure_p": {
+        "name": "Pure p Orthogonal (C3v)",
+        "default_element": "P",
+        "partner_element": "H",
+        "bond_length_aa": 1.42,
+        "hybridization": "pure_p",
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.42},
+            {"element": "H", "bond_length_aa": 1.42},
+            {"element": "H", "bond_length_aa": 1.42},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([0.0, 0.0, 1.0]),
+        ],
+        "pi_dirs": [],
+    },
+    # Transition Metal / d-Orbital Hybridizations
+    "dsp2": {
+        "name": "dsp² Square Planar (D4h, Ni/Pt)",
+        "default_element": "Ni",
+        "partner_element": "Cl",
+        "bond_length_aa": 2.20,
+        "hybridization": "dsp2",
+        "partners": [
+            {"element": "Cl", "bond_length_aa": 2.20},
+            {"element": "Cl", "bond_length_aa": 2.20},
+            {"element": "Cl", "bond_length_aa": 2.20},
+            {"element": "Cl", "bond_length_aa": 2.20},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([-1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([0.0, -1.0, 0.0]),
+        ],
+        "pi_dirs": [],
+    },
+    "d2sp3": {
+        "name": "d²sp³ Octahedral (Oh, Fe/Ni)",
+        "default_element": "Ni",
+        "partner_element": "Cl",
+        "bond_length_aa": 2.25,
+        "hybridization": "d2sp3",
+        "partners": [
+            {"element": "Cl", "bond_length_aa": 2.25},
+            {"element": "Cl", "bond_length_aa": 2.25},
+            {"element": "Cl", "bond_length_aa": 2.25},
+            {"element": "Cl", "bond_length_aa": 2.25},
+            {"element": "Cl", "bond_length_aa": 2.25},
+            {"element": "Cl", "bond_length_aa": 2.25},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([-1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([0.0, -1.0, 0.0]),
+            np.array([0.0, 0.0, 1.0]),
+            np.array([0.0, 0.0, -1.0]),
+        ],
+        "pi_dirs": [],
+    },
+    "delta": {
+        "name": "δ Delta Bonding (Cr2 / Mo2 / Ni)",
+        "default_element": "Ni",
+        "partner_element": "Ni",
+        "bond_length_aa": 2.45,
+        "hybridization": "delta",
+        "partners": [
+            {"element": "Ni", "bond_length_aa": 2.45},
+        ],
+        "sigma_dirs": [],
+        "pi_dirs": [],
+        "delta_dirs": [np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])],
+    },
+    # -------------------------------------------------------------------------
+    # Realistic Molecular Presets
+    # -------------------------------------------------------------------------
+    "water": {
+        "name": "Water (H2O, C2v)",
+        "default_element": "O",
+        "partner_element": "H",
+        "bond_length_aa": 0.958,
+        "partners": [
+            {"element": "H", "bond_length_aa": 0.958},
+            {"element": "H", "bond_length_aa": 0.958},
+        ],
+        "sigma_dirs": [
+            np.array([np.sin(np.radians(104.5 / 2.0)), 0.0, np.cos(np.radians(104.5 / 2.0))]),
+            np.array([-np.sin(np.radians(104.5 / 2.0)), 0.0, np.cos(np.radians(104.5 / 2.0))]),
+        ],
+        "pi_dirs": [],
+    },
+    "ammonia": {
+        "name": "Ammonia (NH3, C3v)",
+        "default_element": "N",
+        "partner_element": "H",
+        "bond_length_aa": 1.012,
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.012},
+            {"element": "H", "bond_length_aa": 1.012},
+            {"element": "H", "bond_length_aa": 1.012},
+        ],
+        "sigma_dirs": [
+            np.array([
+                np.cos(phi) * np.sin(np.radians(107.8 / 2.0)),
+                np.sin(phi) * np.sin(np.radians(107.8 / 2.0)),
+                -np.cos(np.radians(107.8 / 2.0)),
+            ])
+            for phi in [0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0]
+        ],
+        "pi_dirs": [],
+    },
+    "methane": {
+        "name": "Methane (CH4, Td)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.087,
+        "partners": [
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+            {"element": "H", "bond_length_aa": 1.087},
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0),
+            np.array([1.0, -1.0, -1.0]) / np.sqrt(3.0),
+            np.array([-1.0, 1.0, -1.0]) / np.sqrt(3.0),
+            np.array([-1.0, -1.0, 1.0]) / np.sqrt(3.0),
+        ],
+        "pi_dirs": [],
+    },
+    "ethylene": {
+        "name": "Ethylene (C2H4, D2h)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.087,
+        "partners": [
+            {"element": "C", "bond_length_aa": 1.339},  # Double-bonded carbon partner
+            {"element": "H", "bond_length_aa": 1.087},  # Hydrogen partner 1
+            {"element": "H", "bond_length_aa": 1.087},  # Hydrogen partner 2
+        ],
+        "sigma_dirs": [
+            np.array([1.0, 0.0, 0.0]),                   # C=C bond along +x
+            np.array([-0.5195, 0.8544, 0.0]),            # C-H1 bond (121.3 deg from C=C)
+            np.array([-0.5195, -0.8544, 0.0]),           # C-H2 bond (121.3 deg from C=C)
+        ],
+        "pi_dirs": [
+            np.array([0.0, 0.0, 1.0]),                   # pi lobe along z
+        ],
+    },
+    "acetylene": {
+        "name": "Acetylene (C2H2, Dinfh)",
+        "default_element": "C",
+        "partner_element": "H",
+        "bond_length_aa": 1.060,
+        "partners": [
+            {"element": "C", "bond_length_aa": 1.203},  # Triple-bonded carbon partner along +z
+            {"element": "H", "bond_length_aa": 1.060},  # Hydrogen partner along -z
+        ],
+        "sigma_dirs": [
+            np.array([0.0, 0.0, 1.0]),                   # C#C bond along +z
+            np.array([0.0, 0.0, -1.0]),                  # C-H bond along -z
+        ],
+        "pi_dirs": [
+            np.array([1.0, 0.0, 0.0]),                   # pi_x
+            np.array([0.0, 1.0, 0.0]),                   # pi_y
+        ],
+    },
+    "diatomic": {
+        "name": "Diatomic (Cinfv)",
+        "default_element": "N",
+        "partner_element": "N",
+        "bond_length_aa": 1.098,
+        "partners": [
+            {"element": "N", "bond_length_aa": 1.098},
+        ],
+        "sigma_dirs": [
+            np.array([0.0, 0.0, 1.0]),
+        ],
+        "pi_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+        ],
+    },
+}
+
+HYBRID_ORBITAL_PALETTES = [
+    {"pos": "#00e5ff", "neg": "#ff9100", "name": "Cyan / Orange"},
+    {"pos": "#a855f7", "neg": "#ec4899", "name": "Purple / Pink"},
+    {"pos": "#10b981", "neg": "#059669", "name": "Emerald / Forest"},
+    {"pos": "#f59e0b", "neg": "#ef4444", "name": "Amber / Crimson"},
+    {"pos": "#3b82f6", "neg": "#1d4ed8", "name": "Blue / Indigo"},
+    {"pos": "#84cc16", "neg": "#65a30d", "name": "Lime / Olive"},
+]
+
+
+def classify_hybrid_orbitals(
+    orbs: List[Any],
+    n_sigma: int,
+    n_pi: int,
+    partner_names: Optional[List[str]] = None,
+    n_delta: int = 0,
+) -> List[str]:
+    """Provides human-readable chemical labels for hybridized atomic orbitals."""
+    labels = []
+    core_count = 0
+    lp_count = 0
+    sigma_count = 0
+    pi_count = 0
+    delta_count = 0
+    for idx, o in enumerate(orbs):
+        occ = sum(o.occno)
+        eps = o.eigval[0] if o.eigval else 0.0
+        if occ == 2.0:
+            if eps < -2.0:
+                core_count += 1
+                labels.append(f"Orbital {idx}: Core {core_count} (occ=2, eps={eps:.3f} Ha)")
+            else:
+                lp_count += 1
+                labels.append(f"Orbital {idx}: Lone Pair {lp_count} (occ=2, eps={eps:.3f} Ha)")
+        elif occ == 1.0:
+            if delta_count < n_delta and any(abs(c[1]) == 2 for c in o.coefficients):
+                delta_count += 1
+                d_type = "dx2-y2" if any(c[1] == 2 for c in o.coefficients) else "dxy"
+                labels.append(f"Orbital {idx}: delta_{delta_count} ({d_type}) bond (occ=1, eps={eps:.3f} Ha)")
+            elif pi_count < n_pi and (sigma_count >= n_sigma or any(abs(c[1]) == 1 for c in o.coefficients)):
+                pi_count += 1
+                labels.append(f"Orbital {idx}: pi_{pi_count} bond (occ=1, eps={eps:.3f} Ha)")
+            else:
+                sigma_count += 1
+                if partner_names and (sigma_count - 1) < len(partner_names):
+                    p_name = partner_names[sigma_count - 1]
+                    labels.append(f"Orbital {idx}: sigma({p_name}) hybrid (occ=1, eps={eps:.3f} Ha)")
+                else:
+                    labels.append(f"Orbital {idx}: sigma_{sigma_count} hybrid (occ=1, eps={eps:.3f} Ha)")
+        else:
+            labels.append(f"Orbital {idx}: Virtual (occ=0, eps={eps:.3f} Ha)")
+    return labels
+
+
+def generate_hybrid_orbitals_visualization_data(
+    element: str = "O",
+    basis: str = "DZ",
+    geometry: Union[str, Tuple[Sequence[Any], Sequence[Any]]] = "water",
+    partners: Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]] = None,
+    selected_orbitals: Optional[Sequence[int]] = None,
+    isovalue: float = 0.04,
+    show_both_phases: bool = True,
+    spacing: float = 0.20,
+    padding: float = 4.5,
+    title: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Constructs 3D isosurface meshes and molecular skeleton data for hybridized atomic orbitals.
+
+    Parameters
+    ----------
+    element : str
+        Chemical element symbol (e.g. 'O', 'N', 'C', 'B', 'F').
+    basis : str
+        Basis set name (e.g. 'DZ', 'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P').
+    geometry : Union[str, Tuple[Sequence[Any], Sequence[Any]]]
+        Geometry preset name ('water', 'ammonia', 'methane', 'ethylene', 'acetylene', 'diatomic')
+        or custom tuple of `(sigma_dirs, pi_dirs)`.
+    partners : Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]]
+        Optional list of bonding partners (one for each sigma bond), where each partner can be:
+        - A string element symbol (e.g. 'C', 'H')
+        - A tuple (element, bond_length_aa) (e.g. ('C', 1.339), ('H', 1.087))
+        - A dict {'element': 'C', 'bond_length_aa': 1.339}
+        If omitted, defaults to the preset's realistic partner list.
+    selected_orbitals : Optional[Sequence[int]]
+        List of 0-based orbital indices to visualize. If None, defaults to the first valence hybrid.
+    isovalue : float
+        Wavefunction isosurface threshold in atomic units (default 0.04).
+    show_both_phases : bool
+        Whether to generate both positive and negative phase lobes (+/- isovalue).
+    spacing : float
+        Grid resolution in Bohr (default 0.20 Bohr).
+    padding : float
+        Spatial boundary padding in Bohr (default 4.5 Bohr).
+    title : Optional[str]
+        Title for the visualization.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Structured JSON dictionary ready for Three.js rendering via generate_html().
+    """
+    from phatpsy.basis import get_element_basis
+    from phatpsy.hybrids import build_atom_orbitals
+    from phatpsy.volumetric import compute_hybrid_orbital_grid
+
+    elem_sym = element.strip().capitalize()
+    elem = get_element_basis(elem_sym, basis)
+
+    if isinstance(geometry, str):
+        preset = HYBRID_GEOMETRY_PRESETS.get(geometry.lower().strip())
+        if preset is None:
+            raise ValueError(f"Unknown geometry preset '{geometry}'. Available: {list(HYBRID_GEOMETRY_PRESETS.keys())}")
+        sigma_dirs = preset["sigma_dirs"]
+        pi_dirs = preset["pi_dirs"]
+        geom_name = preset["name"]
+        default_partners = preset.get("partners")
+    else:
+        sigma_dirs, pi_dirs = geometry
+        geom_name = "Custom Geometry"
+        default_partners = None
+
+    if partners is None:
+        partners = default_partners
+
+    # Parse and normalize partners list for each sigma direction
+    parsed_partners = []
+    r_cov_central = get_covalent_radius_bohr(elem_sym) / BOHR_PER_ANGSTROM
+    for s_idx in range(len(sigma_dirs)):
+        if partners and s_idx < len(partners):
+            p = partners[s_idx]
+            if isinstance(p, dict):
+                p_elem = str(p.get("element", "H")).strip().capitalize()
+                p_len = float(p.get("bond_length_aa", p.get("bond_length", 1.0)))
+            elif isinstance(p, (tuple, list)):
+                p_elem = str(p[0]).strip().capitalize()
+                p_len = float(p[1]) if len(p) > 1 else (r_cov_central + get_covalent_radius_bohr(p_elem) / BOHR_PER_ANGSTROM)
+            elif isinstance(p, str):
+                p_elem = p.strip().capitalize()
+                p_len = round(r_cov_central + get_covalent_radius_bohr(p_elem) / BOHR_PER_ANGSTROM, 3)
+            else:
+                p_elem, p_len = "H", 1.0
+        else:
+            p_elem = "H"
+            p_len = 1.0
+        parsed_partners.append({"element": p_elem, "bond_length_aa": p_len})
+
+    hyb_name = preset.get("hybridization") if isinstance(geometry, str) and preset else None
+    delta_dirs = preset.get("delta_dirs", ()) if isinstance(geometry, str) and preset else ()
+
+    orbs = build_atom_orbitals(
+        elem=elem,
+        spin="up",
+        sigma_dirs=sigma_dirs,
+        pi_dirs=pi_dirs,
+        hybridization=hyb_name,
+        delta_dirs=delta_dirs,
+    )
+    n_orbs = len(orbs)
+    partner_labels = [f"{elem_sym}-{p['element']}" for p in parsed_partners]
+    orbital_labels = classify_hybrid_orbitals(
+        orbs,
+        len(sigma_dirs),
+        len(pi_dirs),
+        partner_names=partner_labels,
+        n_delta=len(delta_dirs),
+    )
+
+    if selected_orbitals is None or len(selected_orbitals) == 0:
+        selected_orbitals = [1] if n_orbs > 1 else [0]
+    selected_orbitals = [i for i in selected_orbitals if 0 <= i < n_orbs]
+    if not selected_orbitals:
+        selected_orbitals = [0]
+
+    # Build atoms and bonds list
+    atom_data = []
+    bond_data = []
+    r_aa = get_covalent_radius_bohr(elem_sym) / BOHR_PER_ANGSTROM
+    atom_data.append({
+        "index": 0,
+        "id": f"{elem_sym}1",
+        "element": elem_sym,
+        "equivalent_to": None,
+        "x": 0.0, "y": 0.0, "z": 0.0,
+        "x_bohr": 0.0, "y_bohr": 0.0, "z_bohr": 0.0,
+        "radius": round(r_aa, 3),
+        "color": get_atom_color(elem_sym),
+        "spin": "up",
+        "fixed": False,
+        "virtual": False,
+        "symmetry": None,
+    })
+
+    # Add partner/ghost atoms along sigma directions with respective elements and bond lengths
+    elem_counts = {elem_sym: 1}
+    for s_idx, (s_dir, partner_spec) in enumerate(zip(sigma_dirs, parsed_partners)):
+        p_elem = partner_spec["element"]
+        bond_len_aa = partner_spec["bond_length_aa"]
+        cnt = elem_counts.get(p_elem, 0) + 1
+        elem_counts[p_elem] = cnt
+        p_id = f"{p_elem}{cnt}"
+
+        p_r_aa = get_covalent_radius_bohr(p_elem) / BOHR_PER_ANGSTROM
+        s_unit = s_dir / np.linalg.norm(s_dir)
+        pos_aa = s_unit * bond_len_aa
+        pos_bohr = pos_aa * BOHR_PER_ANGSTROM
+        p_idx = len(atom_data)
+        atom_data.append({
+            "index": p_idx,
+            "id": p_id,
+            "element": p_elem,
+            "equivalent_to": None,
+            "x": round(float(pos_aa[0]), 4),
+            "y": round(float(pos_aa[1]), 4),
+            "z": round(float(pos_aa[2]), 4),
+            "x_bohr": round(float(pos_bohr[0]), 4),
+            "y_bohr": round(float(pos_bohr[1]), 4),
+            "z_bohr": round(float(pos_bohr[2]), 4),
+            "radius": round(p_r_aa * 0.75, 3),
+            "color": get_atom_color(p_elem),
+            "spin": "down",
+            "fixed": False,
+            "virtual": True,
+            "symmetry": None,
+        })
+        bond_data.append([0, p_idx])
+
+    surfaces = []
+    iso = abs(isovalue)
+    multi_mode = len(selected_orbitals) > 1
+
+    for sel_pos, orb_idx in enumerate(selected_orbitals):
+        orb = orbs[orb_idx]
+        orb_label = orbital_labels[orb_idx]
+        grid = compute_hybrid_orbital_grid(
+            orb, elem, spacing=spacing, padding=padding,
+            title=f"{elem_sym} {orb_label}"
+        )
+
+        palette = HYBRID_ORBITAL_PALETTES[sel_pos % len(HYBRID_ORBITAL_PALETTES)]
+        pos_color = palette["pos"] if multi_mode else "#00e5ff"
+        neg_color = palette["neg"] if multi_mode else "#ff9100"
+
+        # Positive phase
+        mesh_pos = grid.extract_isosurface(+iso)
+        if len(mesh_pos["vertices"]) > 0:
+            surfaces.append({
+                "name": f"{orb_label} (+{iso:.3f})",
+                "isovalue": +iso,
+                "color": pos_color,
+                "opacity": 0.75,
+                "vertices": np.round(mesh_pos["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
+                "faces": mesh_pos["faces"].tolist(),
+                "normals": np.round(mesh_pos["normals"], 3).tolist(),
+                "colors": None,
+            })
+
+        # Negative phase
+        if show_both_phases:
+            mesh_neg = grid.extract_isosurface(-iso)
+            if len(mesh_neg["vertices"]) > 0:
+                surfaces.append({
+                    "name": f"{orb_label} (-{iso:.3f})",
+                    "isovalue": -iso,
+                    "color": neg_color,
+                    "opacity": 0.75,
+                    "vertices": np.round(mesh_neg["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
+                    "faces": mesh_neg["faces"].tolist(),
+                    "normals": np.round(mesh_neg["normals"], 3).tolist(),
+                    "colors": None,
+                })
+
+    disp_title = title or f"{elem_sym} Hybrid Orbitals ({geom_name}, {basis})"
+    return {
+        "title": disp_title,
+        "field_type": "orbital",
+        "isovalue": iso,
+        "has_property": False,
+        "atoms": atom_data,
+        "bonds": bond_data,
+        "surfaces": surfaces,
+        "symmetry_planes": [],
+        "symmetry_axes": [],
+        "inversion_centers": [],
+        "stats": {
+            "total_atoms": len(atom_data),
+            "spin_up": 1,
+            "spin_down": max(0, len(atom_data) - 1),
+            "virtual": max(0, len(atom_data) - 1),
+            "fixed": 0,
+            "surfaces": len(surfaces),
+            "element": elem_sym,
+            "basis": basis,
+            "geometry": geom_name,
+            "total_orbitals": n_orbs,
+            "selected_orbitals": selected_orbitals,
+        },
+        "orbital_labels": orbital_labels,
+    }
+
+
+def visualize_hybrid_orbitals(
+    element: str = "O",
+    basis: str = "DZ",
+    geometry: Union[str, Tuple[Sequence[Any], Sequence[Any]]] = "water",
+    partners: Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]] = None,
+    selected_orbitals: Optional[Sequence[int]] = None,
+    isovalue: float = 0.04,
+    show_both_phases: bool = True,
+    spacing: float = 0.20,
+    padding: float = 4.5,
+    output_path: Optional[Union[str, Path]] = None,
+    auto_open: bool = True,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Renders an interactive 3D WebGL visualization of hybridized atomic orbitals in an external web browser.
+
+    Parameters
+    ----------
+    element : str
+        Chemical element symbol (e.g. 'O', 'N', 'C', 'B', 'F').
+    basis : str
+        Basis set name (e.g. 'DZ', 'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P').
+    geometry : Union[str, Tuple[Sequence[Any], Sequence[Any]]]
+        Geometry preset ('water', 'ammonia', 'methane', 'ethylene', 'acetylene', 'diatomic')
+        or custom tuple `(sigma_dirs, pi_dirs)`.
+    partners : Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]]
+        Optional list of bonding partners (one for each sigma bond).
+    selected_orbitals : Optional[Sequence[int]]
+        List of 0-based orbital indices to visualize.
+    isovalue : float
+        Wavefunction isosurface threshold (default 0.04).
+    show_both_phases : bool
+        Whether to show both positive and negative phases (+/- isovalue).
+    spacing : float
+        Spatial grid spacing in Bohr (default 0.20).
+    padding : float
+        Spatial grid padding in Bohr (default 4.5).
+    output_path : Optional[Union[str, Path]]
+        Path to save the generated HTML file.
+    auto_open : bool
+        If True, automatically launches the default web browser (default True).
+    title : Optional[str]
+        Custom title string.
+
+    Returns
+    -------
+    str
+        Generated HTML content.
+    """
+    data = generate_hybrid_orbitals_visualization_data(
+        element=element,
+        basis=basis,
+        geometry=geometry,
+        partners=partners,
+        selected_orbitals=selected_orbitals,
+        isovalue=isovalue,
+        show_both_phases=show_both_phases,
+        spacing=spacing,
+        padding=padding,
+        title=title,
+    )
+    html_content = generate_html(data, title=data["title"])
+
+    if output_path:
+        out_file = Path(output_path)
+    elif auto_open:
+        temp_dir = Path(tempfile.gettempdir())
+        elem_clean = element.strip().capitalize()
+        out_file = temp_dir / f"phatpsy_hybrid_{elem_clean}.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if auto_open:
+            webbrowser.open(out_file.as_uri())
+
+    return html_content
+
+
+def show_hybrid_orbitals(
+    element: str = "O",
+    basis: str = "DZ",
+    geometry: Union[str, Tuple[Sequence[Any], Sequence[Any]]] = "water",
+    partners: Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]] = None,
+    selected_orbitals: Optional[Sequence[int]] = None,
+    isovalue: float = 0.04,
+    show_both_phases: bool = True,
+    spacing: float = 0.20,
+    padding: float = 4.5,
+    height: int = 600,
+    in_browser: bool = False,
+    title: Optional[str] = None,
+) -> Any:
+    """
+    Displays an interactive 3D WebGL rendering of hybridized atomic orbitals inline in a Jupyter notebook
+    or launches an external browser window.
+
+    Parameters
+    ----------
+    element : str
+        Chemical element symbol (e.g. 'O', 'N', 'C', 'B', 'F').
+    basis : str
+        Basis set name (e.g. 'DZ', 'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P').
+    geometry : Union[str, Tuple[Sequence[Any], Sequence[Any]]]
+        Geometry preset ('water', 'ammonia', 'methane', 'ethylene', 'acetylene', 'diatomic')
+        or custom tuple `(sigma_dirs, pi_dirs)`.
+    partners : Optional[Sequence[Union[str, Dict[str, Any], Tuple[Any, ...]]]]
+        Optional list of bonding partners (one for each sigma bond).
+    selected_orbitals : Optional[Sequence[int]]
+        List of 0-based orbital indices to visualize.
+    isovalue : float
+        Wavefunction isosurface threshold (default 0.04).
+    show_both_phases : bool
+        Whether to show both positive and negative phases (+/- isovalue).
+    spacing : float
+        Spatial grid spacing in Bohr (default 0.20).
+    padding : float
+        Spatial grid padding in Bohr (default 4.5).
+    height : int
+        IFrame viewport height in pixels (default 600).
+    in_browser : bool
+        If True, opens the 3D visualizer in your default web browser instead of inline.
+    title : Optional[str]
+        Custom title string.
+
+    Returns
+    -------
+    IPython.display.HTML
+        Rendered interactive Three.js 3D WebGL viewer or status badge if launched in browser.
+    """
+    if in_browser:
+        visualize_hybrid_orbitals(
+            element=element,
+            basis=basis,
+            geometry=geometry,
+            partners=partners,
+            selected_orbitals=selected_orbitals,
+            isovalue=isovalue,
+            show_both_phases=show_both_phases,
+            spacing=spacing,
+            padding=padding,
+            auto_open=True,
+            title=title,
+        )
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+                from IPython.display import HTML
+                elem_sym = element.strip().capitalize()
+                return HTML(
+                    f'<div style="padding: 10px 16px; background: rgba(56, 189, 248, 0.12); '
+                    f'border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; '
+                    f'color: #38bdf8; font-family: sans-serif; font-size: 13px; display: inline-flex; align-items: center; gap: 8px;">'
+                    f'<span>🌐</span> <span>Opened 3D WebGL visualizer for <b>{elem_sym}</b> in default web browser.</span>'
+                    f'</div>'
+                )
+        except ImportError:
+            return None
+
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            data = generate_hybrid_orbitals_visualization_data(
+                element=element,
+                basis=basis,
+                geometry=geometry,
+                partners=partners,
+                selected_orbitals=selected_orbitals,
+                isovalue=isovalue,
+                show_both_phases=show_both_phases,
+                spacing=spacing,
+                padding=padding,
+                title=title,
+            )
+            html_code = generate_html(data, title=data["title"])
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        raise RuntimeError("IPython is required to use show_hybrid_orbitals() in Jupyter notebooks.")
+
 
 

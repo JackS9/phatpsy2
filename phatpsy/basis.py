@@ -62,6 +62,7 @@ class ElementData:
     functions: List[BasisFunction]
     nvterm: int = 5
     model_potential_terms: List[Tuple[int, int, float, float]] = field(default_factory=list)
+    potential_exponent_scale: Optional[float] = None  # None: engine default ZSCALE * Z**(1/3)
     default_orbitals: List[InitialOrbital] = field(default_factory=list)
 
     @property

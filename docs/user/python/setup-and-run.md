@@ -79,6 +79,24 @@ deck.to_yaml("custom_deck.yaml")
 deck.to_json("custom_deck.json")
 ```
 
+### Directed Hybrid Starting Orbitals (Valence-Bond Seeding)
+
+In standard quantum calculations, atoms initialize in spherical ground-state configurations ($1s^2 2s^2 2p^2$ for C). In molecular systems, atoms enter chemical bonds in directed valence states ($sp^3, sp^2, sp, dsp^2, d^2sp^3$). PHATPSY provides the `phatpsy.hybrids` module to construct on-the-fly directed-hybrid starting orbitals:
+
+```python
+from phatpsy import apply_hybrid_seeds
+
+# 1. Apply seeds from an explicit bond skeleton
+bonds = {(0, 1): 1, (0, 2): 1}  # Atom index pairs -> bond order
+apply_hybrid_seeds(deck, bonds=bonds)
+
+# 2. Or assign predefined named hybridizations to individual atoms
+deck.geometry[0].hybridization = "sp3"
+apply_hybrid_seeds(deck)
+```
+
+The hybrid frame automatically aligns with bonded neighbor directions via the Kabsch algorithm. Supported named types include main-group hybrids (`"sp3"`, `"sp2"`, `"sp"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`) and transition-metal coordination geometries (`"dsp2"`, `"d2sp3"`, `"sd3"`, `"sd"`, `"delta"`).
+
 ### Interactive 3D Preview in Notebooks
 
 Render interactive Three.js views directly inside Jupyter notebook output cells:
@@ -118,6 +136,27 @@ def my_damping_hook(cycle, delta_e, current_damp):
 
 res = driver.run_deck(deck, custom_damping_hook=my_damping_hook)
 ```
+
+### Convergence Reporting & Cycle Limits
+
+A run is reported as converged only when the energy change stays below `control.convergence` for several consecutive cycles. Reaching `control.max_cycles` is never reported as convergence. Inspect the result:
+
+```python
+res = driver.run_deck(deck)
+print(res["converged"], res["stop_reason"], res["cycles_extended"])
+```
+
+`stop_reason` is `"converged"`, or starts with `"not_converged:"` followed by the reason (cycle limit, time limit, oscillation, divergence, or too-slow convergence). When the cycle limit is reached, `ScfExtensionPolicy` decides from the energy history whether the run is still contracting fast enough to be worth extending, or should stop and return `converged=False`. Pass your own policy to change the limits, or enable adaptive potential damping:
+
+```python
+from phatpsy import PhatpsyDriver
+from phatpsy.scf_control import ScfExtensionPolicy
+
+policy = ScfExtensionPolicy(max_extension_cycles=100, adaptive_damping=True)
+driver = PhatpsyDriver(scf_policy=policy)
+```
+
+For systems whose SCF does not settle (some heteronuclear diatomics), two opt-in controls can help; both are off by default and change the numbers they touch: `control.use_grid_fit` and `control.atomic_smearing` (see the YAML key reference).
 
 ---
 

@@ -4,7 +4,7 @@ Modern YAML and JSON input schemas and serializers for PHATPSY calculations.
 Provides two-way conversion between high-level Python/YAML/JSON representations
 and legacy Fortran stdin decks.
 """
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from typing import List, Dict, Tuple, Optional, Any, Union
 from pathlib import Path
 import yaml
@@ -168,6 +168,8 @@ class ControlConfig:
     use_pseudometric: bool = True
     pk_energy: float = 0.0
     use_constrained_fit: bool = False
+    use_grid_fit: bool = False  # Fit each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (see model_potentials).
+    atomic_smearing: float = 0.0  # Fermi-Dirac width in Hartree for atomic orbital occupations; 0 disables smearing.
     use_diis: bool = False
     use_global_fermi: bool = False
     fermi_temperature: Optional[float] = None
@@ -182,6 +184,13 @@ class ControlConfig:
     debug: bool = False
     trace: bool = False
     extra_namelist: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.atomic_smearing < 0.0:
+            raise ValueError(
+                f"atomic_smearing must be >= 0 (Fermi-Dirac width in Hartree; 0 disables), "
+                f"got {self.atomic_smearing!r}"
+            )
 
     def to_dict(self, include_retired: bool = False) -> Dict[str, Any]:
         d = asdict(self)
@@ -200,6 +209,7 @@ class ControlConfig:
             "spin_unrestricted", "max_cycles", "convergence", "time_limit",
             "charge_damp", "charge_accel", "potential_damp", "potential_accel",
             "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",
+            "use_grid_fit", "atomic_smearing",
             "use_diis", "use_global_fermi", "fermi_temperature",
             "use_dynamic_exponents", "exchange_kernel", "exchange_alpha",
             "correlation_kernel", "use_dispersion", "dispersion_model",
@@ -281,6 +291,7 @@ class AtomConfig:
     spin_flip: bool = False  # Backward compatibility fallback
     spin: Optional[str] = None  # "up", "down", or None
     basis: Optional[str] = None  # Atom-specific basis override (e.g. 'ADF-TZ2P')
+    hybridization: Optional[str] = None  # Named hybridization type override (e.g. 'sp3', 'sp2', 'dsp2', 'd2sp3')
     embedded_state: Optional[Any] = None
     starting_orbitals: Optional[List[Any]] = None
 
@@ -320,6 +331,9 @@ class AtomConfig:
                 elif self.spin is None:
                     self.spin = expected_spin
                     self.spin_flip = (expected_spin == "down")
+
+        if self.hybridization is not None:
+            self.hybridization = str(self.hybridization).strip().lower()
 
         # 2. Synchronize legacy SymmetrySpec with modern symmetry_op / symmetry_axis
         if self.symmetry is not None:
@@ -394,6 +408,8 @@ class AtomConfig:
             res["spin"] = "down"
         if self.basis:
             res["basis"] = self.basis
+        if self.hybridization:
+            res["hybridization"] = self.hybridization
         if self.embedded_state:
             if hasattr(self.embedded_state, "to_dict"):
                 res["embedded_state"] = self.embedded_state.to_dict()
@@ -457,6 +473,7 @@ class AtomConfig:
             spin_flip=spin_flip_val,
             spin=spin_val,
             basis=data.get("basis"),
+            hybridization=data.get("hybridization"),
             embedded_state=emb,
             starting_orbitals=starting_orbs,
         )
@@ -469,6 +486,42 @@ class ElementConfig:
     basis: Optional[str] = None  # "SZ", "DZ", etc.
     description: Optional[str] = None
     functions: List[BasisFunction] = field(default_factory=list)
+    potential_exponents: List[float] = field(default_factory=list)  # Model-potential screening exponents (the 1/r term is implicit); empty keeps the built-in set.
+    potential_exponent_scale: Optional[float] = None  # Multiplier applied to potential_exponents; null keeps the engine's Z-based scale (1.12956 * Z**(1/3)), 1.0 means absolute exponents.
+
+    # Fit coefficients need at least two exponentials; the engine arrays hold at most 20 model-potential terms.
+    MIN_POTENTIAL_EXPONENTS = 2
+    MAX_POTENTIAL_EXPONENTS = 19
+
+    def __post_init__(self):
+        if self.potential_exponents:
+            exps = [float(e) for e in self.potential_exponents]
+            if not all(math.isfinite(e) and e > 0.0 for e in exps):
+                raise ValueError(
+                    f"{self.symbol}: potential_exponents must be finite and > 0, got {self.potential_exponents!r}"
+                )
+            if not (self.MIN_POTENTIAL_EXPONENTS <= len(exps) <= self.MAX_POTENTIAL_EXPONENTS):
+                raise ValueError(
+                    f"{self.symbol}: potential_exponents needs between {self.MIN_POTENTIAL_EXPONENTS} and "
+                    f"{self.MAX_POTENTIAL_EXPONENTS} values, got {len(exps)}"
+                )
+            ordered = sorted(exps)
+            if any(b - a <= 1.0e-6 * b for a, b in zip(ordered, ordered[1:])):
+                raise ValueError(
+                    f"{self.symbol}: potential_exponents must be distinct (duplicates make the fit singular), "
+                    f"got {self.potential_exponents!r}"
+                )
+            self.potential_exponents = exps
+        if self.potential_exponent_scale is not None:
+            if not (math.isfinite(self.potential_exponent_scale) and self.potential_exponent_scale > 0.0):
+                raise ValueError(
+                    f"{self.symbol}: potential_exponent_scale must be a finite number > 0, "
+                    f"got {self.potential_exponent_scale!r}"
+                )
+            if not self.potential_exponents:
+                raise ValueError(
+                    f"{self.symbol}: potential_exponent_scale only applies together with potential_exponents"
+                )
 
     def to_dict(self) -> Dict[str, Any]:
         res = {"symbol": self.symbol}
@@ -480,6 +533,10 @@ class ElementConfig:
             res["description"] = self.description
         if self.functions:
             res["functions"] = [f.to_dict() for f in self.functions]
+        if self.potential_exponents:
+            res["potential_exponents"] = list(self.potential_exponents)
+        if self.potential_exponent_scale is not None:
+            res["potential_exponent_scale"] = self.potential_exponent_scale
         return res
 
     @classmethod
@@ -493,7 +550,29 @@ class ElementConfig:
             basis=data.get("basis"),
             description=data.get("description"),
             functions=funcs,
+            potential_exponents=list(data.get("potential_exponents") or []),
+            potential_exponent_scale=data.get("potential_exponent_scale"),
         )
+
+
+def _spin_swapped_orbital(orb: Any) -> Any:
+    """Returns a copy of an initial-orbital record with alpha and beta swapped.
+
+    Swaps ``occno``, ``eigval`` and (for 4-column entries) the alpha/beta
+    expansion coefficients.  Three-column coefficient entries are spin-symmetric
+    and are left unchanged.
+    """
+    kwargs: Dict[str, Any] = {}
+    if orb.occno:
+        kwargs["occno"] = type(orb.occno)((orb.occno[1], orb.occno[0])) if not isinstance(orb.occno, list) else [orb.occno[1], orb.occno[0]]
+    if orb.eigval:
+        kwargs["eigval"] = type(orb.eigval)((orb.eigval[1], orb.eigval[0])) if not isinstance(orb.eigval, list) else [orb.eigval[1], orb.eigval[0]]
+    if orb.coefficients:
+        kwargs["coefficients"] = [
+            (c[0], c[1], c[3], c[2]) + tuple(c[4:]) if len(c) >= 4 else c
+            for c in orb.coefficients
+        ]
+    return replace(orb, **kwargs)
 
 
 def resolve_atom_coordinates(atoms: List[AtomConfig]) -> List[AtomConfig]:
@@ -566,6 +645,12 @@ class CalculationDeck:
 
         self.ensure_atom_ids()
         id_map = {a.id: a for a in self.geometry if a.id}
+
+        if not self.control.spin_unrestricted:
+            # Restricted (closed-shell) decks have a single spin channel: per-atom
+            # up/down labels carry no meaning (the engine ignores QFLIP when QOPEN=F),
+            # so they are optional and not validated.
+            return
 
         n_up = 0
         n_down = 0
@@ -762,6 +847,22 @@ class CalculationDeck:
                 else:
                     resolved[ekey] = lib_elem
 
+        # User-selected model-potential exponents (per element). Always applied to a copy so
+        # shared library ElementData objects are never mutated.
+        for ekey, ed in list(resolved.items()):
+            user_elem = self.elements.get(ed.symbol.strip().capitalize())
+            if user_elem and user_elem.potential_exponents:
+                k = len(user_elem.potential_exponents)
+                # Term 1 is the 1/r point-charge term; the fit refits every coefficient from
+                # cycle 1, so the starting weights are simply uniform over the exponentials.
+                terms = [(0, 0, 0.0, 1.0)] + [(0, 0, float(e), -1.0 / k) for e in user_elem.potential_exponents]
+                resolved[ekey] = replace(
+                    ed,
+                    nvterm=k + 1,
+                    model_potential_terms=terms,
+                    potential_exponent_scale=user_elem.potential_exponent_scale,
+                )
+
         return resolved
 
     def ensure_atom_ids(self) -> None:
@@ -908,6 +1009,7 @@ class CalculationDeck:
         lines.append(f"  QPSMET={'T' if ctrl.use_pseudometric else 'F'}, PKE={ctrl.pk_energy:.4f},")
 
         lines.append(f"  QCSTFT={'T' if ctrl.use_constrained_fit else 'F'},")
+        lines.append(f"  QGRDFT={'T' if ctrl.use_grid_fit else 'F'}, SMEARW={ctrl.atomic_smearing:.6f},")
         lines.append(f"  QGFERM={'T' if ctrl.use_global_fermi else 'F'},")
 
         if ctrl.fermi_temperature is not None:
@@ -972,13 +1074,22 @@ class CalculationDeck:
             mdifat = len(primary_groups)
             lines.append(f"  LATOM='{ed.symbol}', NUCZ={ed.atomic_number},")
             lines.append(f"  DESCR='{ed.description[:40]}',")
-            lines.append(f"  MDIFAT={mdifat}, QMNBAS=T, QTFPOT=T,")
+            custom_terms = bool(ed.model_potential_terms)
+            elem_flags = f"  MDIFAT={mdifat}, QMNBAS=T, QTFPOT={'F' if custom_terms else 'T'},"
+            if custom_terms and ed.potential_exponent_scale is not None:
+                elem_flags += f" RSCALE={ed.potential_exponent_scale:.6f},"
+            lines.append(elem_flags)
             lines.append(" &END")
 
             # Basis functions in exact 2i3, f10.6 format
             for f in ed.functions:
                 lines.append(f"{f.n:3d}{f.l:3d}{f.zeta:10.5f}")
-            lines.append(f"{0:3d}{0:3d}   0.150")
+            if custom_terms:
+                # All NVTERM model-potential terms, 2i3, 2f10.6: lv, mv, exponent, starting coefficient
+                for lv, mv, expn, coef in ed.model_potential_terms:
+                    lines.append(f"{lv:3d}{mv:3d}{expn:10.6f}{coef:10.6f}")
+            else:
+                lines.append(f"{0:3d}{0:3d}   0.150")
 
             # Emit atoms for this element
             for group_idx, grp in enumerate(primary_groups):
@@ -992,9 +1103,12 @@ class CalculationDeck:
                     flags.append("QFIXED=T")
                 if p_atom.virtual:
                     flags.append("QVIRTL=T")
-                if group_idx > 0 and p_atom.is_spin_down and p_atom.spin != primary_groups[0]["primary"].spin:
-                    flags.append("QFLIP=T")
                 has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals)
+                # QFLIP is never combined with custom starting orbitals: the engine skips the
+                # &ATORB cards for a flipped atom, and custom orbitals already carry their spin.
+                if (group_idx > 0 and p_atom.is_spin_down and not has_custom_orbs
+                        and p_atom.spin != primary_groups[0]["primary"].spin):
+                    flags.append("QFLIP=T")
                 if group_idx > 0 and has_custom_orbs:
                     flags.append("QDFVEC=T")
                 flag_str = (", " + ", ".join(flags)) if flags else ""
@@ -1010,6 +1124,17 @@ class CalculationDeck:
                 # Initial orbital cards for the primary atom (overridden by embedded_state if present)
                 if group_idx == 0 or has_custom_orbs:
                     orbitals_to_use = ed.default_orbitals
+                    # The library's default orbitals are up-polarized (alpha excess).
+                    # A spin-down primary atom that uses them must start with alpha and
+                    # beta swapped; group-0 atoms cannot use QFLIP because the engine
+                    # skips the &ATORB cards when QFLIP is set.  Atoms in later groups
+                    # (group_idx > 0) are flipped relative to group 0 via QFLIP above.
+                    swap_default_spin = (
+                        group_idx == 0 and p_atom.is_spin_down
+                        and not p_atom.embedded_state and not p_atom.starting_orbitals
+                    )
+                    if swap_default_spin:
+                        orbitals_to_use = [_spin_swapped_orbital(o) for o in ed.default_orbitals]
                     if p_atom.embedded_state:
                         emb = p_atom.embedded_state
                         if isinstance(emb, dict):

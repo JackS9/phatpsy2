@@ -490,6 +490,11 @@ contains
 
     iorder(1:nvec) = 0
     qnword = .false.
+    ! JMAX is always assigned before it is read (the free-vector search below
+    ! assigns it on its first free candidate); initialize it explicitly so the
+    ! compiler's flow-insensitive -Wmaybe-uninitialized warning stays quiet and
+    ! cannot mask a genuine uninitialized-variable warning elsewhere.
+    jmax = 0
 
     do i = 1, nvec
       sii = ZERO

@@ -82,6 +82,32 @@ module state
               (APARM(5), CACCEL), (APARM(6), RANGE),  &
               (APARM(7), PKSCAL), (APARM(8), PKE)
 
+  ! SCF termination status, set by contrl_step_aloop_and_ewmo when the
+  ! cycle loop signals "done". The driver must consult these rather than
+  ! treating "done" as "converged": reaching the cycle or time limit is NOT
+  ! convergence.
+  !   SCF_STOP_REASON: 0 = still running, 1 = converged (|dE| < CONVRG for
+  !                    SCF_NCONV_REQ consecutive cycles), 2 = cycle limit
+  !                    reached, 3 = time limit reached
+  !   SCF_NCONSEC:     current run of consecutive cycles with |dE| < CONVRG.
+  !                    A single small |dE| is NOT convergence: an oscillating
+  !                    energy passes through dE = 0 at every turning point.
+  !   SCF_NCONV_REQ:   consecutive cycles required (default 3).
+  integer(int32) :: SCF_STOP_REASON = 0
+  integer(int32) :: SCF_NCONSEC = 0
+  integer(int32) :: SCF_NCONV_REQ = 3
+  real(real64)   :: SCF_TEDIFF = 0.0d0
+
+  ! Optional model-potential / atomic-occupation stabilizers (both OFF by default).
+  !   QGRDFT: fit the atom's spherically averaged Coulomb potential on a radial
+  !           grid as a convex mixture of screening exponentials
+  !           (see fit_screening_simplex in analys.f90).
+  !   SMEARW: Fermi-Dirac width in Hartree for the atomic orbital occupations,
+  !           replacing overlap-tracked integer-like occupations (0 = off;
+  !           see run_scf_element in scf.f90).
+  logical(kind=1) :: QGRDFT = .false.
+  real(real64)    :: SMEARW = 0.0d0
+
   !---------------------------------------------------------------------
   ! 2. Secondary COMMON Blocks (BPARMS, IODATA, DAUNIT, STATE, ENERGY,
   !    CHARGS, MODPOT, PUNCHK, TIMES, NDXTEI, TABLES, DYNAMC, FIXED)
@@ -347,6 +373,8 @@ contains
     MXITER = 20;     MXCYCL = 1;      TIMEND = 9.0e4_real32
     EXPMIN = -60.0d0; THETA = 1.0d5;  CONVRG = 1.0d-3
     CDAMP  = 1.0d0;  CACCEL = 1.0d0
+    SCF_STOP_REASON = 0; SCF_TEDIFF = 0.0d0; SCF_NCONSEC = 0
+    QGRDFT = .false.; SMEARW = 0.0d0
     WGT0   = 1.0d0;  WGT1   = 1.0d0;  WGT2   = 1.0d0
     WGTC   = 1.0d0;  WGTV   = 1.0d0
     VDAMP  = 0.0d0;  VACCEL = 1.0d0

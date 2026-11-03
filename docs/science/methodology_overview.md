@@ -99,12 +99,24 @@ For open-shell surface clusters, polar diatomics, and chemisorption complexes:
 
 ---
 
-## 6. Localized Valence-Bond (LVB) Alternating Spin
+## 6. Localized Valence-Bond (LVB) Orbitals & Directed Hybridization
 
+### A. Alternating Spin on Bipartite Graphs
 For chemisorption and metal clusters with radical character but overall zero net molecular spin:
 - Orbitals are treated in an Unrestricted Hartree-Fock (UHF) framework with local spin polarization.
 - Alpha ($\alpha$) and Beta ($\beta$) spins are assigned to alternating atomic centers (`QFLIP=T` or `spin="down"`).
 - Automated via a bipartite graph solver in [`phatpsy/spin.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/spin.py), yielding decoupled electron pairs with zero net spin ($S_z = 0$).
+
+### B. Directed Hybrid Starting Orbital Seeding ($sp^n, dsp^2, d^2sp^3, \delta$)
+To accelerate SCF convergence and break symmetry towards physical chemical bond topologies, PHATPSY supports explicit directed-hybrid valence-bond starting orbitals ([`phatpsy/hybrids.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/hybrids.py)):
+- **Hybrid Registry:** Predefined standard hybridizations for both main-group ($sp, sp^2, sp^3$, bent, pyramidal, pure $p$) and transition-metal systems ($dsp^2$ square planar, $d^2sp^3 / sp^3d^2$ octahedral, $dsp^3$ trigonal bipyramidal, $sd^3$ tetrahedral, $sd, \delta$).
+- **$SO(3)$ Kabsch Alignment:** Canonical hybrid geometry templates (e.g. ideal tetrahedral angles $\arccos(-1/3) \approx 109.47^\circ$, trigonal planar $120^\circ$) are dynamically rotated into molecular alignment by solving the Kabsch problem (SVD of the cross-covariance matrix $\mathbf{H} = \sum_k \mathbf{p}_k \mathbf{q}_k^T = \mathbf{U} \mathbf{\Sigma} \mathbf{V}^T$) targeting actual neighbor bond vectors:
+  $$\mathbf{R} = \mathbf{V} \begin{pmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & \det(\mathbf{V}\mathbf{U}^T) \end{pmatrix} \mathbf{U}^T$$
+- **Quadrupolar $d$-Orbital Rotation:** Cartesian $d$-orbital basis functions ($d_{z^2}, d_{xz}, d_{yz}, d_{x^2-y^2}, d_{xy}$) transform under 3D spatial rotation $\mathbf{R}$ according to rank-2 spherical tensor contraction:
+  $$D^{(2)}_{ba}(\mathbf{R}) = 2\,\operatorname{Tr}\left(\mathbf{Q}_b\, \mathbf{R} \mathbf{Q}_a \mathbf{R}^T\right)$$
+  where $\mathbf{Q}_a$ are the symmetric traceless representation matrices of the $d$-orbitals.
+- **$\delta$-Bonding Channels:** In addition to $\sigma$ and $\pi$ channels, unhybridized face-to-face or side-by-side transition metal orbitals ($d_{x^2-y^2}, d_{xy}$) form $\delta$-bonding pairs with four nodal planes intersecting along the internuclear axis.
+- **Skeletal & Named Assignment:** Hybrid configurations can be inferred automatically from bonded neighbors or specified directly in YAML decks (`hybridization: "sp3"` or `"dsp2"`) and Python decks (`AtomConfig(..., hybridization="dsp2")`).
 
 ---
 

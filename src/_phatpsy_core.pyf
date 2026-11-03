@@ -2,8 +2,8 @@ python module _phatpsy_core
     interface
         module state
             use iso_fortran_env, only: real64, real32, int32
-            integer(kind=int32) :: natom, nelem, norbt, mstot, ncycl
-            real(kind=real64) :: tmole, totke, totpe, zzpot, deltae, cdamp, vdamp
+            integer(kind=int32) :: natom, nelem, norbt, mstot, ncycl, mxcycl, scf_stop_reason, scf_nconsec, scf_nconv_req
+            real(kind=real64) :: tmole, totke, totpe, zzpot, deltae, cdamp, vdamp, convrg, scf_tediff
             logical(kind=1) :: qcheck, qatom, qopen, qfirst, qlast, qprint, qewmo, qdebug, qtrace
             subroutine init_block_data_and_defaults
             end subroutine init_block_data_and_defaults

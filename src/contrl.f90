@@ -290,11 +290,35 @@ contains
       if (QPRINT) write(IW, 20500) TOTKE, merge(-(TMOLE - TOTKE)/TOTKE, 0.0d0, abs(TOTKE) > 1.0d-12), &
                                    mol_ws%last_pk_penalty, mol_ws%last_rms_coulomb, mol_ws%last_rms_exchange, CHTRAN
 
-      if (QLAST) then
-        converged_or_done = .true.
-        return
+      ! Convergence requires |dE| < CONVRG for SCF_NCONV_REQ consecutive cycles.
+      ! A single small |dE| is not convergence: an oscillating energy passes
+      ! through dE = 0 at every turning point.
+      if (TEDIFF < CONVRG) then
+        SCF_NCONSEC = SCF_NCONSEC + 1
+      else
+        SCF_NCONSEC = 0
       end if
-      if (TEDIFF < CONVRG) QLAST = .true.
+
+      if (QLAST) then
+        SCF_TEDIFF = TEDIFF
+        if (SCF_NCONSEC >= SCF_NCONV_REQ) then
+          SCF_STOP_REASON = 1
+          converged_or_done = .true.
+          return
+        else if (NREMCY <= 1) then
+          SCF_STOP_REASON = 2
+          converged_or_done = .true.
+          return
+        else if (TIMREM < REALS(2) * CYCTIM) then
+          SCF_STOP_REASON = 3
+          converged_or_done = .true.
+          return
+        end if
+        ! The final confirmation cycle broke the convergence streak and no
+        ! limit was hit: keep iterating.
+        QLAST = .false.
+      end if
+      if (SCF_NCONSEC >= SCF_NCONV_REQ) QLAST = .true.
     end if
 
     if (NREMCY <= 1) QLAST = .true.
@@ -410,6 +434,7 @@ contains
                       THETA,  RANGE,  EXPMIN, CONVRG, CDAMP,  CACCEL, NCREAT, &
                       NANNIH, ICREAT, IANNIH, QTRANS, QPLOT,  QCORE,  QPRINT, &
                       QAUDMP, QTRACE, QCSTFT, QGFERM, QDYNEX, QDFTEX, &
+                      QGRDFT, SMEARW, &
                       EXCH_TYPE, EXCH_ALPHA, CORR_TYPE
 
     inquire(unit=9, opened=is_open)
@@ -432,6 +457,8 @@ contains
     QGFERM     = .false.
     QDYNEX     = .false.
     QDFTEX     = .false.
+    QGRDFT     = .false.
+    SMEARW     = 0.0d0
     EXCH_TYPE  = 1
     EXCH_ALPHA = 2.0d0 / 3.0d0
     CORR_TYPE  = 0

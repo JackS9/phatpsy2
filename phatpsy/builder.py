@@ -353,29 +353,35 @@ def build_molecule(
             for a in atoms:
                 a.spin = spins
 
-    # Enforce Requirement 1: Explicit per-atom spins, no None
-    for a in atoms:
-        if a.spin not in ("up", "down"):
-            raise ValueError(
-                f"Atom '{a.id or a.element}' has unassigned or invalid spin ({a.spin!r}). "
-                f"Every atom in a built deck must carry an explicit spin ('up' or 'down'). "
-                f"None anywhere in the spin path is a hard error."
-            )
-
-    # Enforce Requirement 2: Net spin check (n_up - n_down == net_spin)
-    n_up = sum(1 for a in atoms if a.spin == "up")
-    n_down = sum(1 for a in atoms if a.spin == "down")
-    calc_net = n_up - n_down
-
-    if net_spin is None:
-        resolved_net_spin = calc_net
+    # Restricted (closed-shell) decks have one spin channel; per-atom labels are optional
+    # and ignored by the engine.
+    restricted = (not control.spin_unrestricted) if control is not None else (not spin_unrestricted)
+    if restricted and all(a.spin is None for a in atoms):
+        resolved_net_spin = 0 if net_spin is None else net_spin
     else:
-        if calc_net != net_spin:
-            raise ValueError(
-                f"Net spin mismatch in build_molecule: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
-                f"but net_spin={net_spin} was requested."
-            )
-        resolved_net_spin = net_spin
+        # Enforce Requirement 1: Explicit per-atom spins, no None
+        for a in atoms:
+            if a.spin not in ("up", "down"):
+                raise ValueError(
+                    f"Atom '{a.id or a.element}' has unassigned or invalid spin ({a.spin!r}). "
+                    f"Every atom in a built deck must carry an explicit spin ('up' or 'down'). "
+                    f"None anywhere in the spin path is a hard error."
+                )
+
+        # Enforce Requirement 2: Net spin check (n_up - n_down == net_spin)
+        n_up = sum(1 for a in atoms if a.spin == "up")
+        n_down = sum(1 for a in atoms if a.spin == "down")
+        calc_net = n_up - n_down
+
+        if net_spin is None:
+            resolved_net_spin = calc_net
+        else:
+            if calc_net != net_spin:
+                raise ValueError(
+                    f"Net spin mismatch in build_molecule: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
+                    f"but net_spin={net_spin} was requested."
+                )
+            resolved_net_spin = net_spin
 
     if embedded_atoms:
         for idx, atom in enumerate(atoms):

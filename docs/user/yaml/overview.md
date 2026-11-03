@@ -1,4 +1,4 @@
-# YAML Input Format
+1# YAML Input Format
 
 PHATPSY 2.0 uses structured YAML (or JSON) calculation decks to define chemical systems, basis sets, and numerical control parameters. This replaces legacy FORTRAN 66 fixed-format punch cards and Namelist inputs with modern, validated schemas.
 
@@ -40,12 +40,14 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 
 | Key | Type | Default | Scientific Meaning & Tuning |
 | :--- | :--- | :--- | :--- |
-| `spin_unrestricted` | `bool` | `true` | Enables Unrestricted Hartree-Fock (UHF). Solves separate $\alpha$ and $\beta$ Fock equations. |
+| `spin_unrestricted` | `bool` | `true` | Enables Unrestricted Hartree-Fock (UHF). Solves separate $\alpha$ and $\beta$ Fock equations. Setting it to `false` runs a restricted closed-shell calculation: per-atom `spin` labels are optional and ignored. |
 | `max_cycles` | `int` | `100` | Maximum number of SCF iterations before aborting. |
 | `convergence` | `float` | `1.0e-4` | Convergence threshold on root-mean-square energy change ($\Delta E_h$). |
 | `time_limit` | `float` | `360.0` | Maximum allowed calculation wall time in seconds. |
 | `use_diis` | `bool` | `false` | Enables Pulay Direct Inversion in the Iterative Subspace (DIIS) charge density acceleration. |
 | `use_constrained_fit` | `bool` | `false` | Enforces exact nuclear cusp and asymptotic conditions on model potential fits. |
+| `use_grid_fit` | `bool` | `false` | Fits each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (weights in $[0,1]$ summing to 1), so charge conservation and the nuclear cusp hold exactly and the fitted coefficients cannot cancel. See `docs/science/model_potentials.md`, Section 5. |
+| `atomic_smearing` | `float` | `0.0` | Fermi-Dirac width in Hartree for the atomic orbital occupations. `0` keeps the overlap-tracked occupations; a small positive value (for example `1.0e-3`) makes the occupations a smooth function of the eigenvalues, which removes run-to-run variation in some heteronuclear systems. |
 | `use_dynamic_exponents` | `bool` | `false` | Optimizes STO Slater radial exponents self-consistently against the molecular field. |
 | `use_global_fermi` | `bool` | `false` | Enables finite-temperature Fermi-Dirac orbital occupation smearing for metallic clusters. |
 | `fermi_temperature` | `float` | `null` | Electron temperature (Kelvin) for Fermi smearing when enabled. |
@@ -84,6 +86,10 @@ The `geometry:` key contains a list of atomic specifications. Each entry defines
 * **`spin`** (`str` or `int`, optional): Initial spin projection for the atom:
   * Accepts: `up`, `down`, `alpha`, `beta`, `+1`, `-1`, or `None`.
   * Used by the local valence bond (LVB) starting projector.
+* **`hybridization`** (`str`, optional): Predefined directed-hybrid valence state type. Overrides automatic skeletal hybridization perception. Options include:
+  * Main-group ($s + p$): `"s"`, `"sp"`, `"sp2"`, `"sp2_bent"`, `"sp3"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`.
+  * Transition-metal ($s + p + d$): `"dsp2"` (square planar), `"d2sp3"` (octahedral), `"dsp3"` (trigonal bipyramidal), `"sd3"`, `"sd"`, `"delta"` ($\delta$-bonding pair).
+  The local hybrid frame automatically rotates via the Kabsch algorithm to maximize directional overlap with bonded neighbors.
 
 ### Special Center Roles
 
@@ -180,6 +186,28 @@ elements:
         l: 1
         zeta: 1.5679   # 2p
 ```
+
+### Selecting the Model-Potential Exponents
+
+Each atom's spherically averaged Coulomb potential is represented as a $1/r$ term plus a sum of screening exponentials (see `docs/science/model_potentials.md`). By default every element uses the built-in exponent set. To choose a different set for an element, list the exponentials in `potential_exponents`:
+
+```yaml
+elements:
+  C:
+    symbol: C
+    potential_exponents: [0.45, 0.9, 1.8, 3.6, 7.2]
+  O:
+    symbol: O
+    basis: DZ        # keeps the built-in exponent set
+```
+
+* The point-charge $1/r$ term is always present and must **not** be listed; `potential_exponents` holds only the exponentials.
+* The listed values are multiplied by the engine's Z-based length scale, $1.12956\,Z^{1/3}$, so one set can be reused across elements. To give absolute exponents (in inverse bohr), also set `potential_exponent_scale: 1.0`; any other positive value replaces the Z-based scale by that multiplier.
+* Between 2 and 19 distinct, positive values are accepted. Starting weights are uniform; every coefficient is refit from the first SCF cycle.
+* The selection applies to the named element only (all of its basis variants), and it never alters the built-in library.
+
+!!! note "Which set to use"
+    The default set is unchanged. How to choose an exponent set is not settled: in studies on first-row atoms the default fits the atomic screening function noticeably worse than a Z-scaled even-tempered set, but a better fit did not by itself make the SCF converge (see `ROADMAP.md`). Report the exponent set together with any result that uses a non-default one.
 
 ---
 

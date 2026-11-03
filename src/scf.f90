@@ -52,6 +52,48 @@ contains
     deallocate(a_full, work)
   end subroutine solve_orthonormal_fock
 
+  !---------------------------------------------------------------------
+  ! SMEAR_ATOMIC_OCCUPATIONS: replace the occupation numbers of one spin
+  ! channel by Fermi-Dirac occupations f_i = 1 / (1 + exp((eps_i - mu)/w)),
+  ! with the chemical potential mu chosen (bisection) so that the channel keeps
+  ! its electron count sum(occ). Occupation numbers are per spin orbital, so
+  ! 0 <= f_i <= 1 for both the open- and closed-shell cases.
+  !---------------------------------------------------------------------
+  subroutine smear_atomic_occupations(eps, occ, norb, width)
+    integer(int32), intent(in)    :: norb
+    real(real64),   intent(in)    :: eps(norb), width
+    real(real64),   intent(inout) :: occ(norb)
+
+    real(real64)   :: nel, mu_lo, mu_hi, mu_mid, fsum
+    integer(int32) :: ib, io
+
+    nel   = sum(occ(1:norb))
+    mu_lo = minval(eps(1:norb)) - 5.0d0
+    mu_hi = maxval(eps(1:norb)) + 5.0d0
+    mu_mid = 0.5d0 * (mu_lo + mu_hi)
+    do ib = 1, 200
+      mu_mid = 0.5d0 * (mu_lo + mu_hi)
+      fsum = 0.0d0
+      do io = 1, norb
+        fsum = fsum + fermi_factor(eps(io), mu_mid, width)
+      end do
+      if (fsum > nel) then
+        mu_hi = mu_mid
+      else
+        mu_lo = mu_mid
+      end if
+    end do
+    do io = 1, norb
+      occ(io) = fermi_factor(eps(io), mu_mid, width)
+    end do
+  end subroutine smear_atomic_occupations
+
+  pure function fermi_factor(e, mu, width) result(f)
+    real(real64), intent(in) :: e, mu, width
+    real(real64)             :: f
+    f = 1.0d0 / (1.0d0 + exp(max(-200.0d0, min(200.0d0, (e - mu) / width))))
+  end function fermi_factor
+
   subroutine run_scf_element()
     ! Local allocatable workspaces (formerly CORE(IC(1))..CORE(IC(35)) in contrl.f)
     integer(int32), allocatable :: n(:), l(:), lv(:), mv(:), iorder(:,:)
@@ -243,6 +285,9 @@ contains
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
+            ! Optional Fermi-Dirac atomic occupations (SMEARW > 0): smooth in the
+            ! eigenvalues, so tiny eigensolver noise cannot flip an occupation.
+            if (SMEARW > 0.0d0) call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, SMEARW)
             oldvec(:, :, isp) = stevec(:, :, isp)
 
             call DMPAB(tranx(1,1,isp), MSTO, MSTO, MSTO, MSTO, onevec, MSTO, &
@@ -271,7 +316,9 @@ contains
             if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
             call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
                         stovl, MSTO, M2STO, NORB, qnword)
-            if (qnword) then
+            ! With smeared occupations the occupation follows the energy ordering,
+            ! so no overlap-based reordering of occupation numbers is wanted.
+            if (qnword .and. SMEARW <= 0.0d0) then
               if (any(abs(occ(1:NORB, isp) - occ(iorder(1:NORB, isp), isp)) > 1.0d-8)) then
                 call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
               else

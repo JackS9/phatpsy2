@@ -117,7 +117,35 @@ show_grid(
 
 ---
 
-## 5. Choosing Grid Parameters
+## 5. Visualizing Hybridized Atomic Orbitals
+
+You can render 3D dual-phase volumetric isosurfaces for hybridized atomic orbitals constructed on the fly:
+
+```python
+from phatpsy import show_hybrid_orbitals
+
+# Render dual-phase (+/-) isosurface for a tetrahedral sp3 hybrid
+show_hybrid_orbitals(
+    element="C",
+    basis="DZ",
+    geometry="methane",
+    selected_orbitals=[1],
+    isovalue=0.04,
+    height=550,
+)
+```
+
+To open the interactive viewer directly in an external web browser rather than inline in a notebook:
+
+```python
+from phatpsy import visualize_hybrid_orbitals
+
+visualize_hybrid_orbitals(element="Ni", basis="ADF-DZ", geometry="dsp2", auto_open=True)
+```
+
+---
+
+## 6. Choosing Grid Parameters
 
 * **`spacing` (Grid Resolution):**
   * `0.25` Bohrs ($\approx 0.13\text{ \AA}$): Fast previews and interactive visualization.

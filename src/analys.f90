@@ -3,6 +3,7 @@ module analys
   use state
   use lowdin,   only: run_lowdin
   use modelpot, only: eval_atomic_dipole
+  use exchange_dft, only: eval_atomic_rho
   implicit none
   private
   public :: run_analys, run_chgan, USE_LAPACK_FIT
@@ -11,6 +12,197 @@ module analys
   logical, save :: USE_LAPACK_FIT = .false. ! Set .true. to use LAPACK DGELSD SVD solver
 
 contains
+
+  !---------------------------------------------------------------------
+  ! NNLS_SMALL: Lawson-Hanson non-negative least squares, min ||A x - b||,
+  ! x >= 0, for small n (<= ~20). Passive-set sub-problems are solved with
+  ! the normal equations (DSYSV).
+  !---------------------------------------------------------------------
+  subroutine nnls_small(a, m, n, b, x, ok)
+    integer(int32), intent(in)  :: m, n
+    real(real64),   intent(in)  :: a(m, n), b(m)
+    real(real64),   intent(out) :: x(n)
+    logical,        intent(out) :: ok
+
+    real(real64)   :: w(n), z(n), ata(n, n), atb(n), sub(n, n), rhs(n), wk(max(1, 4 * n))
+    real(real64)   :: alpha, wmax, tol, tmp
+    integer(int32) :: iter, jmax, ip, jp, np, info, i, j, ipiv(n), inner
+    logical        :: passive(n)
+    integer(int32) :: idx(n)
+
+    ok = .true.
+    x = 0.0d0
+    passive = .false.
+    ata = matmul(transpose(a), a)
+    atb = matmul(transpose(a), b)
+    tol = 1.0d-12 * max(1.0d0, maxval(abs(atb)))
+
+    do iter = 1, 5 * n + 10
+      w = atb - matmul(ata, x)
+      jmax = 0
+      wmax = tol
+      do j = 1, n
+        if (.not. passive(j) .and. w(j) > wmax) then
+          wmax = w(j)
+          jmax = j
+        end if
+      end do
+      if (jmax == 0) exit
+      passive(jmax) = .true.
+
+      do inner = 1, 5 * n + 10
+        np = 0
+        do j = 1, n
+          if (passive(j)) then
+            np = np + 1
+            idx(np) = j
+          end if
+        end do
+        sub = 0.0d0
+        rhs = 0.0d0
+        do ip = 1, np
+          rhs(ip) = atb(idx(ip))
+          do jp = 1, np
+            sub(ip, jp) = ata(idx(ip), idx(jp))
+          end do
+        end do
+        call DSYSV('U', np, 1, sub, n, ipiv, rhs, n, wk, size(wk), info)
+        if (info /= 0) then
+          ok = .false.
+          return
+        end if
+        z = 0.0d0
+        do ip = 1, np
+          z(idx(ip)) = rhs(ip)
+        end do
+        if (all(z(idx(1:np)) > 0.0d0)) then
+          x = z
+          exit
+        end if
+        alpha = huge(1.0d0)
+        do ip = 1, np
+          i = idx(ip)
+          if (z(i) <= 0.0d0) then
+            tmp = x(i) / (x(i) - z(i))
+            if (tmp < alpha) alpha = tmp
+          end if
+        end do
+        x = x + alpha * (z - x)
+        do ip = 1, np
+          i = idx(ip)
+          if (x(i) <= 1.0d-14) then
+            x(i) = 0.0d0
+            passive(i) = .false.
+          end if
+        end do
+      end do
+    end do
+  end subroutine nnls_small
+
+  !---------------------------------------------------------------------
+  ! FIT_SCREENING_SIMPLEX: fits the atom's spherically averaged electronic
+  ! Coulomb potential as
+  !     V(r) = (N/r) * [ 1 - sum_k w_k exp(-zeta_k r) ],  w_k >= 0, sum_k w_k = 1
+  ! against the potential obtained by Poisson integration of the current
+  ! density on a logarithmic radial grid, instead of against a handful of
+  ! orbital expectation values. Charge conservation (far field N/r) and the
+  ! nuclear cusp (finite potential at r = 0) hold exactly by construction, and
+  ! every weight lies in [0, 1], so the fitted coefficients cannot cancel one
+  ! another. In model-potential coefficients: vcoef(1) = N and
+  ! vcoef(k) = -N * w(k-1) for k = 2..nvterm.
+  !
+  ! Fit measure: weights h * r * exp(-r/10) on the grid (a uniform-in-r measure
+  ! on the screening function, tapered beyond ~10 bohr), a heavily weighted
+  ! sum-to-one row, and a tiny ridge toward a uniform mixture so the solution is
+  ! unique when exponentials are nearly collinear.
+  !---------------------------------------------------------------------
+  subroutine fit_screening_simplex(vexp, vcoef, sumocc, nvterm, stevec, occ, ok)
+    integer(int32), intent(in)    :: nvterm
+    real(real64),   intent(in)    :: vexp(nvterm), sumocc
+    real(real64),   intent(in)    :: stevec(MSTO, NORB, ISPIN), occ(NORB, ISPIN)
+    real(real64),   intent(inout) :: vcoef(nvterm)
+    logical,        intent(out)   :: ok
+
+    integer(int32), parameter :: NG = 400
+    real(real64),   parameter :: FOURPI = 12.566370614359172d0, R0 = 1.0d-4, RMAX = 40.0d0
+    real(real64)   :: rg(NG), rho(NG, ISPIN), drho(NG, ISPIN), rtot(NG)
+    real(real64)   :: stden(M2STO, ISPIN), f(NG), f2(NG), qcum(NG), ucum(NG), sg(NG)
+    real(real64)   :: h, ngrid, scale, ridge, trace_ata, wsum, sqw
+    real(real64), allocatable :: a(:,:), bb(:), x(:), wt(:)
+    integer(int32) :: g, k, nk, isp, m
+
+    ok = .false.
+    nk = nvterm - 1
+    if (nk < 1 .or. sumocc <= 0.0d0) return
+
+    h = log(RMAX / R0) / real(NG - 1, real64)
+    do g = 1, NG
+      rg(g) = R0 * exp(h * real(g - 1, real64))
+    end do
+
+    do isp = 1, ISPIN
+      call DENMAT(stden(1, isp), stevec(1, 1, isp), occ(1, isp), MSTO, M2STO, NORB)
+    end do
+    call eval_atomic_rho(IELEM, stden, rg, rho, drho, NG, ISPIN)
+    rtot = ORBOCC * sum(rho, dim=2)
+
+    ! Cumulative charge Q(r) = int_0^r 4 pi r'^2 rho dr' and outer integral
+    ! U(r) = int_r^inf 4 pi r' rho dr' on the log grid (dr = r dx).
+    f  = FOURPI * rg**3 * rtot
+    f2 = FOURPI * rg**2 * rtot
+    qcum(1) = f(1) / 3.0d0
+    do g = 2, NG
+      qcum(g) = qcum(g - 1) + 0.5d0 * h * (f(g - 1) + f(g))
+    end do
+    ucum(NG) = 0.0d0
+    do g = NG - 1, 1, -1
+      ucum(g) = ucum(g + 1) + 0.5d0 * h * (f2(g) + f2(g + 1))
+    end do
+    ngrid = qcum(NG)
+    if (ngrid <= 1.0d-8) return
+    scale = sumocc / ngrid
+
+    ! Screening function S(r) = 1 - r V_el(r) / N with V_el = Q/r + U
+    do g = 1, NG
+      sg(g) = 1.0d0 - scale * (qcum(g) + rg(g) * ucum(g)) / sumocc
+    end do
+
+    m = NG + 1 + nk
+    allocate(a(m, nk), bb(m), x(nk), wt(NG))
+    a  = 0.0d0
+    bb = 0.0d0
+    do g = 1, NG
+      wt(g) = h * rg(g) * exp(-rg(g) / 10.0d0)
+      sqw = sqrt(wt(g))
+      do k = 1, nk
+        a(g, k) = sqw * exp(-vexp(k + 1) * rg(g))
+      end do
+      bb(g) = sqw * sg(g)
+    end do
+    do k = 1, nk
+      a(NG + 1, k) = 1.0d3
+    end do
+    bb(NG + 1) = 1.0d3
+    trace_ata = sum(a(1:NG, :)**2) / real(nk, real64)
+    ridge = sqrt(1.0d-9 * trace_ata)
+    do k = 1, nk
+      a(NG + 1 + k, k) = ridge
+      bb(NG + 1 + k) = ridge / real(nk, real64)
+    end do
+
+    call nnls_small(a, m, nk, bb, x, ok)
+    if (ok) then
+      wsum = sum(x)
+      if (wsum > 0.0d0) then
+        x = x / wsum          ! enforce the cusp sum rule exactly
+        vcoef(1) = sumocc
+        vcoef(2:nvterm) = -sumocc * x(1:nk)
+      else
+        ok = .false.
+      end if
+    end if
+    deallocate(a, bb, x, wt)
+  end subroutine fit_screening_simplex
 
   !---------------------------------------------------------------------
   ! SOLVE_HELMERT_NULLSPACE_FIT:
@@ -250,11 +442,13 @@ contains
     real(real64)    :: smax, hole, screen, schole, el2, pkerr, vcalc0, vcalc2
     real(real64)    :: vdev2, tetot, tpe, virial
     integer(int32)  :: ncore, isp, iorb, nv, k, indxk, kk, km1, l, kl, i, j, ij
+    integer(int32)  :: nelec_int
     integer(int32)  :: idx_sto, li_sto, ni_sto, m_sto
     real(real64)    :: etai_sto, anormi_sto
     integer(int32), allocatable :: n_msto(:), l_msto(:), ml_msto(:)
     real(real64),   allocatable :: eta_msto(:), anorm_msto(:)
     logical(kind=1) :: qpkinc, qnofit, qindef, qretry
+    logical         :: qgrid_ok
 
     real(real64),   external :: ASUM
     integer(int32), external :: NOBLE
@@ -267,7 +461,14 @@ contains
     znuc   = charge(1, IATOM)
     oldchg = charge(2, IATOM)
     nelec  = min(oldchg, znuc)
-    ncore  = NOBLE(nelec)
+    ! NOBLE takes a default-integer atomic number. Pass a properly typed integer:
+    ! passing the real(real64) NELEC by reference made NOBLE reinterpret the low
+    ! 32 bits of the double's bit pattern as an integer, so NCORE was a
+    ! pseudo-random function of the atom's electron count (e.g. flipping between
+    ! 0 and 43 from cycle to cycle). The legacy code had NELEC as an implicitly
+    ! typed INTEGER, i.e. truncation toward zero, which int() reproduces.
+    nelec_int = int(nelec, int32)
+    ncore  = NOBLE(nelec_int)
 
     te     = 0.0d0
     vsum   = 0.0d0
@@ -405,7 +606,7 @@ contains
     !-------------------------------------------------------------------
     ! Solve for new local model potential coefficients VCOEF(1..NVTERM)
     !-------------------------------------------------------------------
-    if (QCSTFT .and. (.not. qnofit)) then
+    if (QCSTFT .and. (.not. qnofit) .and. (.not. QGRDFT)) then
       call solve_constrained_model_potential_fit(vmat, vsum, vfit2, tevz2, &
                                                  vcoef, sumocc, NVTERM, WGT2, qindef)
       vcalc0 = sum(vcoef(1:NVTERM))
@@ -434,7 +635,16 @@ contains
       if (abs(zzrep) < 0.1d0) vdev2 = 0.0d0
 
       if (.not. qnofit) then
-        call solve_model_potential_fit(vmat, vsum, vcoef, sumocc, NVTERM, qindef)
+        qindef = .false.
+        if (QGRDFT) then
+          ! Grid-based convex screening fit (see fit_screening_simplex); fall back
+          ! to the weighted orbital-expectation fit only if it cannot be solved.
+          call fit_screening_simplex(vexp, vcoef, sumocc, NVTERM, stevec, occ, qgrid_ok)
+          qindef = .not. qgrid_ok
+        end if
+        if ((.not. QGRDFT) .or. qindef) then
+          call solve_model_potential_fit(vmat, vsum, vcoef, sumocc, NVTERM, qindef)
+        end if
         if (qindef) then
           call WARN(18, qretry)
           if (NVTERM >= 4) then

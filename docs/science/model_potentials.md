@@ -68,3 +68,56 @@ In addition to Hartree-Fock exchange fitting, PHATPSY 2.0 incorporates modern de
 - **Perdew-Burke-Ernzerhof (PBE) GGA:** $F_x^{\text{PBE}}(s) = 1 + \kappa - \frac{\kappa}{1 + \mu s^2 / \kappa}$
 
 Radial integrals over STO basis functions are evaluated using Gauss-Legendre quadrature ($N=64$ nodes on $[0, \infty)$) with $< 10^{-11}\text{ Ha}$ analytical precision. Exposed via `ControlConfig(exchange_kernel="slater"|"becke88"|"pbe")`.
+
+---
+
+## 5. Opt-in Grid-Based Screening Fit (`use_grid_fit`)
+
+!!! note "Status"
+    Off by default. Implemented in `fit_screening_simplex` and `nnls_small` in `src/analys.f90`; exercised by `tests/test_grid_fit.py`. It changes the model potential, so energies differ from the default fit.
+
+### 5.1 Motivation
+
+The default fit determines all coefficients $\{c_k\}$ of Section 1 from the Coulomb expectation values of the atom's few orbitals. Measured on $\text{CO}$/DZ with the default exponents, the fit matrix is close to rank-deficient: after unit-diagonal scaling its four eigenvalues span $\sim 10^{-7}$ to $4$, and from the second SCF cycle (when the external-field term is switched on) its smallest eigenvalue is negative. The solved coefficients reach $|c_k| \approx 6$ with $\sum_k c_k$ fixed near $-N$, i.e. they cancel heavily, and small changes in the density swing the potential. Because the same fit is repeated every SCF cycle, this noise is fed back into the iteration.
+
+### 5.2 Formulation
+
+Write the electronic part of the model potential as a screening function:
+
+$$V_{\text{el}}(r) = \frac{N}{r}\left[1 - \sum_{k} w_k\, e^{-\zeta_k r}\right], \qquad w_k \ge 0, \quad \sum_k w_k = 1$$
+
+This is the form of Section 1 with $c_k = -N w_k$. The far field $N/r$ (charge conservation) and a finite potential at $r=0$ (the nuclear cusp sum rule) then hold exactly, and every weight lies in $[0, 1]$, so no cancellation is possible. The weights are fitted to the screening function $S(r) = 1 - r V_{\text{el}}(r)/N$ computed from the current density on a logarithmic radial grid (400 points, $10^{-4}$ to $40$ bohr):
+
+1. The spherically averaged density comes from `eval_atomic_rho` (`src/exchange_dft.f90`).
+2. $V_{\text{el}} = Q(r)/r + U(r)$ with $Q(r) = \int_0^r 4\pi r'^2\rho\, dr'$ and $U(r) = \int_r^\infty 4\pi r'\rho\, dr'$ (trapezoid rule in $\ln r$).
+3. A weighted non-negative least-squares fit (Lawson-Hanson) with grid weights $h\, r\, e^{-r/10}$, a heavily weighted sum-to-one row, and a tiny ridge toward a uniform mixture so that the solution is unique when exponentials are nearly collinear. The weights are renormalized to sum to exactly 1.
+
+The exponents $\{\zeta_k\}$ are unchanged (the element's existing table, scaled by $Z^{1/3}$); the choice of exponent set is separate from this change. The fit weighting and grid are first choices and have not been tuned.
+
+### 5.3 What was and was not verified
+
+- Verified by `tests/test_grid_fit.py`: weights in $[0,1]$, $\sum w_k = 1$ and $\sum_k c_k = -c_1$ to $10^{-10}$, electron-count conservation, honest convergence, and bit-for-bit reproducibility, for $\text{CO}$ with `atomic_smearing = 1.0e-3`.
+- Observed but not asserted: with both options on, $\text{CO}$ converged to two different states ($\approx -112.50$ and $\approx -112.61\text{ Ha}$) depending on the damping history, and $\text{N}_2$ still shows a slow residual oscillation (see `ROADMAP.md`).
+
+---
+
+## 6. Opt-in Smeared Atomic Occupations (`atomic_smearing`)
+
+!!! note "Status"
+    Off by default (`atomic_smearing: 0`). Implemented in `smear_atomic_occupations` in `src/scf.f90`.
+
+In the default atomic SCF, occupation numbers belong to orbital slots and are re-assigned after every iteration by maximum-overlap matching of the new eigenvectors with the previous ones (`MAXOVL`/`NEWORD` in `src/scf.f90` and `src/linalg.f90`). When orbitals are nearly degenerate or cross during the iteration, this assignment flips on eigensolver noise of order $10^{-14}$, and identical inputs then give different SCF trajectories from the second cycle onward.
+
+With `atomic_smearing` $= w > 0$ (Hartree), each spin channel instead uses Fermi-Dirac occupations $f_i = [1 + e^{(\varepsilon_i - \mu)/w}]^{-1}$ with $\mu$ chosen by bisection so that the channel keeps its electron count. Occupations are then smooth functions of the eigenvalues, and the overlap-based reordering is skipped. This is a finite-width approximation to aufbau filling: it changes the atomic reference occupations by an amount that grows with $w$, so the width should be reported with any result that uses it.
+
+---
+
+## 7. Known Inconsistency: the `WGT1` Condition
+
+Section 2 lists a Poisson total-charge condition weighted by `WGT1`. In the code, `WGT1` is read from the namelist and printed (`src/contrl.f90`, `src/state.f90`) but is not used in either the modern `src/analys.f90` or the legacy `legacy/analys.f` (where the corresponding terms are commented out). Total charge is enforced in the default fit only through the leading $1/r$ coefficient, and exactly in the grid fit of Section 5.
+
+---
+
+## 8. Selecting the Exponent Set
+
+The exponents $\{\zeta_k\}$ of Section 1 are a per-element input. By default each element uses the built-in set (`TFEXP` in `src/state.f90`, scaled by $1.12956\,Z^{1/3}$, plus one extra exponential read from the deck). A deck can replace it with `elements.<symbol>.potential_exponents`, optionally with `potential_exponent_scale` (see `docs/user/yaml/overview.md`). The deck writer then emits `QTFPOT=F` and all model-potential terms for that element, and `RSCALE` when a scale is given (`phatpsy/schema.py`, `src/atomic.f90`). How to *choose* a set is not settled; the comparison criterion used so far (residual of the screening function against the Poisson potential of the atomic density) and its findings are recorded under the SCF convergence item in `ROADMAP.md`.

@@ -1,7 +1,7 @@
 from typing import Optional, Union, Dict, Any, List
 import numpy as np
 import _phatpsy_core as core
-
+from phatpsy.scf_control import AdaptiveDamping, ScfExtensionPolicy, judge_continuation
 # Backward-compatibility aliases for legacy module names
 if hasattr(core, "state") and not hasattr(core, "phatpsy_state_mod"):
     core.phatpsy_state_mod = core.state
@@ -34,8 +34,9 @@ def silence_stdout():
 class PhatpsyDriver:
     """Hybrid Python orchestrator replacing main.f and contrl.f."""
 
-    def __init__(self, quiet: bool = True):
+    def __init__(self, quiet: bool = True, scf_policy: Optional[ScfExtensionPolicy] = None):
         self.quiet = quiet
+        self.scf_policy = scf_policy if scf_policy is not None else ScfExtensionPolicy()
         core.state.init_block_data_and_defaults()
 
     def run_deck(self, deck, custom_damping_hook=None, quiet: Optional[bool] = None):
@@ -193,12 +194,51 @@ class PhatpsyDriver:
             diis_acc = DIISAccelerator(max_subspace=6)
 
         cycle_history: List[Dict[str, float]] = []
+        stop_reason = "running"
+        cycles_extended = 0
+        base_max_cycles = int(state.mxcycl)
+        stop_labels = {1: "converged", 2: "max_cycles", 3: "time_limit"}
+        adaptive = (
+            AdaptiveDamping(float(state.vdamp), vmax=self.scf_policy.damping_max)
+            if self.scf_policy.adaptive_damping
+            else None
+        )
 
         while True:
             if not bool(state.qatom):
-                converged = contrl.contrl_step_aloop_and_ewmo()
-                if converged:
-                    break
+                done = contrl.contrl_step_aloop_and_ewmo()
+                if done:
+                    code = int(state.scf_stop_reason)
+                    stop_reason = stop_labels.get(code, "max_cycles")
+                    # "Done" is not "converged": only a true energy-change
+                    # convergence counts. Hitting the cycle limit triggers a
+                    # judgement of whether to extend or abort as not converged.
+                    if code == 2:
+                        decision = judge_continuation(
+                            [c["total_energy"] for c in cycle_history],
+                            convergence=float(state.convrg),
+                            cycles_used=int(state.ncycl),
+                            base_max_cycles=base_max_cycles,
+                            policy=self.scf_policy,
+                        )
+                        if decision.should_continue:
+                            state.mxcycl = int(state.ncycl) + decision.extra_cycles
+                            state.qlast = False
+                            cycles_extended += decision.extra_cycles
+                            if not self.quiet:
+                                print(
+                                    f"PHATPSY: cycle limit reached; extending by "
+                                    f"{decision.extra_cycles} cycles ({decision.reason})"
+                                )
+                            done = False
+                        else:
+                            stop_reason = f"not_converged: {decision.reason}"
+                    elif code == 1:
+                        converged = True
+                    else:
+                        stop_reason = "not_converged: time limit reached"
+                    if done:
+                        break
 
                 if diis_acc is not None:
                     chg = state.get_charge(3, int(state.natom))
@@ -241,10 +281,18 @@ class PhatpsyDriver:
                 "charge_transfer": chtran_val,
             })
 
+            if adaptive is not None:
+                state.vdamp = adaptive.update([c["total_energy"] for c in cycle_history])
+                cycle_history[-1]["vdamp"] = float(state.vdamp)
+
             if done_after_scf:
                 break
 
         res = extract_calculation_state(state, deck=deck, converged=converged, cycle_history=cycle_history)
+        res["stop_reason"] = stop_reason
+        res["cycles_extended"] = cycles_extended
+        if adaptive is not None:
+            res["vdamp_history"] = list(adaptive.history)
         if deck is not None and getattr(deck, "control", None) is not None and getattr(deck.control, "use_dispersion", False):
             from phatpsy.dispersion import compute_dispersion_energy
             kernel = getattr(deck.control, "exchange_kernel", "hf") or "hf"

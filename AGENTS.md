@@ -68,3 +68,14 @@ These instructions govern all autonomous and pair-programming development work o
    (e.g. `clementi_sto.json`, `thakkar_sto.json`): change these only by rerunning the corresponding ingest script (`phatpsy/ingest_clementi.py`, `phatpsy/ingest_thakkar.py`) and committing the regenerated output together with the ingest change. Never hand-edit values in these files.
 2. **Tests during a bug fix — `tests/`:** while fixing a bug, do not edit the test that demonstrates the bug. If a test appears to be wrong, stop and flag it for review rather than changing it mid-fix.
 
+
+---
+
+## 6. TEMPORARY EXCEPTION — Baseline Re-establishment (opened 2026-11-01; remove when closed)
+
+The frozen baselines in `data/validation_baselines/` were captured with (a) false convergence (runs that stopped only on the cycle limit, loose `convergence=1e-4`), (b) a nondeterministic default SCF, and (c) a spin-assignment gap that ignored `spin="down"` on the first atom of each element. They are presumed invalid. Tracked in `ROADMAP.md` under "Baseline Re-establishment". While this exception is open:
+
+1. **Baseline update rule suspended:** `data/validation_baselines/manifest.json` `update_rule` and §3 Rule 2 do not require a numerical-deviation report to replace a baseline. Each re-frozen baseline must still be produced by `tools/generate_validation_baselines.py`, record `converged=True`, `stop_reason`, spin populations and settings, and must never be frozen from an unconverged run.
+2. **Test edits allowed:** tests that assert old frozen values or `converged=True` on the default path may be edited or quarantined (see `tests/conftest.py` `BASELINE_QUARANTINE`, which marks them `xfail` with a reason). §5 item 2 is relaxed accordingly for these tests only.
+3. **Still in force:** atomic units, anti-circularity (§1 item 5), no silent approximations, no global installs, protected basis data (§5 item 1), and the evidence rule (§4).
+4. **Exit:** the exception closes when every `BASELINE_QUARANTINE` entry is either re-frozen and un-quarantined or documented as a blocked xfail in `ROADMAP.md`; delete this section in that commit.

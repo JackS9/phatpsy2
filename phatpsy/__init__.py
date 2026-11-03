@@ -46,12 +46,27 @@ from phatpsy.visualizer import (
     show_pathway,
     visualize_trajectory,
     show_trajectory,
+    show_hybrid_orbitals,
+    visualize_hybrid_orbitals,
+    generate_hybrid_orbitals_visualization_data,
+    HYBRID_GEOMETRY_PRESETS,
 )
 from phatpsy.volumetric import (
     VolumetricGrid,
     compute_grid,
     compute_esp_grid,
     compute_deformation_density,
+    compute_hybrid_orbital_grid,
+)
+from phatpsy.hybrids import (
+    build_atom_orbitals,
+    apply_hybrid_seeds,
+    atom_valence_vectors,
+    valence_space,
+    HybridizationType,
+    HybridizationSpec,
+    get_hybridization_spec,
+    align_hybrid_to_neighbors,
 )
 
 from phatpsy.state import CalculationState, EmbeddedAtomState
@@ -194,6 +209,19 @@ __all__ = [
     "compute_grid",
     "compute_esp_grid",
     "compute_deformation_density",
+    "compute_hybrid_orbital_grid",
+    "show_hybrid_orbitals",
+    "visualize_hybrid_orbitals",
+    "generate_hybrid_orbitals_visualization_data",
+    "HYBRID_GEOMETRY_PRESETS",
+    "build_atom_orbitals",
+    "apply_hybrid_seeds",
+    "atom_valence_vectors",
+    "valence_space",
+    "HybridizationType",
+    "HybridizationSpec",
+    "get_hybridization_spec",
+    "align_hybrid_to_neighbors",
 
     "BondCoordinate",
     "AngleCoordinate",
