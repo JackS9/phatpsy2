@@ -8,6 +8,7 @@ STO basis functions, exponents, and starting orbital configurations.
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any, Union
 import re
+import numpy as np
 
 from phatpsy.schema import (
     CalculationDeck,
@@ -45,10 +46,29 @@ def parse_geometry(
     """
     to_bohr = BOHR_PER_ANGSTROM if units.lower() in ("angstrom", "angstroms", "aa", "a") else 1.0
 
+    # 0. ASE Atoms object or duck-typed structure
+    if hasattr(geometry, "get_positions") and hasattr(geometry, "get_chemical_symbols"):
+        from phatpsy.formats import from_ase
+        return from_ase(geometry, units=units)
+
     # 1. Path or filename
     if isinstance(geometry, (str, Path)):
-        from phatpsy.formats import detect_format, parse_pdb, parse_gaussian, parse_poscar
-        s_path = Path(str(geometry))
+        from phatpsy.formats import (
+            detect_format,
+            parse_pdb,
+            parse_gaussian,
+            parse_poscar,
+            parse_ase,
+            HAS_ASE,
+        )
+        s_str = str(geometry)
+        is_path_file = False
+        if "\n" not in s_str and "\r" not in s_str:
+            try:
+                is_path_file = Path(s_str).is_file()
+            except (OSError, ValueError):
+                is_path_file = False
+
         fmt = detect_format(geometry)
         if fmt == "pdb":
             return parse_pdb(geometry, units=units)
@@ -58,10 +78,26 @@ def parse_geometry(
         elif fmt == "poscar":
             atoms, _, _ = parse_poscar(geometry, units=units)
             return atoms
-        elif s_path.is_file():
-            content = s_path.read_text(encoding="utf-8")
-            return _parse_xyz_string(content, to_bohr)
+        elif fmt in ("cif", "gro", "mol", "sdf", "gen", "car", "arc", "res", "cell", "extxyz", "lammps-data", "ase"):
+            return parse_ase(geometry, format=fmt if fmt not in ("ase", "lammps-data") else None, units=units)
+        elif is_path_file:
+            content = Path(s_str).read_text(encoding="utf-8")
+            xyz_atoms = _parse_xyz_string(content, to_bohr)
+            if xyz_atoms:
+                return xyz_atoms
+            if HAS_ASE:
+                try:
+                    return parse_ase(Path(s_str), units=units)
+                except Exception:
+                    pass
+            raise ValueError(f"Geometry file could not be parsed: {geometry}")
         elif isinstance(geometry, str) and ("\n" in geometry or ";" in geometry):
+            # Check if string is CIF format
+            if HAS_ASE and (fmt == "cif" or "data_" in geometry[:50]):
+                try:
+                    return parse_ase(geometry, format="cif", units=units)
+                except Exception:
+                    pass
             return _parse_xyz_string(geometry, to_bohr)
         else:
             raise ValueError(f"Geometry string could not be resolved as a file or XYZ block: {geometry}")
@@ -308,12 +344,35 @@ def build_molecule(
     """
     import warnings
     parsed_title = ""
-    if isinstance(geometry, (str, Path)):
-        from phatpsy.formats import detect_format, parse_gaussian
-        if detect_format(geometry) == "gaussian":
+    poscar_cell = None
+    poscar_pbc = None
+
+    if hasattr(geometry, "get_positions") and hasattr(geometry, "get_chemical_symbols"):
+        if not title:
+            parsed_title = "PHATPSY Calculation (ASE)"
+        try:
+            magmoms = geometry.get_initial_magnetic_moments()
+            n_up = sum(1 for m in magmoms if m > 0)
+            n_down = sum(1 for m in magmoms if m < 0)
+            if net_spin is None and (n_up > 0 or n_down > 0):
+                net_spin = n_up - n_down
+            if spins is None and (n_up > 0 or n_down > 0):
+                if all(m != 0 for m in magmoms):
+                    spins = ["up" if m > 0 else "down" for m in magmoms]
+        except Exception:
+            pass
+
+    elif isinstance(geometry, (str, Path)):
+        from phatpsy.formats import detect_format, parse_gaussian, parse_poscar
+        fmt = detect_format(geometry)
+        if fmt == "gaussian":
             _, g_charge, g_mult, parsed_title = parse_gaussian(geometry, units=units)
             if net_spin is None and g_mult > 1:
                 net_spin = g_mult - 1
+        elif fmt == "poscar":
+            _, poscar_cell, poscar_title = parse_poscar(geometry, units=units)
+            parsed_title = poscar_title
+            poscar_pbc = [True, True, True]
 
     if not title:
         title = parsed_title or "PHATPSY Calculation"
@@ -480,6 +539,17 @@ def build_molecule(
         ferromagnetic_links=resolved_f_links,
         ferromagnetic_reports=detected_ferromagnetic_reports,
     )
+
+    if hasattr(geometry, "cell") and np.any(geometry.cell):
+        deck.cell = (np.array(geometry.cell, dtype=np.float64) * BOHR_PER_ANGSTROM).tolist()
+    elif poscar_cell is not None:
+        deck.cell = poscar_cell.tolist()
+
+    if hasattr(geometry, "pbc"):
+        deck.pbc = geometry.pbc.tolist() if hasattr(geometry.pbc, "tolist") else list(geometry.pbc)
+    elif poscar_pbc is not None:
+        deck.pbc = poscar_pbc
+
     return deck
 
 

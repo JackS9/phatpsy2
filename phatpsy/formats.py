@@ -1,11 +1,16 @@
 """
-Native structure parsers and format detection for PHATPSY 2.0 (Phase 13, Tier 1).
+Native structure parsers, format detection, and ASE bridge for PHATPSY 2.0 (Phase 13, Tiers 1 & 2).
 
 Provides zero-dependency pure-Python parsers for standard molecular and crystal file formats:
 - PDB (.pdb): Protein Data Bank format (ATOM / HETATM records).
 - Gaussian (.gjf, .com): Gaussian input decks (route, title, charge/multiplicity, coordinates).
 - VASP POSCAR / CONTCAR (POSCAR, .vasp, .poscar): Lattice basis and atomic coordinates.
 - XYZ (.xyz): Standard chemical Cartesian coordinates with inline modifiers.
+
+And full bidirectional integration with the Atomic Simulation Environment (ASE):
+- `from_ase()`: Convert `ase.Atoms` to PHATPSY `AtomConfig` objects in atomic units.
+- `to_ase()`: Export `CalculationDeck` or `AtomConfig` list to `ase.Atoms`.
+- `parse_ase()` / `read_ase()`: Open 100+ materials/chemical formats supported by ASE.
 """
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional, Union, Any
@@ -14,6 +19,18 @@ import re
 import numpy as np
 
 from phatpsy.schema import AtomConfig
+
+try:
+    import ase
+    import ase.io
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    HAS_ASE: bool = True
+except ImportError:
+    ase = None  # type: ignore
+    Atoms = None  # type: ignore
+    FixAtoms = None  # type: ignore
+    HAS_ASE: bool = False
 
 BOHR_PER_ANGSTROM: float = 1.8897261245650618
 
@@ -74,8 +91,10 @@ def detect_format(content_or_path: Union[str, Path]) -> str:
             return "json"
         if suffix in (".stdin", ".in"):
             return "stdin"
-        if suffix == ".cif":
-            return "cif"
+        if suffix in (".cif", ".gro", ".mol", ".sdf", ".gen", ".car", ".arc", ".res", ".cell", ".extxyz"):
+            return suffix[1:]
+        if fname.startswith("DATA."):
+            return "lammps-data"
 
     # 2. Sniff text content
     text = _read_content(content_or_path).strip()
@@ -98,6 +117,9 @@ def detect_format(content_or_path: Union[str, Path]) -> str:
     # PDB check: lines start with ATOM or HETATM
     if any(line.startswith("ATOM  ") or line.startswith("HETATM") or line.startswith("HEADER") for line in lines[:15]):
         return "pdb"
+    # CIF check: lines start with data_ or contain _cell_ or _atom_site_
+    if any(line.lower().startswith("data_") or line.startswith("_cell_") or line.startswith("_atom_site_") for line in lines[:25]):
+        return "cif"
     # Gaussian input check: route section starting with #
     if any(line.startswith("#") for line in lines[:10]) or any(line.startswith("%") for line in lines[:5]):
         return "gaussian"
@@ -502,4 +524,291 @@ def parse_poscar(
         ))
 
     return atoms, lattice_mat_bohr, title
+
+
+# ==============================================================================
+# ASE Ecosystem Bridge (Phase 13, Tier 2)
+# ==============================================================================
+
+def from_ase(
+    atoms: Any,
+    units: str = "bohr",
+) -> List[AtomConfig]:
+    """
+    Converts an ASE Atoms object into a list of PHATPSY AtomConfig objects.
+
+    Transfers:
+    - Chemical symbols / atomic numbers -> AtomConfig.element
+    - Positions (converted from ASE Angstroms to PHATPSY Bohrs, unless units='angstrom')
+    - Formal / initial charges -> AtomConfig.charge
+    - Initial magnetic moments -> AtomConfig.spin ('up' if > 0, 'down' if < 0) and spin_flip
+    - FixAtoms constraints -> AtomConfig.fixed = True
+    - Atom tags / IDs -> AtomConfig.id
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        The ASE Atoms instance.
+    units : str
+        Target coordinate units for internal AtomConfig storage (default 'bohr').
+
+    Returns
+    -------
+    List[AtomConfig]
+        Equivalent PHATPSY atom configurations in atomic units (Bohr).
+    """
+    if not HAS_ASE:
+        raise ImportError(
+            "The ASE bridge requires 'ase'. Please install it via 'pip install ase'."
+        )
+
+    if not (hasattr(atoms, "get_positions") and hasattr(atoms, "get_chemical_symbols")):
+        raise TypeError(f"Expected ase.Atoms instance, got {type(atoms)}")
+
+    scale = BOHR_PER_ANGSTROM if units.lower() in ("bohr", "au", "atomic") else 1.0
+
+    symbols = atoms.get_chemical_symbols()
+    positions = atoms.get_positions() * scale
+
+    # Formal / initial charges
+    try:
+        charges = atoms.get_initial_charges()
+    except Exception:
+        charges = [0.0] * len(atoms)
+
+    # Initial magnetic moments
+    try:
+        magmoms = atoms.get_initial_magnetic_moments()
+    except Exception:
+        magmoms = [0.0] * len(atoms)
+
+    # Fixed atoms constraint (FixAtoms)
+    fixed_indices = set()
+    if hasattr(atoms, "constraints") and atoms.constraints:
+        for c in atoms.constraints:
+            if isinstance(c, FixAtoms) or type(c).__name__ == "FixAtoms":
+                if hasattr(c, "index"):
+                    idx = c.index
+                    if isinstance(idx, (list, tuple, np.ndarray)):
+                        fixed_indices.update(np.asarray(idx).tolist())
+                elif hasattr(c, "indices"):
+                    idx = c.indices
+                    if isinstance(idx, (list, tuple, np.ndarray)):
+                        fixed_indices.update(np.asarray(idx).tolist())
+
+    elem_counts: Dict[str, int] = {}
+    atom_configs: List[AtomConfig] = []
+
+    for i, (sym, pos) in enumerate(zip(symbols, positions)):
+        s_cap = sym.strip().capitalize()
+        elem_counts[s_cap] = elem_counts.get(s_cap, 0) + 1
+        atom_id = f"{s_cap}{elem_counts[s_cap]}"
+
+        chg = float(charges[i]) if i < len(charges) else 0.0
+        mag = float(magmoms[i]) if i < len(magmoms) else 0.0
+
+        spin_val: Optional[str] = None
+        spin_flip_val = False
+        if mag > 0.0:
+            spin_val = "up"
+            spin_flip_val = False
+        elif mag < 0.0:
+            spin_val = "down"
+            spin_flip_val = True
+
+        atom_configs.append(AtomConfig(
+            element=s_cap,
+            id=atom_id,
+            xyz=pos.tolist(),
+            charge=chg,
+            spin=spin_val,
+            spin_flip=spin_flip_val,
+            fixed=(i in fixed_indices),
+        ))
+
+    return atom_configs
+
+
+def to_ase(
+    atoms_or_deck: Union[Any, List[AtomConfig]],
+    cell: Optional[Any] = None,
+    pbc: Optional[Any] = None,
+) -> Any:
+    """
+    Converts a PHATPSY CalculationDeck or list of AtomConfig objects into an ASE Atoms object.
+
+    Transfers:
+    - Atom coordinates (converted from Bohrs to Angstroms)
+    - Chemical elements
+    - Charges -> atoms.set_initial_charges()
+    - Spins -> atoms.set_initial_magnetic_moments() (up = +1.0, down = -1.0)
+    - Fixed atoms -> FixAtoms constraint
+    - Unit cell & periodic boundary conditions (PBC) if provided or present on deck
+
+    Parameters
+    ----------
+    atoms_or_deck : Union[CalculationDeck, List[AtomConfig]]
+        Input PHATPSY deck or list of atom configurations.
+    cell : Optional[Any]
+        Optional 3x3 lattice matrix or 6-element lattice parameters in Bohr.
+        If None, attempts to read from deck.cell if available.
+    pbc : Optional[Any]
+        Optional periodic boundary condition flags (e.g. True or [True, True, True]).
+        If None, attempts to read from deck.pbc if available.
+
+    Returns
+    -------
+    ase.Atoms
+        The corresponding ASE Atoms object in Angstrom units.
+    """
+    if not HAS_ASE:
+        raise ImportError(
+            "The ASE bridge requires 'ase'. Please install it via 'pip install ase'."
+        )
+
+    if hasattr(atoms_or_deck, "geometry"):
+        atoms = atoms_or_deck.geometry
+        deck_cell = getattr(atoms_or_deck, "cell", None)
+        deck_pbc = getattr(atoms_or_deck, "pbc", None)
+        if cell is None and deck_cell is not None:
+            cell = deck_cell
+        if pbc is None and deck_pbc is not None:
+            pbc = deck_pbc
+    elif isinstance(atoms_or_deck, (list, tuple)):
+        atoms = atoms_or_deck
+    else:
+        raise TypeError(f"Expected CalculationDeck or List[AtomConfig], got {type(atoms_or_deck)}")
+
+    symbols = [a.element.strip().capitalize() for a in atoms]
+    positions = np.array([a.xyz for a in atoms], dtype=np.float64) / BOHR_PER_ANGSTROM
+
+    ase_cell = None
+    if cell is not None:
+        ase_cell = np.array(cell, dtype=np.float64) / BOHR_PER_ANGSTROM
+
+    ase_pbc = pbc if pbc is not None else (False, False, False)
+
+    ase_atoms = Atoms(
+        symbols=symbols,
+        positions=positions,
+        cell=ase_cell,
+        pbc=ase_pbc,
+    )
+
+    # Initial charges
+    charges = [getattr(a, "charge", 0.0) for a in atoms]
+    if any(abs(c) > 1e-6 for c in charges):
+        ase_atoms.set_initial_charges(charges)
+
+    # Magnetic moments
+    magmoms = []
+    has_mag = False
+    for a in atoms:
+        sp = getattr(a, "spin", None)
+        if sp == "up":
+            magmoms.append(1.0)
+            has_mag = True
+        elif sp == "down":
+            magmoms.append(-1.0)
+            has_mag = True
+        else:
+            magmoms.append(0.0)
+    if has_mag:
+        ase_atoms.set_initial_magnetic_moments(magmoms)
+
+    # Fixed atoms constraint
+    fixed_indices = [i for i, a in enumerate(atoms) if getattr(a, "fixed", False)]
+    if fixed_indices:
+        ase_atoms.set_constraint(FixAtoms(indices=fixed_indices))
+
+    return ase_atoms
+
+
+def parse_ase(
+    content_or_path: Union[str, Path],
+    format: Optional[str] = None,
+    units: str = "bohr",
+) -> List[AtomConfig]:
+    """
+    Parses any structure format supported by ASE (CIF, GRO, MOL, SDF, CAR, etc.)
+    into a list of PHATPSY AtomConfig objects.
+
+    Parameters
+    ----------
+    content_or_path : Union[str, Path]
+        File path or string containing structure data.
+    format : Optional[str]
+        Explicit ASE format specifier (e.g. 'cif', 'gro', 'mol-v3000'). If None,
+        ASE auto-detects from file extension or content.
+    units : str
+        Target coordinate units for AtomConfig storage (default 'bohr').
+
+    Returns
+    -------
+    List[AtomConfig]
+        Parsed atoms in atomic units (Bohr).
+    """
+    atoms, _, _ = read_ase(content_or_path, format=format, units=units)
+    return atoms
+
+
+def read_ase(
+    content_or_path: Union[str, Path],
+    format: Optional[str] = None,
+    units: str = "bohr",
+) -> Tuple[List[AtomConfig], Optional[np.ndarray], Optional[List[bool]]]:
+    """
+    Reads a structure using ASE, returning (atoms, cell_in_bohr, pbc).
+
+    Parameters
+    ----------
+    content_or_path : Union[str, Path]
+        File path or string containing structure data.
+    format : Optional[str]
+        Explicit ASE format specifier (e.g. 'cif', 'gro').
+    units : str
+        Target coordinate units for AtomConfig storage (default 'bohr').
+
+    Returns
+    -------
+    Tuple[List[AtomConfig], Optional[np.ndarray], Optional[List[bool]]]
+        Tuple of (atoms, cell_in_bohr, pbc).
+    """
+    if not HAS_ASE:
+        raise ImportError(
+            "The ASE bridge requires 'ase'. Please install it via 'pip install ase'."
+        )
+
+    ASE_FORMAT_ALIASES = {
+        "gro": "gromacs",
+        "poscar": "vasp",
+        "contcar": "vasp",
+    }
+    fmt_target = ASE_FORMAT_ALIASES.get((format or "").lower(), format)
+
+    import io
+    s_input = str(content_or_path)
+    is_file = False
+    if "\n" not in s_input and "\r" not in s_input:
+        try:
+            is_file = Path(s_input).is_file()
+        except (OSError, ValueError):
+            is_file = False
+
+    if is_file:
+        ase_atoms = ase.io.read(s_input, format=fmt_target)
+    else:
+        stream = io.StringIO(s_input)
+        ase_atoms = ase.io.read(stream, format=fmt_target)
+
+    if isinstance(ase_atoms, list):
+        ase_atoms = ase_atoms[-1]
+
+    atoms = from_ase(ase_atoms, units=units)
+    cell = None
+    if hasattr(ase_atoms, "cell") and np.any(ase_atoms.cell):
+        cell = np.array(ase_atoms.cell, dtype=np.float64) * BOHR_PER_ANGSTROM
+    pbc = ase_atoms.pbc.tolist() if hasattr(ase_atoms, "pbc") else None
+    return atoms, cell, pbc
+
 

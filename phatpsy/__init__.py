@@ -31,6 +31,11 @@ from phatpsy.formats import (
     parse_pdb,
     parse_gaussian,
     parse_poscar,
+    from_ase,
+    to_ase,
+    parse_ase,
+    read_ase,
+    HAS_ASE,
 )
 from phatpsy.basis import (
     get_element_basis,
@@ -205,6 +210,11 @@ __all__ = [
     "parse_pdb",
     "parse_gaussian",
     "parse_poscar",
+    "from_ase",
+    "to_ase",
+    "parse_ase",
+    "read_ase",
+    "HAS_ASE",
     "BOHR_PER_ANGSTROM",
     "assign_alternating_spin",
     "NonBipartiteSpinGraphError",

@@ -76,6 +76,32 @@ atoms_gjf = parse_geometry("calc.gjf")
 atoms_poscar = parse_geometry("POSCAR")
 ```
 
+### 5. Atomic Simulation Environment (ASE) Ecosystem Bridge
+
+PHATPSY provides bidirectional integration with the Atomic Simulation Environment (ASE) to unlock seamless interoperability with over 100 chemical and materials formats (CIF, GROMACS `.gro`, MDL `.mol`/`.sdf`, LAMMPS `data.*`, Quantum ESPRESSO, CASTEP, etc.):
+
+```python
+from phatpsy import CalculationDeck, from_ase, to_ase, parse_geometry
+import ase.io
+
+# 1. Build a CalculationDeck directly from an ASE Atoms object
+atoms_ase = ase.io.read("crystal.cif")
+deck = CalculationDeck.from_ase(atoms_ase, basis="DZ", spins="up", net_spin=2)
+
+# 2. Export a PHATPSY CalculationDeck to an ASE Atoms object
+atoms_out = deck.to_ase()
+atoms_out.write("exported.cif")
+
+# 3. Transparently load any ASE-supported format via parse_geometry
+atoms_gro = parse_geometry("solvation_box.gro")
+```
+
+The bridge transfers:
+- **Positions & Lattice:** Automatically scaled between ASE Ångströms and PHATPSY atomic units (Bohrs).
+- **Formal Charges:** Initial charges in ASE map directly to `AtomConfig.charge`.
+- **Magnetic Moments & Spin:** ASE magnetic moments map to PHATPSY explicit per-atom spins (`"up"` / `"down"`) and flip states.
+- **Constraints:** `ase.constraints.FixAtoms` constraints translate directly to `AtomConfig.fixed = True`.
+
 ---
 
 ## Inspecting and Modifying Decks

@@ -612,6 +612,8 @@ class CalculationDeck:
     net_spin: int = 0
     ferromagnetic_links: List[Tuple[str, str]] = field(default_factory=list)
     ferromagnetic_reports: List[Any] = field(default_factory=list)
+    cell: Optional[List[List[float]]] = None
+    pbc: Optional[List[bool]] = None
 
     def __post_init__(self):
         if self.geometry:
@@ -1263,6 +1265,10 @@ class CalculationDeck:
             res["elements"] = {k: v.to_dict() for k, v in self.elements.items()}
         if self.basis:
             res["basis"] = self.basis
+        if self.cell is not None:
+            res["cell"] = self.cell
+        if self.pbc is not None:
+            res["pbc"] = self.pbc
         return res
 
     def to_yaml(self, path: Optional[Union[str, Path]] = None) -> str:
@@ -1283,6 +1289,18 @@ class CalculationDeck:
                 f.write(text)
         return text
 
+    def to_ase(
+        self,
+        cell: Optional[Any] = None,
+        pbc: Optional[Any] = None,
+    ) -> Any:
+        """
+        Exports the CalculationDeck to an ASE Atoms object.
+        Preserves coordinates, elements, charges, magnetic moments, constraints, and cell.
+        """
+        from phatpsy.formats import to_ase
+        return to_ase(self, cell=cell, pbc=pbc)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CalculationDeck":
         title = data.get("title", "PHATPSY Calculation")
@@ -1300,6 +1318,8 @@ class CalculationDeck:
         net_spin = int(data.get("net_spin", 0))
         raw_f_links = data.get("ferromagnetic_links", [])
         ferromagnetic_links = [tuple(link) for link in raw_f_links]
+        cell = data.get("cell")
+        pbc = data.get("pbc")
         deck = cls(
             title=title,
             control=control,
@@ -1308,6 +1328,8 @@ class CalculationDeck:
             basis=basis,
             net_spin=net_spin,
             ferromagnetic_links=ferromagnetic_links,
+            cell=cell,
+            pbc=pbc,
         )
         deck.resolve_coordinates()
         return deck
@@ -1424,4 +1446,42 @@ class CalculationDeck:
             control=control,
             extra_namelist=extra_namelist,
         )
+
+    @classmethod
+    def from_ase(
+        cls,
+        atoms: Any,
+        basis: Union[str, Dict[str, str]] = "DZ",
+        title: str = "PHATPSY Calculation (ASE)",
+        control: Optional[ControlConfig] = None,
+        units: str = "bohr",
+        spin_unrestricted: bool = True,
+        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        net_spin: Optional[int] = None,
+        extra_namelist: Optional[Dict[str, Any]] = None,
+    ) -> "CalculationDeck":
+        """
+        Builds a CalculationDeck directly from an ASE Atoms object.
+        Preserves lattice cell and PBC if present on the ASE Atoms.
+        """
+        from phatpsy.builder import build_molecule
+        from phatpsy.formats import BOHR_PER_ANGSTROM
+        import numpy as np
+
+        deck = build_molecule(
+            geometry=atoms,
+            basis=basis,
+            title=title,
+            control=control,
+            units=units,
+            spin_unrestricted=spin_unrestricted,
+            spins=spins,
+            net_spin=net_spin,
+            extra_namelist=extra_namelist,
+        )
+        if hasattr(atoms, "cell") and np.any(atoms.cell):
+            deck.cell = (np.array(atoms.cell, dtype=np.float64) * BOHR_PER_ANGSTROM).tolist()
+        if hasattr(atoms, "pbc"):
+            deck.pbc = atoms.pbc.tolist() if hasattr(atoms.pbc, "tolist") else list(atoms.pbc)
+        return deck
 

@@ -20,7 +20,7 @@ def load_deck_from_arg(input_file: Union[str, Path], auto_spin: bool = False) ->
     from phatpsy.formats import detect_format
     fmt = detect_format(in_path)
 
-    if fmt in ("xyz", "pdb", "gaussian", "poscar"):
+    if fmt in ("xyz", "pdb", "gaussian", "poscar", "cif", "gro", "mol", "sdf", "gen", "car", "arc", "res", "cell", "extxyz", "lammps-data", "ase"):
         from phatpsy.builder import build_molecule
         deck = build_molecule(in_path, auto_spin_flip=auto_spin)
     elif fmt == "yaml":
@@ -58,6 +58,23 @@ def handle_convert(args):
         if out_path:
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(text)
+    elif out_suffix in (".cif", ".gro", ".mol", ".xyz", ".poscar", ".vasp"):
+        from phatpsy.formats import to_ase, HAS_ASE
+        if not HAS_ASE:
+            raise ImportError(f"Exporting to {out_suffix} requires 'ase'. Please install via 'pip install ase'.")
+        ase_atoms = deck.to_ase()
+        import ase.io
+        if out_path:
+            ase.io.write(str(out_path), ase_atoms)
+            text = f"Written {out_path}\n"
+        else:
+            import io
+            buf = io.StringIO()
+            fmt_name = out_suffix[1:]
+            if fmt_name in ("poscar", "vasp"):
+                fmt_name = "vasp"
+            ase.io.write(buf, ase_atoms, format=fmt_name)
+            text = buf.getvalue()
     else:
         text = deck.to_yaml(out_path)
 

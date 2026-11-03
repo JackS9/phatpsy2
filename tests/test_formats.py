@@ -277,3 +277,217 @@ def test_cli_build_and_convert_supported_formats():
         assert rc == 0
         assert out_yaml3.exists()
         assert "element: C" in out_yaml3.read_text(encoding="utf-8")
+
+
+# ==============================================================================
+# ASE Ecosystem Bridge Tests (Phase 13, Tier 2)
+# ==============================================================================
+
+def test_has_ase_flag():
+    from phatpsy.formats import HAS_ASE
+    assert HAS_ASE is True
+
+
+def test_from_ase_basic():
+    import ase
+    from ase import Atoms
+    from phatpsy.formats import from_ase, BOHR_PER_ANGSTROM
+
+    ase_atoms = Atoms("CO", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.128]])
+    phatpsy_atoms = from_ase(ase_atoms)
+
+    assert len(phatpsy_atoms) == 2
+    assert phatpsy_atoms[0].element == "C"
+    assert phatpsy_atoms[1].element == "O"
+    assert phatpsy_atoms[0].id == "C1"
+    assert phatpsy_atoms[1].id == "O1"
+
+    # Positions converted to Bohr
+    assert pytest.approx(phatpsy_atoms[0].xyz, abs=1e-6) == [0.0, 0.0, 0.0]
+    assert pytest.approx(phatpsy_atoms[1].xyz[2], rel=1e-5) == 1.128 * BOHR_PER_ANGSTROM
+
+
+def test_from_ase_charges_magmoms_and_constraints():
+    import ase
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from phatpsy.formats import from_ase
+
+    ase_atoms = Atoms("Fe2O", positions=[[0, 0, 0], [2, 0, 0], [1, 1, 0]])
+    ase_atoms.set_initial_charges([1.5, 1.5, -3.0])
+    ase_atoms.set_initial_magnetic_moments([3.0, -3.0, 0.0])
+    ase_atoms.set_constraint(FixAtoms(indices=[0]))
+
+    phatpsy_atoms = from_ase(ase_atoms)
+    assert len(phatpsy_atoms) == 3
+
+    # Charges
+    assert phatpsy_atoms[0].charge == 1.5
+    assert phatpsy_atoms[1].charge == 1.5
+    assert phatpsy_atoms[2].charge == -3.0
+
+    # Magnetic moments -> spins
+    assert phatpsy_atoms[0].spin == "up"
+    assert phatpsy_atoms[0].spin_flip is False
+    assert phatpsy_atoms[1].spin == "down"
+    assert phatpsy_atoms[1].spin_flip is True
+    assert phatpsy_atoms[2].spin is None
+
+    # Constraints
+    assert phatpsy_atoms[0].fixed is True
+    assert phatpsy_atoms[1].fixed is False
+    assert phatpsy_atoms[2].fixed is False
+
+
+def test_to_ase_and_roundtrip():
+    import ase
+    from ase import Atoms
+    from ase.constraints import FixAtoms
+    from phatpsy.formats import from_ase, to_ase
+
+    orig_atoms = Atoms("NO", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.15]])
+    orig_atoms.set_initial_charges([0.2, -0.2])
+    orig_atoms.set_initial_magnetic_moments([1.0, 0.0])
+    orig_atoms.set_constraint(FixAtoms(indices=[0]))
+
+    phatpsy_atoms = from_ase(orig_atoms)
+    exported_ase = to_ase(phatpsy_atoms)
+
+    assert isinstance(exported_ase, Atoms)
+    assert exported_ase.get_chemical_symbols() == ["N", "O"]
+    assert pytest.approx(exported_ase.get_positions(), abs=1e-5) == orig_atoms.get_positions()
+    assert pytest.approx(exported_ase.get_initial_charges(), abs=1e-5) == [0.2, -0.2]
+    assert pytest.approx(exported_ase.get_initial_magnetic_moments(), abs=1e-5) == [1.0, 0.0]
+    assert len(exported_ase.constraints) == 1
+    assert exported_ase.constraints[0].index.tolist() == [0]
+
+
+def test_calculation_deck_from_ase_and_to_ase():
+    from ase import Atoms
+    from phatpsy.schema import CalculationDeck
+    from phatpsy.formats import BOHR_PER_ANGSTROM
+
+    ase_mol = Atoms(
+        "H2",
+        positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+        cell=[[5.0, 0, 0], [0, 5.0, 0], [0, 0, 5.0]],
+        pbc=[True, True, True],
+    )
+    deck = CalculationDeck.from_ase(
+        ase_mol,
+        basis="DZ",
+        title="H2 from ASE",
+        spins=["up", "down"],
+        net_spin=0,
+    )
+
+    assert deck.title == "H2 from ASE"
+    assert len(deck.geometry) == 2
+    assert deck.geometry[0].element == "H"
+    assert deck.geometry[1].element == "H"
+    assert deck.cell is not None
+    assert pytest.approx(deck.cell[0][0], rel=1e-4) == 5.0 * BOHR_PER_ANGSTROM
+    assert deck.pbc == [True, True, True]
+
+    # Convert back to ASE
+    ase_exported = deck.to_ase()
+    assert isinstance(ase_exported, Atoms)
+    assert ase_exported.get_chemical_symbols() == ["H", "H"]
+    assert pytest.approx(ase_exported.get_positions(), abs=1e-4) == ase_mol.get_positions()
+    assert pytest.approx(ase_exported.get_cell(), abs=1e-4) == ase_mol.get_cell()
+    assert ase_exported.pbc.tolist() == [True, True, True]
+
+
+SAMPLE_CIF_SILICON = """\
+data_Si
+_cell_length_a 5.4309
+_cell_length_b 5.4309
+_cell_length_c 5.4309
+_cell_angle_alpha 90.00
+_cell_angle_beta 90.00
+_cell_angle_gamma 90.00
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Si1 0.00000 0.00000 0.00000
+Si2 0.25000 0.25000 0.25000
+"""
+
+def test_parse_ase_cif_and_builder_integration():
+    from phatpsy.formats import parse_ase, read_ase, BOHR_PER_ANGSTROM
+    from phatpsy.builder import build_molecule
+
+    # 1. Direct parse_ase
+    atoms = parse_ase(SAMPLE_CIF_SILICON, format="cif")
+    assert len(atoms) == 2
+    assert atoms[0].element == "Si"
+    assert atoms[1].element == "Si"
+    assert pytest.approx(atoms[1].xyz[0], rel=1e-4) == 0.25 * 5.4309 * BOHR_PER_ANGSTROM
+
+    # 2. read_ase with cell
+    atoms, cell, pbc = read_ase(SAMPLE_CIF_SILICON, format="cif")
+    assert cell is not None
+    assert pytest.approx(cell[0][0], rel=1e-4) == 5.4309 * BOHR_PER_ANGSTROM
+    assert pbc == [True, True, True]
+
+    # 3. build_molecule directly from CIF string
+    deck = build_molecule(SAMPLE_CIF_SILICON, basis="DZ", spins="up", net_spin=2)
+    assert len(deck.geometry) == 2
+    assert deck.geometry[0].element == "Si"
+
+
+def test_parse_geometry_delegates_to_ase_for_gro():
+    SAMPLE_GRO_WATER = """\
+Water GRO model
+3
+    1SOL     OW    1   0.000   0.000   0.012
+    1SOL    HW1    2   0.000   0.076  -0.047
+    1SOL    HW2    3   0.000  -0.076  -0.047
+   1.00000   1.00000   1.00000
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        gro_file = Path(tmpdir) / "water.gro"
+        gro_file.write_text(SAMPLE_GRO_WATER, encoding="utf-8")
+
+        deck = build_molecule(gro_file, basis="DZ", spins="up", net_spin=3)
+        assert len(deck.geometry) == 3
+        assert [a.element for a in deck.geometry] == ["O", "H", "H"]
+
+
+def test_missing_ase_graceful_error(monkeypatch):
+    import phatpsy.formats
+    monkeypatch.setattr(phatpsy.formats, "HAS_ASE", False)
+
+    with pytest.raises(ImportError, match="The ASE bridge requires 'ase'"):
+        phatpsy.formats.from_ase(None)
+
+    with pytest.raises(ImportError, match="The ASE bridge requires 'ase'"):
+        phatpsy.formats.to_ase([])
+
+    with pytest.raises(ImportError, match="The ASE bridge requires 'ase'"):
+        phatpsy.formats.parse_ase("some_file.cif")
+
+
+def test_cli_convert_to_cif_and_gro():
+    from phatpsy.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_yaml = Path(tmpdir) / "deck.yaml"
+        deck = build_molecule(SAMPLE_PDB_WATER, basis="DZ", spins="up", net_spin=3)
+        deck.to_yaml(in_yaml)
+
+        # Convert to CIF
+        out_cif = Path(tmpdir) / "water.cif"
+        rc = main(["convert", str(in_yaml), "-o", str(out_cif)])
+        assert rc == 0
+        assert out_cif.exists()
+        assert "data_" in out_cif.read_text(encoding="utf-8")
+
+        # Convert to GRO
+        out_gro = Path(tmpdir) / "water.gro"
+        rc = main(["convert", str(in_yaml), "-o", str(out_gro)])
+        assert rc == 0
+        assert out_gro.exists()
+        assert "OW" in out_gro.read_text(encoding="utf-8") or "O" in out_gro.read_text(encoding="utf-8")

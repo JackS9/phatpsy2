@@ -144,15 +144,16 @@ Standing rules that every phase must satisfy:
 - [ ] **Phase 12: Coupled-Perturbed (CPHF / Z-Vector) Orbital Response for Relaxed Gradients [PLANNED]**
   - The Phase 11 analytical gradient is the *unrelaxed* Hellmann-Feynman/Pulay gradient at fixed converged density P. In non-variational / model-potential systems, quantitative agreement with the total energy surface derivative dE/dR requires the orbital relaxation response Tr((∂E/∂P)(dP/dR)). Implement the coupled-perturbed (CPHF / Z-vector) equations for the projected Hamiltonian to recover the fully relaxed gradient. Acceptance: relaxed analytical gradient vs central FD of the SCF total energy surface to ~1e-3 or better on N2, CO, and H2O.
 
-- [ ] **Phase 13: Universal Molecular & Crystal Coordinate Interoperability [ACTIVE WORK ITEM]**
+- [x] **Phase 13: Universal Molecular & Crystal Coordinate Interoperability [COMPLETED]**
   - **Tier 1: Native Built-in Structure Readers (Zero External Dependencies) [COMPLETED]:**
     - Pure-Python format parsers in `phatpsy/formats.py` directly integrated into `parse_geometry()`, `build_molecule()`, and the CLI:
       - **PDB (`.pdb`)**: Extracts `ATOM` and `HETATM` records, element types, formal charges, and Cartesian coordinates (in Angstroms).
       - **Gaussian Input (`.gjf`, `.com`)**: Extracts route, title, net charge, spin multiplicity, and Cartesian or internal Z-matrix coordinate blocks.
       - **VASP POSCAR / CONTCAR (`POSCAR`, `.vasp`)**: Extracts lattice basis vectors, element symbols, stoichiometry, and Cartesian or direct/fractional atomic coordinates (completing the round-trip with `CrystalCell.to_poscar()`).
-  - **Tier 2: ASE Ecosystem Bridge (Atomic Simulation Environment) [PLANNED]:**
-    - Bidirectional conversion methods (`CalculationDeck.from_ase(atoms)` and `deck.to_ase()`).
-    - Automatic delegation of unrecognized file formats (`.cif`, `.gro`, `.inp`, `data.*`, CASTEP, Quantum ESPRESSO) to `ase.io.read()` when `ase` is available in the user's environment, providing instant interoperability with >100 computational chemistry formats without adding a hard dependency.
+  - **Tier 2: ASE Ecosystem Bridge (Atomic Simulation Environment) [COMPLETED]:**
+    - Bidirectional conversion methods (`CalculationDeck.from_ase(atoms)` and `deck.to_ase()`, `from_ase()`, `to_ase()`, `parse_ase()`, `read_ase()`).
+    - Automatic delegation of unrecognized file formats (`.cif`, `.gro`, `.mol`, `.sdf`, `.inp`, `data.*`, CASTEP, Quantum ESPRESSO) to `ase.io.read()` when `ase` is available in the user's environment, providing instant interoperability with >100 computational chemistry formats without adding a hard dependency.
+    - Full roundtrip transfer of Cartesian coordinates (Bohr $\leftrightarrow$ Ångström), chemical elements, formal charges, initial magnetic moments / spins, `FixAtoms` constraints, unit cell lattice vectors, and periodic boundary conditions (PBC).
 
 - [ ] **Phase 14: Stepwise Valence-Bond Molecular Assembler ("Tinker Toy" Directed Growth Engine) [PLANNED]**
   - **Concept:** Evolve the hybrid orbital builder and 3D visualizer into an interactive/programmatic structure growth engine that builds complete molecular geometries one atom at a time by replacing placeholder partner atoms with real atoms possessing their own specified hybridizations, repeating iteratively until all open valences are capped by terminal atoms.
@@ -182,7 +183,7 @@ flowchart LR
         P10["Phase 10: Automated Multi-Level Parity Suite"]
         P11["Phase 11: Analytical Pulay Gradients (Completed)"]
         P12["Phase 12: CPHF / Z-Vector Response (Planned)"]
-        P13["Phase 13: Coordinate Interoperability (Active)"]
+        P13["Phase 13: Coordinate Interoperability (Completed)"]
         P14["Phase 14: Valence-Bond Assembler (Planned)"]
         P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14
     end
