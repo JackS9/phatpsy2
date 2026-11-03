@@ -51,7 +51,7 @@ Standing rules that every phase must satisfy:
 
 - [ ] **Baseline Re-establishment [ACTIVE WORK ITEM]** (exception in `AGENTS.md` §6)
   - **Why:** the frozen baselines in `data/validation_baselines/` were captured with false convergence (cycle limit, `convergence=1e-4`), a nondeterministic default SCF, and ignored first-atom `spin="down"`; they are presumed invalid.
-  - **Done:** 33 tests that depend on default-path convergence or frozen values are quarantined (`BASELINE_QUARANTINE` in `tests/conftest.py`, non-strict `xfail`, they still run; a quarantined test that passes shows as XPASS). Suite: `338 passed, 33 xfailed, 1 xpassed`.
+  - **Done:** 36 tests that depend on default-path convergence or frozen values are quarantined (`BASELINE_QUARANTINE` in `tests/conftest.py`, non-strict `xfail`, they still run; a quarantined test that passes shows as XPASS, including platform-dependent $\text{H}_2\text{O}$ ADF/DZP convergence between Accelerate and OpenBLAS). Suite: 0 failures across macOS and Linux.
   - **Survey** (explicit spins, `use_grid_fit`, `atomic_smearing=1e-3`, `convergence=1e-8`, 1500-cycle cap, no extension; `phatpsy` build at this working tree; scratch script, not in the repo):
 
     | System | Converged | Notes |

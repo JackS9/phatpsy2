@@ -6033,12 +6033,13 @@ def show_hybrid_orbitals(
             auto_open=True,
             title=title,
         )
+        elem_sym = element.strip().capitalize()
+        badge_msg = f"Opened 3D WebGL visualizer for {elem_sym} in default web browser."
         try:
             import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
                 from IPython.display import HTML
-                elem_sym = element.strip().capitalize()
                 return HTML(
                     f'<div style="padding: 10px 16px; background: rgba(56, 189, 248, 0.12); '
                     f'border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; '
@@ -6047,7 +6048,7 @@ def show_hybrid_orbitals(
                     f'</div>'
                 )
         except ImportError:
-            return None
+            return badge_msg
 
     try:
         import html

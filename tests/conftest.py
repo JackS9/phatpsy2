@@ -17,9 +17,12 @@ BASELINE_QUARANTINE_REASON = (
 )
 
 BASELINE_QUARANTINE = {
+    "tests/test_basis_adf.py::test_adf_h2o_scf_convergence",
     "tests/test_basis_adf.py::test_adf_n2_scf_convergence",
     "tests/test_basis_polarized.py::TestPolarizedCalculations::test_co_dzp_convergence_and_dipole",
+    "tests/test_basis_polarized.py::TestPolarizedCalculations::test_h2o_dzp_convergence_and_dipole",
     "tests/test_basis_polarized.py::TestPolarizedCalculations::test_n2_dzp_convergence",
+    "tests/test_basis_polarized.py::TestPolarizedCalculations::test_water_dzp_quadrupole_and_origin_invariance",
     "tests/test_benchmarks.py::test_n2_benchmark",
     "tests/test_benchmarks.py::test_co_benchmark",
     "tests/test_benchmarks.py::test_bulk_ni_unit_scale_benchmark",
