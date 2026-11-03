@@ -2,7 +2,7 @@
 
 **PHATPSY** is a quantum chemistry package designed for non-empirical self-consistent field (SCF) calculations on polyatomic molecules, chemisorption complexes, and surface clusters using localized pseudopotentials and projected core/valence basis sets.
 
-Originally developed by **Jack A. Smith** at the Quantum Theory Project (University of Florida) and Union Carbide Corporation, **PHATPSY 2.0** modernizes the original codebase into a high-performance **Fortran 2018** core with a modern **Python API**, **CMake** build system, **Three.js 3D WebGL visualization**, and interactive **Jupyter** workflows.
+Originally developed by **Jack A. Smith** at the Quantum Theory Project (University of Florida), **PHATPSY 2.0** modernizes the original codebase into a high-performance **Fortran 2018** core with a modern **Python API**, **CMake** build system, **Three.js 3D WebGL visualization**, and interactive **Jupyter** workflows.
 
 ---
 

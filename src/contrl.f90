@@ -564,9 +564,6 @@ contains
      ' ',t25,'|                 JACK A. SMITH                      |'/ &
      ' ',t25,'|             QUANTUM THEORY PROJECT                 |'/ &
      ' ',t25,'|             UNIVERSITY OF FLORIDA                  |'/ &
-     ' ',t25,'|                      -                             |'/ &
-     ' ',t25,'|           UNION CARBIDE CORPORATION                |'/ &
-     ' ',t25,'|               S. CHARLESTON, WV                    |'/ &
      ' ',t25,'|                                                    |'/ &
      ' ',t25,' ---------------------------------------------------- '// &
      ' === CONTROL INPUT ==='//)

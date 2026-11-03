@@ -573,9 +573,6 @@ C      CALL MS_put(MSPTR,IER)
      X ' ',T25,'|                 JACK A. SMITH                      |'/
      X ' ',T25,'|             QUANTUM THEORY PROJECT                 |'/
      X ' ',T25,'|             UNIVERSITY OF FLORIDA                  |'/
-     X ' ',T25,'|                      -                             |'/
-     X ' ',T25,'|           UNION CARBIDE CORPORATION                |'/
-     X ' ',T25,'|               S. CHARLESTON, WV                    |'/
      X ' ',T25,'|                                                    |'/
      X ' ',T25,' ---------------------------------------------------- '//
      X ' === CONTROL INPUT ==='//)
