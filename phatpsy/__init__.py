@@ -26,6 +26,12 @@ from phatpsy.builder import (
     parse_geometry,
     BOHR_PER_ANGSTROM,
 )
+from phatpsy.formats import (
+    detect_format,
+    parse_pdb,
+    parse_gaussian,
+    parse_poscar,
+)
 from phatpsy.basis import (
     get_element_basis,
     get_polarized_basis,
@@ -195,6 +201,10 @@ __all__ = [
     "build_molecule",
     "build_diatomic",
     "parse_geometry",
+    "detect_format",
+    "parse_pdb",
+    "parse_gaussian",
+    "parse_poscar",
     "BOHR_PER_ANGSTROM",
     "assign_alternating_spin",
     "NonBipartiteSpinGraphError",

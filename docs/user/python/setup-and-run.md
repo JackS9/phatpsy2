@@ -59,6 +59,23 @@ H   0.000000  -0.757000  -0.4696
 deck = CalculationDeck.from_geometry(xyz_block, basis="DZ", units="angstrom")
 ```
 
+### 4. Importing PDB, Gaussian, and VASP POSCAR Structures
+
+PHATPSY natively parses standard chemical and crystal structure files without external dependencies:
+
+```python
+from phatpsy import build_molecule, parse_geometry
+
+# 1. Protein Data Bank (.pdb) - parses ATOM/HETATM records and charges
+atoms_pdb = parse_geometry("molecule.pdb", units="angstrom")
+
+# 2. Gaussian Input (.gjf, .com) - parses title, charge, multiplicity, and coordinates
+atoms_gjf = parse_geometry("calc.gjf")
+
+# 3. VASP POSCAR / CONTCAR (POSCAR, .vasp) - parses lattice and selective dynamics
+atoms_poscar = parse_geometry("POSCAR")
+```
+
 ---
 
 ## Inspecting and Modifying Decks

@@ -47,8 +47,18 @@ def parse_geometry(
 
     # 1. Path or filename
     if isinstance(geometry, (str, Path)):
+        from phatpsy.formats import detect_format, parse_pdb, parse_gaussian, parse_poscar
         s_path = Path(str(geometry))
-        if s_path.is_file():
+        fmt = detect_format(geometry)
+        if fmt == "pdb":
+            return parse_pdb(geometry, units=units)
+        elif fmt == "gaussian":
+            atoms, _, _, _ = parse_gaussian(geometry, units=units)
+            return atoms
+        elif fmt == "poscar":
+            atoms, _, _ = parse_poscar(geometry, units=units)
+            return atoms
+        elif s_path.is_file():
             content = s_path.read_text(encoding="utf-8")
             return _parse_xyz_string(content, to_bohr)
         elif isinstance(geometry, str) and ("\n" in geometry or ";" in geometry):
@@ -258,7 +268,7 @@ def _parse_xyz_string(text: str, to_bohr: float) -> List[AtomConfig]:
 def build_molecule(
     geometry: Union[str, Path, List[Any]],
     basis: Union[str, Dict[str, str]] = "DZ",
-    title: str = "PHATPSY Calculation",
+    title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     units: str = "bohr",
     spin_unrestricted: bool = True,
@@ -297,6 +307,17 @@ def build_molecule(
         A ready-to-run CalculationDeck.
     """
     import warnings
+    parsed_title = ""
+    if isinstance(geometry, (str, Path)):
+        from phatpsy.formats import detect_format, parse_gaussian
+        if detect_format(geometry) == "gaussian":
+            _, g_charge, g_mult, parsed_title = parse_gaussian(geometry, units=units)
+            if net_spin is None and g_mult > 1:
+                net_spin = g_mult - 1
+
+    if not title:
+        title = parsed_title or "PHATPSY Calculation"
+
     atoms = parse_geometry(geometry, units=units)
     if not atoms:
         raise ValueError("Cannot build molecule deck from empty geometry.")

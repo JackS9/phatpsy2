@@ -17,18 +17,21 @@ def load_deck_from_arg(input_file: Union[str, Path], auto_spin: bool = False) ->
     in_path = Path(input_file)
     suffix = in_path.suffix.lower()
 
-    if suffix == ".xyz":
+    from phatpsy.formats import detect_format
+    fmt = detect_format(in_path)
+
+    if fmt in ("xyz", "pdb", "gaussian", "poscar"):
         from phatpsy.builder import build_molecule
         deck = build_molecule(in_path, auto_spin_flip=auto_spin)
-    elif suffix in (".yaml", ".yml"):
+    elif fmt == "yaml":
         deck = CalculationDeck.from_yaml(in_path)
         if auto_spin:
             deck.assign_alternating_spin()
-    elif suffix == ".json":
+    elif fmt == "json":
         deck = CalculationDeck.from_json(in_path)
         if auto_spin:
             deck.assign_alternating_spin()
-    elif suffix in (".stdin", ".dat", ".txt") or (not suffix and in_path.exists()):
+    elif fmt == "stdin" or suffix in (".stdin", ".dat", ".txt") or (not suffix and in_path.exists()):
         deck = parse_stdin_to_deck(in_path)
         if auto_spin:
             deck.assign_alternating_spin()
@@ -107,7 +110,7 @@ def handle_build(args):
     deck = build_molecule(
         args.xyz_file,
         basis=args.basis,
-        title=args.title or f"PHATPSY calculation for {Path(args.xyz_file).stem}",
+        title=args.title,
         units=args.units,
         spins=spins_val,
         net_spin=net_spin_val,
