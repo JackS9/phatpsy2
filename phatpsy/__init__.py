@@ -79,6 +79,13 @@ from phatpsy.hybrids import (
     get_hybridization_spec,
     align_hybrid_to_neighbors,
 )
+from phatpsy.assembler import (
+    HybridAssembler,
+    HybridNode,
+    ValenceSlot,
+    ValenceSlotType,
+    get_bond_length,
+)
 
 from phatpsy.state import CalculationState, EmbeddedAtomState
 from phatpsy.coords import (
@@ -242,6 +249,11 @@ __all__ = [
     "HybridizationSpec",
     "get_hybridization_spec",
     "align_hybrid_to_neighbors",
+    "HybridAssembler",
+    "HybridNode",
+    "ValenceSlot",
+    "ValenceSlotType",
+    "get_bond_length",
 
     "BondCoordinate",
     "AngleCoordinate",

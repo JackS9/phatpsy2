@@ -6082,4 +6082,525 @@ def show_hybrid_orbitals(
         raise RuntimeError("IPython is required to use show_hybrid_orbitals() in Jupyter notebooks.")
 
 
+# ==============================================================================
+# Stepwise Valence-Bond Molecular Assembler 3D WebGL UI (Phase 14, M14.4)
+# ==============================================================================
+
+def generate_assembler_html(assembler: Any, title: str = "Valence-Bond Molecular Assembler") -> str:
+    """
+    Generates a full interactive Three.js HTML application for click-to-build molecular assembly.
+    """
+    import json
+
+    nodes_data = []
+    for node in assembler.nodes.values():
+        nodes_data.append({
+            "id": node.id,
+            "element": node.element,
+            "position": (node.position / BOHR_PER_ANGSTROM).tolist(),
+            "hybridization": node.hybridization,
+            "slots": [
+                {
+                    "index": s.index,
+                    "slot_type": s.slot_type.value,
+                    "direction": s.direction.tolist(),
+                    "target_atom_id": s.target_atom_id,
+                    "target_slot_index": s.target_slot_index,
+                    "bond_order": s.bond_order,
+                    "placeholder_pos": (s.placeholder_pos / BOHR_PER_ANGSTROM).tolist() if s.placeholder_pos is not None else None,
+                }
+                for s in node.slots
+            ]
+        })
+
+    bonds_data = [
+        {"a1": a1, "s1": s1, "a2": a2, "s2": s2, "order": order}
+        for (a1, s1, a2, s2, order) in assembler.bonds
+    ]
+
+    init_state_json = json.dumps({"nodes": nodes_data, "bonds": bonds_data})
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{title}</title>
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }}
+    #canvas-container {{ width: 100%; height: 100%; position: absolute; top: 0; left: 0; }}
+    .header-bar {{
+      position: absolute; top: 12px; left: 16px; right: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      pointer-events: none; z-index: 10;
+    }}
+    .panel {{
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 10px 16px;
+      pointer-events: auto;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }}
+    .btn {{
+      background: #1e293b; color: #f8fafc;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px; padding: 6px 12px;
+      cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all 0.15s ease;
+    }}
+    .btn:hover {{ background: #334155; border-color: rgba(255,255,255,0.4); }}
+    .btn-primary {{ background: #2563eb; border-color: #3b82f6; }}
+    .btn-primary:hover {{ background: #1d4ed8; }}
+    .btn-success {{ background: #059669; border-color: #10b981; }}
+    .btn-success:hover {{ background: #047857; }}
+    .badge {{
+      display: inline-block; padding: 3px 8px; border-radius: 9999px;
+      background: #334155; font-size: 12px; font-weight: 600; color: #94a3b8;
+    }}
+    #attach-modal {{
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      width: 360px; display: none; z-index: 20;
+    }}
+    .elem-grid {{
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0;
+    }}
+    .select-input {{
+      width: 100%; background: #1e293b; color: #f8fafc;
+      border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+      padding: 6px 8px; font-size: 13px; margin: 6px 0 10px 0;
+    }}
+    .help-hint {{
+      position: absolute; bottom: 16px; left: 16px; pointer-events: none;
+      font-size: 12px; color: #94a3b8;
+    }}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="header-bar">
+    <div class="panel" style="display:flex; align-items:center; gap:12px;">
+      <span style="font-weight:700; font-size:14px; letter-spacing:0.5px;">PHATPSY 2.0</span>
+      <span style="font-size:13px; color:#cbd5e1;">Molecular Assembler</span>
+      <span id="atom-badge" class="badge">Loading...</span>
+    </div>
+    <div class="panel" style="display:flex; gap:8px;">
+      <button id="btn-cap-all" class="btn btn-success">Cap All with H</button>
+      <button id="btn-download-yaml" class="btn">Export Deck (YAML)</button>
+      <button id="btn-download-xyz" class="btn">Export XYZ</button>
+      <button id="btn-reset-view" class="btn">Reset View</button>
+    </div>
+  </div>
+
+  <div class="help-hint panel">
+    Tip: Click any translucent <span style="color:#38bdf8; font-weight:bold;">(+) placeholder sphere</span> to attach an atom or cap with hydrogen.
+  </div>
+
+  <div id="attach-modal" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span id="modal-title" style="font-weight:700; font-size:14px; color:#38bdf8;">Attach Atom</span>
+      <button id="btn-close-modal" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px;">&times;</button>
+    </div>
+    <div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">Target: <strong id="modal-target" style="color:#f8fafc;">C1 (Slot #0)</strong></div>
+    
+    <label style="font-size:12px; font-weight:600;">Element:</label>
+    <div class="elem-grid" id="elem-btns">
+      <button class="btn btn-elem active" data-elem="C">C</button>
+      <button class="btn btn-elem" data-elem="N">N</button>
+      <button class="btn btn-elem" data-elem="O">O</button>
+      <button class="btn btn-elem" data-elem="H">H</button>
+      <button class="btn btn-elem" data-elem="F">F</button>
+      <button class="btn btn-elem" data-elem="Cl">Cl</button>
+      <button class="btn btn-elem" data-elem="P">P</button>
+      <button class="btn btn-elem" data-elem="S">S</button>
+    </div>
+
+    <label style="font-size:12px; font-weight:600;">Hybridization:</label>
+    <select id="modal-hyb" class="select-input">
+      <option value="sp3">sp³ (Tetrahedral)</option>
+      <option value="sp2">sp² (Trigonal Planar)</option>
+      <option value="sp">sp (Linear)</option>
+      <option value="sp3_pyramidal">sp³ Pyramidal (1 Lone Pair)</option>
+      <option value="sp3_bent">sp³ Bent (2 Lone Pairs)</option>
+      <option value="dsp2">dsp² (Square Planar)</option>
+      <option value="d2sp3">d²sp³ (Octahedral)</option>
+      <option value="delta">delta (Face-to-Face 4-Lobe)</option>
+      <option value="terminal">Terminal (Hydrogen / Halogen)</option>
+    </select>
+
+    <label style="font-size:12px; font-weight:600;">Conformation:</label>
+    <div style="display:flex; gap:16px; margin:6px 0 12px 0; font-size:13px;">
+      <label><input type="radio" name="conf" value="staggered" checked> Staggered (60°)</label>
+      <label><input type="radio" name="conf" value="eclipsed"> Eclipsed (0°)</label>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <button id="btn-modal-attach" class="btn btn-primary" style="flex:1;">Attach</button>
+      <button id="btn-modal-cap" class="btn btn-success" style="flex:1;">Cap with H</button>
+    </div>
+  </div>
+
+  <script>
+    const INITIAL_STATE = {init_state_json};
+    const CPK_COLORS = {{
+      "H": 0xffffff, "C": 0x475569, "N": 0x3b82f6, "O": 0xef4444,
+      "F": 0x10b981, "Cl": 0x22c55e, "Br": 0xb45309, "I": 0x7c3aed,
+      "P": 0xf97316, "S": 0xeab308, "Si": 0x06b6d4, "Cr": 0x8b5cf6,
+      "Mo": 0xa855f7, "Re": 0xec4899, "default": 0x94a3b8
+    }};
+    const CPK_RADII = {{
+      "H": 0.28, "C": 0.42, "N": 0.40, "O": 0.38, "F": 0.35,
+      "Cl": 0.48, "Br": 0.52, "I": 0.56, "P": 0.48, "S": 0.46,
+      "Si": 0.50, "Cr": 0.52, "default": 0.40
+    }};
+
+    let scene, camera, renderer, controls;
+    let atomGroup, bondGroup, placeholderGroup;
+    let state = JSON.parse(JSON.stringify(INITIAL_STATE));
+    let selectedPlaceholder = null;
+    let selectedElem = "C";
+
+    function init() {{
+      const container = document.getElementById("canvas-container");
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 4, 10);
+
+      renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambLight);
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight1.position.set(10, 20, 15);
+      scene.add(dirLight1);
+      const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.3);
+      dirLight2.position.set(-10, -10, -10);
+      scene.add(dirLight2);
+
+      atomGroup = new THREE.Group();
+      bondGroup = new THREE.Group();
+      placeholderGroup = new THREE.Group();
+      scene.add(atomGroup);
+      scene.add(bondGroup);
+      scene.add(placeholderGroup);
+
+      renderMolecule();
+      setupEvents();
+      animate();
+    }}
+
+    function renderMolecule() {{
+      while(atomGroup.children.length) atomGroup.remove(atomGroup.children[0]);
+      while(bondGroup.children.length) bondGroup.remove(bondGroup.children[0]);
+      while(placeholderGroup.children.length) placeholderGroup.remove(placeholderGroup.children[0]);
+
+      let openCount = 0;
+      const idToNode = {{}};
+
+      state.nodes.forEach(node => {{
+        idToNode[node.id] = node;
+        const color = CPK_COLORS[node.element] || CPK_COLORS.default;
+        const radius = CPK_RADII[node.element] || CPK_RADII.default;
+        const geom = new THREE.SphereGeometry(radius, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({{ color: color, roughness: 0.3, metalness: 0.1 }});
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.position.set(...node.position);
+        atomGroup.add(mesh);
+
+        // Placeholders
+        (node.slots || []).forEach(slot => {{
+          if (slot.slot_type === "placeholder" && slot.placeholder_pos) {{
+            openCount++;
+            const pGeom = new THREE.SphereGeometry(0.18, 16, 16);
+            const pMat = new THREE.MeshStandardMaterial({{
+              color: 0x38bdf8,
+              transparent: true,
+              opacity: 0.65,
+              roughness: 0.2,
+              wireframe: false
+            }});
+            const pMesh = new THREE.Mesh(pGeom, pMat);
+            pMesh.position.set(...slot.placeholder_pos);
+            pMesh.userData = {{ parentId: node.id, slotIndex: slot.index }};
+            placeholderGroup.add(pMesh);
+
+            // Connect dotted line from parent to placeholder
+            const lineGeom = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(...node.position),
+              new THREE.Vector3(...slot.placeholder_pos)
+            ]);
+            const lineMat = new THREE.LineDashedMaterial({{ color: 0x38bdf8, dashSize: 0.1, gapSize: 0.05, transparent: true, opacity: 0.4 }});
+            const line = new THREE.Line(lineGeom, lineMat);
+            line.computeLineDistances();
+            placeholderGroup.add(line);
+          }}
+        }});
+      }});
+
+      // Bonds
+      state.bonds.forEach(b => {{
+        const n1 = idToNode[b.a1];
+        const n2 = idToNode[b.a2];
+        if (!n1 || !n2) return;
+        const p1 = new THREE.Vector3(...n1.position);
+        const p2 = new THREE.Vector3(...n2.position);
+        const dist = p1.distanceTo(p2);
+        const cylGeom = new THREE.CylinderGeometry(0.08, 0.08, dist, 16);
+        const cylMat = new THREE.MeshStandardMaterial({{ color: 0x94a3b8, roughness: 0.4 }});
+        const cyl = new THREE.Mesh(cylGeom, cylMat);
+        cyl.position.copy(p1).add(p2).multiplyScalar(0.5);
+        cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
+        bondGroup.add(cyl);
+      }});
+
+      document.getElementById("atom-badge").innerText = `${{state.nodes.length}} atoms | ${{state.bonds.length}} bonds | ${{openCount}} open slots`;
+    }}
+
+    function setupEvents() {{
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      window.addEventListener("resize", () => {{
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }});
+
+      window.addEventListener("pointerdown", (event) => {{
+        if (event.clientY < 70 || event.clientY > window.innerHeight - 150) return;
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(placeholderGroup.children);
+        if (intersects.length > 0 && intersects[0].object.userData.parentId) {{
+          openAttachModal(intersects[0].object.userData);
+        }}
+      }});
+
+      // Element button clicks
+      document.querySelectorAll(".btn-elem").forEach(btn => {{
+        btn.addEventListener("click", () => {{
+          document.querySelectorAll(".btn-elem").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          selectedElem = btn.getAttribute("data-elem");
+          if (selectedElem === "H" || selectedElem === "F" || selectedElem === "Cl") {{
+            document.getElementById("modal-hyb").value = "terminal";
+          }} else if (selectedElem === "O" || selectedElem === "S") {{
+            document.getElementById("modal-hyb").value = "sp3_bent";
+          }} else if (selectedElem === "N" || selectedElem === "P") {{
+            document.getElementById("modal-hyb").value = "sp3_pyramidal";
+          }} else {{
+            document.getElementById("modal-hyb").value = "sp3";
+          }}
+        }});
+      }});
+
+      document.getElementById("btn-close-modal").addEventListener("click", closeAttachModal);
+
+      document.getElementById("btn-modal-cap").addEventListener("click", () => {{
+        if (!selectedPlaceholder) return;
+        attachToPlaceholder(selectedPlaceholder.parentId, selectedPlaceholder.slotIndex, "H", null);
+        closeAttachModal();
+      }});
+
+      document.getElementById("btn-modal-attach").addEventListener("click", () => {{
+        if (!selectedPlaceholder) return;
+        const hyb = document.getElementById("modal-hyb").value;
+        const conf = document.querySelector('input[name="conf"]:checked').value;
+        attachToPlaceholder(selectedPlaceholder.parentId, selectedPlaceholder.slotIndex, selectedElem, hyb === "terminal" ? null : hyb, conf);
+        closeAttachModal();
+      }});
+
+      document.getElementById("btn-cap-all").addEventListener("click", capAllPlaceholders);
+
+      document.getElementById("btn-download-yaml").addEventListener("click", downloadDeckYAML);
+      document.getElementById("btn-download-xyz").addEventListener("click", downloadXYZ);
+      document.getElementById("btn-reset-view").addEventListener("click", () => {{
+        camera.position.set(0, 4, 10);
+        controls.target.set(0, 0, 0);
+      }});
+    }}
+
+    function openAttachModal(targetData) {{
+      selectedPlaceholder = targetData;
+      document.getElementById("modal-target").innerText = `${{targetData.parentId}} (Slot #${{targetData.slotIndex}})`;
+      document.getElementById("attach-modal").style.display = "block";
+    }}
+
+    function closeAttachModal() {{
+      document.getElementById("attach-modal").style.display = "none";
+      selectedPlaceholder = null;
+    }}
+
+    function attachToPlaceholder(pId, slotIdx, elem, hyb, conf) {{
+      const pNode = state.nodes.find(n => n.id === pId);
+      if (!pNode) return;
+      const slot = pNode.slots.find(s => s.index === slotIdx);
+      if (!slot) return;
+
+      const elemCount = state.nodes.filter(n => n.element === elem).length + 1;
+      const newId = `${{elem}}${{elemCount}}`;
+      const bondLen = 1.09; // AA
+      const newPos = [
+        pNode.position[0] + slot.direction[0] * bondLen,
+        pNode.position[1] + slot.direction[1] * bondLen,
+        pNode.position[2] + slot.direction[2] * bondLen,
+      ];
+
+      // Mark slot as bonded
+      slot.slot_type = "bonding";
+      slot.target_atom_id = newId;
+
+      const newSlots = [];
+      if (hyb === "sp3") {{
+        // Add 3 open arms
+        const u = slot.direction;
+        const p1 = [u[1], -u[0], 0]; // perp
+        newSlots.push({{ index: 0, slot_type: "bonding", direction: [-u[0], -u[1], -u[2]] }});
+        newSlots.push({{ index: 1, slot_type: "placeholder", direction: [u[0]*0.33 + 0.94, u[1], u[2]], placeholder_pos: [newPos[0]+1, newPos[1], newPos[2]] }});
+        newSlots.push({{ index: 2, slot_type: "placeholder", direction: [u[0]*0.33 - 0.47, u[1]+0.81, u[2]], placeholder_pos: [newPos[0]-0.5, newPos[1]+0.8, newPos[2]] }});
+        newSlots.push({{ index: 3, slot_type: "placeholder", direction: [u[0]*0.33 - 0.47, u[1]-0.81, u[2]], placeholder_pos: [newPos[0]-0.5, newPos[1]-0.8, newPos[2]] }});
+      }}
+
+      state.nodes.push({{
+        id: newId,
+        element: elem,
+        position: newPos,
+        hybridization: hyb,
+        slots: newSlots
+      }});
+      state.bonds.push({{ a1: pId, s1: slotIdx, a2: newId, s2: 0, order: 1 }});
+      renderMolecule();
+    }}
+
+    function capAllPlaceholders() {{
+      const toCap = [];
+      state.nodes.forEach(n => {{
+        (n.slots || []).forEach(s => {{
+          if (s.slot_type === "placeholder") toCap.push({{ pId: n.id, sIdx: s.index }});
+        }});
+      }});
+      toCap.forEach(item => attachToPlaceholder(item.pId, item.sIdx, "H", null));
+    }}
+
+    function downloadXYZ() {{
+      let text = `${{state.nodes.length}}\\nPHATPSY 2.0 Assembled Molecule\\n`;
+      state.nodes.forEach(n => {{
+        text += `${{n.element.padEnd(4)}} ${{n.position[0].toFixed(6).padStart(12)}} ${{n.position[1].toFixed(6).padStart(12)}} ${{n.position[2].toFixed(6).padStart(12)}}\\n`;
+      }});
+      downloadFile(text, "assembled_molecule.xyz", "text/plain");
+    }}
+
+    function downloadDeckYAML() {{
+      let yaml = `title: "Assembled Molecule (PHATPSY 2.0)"\\ncontrol:\\n  convergence: 0.0001\\n  use_diis: true\\ngeometry:\\n`;
+      state.nodes.forEach(n => {{
+        const bX = (n.position[0] * 1.88972612).toFixed(6);
+        const bY = (n.position[1] * 1.88972612).toFixed(6);
+        const bZ = (n.position[2] * 1.88972612).toFixed(6);
+        yaml += `  - id: "${{n.id}}"\\n    element: "${{n.element}}"\\n    xyz: [${{bX}}, ${{bY}}, ${{bZ}}]\\n`;
+        if (n.hybridization) yaml += `    hybridization: "${{n.hybridization}}"\\n`;
+      }});
+      downloadFile(yaml, "assembled_deck.yaml", "text/yaml");
+    }}
+
+    function downloadFile(content, fileName, contentType) {{
+      const a = document.createElement("a");
+      const file = new Blob([content], {{ type: contentType }});
+      a.href = URL.createObjectURL(file);
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }}
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+
+    window.onload = init;
+  </script>
+</body>
+</html>
+"""
+
+
+def visualize_assembler(
+    assembler: Any,
+    output_path: Optional[Union[str, Path]] = None,
+    auto_open: bool = False,
+    title: str = "PHATPSY Valence-Bond Molecular Assembler",
+) -> str:
+    """
+    Exports the assembled molecule into a standalone interactive 3D WebGL HTML viewer.
+    """
+    html_content = generate_assembler_html(assembler, title=title)
+    if output_path is not None:
+        p = Path(output_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(html_content, encoding="utf-8")
+        if auto_open:
+            import webbrowser
+            webbrowser.open(f"file://{{p.resolve()}}")
+    return html_content
+
+
+def show_assembler(assembler: Any, height: int = 600, in_browser: bool = False):
+    """
+    Displays the interactive 3D molecular assembler inside a Jupyter notebook or browser.
+    """
+    badge_msg = f"PHATPSY 3D Assembler: {len(assembler.nodes)} atoms, {len(assembler.bonds)} bonds, {len(assembler.get_open_slots())} open slots."
+    if in_browser:
+        import tempfile
+        import webbrowser
+        with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as f:
+            f.write(generate_assembler_html(assembler))
+            tmp_path = f.name
+        try:
+            webbrowser.open(f"file://{{tmp_path}}")
+            return badge_msg
+        except Exception:
+            return badge_msg
+
+    try:
+        import html
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            html_code = generate_assembler_html(assembler)
+            escaped_html = html.escape(html_code, quote=True)
+            iframe_html = (
+                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
+                f'<iframe srcdoc="{{escaped_html}}" width="100%" height="{{height}}" '
+                f'sandbox="allow-scripts allow-same-origin allow-popups" '
+                f'style="border:none; width:100%; height:{{height}}px; display:block; background:#0f172a;"></iframe>'
+                f'</div>'
+            )
+            return HTML(iframe_html)
+    except ImportError:
+        return badge_msg
+
+
+
 

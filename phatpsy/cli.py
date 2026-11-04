@@ -799,9 +799,53 @@ def handle_cube(args):
     return 0
 
 
+def handle_assemble(args):
+    from phatpsy.assembler import HybridAssembler
+
+    asm = HybridAssembler(root=args.root, hybridization=args.hybridization)
+    if not args.interactive and args.cap:
+        asm.cap_all(args.cap)
+
+    out_path = Path(args.output) if args.output else None
+
+    if args.interactive or (out_path and out_path.suffix.lower() == ".html"):
+        html_out = out_path if out_path else Path("phatpsy_assemble.html")
+        asm.visualize(output_path=html_out, auto_open=(not args.no_browser))
+        sys.stderr.write(f"PHATPSY: Interactive molecular assembler saved to '{html_out}'\n")
+        return 0
+
+    deck = asm.to_deck()
+    if out_path:
+        out_suffix = out_path.suffix.lower()
+        if out_suffix == ".json":
+            deck.to_json(out_path)
+        else:
+            deck.to_yaml(out_path)
+        sys.stderr.write(f"PHATPSY: Assembled deck saved to '{out_path}'\n")
+    else:
+        sys.stdout.write(deck.to_yaml())
+
+    return 0
+
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+
+    # Handle 'assemble' command
+    if argv and argv[0] in ("assemble", "assembler", "build-hybrid"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy assemble",
+            description="Stepwise Valence-Bond Molecular Assembler: build structures from hybridized atoms."
+        )
+        parser.add_argument("-r", "--root", default="C", help="Root atom element (default: C)")
+        parser.add_argument("--hybridization", default="sp3", help="Root hybridization ('sp3', 'sp2', 'sp', 'sp3_bent', 'delta', etc., default: sp3)")
+        parser.add_argument("-c", "--cap", default="H", help="Terminal capping element (default: H)")
+        parser.add_argument("-o", "--output", default=None, help="Output calculation deck (.yaml, .json) or HTML visualization (.html)")
+        parser.add_argument("--interactive", "--view", action="store_true", help="Launch interactive 3D WebGL click-to-build assembler in browser")
+        parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open browser automatically")
+        args = parser.parse_args(argv[1:])
+        return handle_assemble(args)
 
     # Handle 'cube' command
     if argv and argv[0] in ("cube", "grid", "volumetric"):

@@ -207,6 +207,10 @@ def test_docs_cli_flags():
             "--probe-wavelengths", "-o", "--output", "-p", "--plot",
             "--html", "--view",
         },
+        "assemble": {
+            "-h", "--help", "-r", "--root", "--hybridization", "-c", "--cap",
+            "-o", "--output", "--interactive", "--view", "-n", "--no-browser",
+        },
         "root": {
             "-h", "--help", "-o", "--output", "--json-stdout",
         },
@@ -225,6 +229,8 @@ def test_docs_cli_flags():
     subcommand_options["properties"] = subcommand_options["eom"]
     subcommand_options["ads"] = subcommand_options["chemisorption"]
     subcommand_options["chemi"] = subcommand_options["chemisorption"]
+    subcommand_options["assembler"] = subcommand_options["assemble"]
+    subcommand_options["build-hybrid"] = subcommand_options["assemble"]
 
     commands_checked = 0
     for md_file in get_doc_files():

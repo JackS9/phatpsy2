@@ -108,6 +108,7 @@ nav:
           - user/cli/reference.md
       - Python API:
           - user/python/setup-and-run.md
+          - user/python/assembler.md
           - user/python/results-and-analysis.md
           - user/python/restarts-scans-optimization.md
           - user/python/periodic-systems.md

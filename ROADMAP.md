@@ -155,14 +155,15 @@ Standing rules that every phase must satisfy:
     - Automatic delegation of unrecognized file formats (`.cif`, `.gro`, `.mol`, `.sdf`, `.inp`, `data.*`, CASTEP, Quantum ESPRESSO) to `ase.io.read()` when `ase` is available in the user's environment, providing instant interoperability with >100 computational chemistry formats without adding a hard dependency.
     - Full roundtrip transfer of Cartesian coordinates (Bohr $\leftrightarrow$ Ångström), chemical elements, formal charges, initial magnetic moments / spins, `FixAtoms` constraints, unit cell lattice vectors, and periodic boundary conditions (PBC).
 
-- [ ] **Phase 14: Stepwise Valence-Bond Molecular Assembler ("Tinker Toy" Directed Growth Engine) [PLANNED]**
-  - **Concept:** Evolve the hybrid orbital builder and 3D visualizer into an interactive/programmatic structure growth engine that builds complete molecular geometries one atom at a time by replacing placeholder partner atoms with real atoms possessing their own specified hybridizations, repeating iteratively until all open valences are capped by terminal atoms.
+- [x] **Phase 14: Stepwise Valence-Bond Molecular Assembler ("Tinker Toy" Directed Growth Engine) [COMPLETED]**
+  - **Concept:** Evolved the hybrid orbital builder and 3D visualizer into an interactive/programmatic structure growth engine (`phatpsy/assembler.py`) that builds complete molecular geometries one atom at a time by replacing placeholder partner atoms with real atoms possessing their own specified hybridizations, repeating iteratively until all open valences are capped by terminal atoms.
   - **Key Capabilities:**
     - **Seed Atom Initialization:** Start with a root atom and chosen hybridization ($sp, sp^2, sp^3, dsp^2, d^2sp^3, \delta$, etc.) whose directional $\sigma$-vectors define open bonding partner slots.
     - **Stepwise Atom Replacement:** Select an open placeholder site and substitute it with a new real atom of a chosen element and hybridization.
-    - **Kabsch Frame Alignment & Conformation:** Automatically rotate the new atom's hybrid frame so that a bonding lobe directs back along the bond vector toward the parent atom (using covalent radii for bond length), with configurable dihedral torsion (staggered vs. eclipsed conformations) for remaining lobes.
+    - **Kabsch Frame Alignment & Conformation:** Automatically rotates the new atom's hybrid frame so that a bonding lobe directs back along the bond vector toward the parent atom (using covalent radii and multiple-bond contractions for single, double, triple, and quadruple delta bonds), with configurable dihedral torsion (staggered vs. eclipsed conformations).
     - **Terminal Capping ("Rinse and Repeat"):** Iteratively grow branches until all remaining open placeholders are capped with terminal atoms (e.g. automatic hydrogen capping at standard $C\text{--}H, N\text{--}H, O\text{--}H$ lengths, or halogens).
-    - **Interactive 3D Viewer & Deck Export:** Interactive Three.js / Jupyter UI with clickable placeholder nodes for point-and-click molecular assembly, exporting directly to a validated `CalculationDeck` with per-atom Cartesian coordinates and pre-assigned `hybridization` tags ready for directed-hybrid SCF convergence.
+    - **Automated Lone-Pair Reservation:** Automatically leaves bonding arms open while assigning non-bonding lone pairs for electronegative species ($H_2O$ bent, $NH_3$ pyramidal).
+    - **Interactive 3D WebGL Viewer & Deck Export:** Interactive Three.js click-to-build UI with clickable placeholder nodes for point-and-click molecular assembly (`phatpsy assemble --interactive`), exporting directly to a validated `CalculationDeck` with pre-assigned `hybridization` tags and directed-hybrid starting orbitals (`apply_hybrid_seeds()`).
 
 ```mermaid
 flowchart LR
@@ -184,7 +185,7 @@ flowchart LR
         P11["Phase 11: Analytical Pulay Gradients (Completed)"]
         P12["Phase 12: CPHF / Z-Vector Response (Planned)"]
         P13["Phase 13: Coordinate Interoperability (Completed)"]
-        P14["Phase 14: Valence-Bond Assembler (Planned)"]
+        P14["Phase 14: Valence-Bond Assembler (Completed)"]
         P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14
     end
 

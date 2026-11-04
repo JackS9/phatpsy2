@@ -126,6 +126,7 @@ def parse_geometry(
                     spin_flip=item.spin_flip,
                     spin=item.spin,
                     basis=item.basis,
+                    hybridization=item.hybridization,
                     embedded_state=item.embedded_state,
                     starting_orbitals=item.starting_orbitals,
                 ))
@@ -155,6 +156,7 @@ def parse_geometry(
                 spin_flip=spin_flip_val,
                 spin=spin_val,
                 basis=item.get("basis"),
+                hybridization=item.get("hybridization"),
                 embedded_state=item.get("embedded_state"),
                 starting_orbitals=item.get("starting_orbitals"),
             ))
