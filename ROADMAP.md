@@ -175,6 +175,11 @@ Standing rules that every phase must satisfy:
     - **Automated Lone-Pair Reservation:** Automatically leaves bonding arms open while assigning non-bonding lone pairs for electronegative species ($H_2O$ bent, $NH_3$ pyramidal).
     - **Interactive 3D WebGL Viewer & Deck Export:** Interactive Three.js click-to-build UI with clickable placeholder nodes for point-and-click molecular assembly (`phatpsy assemble --interactive`), exporting directly to a validated `CalculationDeck` with pre-assigned `hybridization` tags and directed-hybrid starting orbitals (`apply_hybrid_seeds()`).
 
+- [ ] **Phase 15: Full Coupled CPHF Superoperator Response [PLANNED]**
+  - Extend the Phase 12 uncoupled (diagonal-Hessian) Z-vector solver with the full orbital-rotation superoperator: add the two-electron Coulomb/exchange and model-potential screening response blocks $K_{pq,rs} = \partial F_{pq}/\partial P_{rs}$ omitted in Phase 12, and solve the complete (non-diagonal) CPHF equations $\mathbf{A}^T \mathbf{Z} = -\mathbf{L}$.
+  - Acceptance: the relaxed analytical gradient matches central FD of the SCF total energy surface to $< 10^{-3}\text{ Ha/Bohr}$ on $\text{HF}$, $\text{LiH}$, and $\text{H}_2\text{O}$ — i.e., the three tests currently quarantined via `pytest.xfail` in `tests/test_cphf.py` (reporting 0.2133 / 0.0365 / 0.2507 Ha/Bohr) are un-quarantined and pass. No tolerance widening; no FD-fitting (Anti-Circularity Invariant).
+  - Downstream: full coupling unblocks switching `compute_hessian` / `compute_vibrations` from the empirical gradient to the analytical relaxed gradient (currently 30-40% off on water with the unrelaxed Hessian).
+
 ```mermaid
 flowchart LR
     subgraph Part1["Part I: Foundational Modernization (Completed)"]
@@ -196,7 +201,8 @@ flowchart LR
         P12["Phase 12: CPHF / Z-Vector Response (Completed)"]
         P13["Phase 13: Coordinate Interoperability (Completed)"]
         P14["Phase 14: Valence-Bond Assembler (Completed)"]
-        P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14
+        P15["Phase 15: Coupled CPHF Superoperator (Planned)"]
+        P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14 --> P15
     end
 
     Part1 --> Part2
