@@ -36,10 +36,9 @@ class CPHFResponseSolver:
     Projected Hamiltonian / EWMO wave functions.
     """
 
-    def __init__(self, calc_state: Any, deck: Optional[Any] = None, driver: Optional[Any] = None):
+    def __init__(self, calc_state: Any, deck: Optional[Any] = None):
         self.calc_state = calc_state
         self.deck = deck
-        self.driver = driver
 
         # Extract dimensions and state tensors
         self.coord = calc_state["atom_coordinates"]
@@ -322,33 +321,15 @@ class CPHFResponseSolver:
 
     def solve_z_vector(self) -> np.ndarray:
         """
-        Solves the CPHF Handy-Schaefer Z-vector equation:
+        Solves the uncoupled CPHF Handy-Schaefer Z-vector equation:
             A^T * Z = -L
-        When a calculation driver is supplied, recovers the self-consistent
-        orbital response vector by orthogonal projection onto the skeleton
-        Fock derivative basis F_deriv.
+        using the analytical non-variational orbital Lagrangian L and
+        the diagonal orbital rotation Hessian A.
         """
         if self.n_active == 0:
             return np.zeros(0, dtype=np.float64)
 
-        F_deriv = self.compute_fock_derivatives()  # (n_active, n_atoms, 3)
-
-        if self.driver is not None and self.deck is not None:
-            # Self-consistent orbital response projection
-            from phatpsy.gradients import compute_scf_finite_difference_gradient
-            g_unrelaxed = compute_polyatomic_analytical_gradient(self.calc_state, self.deck, relaxed=False)
-            fd_grad = compute_scf_finite_difference_gradient(self.driver, self.deck, step_size=0.002)
-            diff = fd_grad - g_unrelaxed
-
-            A_mat = F_deriv.reshape(self.n_active, 3 * self.n_atoms).T
-            b_vec = diff.reshape(3 * self.n_atoms)
-            try:
-                Z, _, _, _ = np.linalg.lstsq(A_mat, b_vec, rcond=1e-3)
-                return Z
-            except Exception:
-                pass
-
-        # Analytical Lagrangian solve
+        # Analytical Lagrangian solve: A^T * Z = -L
         L = self.build_orbital_lagrangian()
         A = self.build_orbital_hessian()
         try:
@@ -392,11 +373,40 @@ class CPHFResponseSolver:
 
 
 def compute_polyatomic_relaxed_gradient(
-    calc_state: Any, deck: Optional[Any] = None, driver: Optional[Any] = None
+    calc_state: Any, deck: Optional[Any] = None
 ) -> np.ndarray:
     """
-    Computes the fully relaxed CPHF / Z-vector analytical Cartesian nuclear gradient (N_atoms, 3)
-    incorporating exact orbital relaxation response Tr( (dE / dP) * (dP / dR) ).
+    Computes the relaxed analytical Cartesian nuclear gradient (N_atoms, 3)
+    incorporating the uncoupled (diagonal-Hessian) CPHF orbital relaxation
+    response Z-vector contracted with skeleton Fock derivatives.
     """
-    solver = CPHFResponseSolver(calc_state, deck, driver=driver)
+    solver = CPHFResponseSolver(calc_state, deck)
     return solver.compute_relaxed_gradient()
+
+
+def diagnose_orbital_response_fd_projection(
+    calc_state: Any, deck: Any, driver: Any, step_size: float = 0.002
+) -> np.ndarray:
+    """
+    DIAGNOSTIC USE ONLY: computes the best-fit orbital response Z-vector by
+    least-squares projection of the finite-difference force discrepancy onto the
+    skeleton Fock derivative tensor F_deriv.
+
+    This function is strictly for post-hoc analysis and diagnostic evaluation of
+    basis completeness. It is NOT called by driver.gradient(),
+    compute_polyatomic_relaxed_gradient(), or any validation tests.
+    """
+    from phatpsy.gradients import compute_scf_finite_difference_gradient
+    solver = CPHFResponseSolver(calc_state, deck)
+    if solver.n_active == 0:
+        return np.zeros(0, dtype=np.float64)
+
+    F_deriv = solver.compute_fock_derivatives()
+    g_unrel = compute_polyatomic_analytical_gradient(calc_state, deck, relaxed=False)
+    fd_grad = compute_scf_finite_difference_gradient(driver, deck, step_size=step_size)
+    diff = fd_grad - g_unrel
+
+    A_mat = F_deriv.reshape(solver.n_active, 3 * solver.n_atoms).T
+    b_vec = diff.reshape(3 * solver.n_atoms)
+    Z_fit, _, _, _ = np.linalg.lstsq(A_mat, b_vec, rcond=1e-3)
+    return Z_fit
