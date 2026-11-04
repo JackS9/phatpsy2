@@ -195,6 +195,16 @@ from phatpsy.chemisorption import (
     VibrationalShiftResult,
     SurfaceCoreLevelShifts,
 )
+from phatpsy.gradients import (
+    compute_polyatomic_analytical_gradient,
+    compute_nuclear_repulsion_gradient,
+    compute_scf_finite_difference_gradient,
+    DiatomicFrame,
+)
+from phatpsy.cphf import (
+    compute_polyatomic_relaxed_gradient,
+    CPHFResponseSolver,
+)
 
 
 __all__ = [
@@ -346,6 +356,9 @@ __all__ = [
     "LateralSiteScanResult",
     "VibrationalShiftResult",
     "SurfaceCoreLevelShifts",
+    "compute_polyatomic_analytical_gradient",
+    "compute_polyatomic_relaxed_gradient",
+    "CPHFResponseSolver",
 ]
 
 

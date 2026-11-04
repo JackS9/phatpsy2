@@ -341,13 +341,30 @@ def _unpack_packed(p: np.ndarray, n: int) -> np.ndarray:
     return mat
 
 
-def compute_polyatomic_analytical_gradient(calc_state: Any, deck: Optional[Any] = None) -> np.ndarray:
+def compute_polyatomic_analytical_gradient(
+    calc_state: Any,
+    deck: Optional[Any] = None,
+    relaxed: bool = False,
+    driver: Optional[Any] = None,
+) -> np.ndarray:
     """
-    Assembles the full analytical Cartesian nuclear gradient (N_atoms, 3) for any diatomic
+    Assembles the Cartesian nuclear gradient (N_atoms, 3) for any diatomic
     or polyatomic molecule using the density matrix P, energy-weighted density matrix W,
     two-center analytical derivative kernels, model potential force contractions,
     and nuclear repulsion.
+
+    Parameters:
+        calc_state: Converged electronic calculation state dictionary.
+        deck: Optional CalculationDeck definition.
+        relaxed: When True, incorporates the Coupled-Perturbed (CPHF / Z-vector)
+                 orbital relaxation response for exact consistency with the
+                 SCF electronic total energy surface (Phase 12).
+        driver: Optional PhatpsyDriver instance used for self-consistent
+                orbital relaxation response projection.
     """
+    if relaxed:
+        from phatpsy.cphf import compute_polyatomic_relaxed_gradient
+        return compute_polyatomic_relaxed_gradient(calc_state, deck=deck, driver=driver)
     coord = calc_state["atom_coordinates"]
     n_atoms = coord.shape[1]
     if n_atoms < 1:

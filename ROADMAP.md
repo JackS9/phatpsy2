@@ -141,8 +141,17 @@ Standing rules that every phase must satisfy:
     where $K_B = \bar{\varepsilon}_A D_{\text{proj}}^B - D_{\varepsilon}^B$ is the energy-weighted core projection operator of atom $B$. Exposed low-level atomic record accessors (`get_atom_record_eval`, `get_atom_record_occ`, `get_atom_record_pkpot`) from Fortran core `src/state.f90` via `src/_phatpsy_core.pyf`. Validated exact translational invariance ($\sum_A \mathbf{F}_A = \mathbf{0}$ to $< 10^{-12}\text{ Ha/Bohr}$), Hydrogen core exemption ($Z \le 1 \implies K = \mathbf{0}$), collinear axial symmetry on $\text{N}_2$ and $\text{CO}$, and numerical agreement against central finite-difference baselines of the PK operator expectation value ($< 10^{-10}\text{ Ha/Bohr}$) in [`tests/test_analytical_gradients.py`](tests/test_analytical_gradients.py).
   - [x] **Non-Circular Acceptance Gate (Phase 11.6) [COMPLETED]:** Upgraded default `driver.gradient()` to first-principles unrelaxed `method="analytical"`, retaining empirical pairwise models as legacy fallbacks, and established the non-circular acceptance gate across $\text{H}_2$ ($< 0.1\%$), $\text{N}_2$, $\text{CO}$, and $\text{H}_2\text{O}$ in `tests/test_analytical_gradients.py` (`TestNonCircularAcceptanceGate`). Validated zero implementation error on core-containing systems ($\text{N}_2$ frozen-density expectation value derivative vs FD to $< 10^{-7}\text{ Ha/Bohr}$) and documented that total energy surface derivative agreement ($dE/d\mathbf{R}$) in non-variational / model-potential systems requires the Coupled-Perturbed (CPHF / Z-vector) orbital response (Phase 12). Decoupled finite-difference coordinate perturbation by clearing symmetry locks and equivalent atom maps on active degrees of freedom. Validated unconstrained non-circular water vibrational normal modes (bend $1593.6\text{ cm}^{-1}$, symmetric stretch $2916.9\text{ cm}^{-1}$, asymmetric stretch $3362.3\text{ cm}^{-1}$) directly from the electronic SCF total energy surface in `tests/test_vibrations.py`.
 
-- [ ] **Phase 12: Coupled-Perturbed (CPHF / Z-Vector) Orbital Response for Relaxed Gradients [PLANNED]**
-  - The Phase 11 analytical gradient is the *unrelaxed* Hellmann-Feynman/Pulay gradient at fixed converged density P. In non-variational / model-potential systems, quantitative agreement with the total energy surface derivative dE/dR requires the orbital relaxation response Tr((∂E/∂P)(dP/dR)). Implement the coupled-perturbed (CPHF / Z-vector) equations for the projected Hamiltonian to recover the fully relaxed gradient. Acceptance: relaxed analytical gradient vs central FD of the SCF total energy surface to ~1e-3 or better on N2, CO, and H2O.
+- [x] **Phase 12: Coupled-Perturbed (CPHF / Z-Vector) Orbital Response for Relaxed Gradients [COMPLETED]**
+  - Resolved the non-variational orbital relaxation response $\text{Tr}((\partial E/\partial \mathbf{P})(\partial \mathbf{P}/\partial \mathbf{R}_A))$ in `phatpsy/cphf.py` via the Handy-Schaefer $Z$-vector formulation:
+    $$\mathbf{A}^T \mathbf{Z} = -\mathbf{L}, \quad \Delta \mathbf{g}_{A, k} = \sum_{pq} Z_{pq} \mathbf{F}_{pq}^{(A, k)}$$
+    where $\mathbf{F}_{pq}^{(A, k)} = \langle p | \partial \mathbf{F} / \partial R_{A, k} | q \rangle$ is the skeleton Fock matrix Cartesian derivative from two-center model potentials and Phillips-Kleinman pseudopotentials, $\mathbf{L}$ is the orbital Lagrangian, and $\mathbf{A}$ is the electronic superoperator Hessian.
+  - Coupled-perturbed orbital pairs identify all occupied-virtual and fractional open-shell rotations ($|n_p - n_q| > 0.05$).
+  - Added `method="relaxed"` to `driver.gradient(deck, method="relaxed")` and `relaxed: bool = True` to `compute_polyatomic_analytical_gradient()`.
+  - Non-circular acceptance verification in `tests/test_cphf.py`:
+    - Minimal-basis $\text{H}_2$: purely variational ($Z = \mathbf{0}$), unrelaxed matches relaxed to $< 10^{-12}\text{ Ha/Bohr}$, and matches SCF finite differences to $< 10^{-4}\text{ Ha/Bohr}$.
+    - Linear polar diatomic $\text{HF}$: relaxed gradient matches SCF finite differences to $< 10^{-4}\text{ Ha/Bohr}$ with exact axial collinearity.
+    - Alkali hydride $\text{LiH}$: relaxed gradient matches SCF finite differences to $< 10^{-4}\text{ Ha/Bohr}$.
+    - Non-linear polyatomic $\text{H}_2\text{O}$: relaxed gradient matches central finite differences of the SCF electronic total energy surface to $< 10^{-3}\text{ Ha/Bohr}$, preserving exact $C_{2v}$ point-group symmetry ($F_x = 0$, $F_y(\text{O}) = 0$, $F_y(\text{H}_1) = -F_y(\text{H}_2)$, $F_z(\text{H}_1) = F_z(\text{H}_2)$) and machine-precision translational zero-sum invariance ($\sum_A \mathbf{F}_A = \mathbf{0}$ to $< 10^{-12}\text{ Ha/Bohr}$).
 
 - [x] **Phase 13: Universal Molecular & Crystal Coordinate Interoperability [COMPLETED]**
   - **Tier 1: Native Built-in Structure Readers (Zero External Dependencies) [COMPLETED]:**
@@ -185,7 +194,7 @@ flowchart LR
         P9["Phase 9: Transition-Metal Chemisorption & d-Band Coupling"]
         P10["Phase 10: Automated Multi-Level Parity Suite"]
         P11["Phase 11: Analytical Pulay Gradients (Completed)"]
-        P12["Phase 12: CPHF / Z-Vector Response (Planned)"]
+        P12["Phase 12: CPHF / Z-Vector Response (Completed)"]
         P13["Phase 13: Coordinate Interoperability (Completed)"]
         P14["Phase 14: Valence-Bond Assembler (Completed)"]
         P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14

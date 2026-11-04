@@ -311,10 +311,9 @@ class PhatpsyDriver:
           - "analytical": Ab initio unrelaxed (Hellmann-Feynman / Pulay) analytical gradient
                           using exact auxiliary recurrence overlap derivatives, two-center model
                           potential force contractions, Phillips-Kleinman pseudopotential derivatives,
-                          and nuclear repulsion (default). Note: In non-variational / model-potential
-                          systems, quantitative agreement with the total energy surface derivative
-                          (dE/dR) omits the Coupled-Perturbed (CPHF / Z-vector) orbital relaxation
-                          response, which is scheduled for Phase 12.
+                          and nuclear repulsion (default).
+          - "relaxed": Coupled-Perturbed (CPHF / Z-vector) fully relaxed analytical gradient
+                       incorporating exact orbital relaxation response (Phase 12).
           - "finite_difference": Central finite differences of active electronic SCF energy surface
                                  (including full self-consistent wave function response).
           - "empirical": NIST-calibrated pairwise harmonic model (legacy fallback).
@@ -322,10 +321,11 @@ class PhatpsyDriver:
         if method == "finite_difference":
             from phatpsy.gradients import compute_scf_finite_difference_gradient
             return compute_scf_finite_difference_gradient(self, deck)
-        elif method == "analytical":
+        elif method in ("analytical", "relaxed"):
             from phatpsy.gradients import compute_polyatomic_analytical_gradient
             res = self.run_deck(deck, quiet=quiet)
-            return compute_polyatomic_analytical_gradient(res, deck)
+            is_relaxed = (method == "relaxed")
+            return compute_polyatomic_analytical_gradient(res, deck, relaxed=is_relaxed, driver=self)
 
         import copy
         calc_deck = copy.deepcopy(deck)
