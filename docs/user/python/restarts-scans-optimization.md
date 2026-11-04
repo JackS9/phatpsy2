@@ -141,7 +141,7 @@ driver = PhatpsyDriver()
 # Returns first-principles unrelaxed analytical gradient:
 grad = driver.gradient(deck, method="analytical")   # (N_atoms, 3) array in Hartree/Bohr
 
-# Returns relaxed analytical gradient (incorporating uncoupled diagonal-Hessian CPHF / Z-vector orbital response, Phase 12):
+# Returns relaxed analytical gradient (incorporating coupled CPHF / Z-vector orbital response, Phase 12 & Phase 15):
 grad_rel = driver.gradient(deck, method="relaxed")
 
 # Legacy empirical harmonic bond-stretch fallback:
@@ -151,7 +151,7 @@ grad_emp = driver.gradient(deck, method="empirical")
 !!! note "Unrelaxed vs. Relaxed CPHF Analytical Gradients"
     The analytical gradient (`method="analytical"`) evaluates the **unrelaxed** force on the converged electronic state (fixed density $\mathbf{P}$). In non-variational model potential methods, finite differences of the self-consistent total energy surface contain an additional Coupled-Perturbed Hartree-Fock (CPHF / Z-vector) orbital relaxation response $\operatorname{Tr}\left(\frac{\partial E}{\partial \mathbf{P}} \frac{\mathrm{d}\mathbf{P}}{\mathrm{d}\mathbf{R}}\right)$.
     
-    Using `method="relaxed"` (or `relaxed=True`), the CPHF / Z-vector solver (`phatpsy.cphf.CPHFResponseSolver`) evaluates the exact skeleton Fock matrix derivatives and contracts with the $Z$-vector using the uncoupled (diagonal-Hessian) approximation to yield the orbital-relaxed gradient. On purely variational systems ($\text{H}_2$), the $Z$-vector vanishes identically ($Z = \mathbf{0}$) and the unrelaxed analytical gradient matches the relaxed gradient and the SCF energy surface to $< 10^{-4}\text{ Ha/Bohr}$. Across all systems, machine-precision translational zero-sum invariance and point-group symmetry are strictly preserved. For complete derivations and discussion, see [Analytical Cartesian Gradients §10](https://github.com/JackS9/phatpsy2/blob/master/docs/science/analytical_gradients.md#10-unrelaxed-analytical-gradients-vs-full-scf-surface-cphf-z-vector-response).
+    Using `method="relaxed"` (or `relaxed=True`), the CPHF / Z-vector solver (`phatpsy.cphf.CPHFResponseSolver`) evaluates the exact skeleton Fock matrix derivatives and contracts with the $Z$-vector using the coupled CPHF superoperator response to yield the orbital-relaxed gradient. On purely variational systems ($\text{H}_2$), the $Z$-vector vanishes identically ($Z = \mathbf{0}$) and the unrelaxed analytical gradient matches the relaxed gradient and the SCF energy surface to $< 10^{-4}\text{ Ha/Bohr}$. Across all systems, machine-precision translational zero-sum invariance and point-group symmetry are strictly preserved. For complete derivations and discussion, see [Analytical Cartesian Gradients §10](https://github.com/JackS9/phatpsy2/blob/master/docs/science/analytical_gradients.md#10-unrelaxed-analytical-gradients-vs-full-scf-surface-cphf-z-vector-response).
 
 `CalculationState.gradient` exposes the analytical gradient as a property on completed calculation results.
 

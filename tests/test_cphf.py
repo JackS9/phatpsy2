@@ -130,8 +130,8 @@ class TestCPHFRelaxedGradients:
         max_diff = np.max(np.abs(g_rel - fd_grad))
         if max_diff > 1e-3:
             pytest.xfail(
-                f"Uncoupled (diagonal-Hessian) CPHF approximation misses 1e-3 tolerance on LiH: "
-                f"actual max deviation is {max_diff:.5f} Ha/Bohr (full superoperator coupling required)"
+                f"Coupled CPHF response misses 1e-3 tolerance on LiH: "
+                f"actual max deviation is {max_diff:.5f} Ha/Bohr (inter-atomic response coupling required)"
             )
         np.testing.assert_allclose(g_rel, fd_grad, atol=1e-3)
 
@@ -175,8 +175,8 @@ class TestCPHFRelaxedGradients:
         max_diff = np.max(np.abs(g_rel - fd_grad))
         if max_diff > 1e-3:
             pytest.xfail(
-                f"Uncoupled (diagonal-Hessian) CPHF approximation misses 1e-3 tolerance on H2O: "
-                f"actual max deviation is {max_diff:.5f} Ha/Bohr (full superoperator coupling required)"
+                f"Coupled CPHF response misses 1e-3 tolerance on H2O: "
+                f"actual max deviation is {max_diff:.5f} Ha/Bohr (inter-atomic response coupling required)"
             )
         np.testing.assert_allclose(g_rel, fd_grad, atol=1e-3)
 

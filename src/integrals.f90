@@ -4,7 +4,7 @@ module integrals
   use angular, only: cgcoef
   implicit none
   private
-  public :: run_oneint, run_twoint, run_fokmat, USE_IN_MEMORY_TEI, clear_tei_cache
+  public :: run_oneint, run_twoint, run_fokmat, USE_IN_MEMORY_TEI, clear_tei_cache, compute_atom_fokmat
   !f2py private :: run_oneint, run_twoint, run_fokmat
 
   ! Toggle to cache 1-center 2-electron integrals in RAM per element (avoids disk I/O)
@@ -353,5 +353,34 @@ contains
       end if
     end if
   end subroutine run_fokmat
+
+  subroutine compute_atom_fokmat(iatom, m2, nspin, d_in, fc_out, fx_out)
+    integer(int32), intent(in)  :: iatom, m2, nspin
+    real(real64),   intent(in)  :: d_in(m2, nspin)
+    real(real64),   intent(out) :: fc_out(m2, nspin), fx_out(m2, nspin)
+
+    integer(int32) :: ielem_bak, ielem_curr, msto_bak, m2sto_bak
+    integer(int32) :: nsto_cur, norb_cur, nv_cur
+
+    fc_out = 0.0d0
+    fx_out = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+
+    ielem_bak = IELEM
+    msto_bak  = MSTO
+    m2sto_bak = M2STO
+
+    ielem_curr = mol_ws%unit3_stream%records(iatom)%ielem
+    IELEM = ielem_curr
+    call read_elem_dims(IELEM, nsto_cur, MSTO, norb_cur, nv_cur)
+    M2STO = mol_ws%index_arr(MSTO) + MSTO
+
+    call run_fokmat(fc_out, fx_out, d_in, mol_ws%buffer)
+
+    IELEM = ielem_bak
+    MSTO  = msto_bak
+    M2STO = m2sto_bak
+  end subroutine compute_atom_fokmat
 
 end module integrals

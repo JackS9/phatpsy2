@@ -114,6 +114,18 @@ python module _phatpsy_core
                 integer intent(in) :: iatom, m2, nterm, nspin
                 real(kind=real64) intent(out), dimension(m2, nterm, nspin) :: out_pk
             end subroutine get_atom_record_pkpot
+            subroutine get_atom_record_cpot2(iatom, m2, out_cpot2)
+                integer intent(in) :: iatom, m2
+                real(kind=real64) intent(out), dimension(m2) :: out_cpot2
+            end subroutine get_atom_record_cpot2
+            subroutine get_atom_record_zpot2(iatom, m2, out_zpot2)
+                integer intent(in) :: iatom, m2
+                real(kind=real64) intent(out), dimension(m2) :: out_zpot2
+            end subroutine get_atom_record_zpot2
+            subroutine get_atom_record_fock(iatom, m2, nspin, out_fock)
+                integer intent(in) :: iatom, m2, nspin
+                real(kind=real64) intent(out), dimension(m2, nspin) :: out_fock
+            end subroutine get_atom_record_fock
         end module state
 
         module contrl
@@ -145,9 +157,16 @@ python module _phatpsy_core
         end module analys
 
         module integrals
+            use iso_fortran_env, only: real64, int32
             logical :: use_in_memory_tei
             subroutine clear_tei_cache
             end subroutine clear_tei_cache
+            subroutine compute_atom_fokmat(iatom, m2, nspin, d_in, fc_out, fx_out)
+                integer(kind=int32) intent(in) :: iatom, m2, nspin
+                real(kind=real64) intent(in), dimension(m2, nspin) :: d_in
+                real(kind=real64) intent(out), dimension(m2, nspin), depend(m2, nspin) :: fc_out
+                real(kind=real64) intent(out), dimension(m2, nspin), depend(m2, nspin) :: fx_out
+            end subroutine compute_atom_fokmat
         end module integrals
 
         module ewmo

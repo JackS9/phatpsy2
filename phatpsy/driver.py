@@ -313,7 +313,7 @@ class PhatpsyDriver:
                           potential force contractions, Phillips-Kleinman pseudopotential derivatives,
                           and nuclear repulsion (default).
           - "relaxed": Coupled-Perturbed (CPHF / Z-vector) analytical gradient
-                       incorporating uncoupled (diagonal-Hessian) CPHF orbital relaxation response (Phase 12).
+                       incorporating coupled superoperator response with analytical Lagrangian (Phase 12 / Phase 15).
           - "finite_difference": Central finite differences of active electronic SCF energy surface
                                  (including full self-consistent wave function response).
           - "empirical": NIST-calibrated pairwise harmonic model (legacy fallback).

@@ -218,7 +218,7 @@ contains
     do isp = 1, ISPIN
       occ(1, isp)  = 1.0d0
       eval(1, isp) = 0.0d0
-      if (qmnbas) stevec(1, 1, isp) = 1.0d0
+      if (qmnbas .or. (MSTO == 1 .and. NORB == 1)) stevec(1, 1, isp) = 1.0d0
     end do
     te     = 0.0d0
     iuatom = IR
@@ -393,6 +393,7 @@ contains
       mol_ws%charge(2, IATOM) = alpha + beta
       mol_ws%charge(3, IATOM) = alpha - beta
 
+      if (MSTO == 1 .and. NORB == 1) stevec(1, 1, :) = 1.0d0
       if (.not. QBAKUP) then
         call write_atom_record_ref(IUNIT3, QFLAGS, neqat, xyz(1), xyz(2), xyz(3), &
                                    stevec, eval, occ, fock, gamma, &

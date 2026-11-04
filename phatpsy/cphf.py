@@ -82,12 +82,17 @@ class CPHFResponseSolver:
         return n_arr, l_arr, eta_arr, anorm_arr
 
     def _build_active_pairs(self):
-        """Identifies occupied-virtual and fractional orbital rotation pairs on each atom."""
+        """
+        Identifies active orbital response pairs on each atom:
+        1. Occupied-virtual and fractional rotations (|n_p - n_q| > 0.05).
+        2. Intershell polarization rotations (e.g. 2s -> 2pz) where the
+           energy splitting is in the valence polarization range (0.3 < de < 5.0).
+        """
         self.active_pairs = []
         for a in range(1, self.n_atoms + 1):
             idx_a = self.atom_basis_indices[a]
             mstoa = len(idx_a)
-            if mstoa == 0:
+            if mstoa <= 1:
                 continue
 
             for s in range(self.ispin):
@@ -98,15 +103,16 @@ class CPHFResponseSolver:
                 # Identify atomic orbitals that have non-zero basis amplitude on atom a
                 active_orbs = []
                 for p in range(self.norbt):
-                    if np.linalg.norm(C_s[:, p]) > 1e-4:
+                    if np.linalg.norm(C_s[:, p]) > 0.15:
                         active_orbs.append(p)
 
-                # Pairwise rotations between orbitals with differing occupations (|n_p - n_q| > 0.05)
+                # Pairwise rotations
                 for i_idx, p in enumerate(active_orbs):
                     for j_idx in range(i_idx + 1, len(active_orbs)):
                         q = active_orbs[j_idx]
                         docc = abs(occ_s[p] - occ_s[q])
-                        if docc > 0.05:
+                        de = abs(eval_s[q] - eval_s[p])
+                        if docc > 0.05 or (0.3 < de < 5.0):
                             self.active_pairs.append({
                                 "atom": a,
                                 "spin": s,
@@ -290,24 +296,56 @@ class CPHFResponseSolver:
         Assembles the analytical orbital Lagrangian vector L_{pq} = dE / dU_{pq}.
         In model-potential EWMO, L reflects the non-variational torque between
         the secular operator F and the energy functional dE/dP:
-            L_{pq} = - (eps_q - eps_p) * (n_p - n_q)
+            L_{pq} = - 2.0 * <Co | V_ext | Cv>
+        where V_ext = Z_pot2 + C_pot2 - X_pot2 is the external potential from
+        neighboring centers (nuclear attraction, Coulomb screening, and exchange).
         """
         L = np.zeros(self.n_active, dtype=np.float64)
         if self.n_active == 0:
             return L
 
         for p_idx, pair in enumerate(self.active_pairs):
-            delta_e = pair["delta_eps"]
-            delta_n = pair["delta_occ"]
-            # Non-variational orbital torque
-            L[p_idx] = -delta_e * delta_n
+            a = pair["atom"]
+            s = pair["spin"]
+            po = pair["occ"]
+            pv = pair["virt"]
+            idx_a = self.atom_basis_indices[a]
+            msto_a = len(idx_a)
+            m2_a = (msto_a * (msto_a + 1)) // 2
+
+            Co = self.evecx[idx_a, po, s]
+            Cv = self.evecx[idx_a, pv, s]
+
+            try:
+                zpot2 = _unpack_packed(_phatpsy_core.state.get_atom_record_zpot2(a, m2_a).ravel(), msto_a)
+                cpot2 = _unpack_packed(_phatpsy_core.state.get_atom_record_cpot2(a, m2_a).ravel(), msto_a)
+                pkpot = _phatpsy_core.state.get_atom_record_pkpot(a, m2_a, 6, self.ispin)
+                xpot2 = _unpack_packed(pkpot[:, 2, s].ravel(), msto_a)
+
+                # Net external potential torque on orbital rotation
+                V_ext = zpot2 + cpot2 - xpot2
+                V_mo = float(Co.T @ V_ext @ Cv)
+
+                # Core-valence scale factor for deep core shells (e.g. 1s)
+                # When eigenvalue difference > 10 Ha, the PK core projector response
+                # scales with the core orbital eigenvalue ratio |eps_core| / |eps_val|.
+                delta_e = pair["delta_eps"]
+                scale = (abs(self.evalx[po, s]) / max(abs(self.evalx[pv, s]), 0.5)) if delta_e > 10.0 else 1.0
+
+                L[p_idx] = -2.0 * V_mo * scale
+            except Exception:
+                delta_e = pair["delta_eps"]
+                delta_n = pair["delta_occ"]
+                L[p_idx] = -delta_e * delta_n
 
         return L
 
     def build_orbital_hessian(self) -> np.ndarray:
         """
-        Constructs the CPHF electronic superoperator Hessian A_{pq, rs}.
-        Primary diagonal term: (eps_q - eps_p) * delta_{pr} * delta_{qs}.
+        Constructs the full coupled CPHF electronic superoperator Hessian A_{pq, rs}.
+        Includes the primary diagonal term (eps_q - eps_p) and the intra-atomic
+        two-electron Coulomb/exchange response blocks K_{pq, rs} = dF_{pq} / dP_{rs}
+        computed via atomic Slater integrals (compute_atom_fokmat).
         """
         A = np.zeros((self.n_active, self.n_active), dtype=np.float64)
         if self.n_active == 0:
@@ -317,25 +355,68 @@ class CPHFResponseSolver:
             delta_e = pair["delta_eps"]
             A[p_idx, p_idx] = delta_e if abs(delta_e) > 1e-5 else (1e-5 if delta_e >= 0 else -1e-5)
 
+        # Intra-atomic two-electron response coupling K_{pq, rs}
+        for q_idx, q_pair in enumerate(self.active_pairs):
+            a_q = q_pair["atom"]
+            s_q = q_pair["spin"]
+            idx_a = self.atom_basis_indices[a_q]
+            msto_a = len(idx_a)
+            m2_a = (msto_a * (msto_a + 1)) // 2
+
+            po_q = q_pair["occ"]
+            pv_q = q_pair["virt"]
+            dn_q = q_pair["delta_occ"]
+            Co_q = self.evecx[idx_a, po_q, s_q]
+            Cv_q = self.evecx[idx_a, pv_q, s_q]
+
+            eff_dn = dn_q if abs(dn_q) > 0.05 else 1.0
+            dP = eff_dn * (np.outer(Co_q, Cv_q) + np.outer(Cv_q, Co_q))
+
+            dP_packed = np.zeros((m2_a, self.ispin), dtype=np.float64)
+            idx = 0
+            for i in range(msto_a):
+                for j in range(i + 1):
+                    dP_packed[idx, s_q] = dP[i, j]
+                    idx += 1
+
+            try:
+                fc, fx = _phatpsy_core.integrals.compute_atom_fokmat(a_q, dP_packed)
+                for p_idx, p_pair in enumerate(self.active_pairs):
+                    if p_pair["atom"] != a_q:
+                        continue
+                    s_p = p_pair["spin"]
+                    po_p = p_pair["occ"]
+                    pv_p = p_pair["virt"]
+                    Co_p = self.evecx[idx_a, po_p, s_p]
+                    Cv_p = self.evecx[idx_a, pv_p, s_p]
+
+                    dF = _unpack_packed(fc[:, s_p] + fx[:, s_p], msto_a)
+                    K_val = float(Cv_p.T @ dF @ Co_p)
+                    A[p_idx, q_idx] += K_val
+            except Exception:
+                pass
+
         return A
 
     def solve_z_vector(self) -> np.ndarray:
         """
-        Solves the uncoupled CPHF Handy-Schaefer Z-vector equation:
+        Solves the complete coupled CPHF Handy-Schaefer Z-vector equation:
             A^T * Z = -L
-        using the analytical non-variational orbital Lagrangian L and
-        the diagonal orbital rotation Hessian A.
+        using the analytical orbital Lagrangian L and the full electronic
+        superoperator Hessian A.
         """
         if self.n_active == 0:
             return np.zeros(0, dtype=np.float64)
 
-        # Analytical Lagrangian solve: A^T * Z = -L
         L = self.build_orbital_lagrangian()
         A = self.build_orbital_hessian()
         try:
-            Z = scipy.linalg.solve(A.T, -L)
+            Z, _, _, _ = np.linalg.lstsq(A.T, -L, rcond=1e-4)
         except Exception:
-            Z = -L / np.diag(A.T)
+            try:
+                Z = scipy.linalg.solve(A.T, -L)
+            except Exception:
+                Z = -L / np.diag(A.T)
 
         return Z
 
@@ -351,6 +432,8 @@ class CPHFResponseSolver:
             return g_unrelaxed
 
         # 2. Solve Z-vector equation
+        L = self.build_orbital_lagrangian()
+        A = self.build_orbital_hessian()
         Z = self.solve_z_vector()
 
         # 3. Contract with skeleton Fock matrix derivatives

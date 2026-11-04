@@ -564,7 +564,6 @@ contains
   !---------------------------------------------------------------------
 
   subroutine ensure_tables_initialized()
-    use state,    only: init_block_data_and_defaults, NCGC, LLMXP1, LLMXP2, L3MX
     use modelpot, only: genbc, genfac
     use angular,  only: gencgc
     integer(int32) :: i, tc_lmax, tc_llmx, tc_llmxp1, tc_llmxp2, tc_l3mx, tc_nylm, tc_ncgc
@@ -572,8 +571,6 @@ contains
     logical(kind=1), parameter :: qrealy = .true.
 
     if (tc_tables_ready) return
-
-    call init_block_data_and_defaults()
 
     tc_lmax = 4
     tc_llmx = 2 * tc_lmax
@@ -585,11 +582,6 @@ contains
     tc_nnmx = 12
     tc_nnmxm1 = tc_nnmx - 1
     ndxdim = 64
-
-    NCGC   = tc_ncgc
-    LLMXP1 = tc_llmxp1
-    LLMXP2 = tc_llmxp2
-    L3MX   = tc_l3mx
 
     allocate(tc_index_arr(ndxdim))
     allocate(tc_cgc(tc_ncgc))

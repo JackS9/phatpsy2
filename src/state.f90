@@ -766,6 +766,45 @@ contains
         1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%pkpot, 3)))
   end subroutine get_atom_record_pkpot
 
+  subroutine get_atom_record_cpot2(iatom, m2, out_cpot2)
+    integer(int32), intent(in)  :: iatom, m2
+    real(real64),   intent(out) :: out_cpot2(m2)
+
+    out_cpot2 = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%cpot2)) return
+    out_cpot2(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%cpot2))) = &
+      mol_ws%unit3_stream%records(iatom)%cpot2(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%cpot2)))
+  end subroutine get_atom_record_cpot2
+
+  subroutine get_atom_record_zpot2(iatom, m2, out_zpot2)
+    integer(int32), intent(in)  :: iatom, m2
+    real(real64),   intent(out) :: out_zpot2(m2)
+
+    out_zpot2 = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%zpot2)) return
+    out_zpot2(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%zpot2))) = &
+      mol_ws%unit3_stream%records(iatom)%zpot2(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%zpot2)))
+  end subroutine get_atom_record_zpot2
+
+  subroutine get_atom_record_fock(iatom, m2, nspin, out_fock)
+    integer(int32), intent(in)  :: iatom, m2, nspin
+    real(real64),   intent(out) :: out_fock(m2, nspin)
+
+    out_fock = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%unit3_stream%records(iatom)%fock)) return
+    out_fock(1:min(m2, size(mol_ws%unit3_stream%records(iatom)%fock, 1)), &
+             1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%fock, 2))) = &
+      mol_ws%unit3_stream%records(iatom)%fock( &
+        1:min(m2, size(mol_ws%unit3_stream%records(iatom)%fock, 1)), &
+        1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%fock, 2)))
+  end subroutine get_atom_record_fock
+
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
   !---------------------------------------------------------------------
