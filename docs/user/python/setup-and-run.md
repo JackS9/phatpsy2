@@ -74,14 +74,20 @@ atoms_gjf = parse_geometry("calc.gjf")
 
 # 3. VASP POSCAR / CONTCAR (POSCAR, .vasp) - parses lattice and selective dynamics
 atoms_poscar = parse_geometry("POSCAR")
+
+# 4. Tripos Mol2 (.mol2) - extracts coordinates, elements, and Sybyl atom types
+atoms_mol2 = parse_geometry("ligand.mol2")
+
+# 5. Chemical Markup Language (.cml) - pure-Python zero-dependency XML parser
+atoms_cml = parse_geometry("structure.cml")
 ```
 
-### 5. Atomic Simulation Environment (ASE) Ecosystem Bridge
+### 5. Atomic Simulation Environment (ASE) & OpenBabel Ecosystem Bridges
 
-PHATPSY provides bidirectional integration with the Atomic Simulation Environment (ASE) to unlock seamless interoperability with over 100 chemical and materials formats (CIF, GROMACS `.gro`, MDL `.mol`/`.sdf`, LAMMPS `data.*`, Quantum ESPRESSO, CASTEP, etc.):
+PHATPSY provides bidirectional integration with the Atomic Simulation Environment (ASE) and OpenBabel to unlock seamless interoperability with hundreds of chemical and materials formats (CIF, GROMACS `.gro`, MDL `.mol`/`.sdf`, LAMMPS `data.*`, Quantum ESPRESSO, CASTEP, SMILES, InChI, etc.):
 
 ```python
-from phatpsy import CalculationDeck, from_ase, to_ase, parse_geometry
+from phatpsy import CalculationDeck, from_ase, to_ase, parse_geometry, parse_mol2, to_mol2, parse_cml, to_cml
 import ase.io
 
 # 1. Build a CalculationDeck directly from an ASE Atoms object
@@ -94,6 +100,10 @@ atoms_out.write("exported.cif")
 
 # 3. Transparently load any ASE-supported format via parse_geometry
 atoms_gro = parse_geometry("solvation_box.gro")
+
+# 4. Direct Mol2 and CML round-trip export
+mol2_string = deck.to_mol2()
+cml_string = deck.to_cml()
 ```
 
 The bridge transfers:

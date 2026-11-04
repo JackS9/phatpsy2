@@ -1301,6 +1301,21 @@ class CalculationDeck:
         from phatpsy.formats import to_ase
         return to_ase(self, cell=cell, pbc=pbc)
 
+    def to_mol2(self, title: Optional[str] = None) -> str:
+        """Exports the CalculationDeck to Tripos Mol2 format text."""
+        from phatpsy.formats import to_mol2
+        return to_mol2(self, title=title)
+
+    def to_cml(self, title: Optional[str] = None) -> str:
+        """Exports the CalculationDeck to Chemical Markup Language (CML) XML text."""
+        from phatpsy.formats import to_cml
+        return to_cml(self, title=title)
+
+    def to_openbabel(self) -> Any:
+        """Exports the CalculationDeck to an OpenBabel / Pybel Molecule object."""
+        from phatpsy.formats import to_openbabel
+        return to_openbabel(self)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CalculationDeck":
         title = data.get("title", "PHATPSY Calculation")
@@ -1484,4 +1499,79 @@ class CalculationDeck:
         if hasattr(atoms, "pbc"):
             deck.pbc = atoms.pbc.tolist() if hasattr(atoms.pbc, "tolist") else list(atoms.pbc)
         return deck
+
+    @classmethod
+    def from_mol2(
+        cls,
+        content_or_path: Any,
+        basis: Union[str, Dict[str, str]] = "DZ",
+        title: Optional[str] = None,
+        control: Optional[ControlConfig] = None,
+        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        net_spin: Optional[int] = None,
+        extra_namelist: Optional[Dict[str, Any]] = None,
+    ) -> "CalculationDeck":
+        """Builds a CalculationDeck from Tripos Mol2 format."""
+        from phatpsy.formats import parse_mol2
+        from phatpsy.builder import build_molecule
+        atoms = parse_mol2(content_or_path)
+        return build_molecule(
+            geometry=atoms,
+            basis=basis,
+            title=title or "Mol2 Molecule",
+            control=control,
+            spins=spins,
+            net_spin=net_spin,
+            extra_namelist=extra_namelist,
+        )
+
+    @classmethod
+    def from_cml(
+        cls,
+        content_or_path: Any,
+        basis: Union[str, Dict[str, str]] = "DZ",
+        title: Optional[str] = None,
+        control: Optional[ControlConfig] = None,
+        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        net_spin: Optional[int] = None,
+        extra_namelist: Optional[Dict[str, Any]] = None,
+    ) -> "CalculationDeck":
+        """Builds a CalculationDeck from Chemical Markup Language (CML)."""
+        from phatpsy.formats import parse_cml
+        from phatpsy.builder import build_molecule
+        atoms = parse_cml(content_or_path)
+        return build_molecule(
+            geometry=atoms,
+            basis=basis,
+            title=title or "CML Molecule",
+            control=control,
+            spins=spins,
+            net_spin=net_spin,
+            extra_namelist=extra_namelist,
+        )
+
+    @classmethod
+    def from_openbabel(
+        cls,
+        mol: Any,
+        basis: Union[str, Dict[str, str]] = "DZ",
+        title: Optional[str] = None,
+        control: Optional[ControlConfig] = None,
+        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        net_spin: Optional[int] = None,
+        extra_namelist: Optional[Dict[str, Any]] = None,
+    ) -> "CalculationDeck":
+        """Builds a CalculationDeck from an OpenBabel / Pybel Molecule."""
+        from phatpsy.formats import from_openbabel
+        from phatpsy.builder import build_molecule
+        atoms = from_openbabel(mol)
+        return build_molecule(
+            geometry=atoms,
+            basis=basis,
+            title=title or "OpenBabel Molecule",
+            control=control,
+            spins=spins,
+            net_spin=net_spin,
+            extra_namelist=extra_namelist,
+        )
 

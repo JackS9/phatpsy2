@@ -150,9 +150,11 @@ Standing rules that every phase must satisfy:
       - **PDB (`.pdb`)**: Extracts `ATOM` and `HETATM` records, element types, formal charges, and Cartesian coordinates (in Angstroms).
       - **Gaussian Input (`.gjf`, `.com`)**: Extracts route, title, net charge, spin multiplicity, and Cartesian or internal Z-matrix coordinate blocks.
       - **VASP POSCAR / CONTCAR (`POSCAR`, `.vasp`)**: Extracts lattice basis vectors, element symbols, stoichiometry, and Cartesian or direct/fractional atomic coordinates (completing the round-trip with `CrystalCell.to_poscar()`).
-  - **Tier 2: ASE Ecosystem Bridge (Atomic Simulation Environment) [COMPLETED]:**
+  - **Tier 2: Universal Ecosystem Bridges (ASE & OpenBabel) & Extended Formats [COMPLETED]:**
+    - Native zero-dependency parsers and round-trip exporters for **Tripos Mol2 (`.mol2`)** and **Chemical Markup Language (`.cml`)**.
     - Bidirectional conversion methods (`CalculationDeck.from_ase(atoms)` and `deck.to_ase()`, `from_ase()`, `to_ase()`, `parse_ase()`, `read_ase()`).
-    - Automatic delegation of unrecognized file formats (`.cif`, `.gro`, `.mol`, `.sdf`, `.inp`, `data.*`, CASTEP, Quantum ESPRESSO) to `ase.io.read()` when `ase` is available in the user's environment, providing instant interoperability with >100 computational chemistry formats without adding a hard dependency.
+    - Bidirectional OpenBabel ecosystem bridge (`from_openbabel()`, `to_openbabel()`, `parse_openbabel()`, `HAS_OPENBABEL`).
+    - Automatic delegation of unrecognized file formats (`.cif`, `.gro`, `.mol`, `.sdf`, `.inp`, `data.*`, CASTEP, Quantum ESPRESSO, SMILES, InChI) to `ase.io.read()` or OpenBabel when available in the user's environment, providing instant interoperability with >100 computational chemistry formats without adding a hard dependency.
     - Full roundtrip transfer of Cartesian coordinates (Bohr $\leftrightarrow$ Ångström), chemical elements, formal charges, initial magnetic moments / spins, `FixAtoms` constraints, unit cell lattice vectors, and periodic boundary conditions (PBC).
 
 - [x] **Phase 14: Stepwise Valence-Bond Molecular Assembler ("Tinker Toy" Directed Growth Engine) [COMPLETED]**

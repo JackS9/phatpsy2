@@ -58,6 +58,16 @@ def handle_convert(args):
         if out_path:
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(text)
+    elif out_suffix == ".mol2":
+        from phatpsy.formats import to_mol2
+        text = to_mol2(deck)
+        if out_path:
+            out_path.write_text(text, encoding="utf-8")
+    elif out_suffix == ".cml":
+        from phatpsy.formats import to_cml
+        text = to_cml(deck)
+        if out_path:
+            out_path.write_text(text, encoding="utf-8")
     elif out_suffix in (".cif", ".gro", ".mol", ".xyz", ".poscar", ".vasp"):
         from phatpsy.formats import to_ase, HAS_ASE
         if not HAS_ASE:

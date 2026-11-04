@@ -58,6 +58,8 @@ def parse_geometry(
             parse_pdb,
             parse_gaussian,
             parse_poscar,
+            parse_mol2,
+            parse_cml,
             parse_ase,
             HAS_ASE,
         )
@@ -78,6 +80,10 @@ def parse_geometry(
         elif fmt == "poscar":
             atoms, _, _ = parse_poscar(geometry, units=units)
             return atoms
+        elif fmt == "mol2":
+            return parse_mol2(geometry, units=units)
+        elif fmt == "cml":
+            return parse_cml(geometry, units=units)
         elif fmt in ("cif", "gro", "mol", "sdf", "gen", "car", "arc", "res", "cell", "extxyz", "lammps-data", "ase"):
             return parse_ase(geometry, format=fmt if fmt not in ("ase", "lammps-data") else None, units=units)
         elif is_path_file:
@@ -92,6 +98,12 @@ def parse_geometry(
                     pass
             raise ValueError(f"Geometry file could not be parsed: {geometry}")
         elif isinstance(geometry, str) and ("\n" in geometry or ";" in geometry):
+            # Check if string is Mol2 format
+            if fmt == "mol2" or "@<TRIPOS>" in geometry:
+                return parse_mol2(geometry, units=units)
+            # Check if string is CML format
+            if fmt == "cml" or "<molecule" in geometry.lower() or "<cml" in geometry.lower() or "xml-cml.org" in geometry.lower():
+                return parse_cml(geometry, units=units)
             # Check if string is CIF format
             if HAS_ASE and (fmt == "cif" or "data_" in geometry[:50]):
                 try:

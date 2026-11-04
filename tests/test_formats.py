@@ -491,3 +491,219 @@ def test_cli_convert_to_cif_and_gro():
         assert rc == 0
         assert out_gro.exists()
         assert "OW" in out_gro.read_text(encoding="utf-8") or "O" in out_gro.read_text(encoding="utf-8")
+
+
+# ==============================================================================
+# Tripos Mol2 & CML Parser / Converter Tests (Phase 13, Tier 2)
+# ==============================================================================
+
+SAMPLE_MOL2_WATER = """\
+@<TRIPOS>MOLECULE
+Water_Model
+ 3 2 0 0 0
+SMALL
+USER_CHARGES
+
+@<TRIPOS>ATOM
+      1 O1          0.0000    0.0000    0.1170 O.3       1 <1>       -0.8340
+      2 H1          0.0000    0.7570   -0.4690 H         1 <1>        0.4170
+      3 H2          0.0000   -0.7570   -0.4690 H         1 <1>        0.4170
+@<TRIPOS>BOND
+     1     1     2 1
+     2     1     3 1
+"""
+
+SAMPLE_CML_WATER = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<molecule id="water_cml" xmlns="http://www.xml-cml.org/schema">
+  <atomArray>
+    <atom id="a1" elementType="O" x3="0.000000" y3="0.000000" z3="0.117000" formalCharge="0"/>
+    <atom id="a2" elementType="H" x3="0.000000" y3="0.757000" z3="-0.469000"/>
+    <atom id="a3" elementType="H" x3="0.000000" y3="-0.757000" z3="-0.469000"/>
+  </atomArray>
+</molecule>
+"""
+
+
+def test_detect_format_mol2_and_cml():
+    assert detect_format("molecule.mol2") == "mol2"
+    assert detect_format("system.cml") == "cml"
+    assert detect_format(SAMPLE_MOL2_WATER) == "mol2"
+    assert detect_format(SAMPLE_CML_WATER) == "cml"
+
+
+def test_parse_and_export_mol2():
+    from phatpsy.formats import parse_mol2, to_mol2
+
+    # Parse
+    atoms = parse_mol2(SAMPLE_MOL2_WATER, units="angstrom")
+    assert len(atoms) == 3
+    assert [a.element for a in atoms] == ["O", "H", "H"]
+    assert atoms[0].xyz[2] == pytest.approx(0.1170 * BOHR_PER_ANGSTROM, rel=1e-4)
+    assert atoms[1].xyz[1] == pytest.approx(0.7570 * BOHR_PER_ANGSTROM, rel=1e-4)
+    assert atoms[0].charge == pytest.approx(-0.8340)
+
+    # Export
+    mol2_text = to_mol2(atoms, title="WaterExport")
+    assert "@<TRIPOS>MOLECULE" in mol2_text
+    assert "WaterExport" in mol2_text
+    assert "@<TRIPOS>ATOM" in mol2_text
+    assert "O.3" in mol2_text
+
+    # Roundtrip
+    rt_atoms = parse_mol2(mol2_text)
+    assert len(rt_atoms) == 3
+    assert [a.element for a in rt_atoms] == ["O", "H", "H"]
+    assert pytest.approx(rt_atoms[0].xyz, abs=1e-4) == atoms[0].xyz
+
+
+def test_parse_and_export_cml():
+    from phatpsy.formats import parse_cml, to_cml
+
+    # Parse
+    atoms = parse_cml(SAMPLE_CML_WATER, units="angstrom")
+    assert len(atoms) == 3
+    assert [a.element for a in atoms] == ["O", "H", "H"]
+    assert atoms[0].xyz[2] == pytest.approx(0.1170 * BOHR_PER_ANGSTROM, rel=1e-4)
+    assert atoms[2].xyz[1] == pytest.approx(-0.7570 * BOHR_PER_ANGSTROM, rel=1e-4)
+
+    # Export
+    cml_text = to_cml(atoms, title="water_cml_roundtrip")
+    assert "<?xml" in cml_text
+    assert "<molecule" in cml_text
+    assert 'elementType="O"' in cml_text
+    assert 'elementType="H"' in cml_text
+
+    # Roundtrip
+    rt_atoms = parse_cml(cml_text)
+    assert len(rt_atoms) == 3
+    assert [a.element for a in rt_atoms] == ["O", "H", "H"]
+    assert pytest.approx(rt_atoms[0].xyz, abs=1e-4) == atoms[0].xyz
+
+
+def test_deck_mol2_and_cml_integration():
+    from phatpsy.schema import CalculationDeck
+
+    deck_mol2 = CalculationDeck.from_mol2(
+        SAMPLE_MOL2_WATER,
+        basis="DZ",
+        spins="up",
+        net_spin=3,
+        title="Mol2 Deck",
+    )
+    assert deck_mol2.title == "Mol2 Deck"
+    assert len(deck_mol2.geometry) == 3
+    assert deck_mol2.geometry[0].element == "O"
+
+    mol2_out = deck_mol2.to_mol2()
+    assert "@<TRIPOS>MOLECULE" in mol2_out
+
+    deck_cml = CalculationDeck.from_cml(
+        SAMPLE_CML_WATER,
+        basis="DZ",
+        spins="up",
+        net_spin=3,
+        title="CML Deck",
+    )
+    assert deck_cml.title == "CML Deck"
+    assert len(deck_cml.geometry) == 3
+
+    cml_out = deck_cml.to_cml()
+    assert "<molecule" in cml_out
+
+
+def test_builder_parse_geometry_delegates_to_mol2_and_cml():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f_mol2 = Path(tmpdir) / "water.mol2"
+        f_mol2.write_text(SAMPLE_MOL2_WATER, encoding="utf-8")
+        atoms1 = parse_geometry(f_mol2)
+        assert len(atoms1) == 3
+        assert atoms1[0].element == "O"
+
+        f_cml = Path(tmpdir) / "water.cml"
+        f_cml.write_text(SAMPLE_CML_WATER, encoding="utf-8")
+        atoms2 = parse_geometry(f_cml)
+        assert len(atoms2) == 3
+        assert atoms2[0].element == "O"
+
+        # Direct string build_molecule
+        deck1 = build_molecule(SAMPLE_MOL2_WATER, basis="DZ", spins="up", net_spin=3)
+        assert len(deck1.geometry) == 3
+        deck2 = build_molecule(SAMPLE_CML_WATER, basis="DZ", spins="up", net_spin=3)
+        assert len(deck2.geometry) == 3
+
+
+def test_cli_convert_to_mol2_and_cml():
+    from phatpsy.cli import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_yaml = Path(tmpdir) / "deck.yaml"
+        deck = build_molecule(SAMPLE_PDB_WATER, basis="DZ", spins="up", net_spin=3)
+        deck.to_yaml(in_yaml)
+
+        # Convert to Mol2
+        out_mol2 = Path(tmpdir) / "water.mol2"
+        rc = main(["convert", str(in_yaml), "-o", str(out_mol2)])
+        assert rc == 0
+        assert out_mol2.exists()
+        assert "@<TRIPOS>MOLECULE" in out_mol2.read_text(encoding="utf-8")
+
+        # Convert to CML
+        out_cml = Path(tmpdir) / "water.cml"
+        rc = main(["convert", str(in_yaml), "-o", str(out_cml)])
+        assert rc == 0
+        assert out_cml.exists()
+        assert "<molecule" in out_cml.read_text(encoding="utf-8")
+
+
+def test_openbabel_missing_graceful_error(monkeypatch):
+    import phatpsy.formats
+    monkeypatch.setattr(phatpsy.formats, "HAS_OPENBABEL", False)
+
+    with pytest.raises(ImportError, match="The OpenBabel bridge requires 'openbabel'"):
+        phatpsy.formats.from_openbabel(None)
+
+    with pytest.raises(ImportError, match="The OpenBabel bridge requires 'openbabel'"):
+        phatpsy.formats.to_openbabel([])
+
+    with pytest.raises(ImportError, match="The OpenBabel bridge requires 'openbabel'"):
+        phatpsy.formats.parse_openbabel("CCO")
+
+
+def test_from_openbabel_mock_object():
+    """Verify conversion logic with a mock OpenBabel OBMol structure."""
+    class MockOBAtom:
+        def __init__(self, z, type_str, x, y, z_pos, chg):
+            self._z = z
+            self._type = type_str
+            self._x = x
+            self._y = y
+            self._z_pos = z_pos
+            self._chg = chg
+        def GetAtomicNum(self): return self._z
+        def GetType(self): return self._type
+        def GetX(self): return self._x
+        def GetY(self): return self._y
+        def GetZ(self): return self._z_pos
+        def GetFormalCharge(self): return self._chg
+
+    class MockOBMol:
+        def __init__(self, atoms):
+            self._atoms = atoms
+        def NumAtoms(self): return len(self._atoms)
+        def GetAtom(self, i): return self._atoms[i - 1]
+
+    mock_mol = MockOBMol([
+        MockOBAtom(8, "O.3", 0.0, 0.0, 0.117, 0.0),
+        MockOBAtom(1, "H", 0.0, 0.757, -0.469, 0.0),
+        MockOBAtom(1, "H", 0.0, -0.757, -0.469, 0.0),
+    ])
+
+    import phatpsy.formats
+    from unittest.mock import patch
+    with patch.object(phatpsy.formats, "HAS_OPENBABEL", True):
+        atoms = phatpsy.formats.from_openbabel(mock_mol, units="angstrom")
+        assert len(atoms) == 3
+        assert [a.element for a in atoms] == ["O", "H", "H"]
+        assert atoms[0].xyz[2] == pytest.approx(0.117 * BOHR_PER_ANGSTROM, rel=1e-4)
+

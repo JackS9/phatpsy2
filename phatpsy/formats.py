@@ -17,6 +17,7 @@ from typing import List, Tuple, Dict, Optional, Union, Any
 import math
 import re
 import numpy as np
+import xml.etree.ElementTree as ET
 
 from phatpsy.schema import AtomConfig
 
@@ -31,6 +32,20 @@ except ImportError:
     Atoms = None  # type: ignore
     FixAtoms = None  # type: ignore
     HAS_ASE: bool = False
+
+try:
+    from openbabel import openbabel as ob
+    from openbabel import pybel
+    HAS_OPENBABEL: bool = True
+except ImportError:
+    try:
+        import pybel  # type: ignore
+        import openbabel as ob  # type: ignore
+        HAS_OPENBABEL = True
+    except ImportError:
+        ob = None  # type: ignore
+        pybel = None  # type: ignore
+        HAS_OPENBABEL = False
 
 BOHR_PER_ANGSTROM: float = 1.8897261245650618
 
@@ -85,6 +100,10 @@ def detect_format(content_or_path: Union[str, Path]) -> str:
             return "gaussian"
         if suffix == ".xyz":
             return "xyz"
+        if suffix == ".mol2":
+            return "mol2"
+        if suffix == ".cml":
+            return "cml"
         if suffix in (".yaml", ".yml"):
             return "yaml"
         if suffix == ".json":
@@ -105,6 +124,12 @@ def detect_format(content_or_path: Union[str, Path]) -> str:
     if not lines:
         return "unknown"
 
+    # Mol2 check: lines start with @<TRIPOS>
+    if any(line.upper().startswith("@<TRIPOS>") for line in lines[:20]):
+        return "mol2"
+    # CML check: <molecule or <cml or xml-cml.org
+    if any(("<molecule" in line.lower() or "<cml" in line.lower() or "xml-cml.org" in line.lower()) for line in lines[:20]):
+        return "cml"
     # YAML check
     if text.startswith("---") or ("control:" in text and "geometry:" in text) or ("atoms:" in text):
         return "yaml"
@@ -810,5 +835,465 @@ def read_ase(
         cell = np.array(ase_atoms.cell, dtype=np.float64) * BOHR_PER_ANGSTROM
     pbc = ase_atoms.pbc.tolist() if hasattr(ase_atoms, "pbc") else None
     return atoms, cell, pbc
+
+
+# ==============================================================================
+# Tripos Mol2 Format Support (.mol2)
+# ==============================================================================
+
+def parse_mol2(
+    content_or_path: Union[str, Path],
+    units: str = "angstrom",
+) -> List[AtomConfig]:
+    """
+    Parses Tripos Mol2 format text or file into a list of AtomConfig objects.
+
+    Extracts atom records from the @<TRIPOS>ATOM block with Cartesian coordinates,
+    chemical elements (inferred from Sybyl atom types like 'C.3', 'O.2', or atom names),
+    and optional partial charges. Coordinates are converted to Bohrs.
+
+    Parameters
+    ----------
+    content_or_path : Union[str, Path]
+        Mol2 file path or multi-line Mol2 string.
+    units : str
+        Input unit scale, default 'angstrom' (standard for Mol2).
+
+    Returns
+    -------
+    List[AtomConfig]
+        Parsed atom configurations in atomic units (Bohr).
+    """
+    text = _read_content(content_or_path)
+    to_bohr = BOHR_PER_ANGSTROM if units.lower() in ("angstrom", "angstroms", "aa", "a") else 1.0
+
+    lines = text.splitlines()
+    atoms: List[AtomConfig] = []
+    in_atom_section = False
+    seen_ids: Dict[str, int] = {}
+
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith("@<TRIPOS>"):
+            section_name = line_s[9:].strip().upper()
+            in_atom_section = (section_name == "ATOM")
+            continue
+
+        if not in_atom_section:
+            continue
+
+        # Layout: atom_id atom_name x y z [atom_type [subst_id [subst_name [charge [status_bits]]]]]
+        tokens = line_s.split()
+        if len(tokens) < 5:
+            continue
+
+        atom_name = tokens[1]
+        try:
+            x = float(tokens[2]) * to_bohr
+            y = float(tokens[3]) * to_bohr
+            z = float(tokens[4]) * to_bohr
+        except ValueError:
+            continue
+
+        atom_type = tokens[5] if len(tokens) > 5 else ""
+        charge = 0.0
+        if len(tokens) >= 9:
+            try:
+                charge = float(tokens[8])
+            except ValueError:
+                charge = 0.0
+
+        elem_cand = atom_type.split(".")[0].strip().capitalize() if atom_type else ""
+        if elem_cand.upper() in Z_BY_ELEMENT:
+            elem = elem_cand
+        else:
+            cleaned = re.sub(r"[0-9\W]", "", atom_name)
+            if len(cleaned) >= 2 and cleaned[:2].upper() in Z_BY_ELEMENT:
+                elem = cleaned[:2].capitalize()
+            elif len(cleaned) >= 1 and cleaned[:1].upper() in Z_BY_ELEMENT:
+                elem = cleaned[:1].capitalize()
+            else:
+                elem = "X"
+
+        is_virt = (atom_type.upper() == "DU" or elem_cand.upper() == "DU" or elem == "X")
+
+        count = seen_ids.get(atom_name, 0) + 1
+        seen_ids[atom_name] = count
+        unique_id = f"{atom_name}_{count}" if count > 1 else atom_name
+
+        atoms.append(AtomConfig(
+            element=elem,
+            id=unique_id,
+            xyz=[x, y, z],
+            charge=charge,
+            virtual=is_virt,
+        ))
+
+    return atoms
+
+
+def to_mol2(
+    atoms_or_deck: Union[Any, List[AtomConfig]],
+    title: Optional[str] = None,
+) -> str:
+    """
+    Exports a CalculationDeck or list of AtomConfig objects to Tripos Mol2 format text.
+
+    Parameters
+    ----------
+    atoms_or_deck : Union[CalculationDeck, List[AtomConfig]]
+        Input deck or list of atom configurations.
+    title : Optional[str]
+        Molecule title.
+
+    Returns
+    -------
+    str
+        Complete multi-line Tripos Mol2 file string.
+    """
+    if hasattr(atoms_or_deck, "geometry"):
+        atoms = atoms_or_deck.geometry
+        mol_title = title or getattr(atoms_or_deck, "title", "PHATPSY_MOL")
+    elif isinstance(atoms_or_deck, (list, tuple)):
+        atoms = atoms_or_deck
+        mol_title = title or "PHATPSY_MOL"
+    else:
+        raise TypeError(f"Expected CalculationDeck or List[AtomConfig], got {type(atoms_or_deck)}")
+
+    num_atoms = len(atoms)
+    out = [
+        "@<TRIPOS>MOLECULE",
+        f"{mol_title}",
+        f" {num_atoms:4d}    0    0    0    0",
+        "SMALL",
+        "USER_CHARGES",
+        "",
+        "@<TRIPOS>ATOM",
+    ]
+
+    for i, a in enumerate(atoms, start=1):
+        x_aa = a.xyz[0] / BOHR_PER_ANGSTROM
+        y_aa = a.xyz[1] / BOHR_PER_ANGSTROM
+        z_aa = a.xyz[2] / BOHR_PER_ANGSTROM
+        elem = a.element.strip().capitalize()
+        atom_name = a.id or f"{elem}{i}"
+        atom_type = f"{elem}.3" if elem in ("C", "N", "O", "S", "P") else elem
+        chg = getattr(a, "charge", 0.0) or 0.0
+        out.append(
+            f"{i:7d} {atom_name:<8s} {x_aa:10.4f} {y_aa:10.4f} {z_aa:10.4f} "
+            f"{atom_type:<8s} 1 <1> {chg:10.4f}"
+        )
+
+    out.append("@<TRIPOS>BOND")
+    out.append("")
+    return "\n".join(out)
+
+
+# ==============================================================================
+# Chemical Markup Language (CML / .cml)
+# ==============================================================================
+
+def parse_cml(
+    content_or_path: Union[str, Path],
+    units: str = "angstrom",
+) -> List[AtomConfig]:
+    """
+    Parses Chemical Markup Language (CML / .cml) XML text or file into AtomConfig objects.
+
+    Extracts atom records (<atom>) with element types, Cartesian coordinates (x3, y3, z3),
+    optional fractional coordinates with crystal cell parameters, and formal charges.
+    Zero external dependencies (uses standard library xml.etree.ElementTree).
+
+    Parameters
+    ----------
+    content_or_path : Union[str, Path]
+        CML file path or XML string.
+    units : str
+        Target coordinate scale, default 'angstrom' (standard for CML x3/y3/z3).
+
+    Returns
+    -------
+    List[AtomConfig]
+        Parsed atom configurations in atomic units (Bohr).
+    """
+    text = _read_content(content_or_path)
+    to_bohr = BOHR_PER_ANGSTROM if units.lower() in ("angstrom", "angstroms", "aa", "a") else 1.0
+
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as e:
+        raise ValueError(f"Failed to parse CML XML: {e}") from e
+
+    atoms: List[AtomConfig] = []
+    seen_ids: Dict[str, int] = {}
+
+    # Check for crystal cell parameters if fractional coordinates are used
+    crystal_elem = None
+    for elem in root.iter():
+        if elem.tag.split("}")[-1] == "crystal":
+            crystal_elem = elem
+            break
+
+    cell_matrix = None
+    if crystal_elem is not None:
+        cell_dict: Dict[str, float] = {}
+        for child in crystal_elem.iter():
+            tag = child.tag.split("}")[-1]
+            if tag == "cellParameter":
+                param_type = child.get("parameterType")
+                val = child.text
+                if param_type and val:
+                    try:
+                        cell_dict[param_type] = float(val.strip())
+                    except ValueError:
+                        pass
+        if "a" in cell_dict and "b" in cell_dict and "c" in cell_dict:
+            a_val = cell_dict.get("a", 1.0)
+            b_val = cell_dict.get("b", 1.0)
+            c_val = cell_dict.get("c", 1.0)
+            cell_matrix = np.diag([a_val, b_val, c_val])
+
+    for elem in root.iter():
+        tag = elem.tag.split("}")[-1]
+        if tag == "atom":
+            elem_sym = (elem.get("elementType") or elem.get("element") or "X").strip().capitalize()
+            atom_id = elem.get("id") or f"{elem_sym}_{len(atoms)+1}"
+            chg = 0.0
+            if elem.get("formalCharge"):
+                try:
+                    chg = float(elem.get("formalCharge"))
+                except ValueError:
+                    pass
+
+            if elem.get("x3") is not None and elem.get("y3") is not None and elem.get("z3") is not None:
+                x = float(elem.get("x3")) * to_bohr
+                y = float(elem.get("y3")) * to_bohr
+                z = float(elem.get("z3")) * to_bohr
+            elif elem.get("xFract") is not None and cell_matrix is not None:
+                xf = float(elem.get("xFract"))
+                yf = float(elem.get("yFract", 0.0))
+                zf = float(elem.get("zFract", 0.0))
+                cart = cell_matrix @ np.array([xf, yf, zf])
+                x = cart[0] * to_bohr
+                y = cart[1] * to_bohr
+                z = cart[2] * to_bohr
+            else:
+                x = float(elem.get("x", 0.0)) * to_bohr
+                y = float(elem.get("y", 0.0)) * to_bohr
+                z = float(elem.get("z", 0.0)) * to_bohr
+
+            count = seen_ids.get(atom_id, 0) + 1
+            seen_ids[atom_id] = count
+            unique_id = f"{atom_id}_{count}" if count > 1 else atom_id
+
+            atoms.append(AtomConfig(
+                element=elem_sym,
+                id=unique_id,
+                xyz=[x, y, z],
+                charge=chg,
+            ))
+
+    return atoms
+
+
+def to_cml(
+    atoms_or_deck: Union[Any, List[AtomConfig]],
+    title: Optional[str] = None,
+) -> str:
+    """
+    Exports a CalculationDeck or list of AtomConfig objects to Chemical Markup Language (CML) XML.
+
+    Parameters
+    ----------
+    atoms_or_deck : Union[CalculationDeck, List[AtomConfig]]
+        Input deck or list of atom configurations.
+    title : Optional[str]
+        Molecule title.
+
+    Returns
+    -------
+    str
+        Well-formed CML XML text.
+    """
+    if hasattr(atoms_or_deck, "geometry"):
+        atoms = atoms_or_deck.geometry
+        mol_title = title or getattr(atoms_or_deck, "title", "phatpsy_molecule")
+    elif isinstance(atoms_or_deck, (list, tuple)):
+        atoms = atoms_or_deck
+        mol_title = title or "phatpsy_molecule"
+    else:
+        raise TypeError(f"Expected CalculationDeck or List[AtomConfig], got {type(atoms_or_deck)}")
+
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<molecule id="{mol_title}" xmlns="http://www.xml-cml.org/schema">',
+        '  <atomArray>',
+    ]
+
+    for i, a in enumerate(atoms, start=1):
+        x_aa = a.xyz[0] / BOHR_PER_ANGSTROM
+        y_aa = a.xyz[1] / BOHR_PER_ANGSTROM
+        z_aa = a.xyz[2] / BOHR_PER_ANGSTROM
+        elem = a.element.strip().capitalize()
+        atom_id = a.id or f"a{i}"
+        chg_attr = f' formalCharge="{int(round(a.charge))}"' if getattr(a, "charge", 0.0) else ""
+        lines.append(
+            f'    <atom id="{atom_id}" elementType="{elem}" '
+            f'x3="{x_aa:.6f}" y3="{y_aa:.6f}" z3="{z_aa:.6f}"{chg_attr}/>'
+        )
+
+    lines.append('  </atomArray>')
+    lines.append('</molecule>')
+    return "\n".join(lines)
+
+
+# ==============================================================================
+# OpenBabel / Pybel Bridge
+# ==============================================================================
+
+def from_openbabel(
+    ob_mol_or_pybel: Any,
+    units: str = "bohr",
+) -> List[AtomConfig]:
+    """
+    Converts an OpenBabel OBMol or Pybel Molecule object to a list of PHATPSY AtomConfig objects.
+
+    Parameters
+    ----------
+    ob_mol_or_pybel : Any
+        OpenBabel OBMol or Pybel Molecule.
+    units : str
+        Target coordinate scale, default 'bohr'.
+
+    Returns
+    -------
+    List[AtomConfig]
+        List of AtomConfig objects in atomic units (Bohr).
+    """
+    if not HAS_OPENBABEL:
+        raise ImportError(
+            "The OpenBabel bridge requires 'openbabel'. Please install it via conda or your system package manager."
+        )
+
+    if hasattr(ob_mol_or_pybel, "OBMol"):
+        ob_mol = ob_mol_or_pybel.OBMol
+    else:
+        ob_mol = ob_mol_or_pybel
+
+    to_bohr = 1.0 if units.lower() == "bohr" else BOHR_PER_ANGSTROM
+
+    atoms: List[AtomConfig] = []
+    num_atoms = ob_mol.NumAtoms()
+    for i in range(1, num_atoms + 1):
+        ob_atom = ob_mol.GetAtom(i)
+        z = ob_atom.GetAtomicNum()
+        sym = ELEMENT_BY_Z.get(z, ob_atom.GetType().split(".")[0]).capitalize()
+        x = ob_atom.GetX() * to_bohr
+        y = ob_atom.GetY() * to_bohr
+        z_pos = ob_atom.GetZ() * to_bohr
+        charge = float(ob_atom.GetFormalCharge())
+        atom_id = f"{sym}{i}"
+
+        atoms.append(AtomConfig(
+            element=sym,
+            id=atom_id,
+            xyz=[x, y, z_pos],
+            charge=charge,
+        ))
+
+    return atoms
+
+
+def to_openbabel(
+    atoms_or_deck: Union[Any, List[AtomConfig]],
+) -> Any:
+    """
+    Converts a CalculationDeck or list of AtomConfig objects to an OpenBabel Pybel Molecule.
+
+    Parameters
+    ----------
+    atoms_or_deck : Union[CalculationDeck, List[AtomConfig]]
+        Input deck or list of atom configurations.
+
+    Returns
+    -------
+    pybel.Molecule
+        Pybel Molecule object with atomic numbers, 3D Cartesian coordinates, and formal charges.
+    """
+    if not HAS_OPENBABEL:
+        raise ImportError(
+            "The OpenBabel bridge requires 'openbabel'. Please install it via conda or your system package manager."
+        )
+
+    if hasattr(atoms_or_deck, "geometry"):
+        atoms = atoms_or_deck.geometry
+        mol_title = getattr(atoms_or_deck, "title", "PHATPSY_MOL")
+    elif isinstance(atoms_or_deck, (list, tuple)):
+        atoms = atoms_or_deck
+        mol_title = "PHATPSY_MOL"
+    else:
+        raise TypeError(f"Expected CalculationDeck or List[AtomConfig], got {type(atoms_or_deck)}")
+
+    mol = ob.OBMol()
+    mol.SetTitle(mol_title)
+
+    for i, a in enumerate(atoms, start=1):
+        atom = mol.NewAtom()
+        z = Z_BY_ELEMENT.get(a.element.upper(), 0)
+        atom.SetAtomicNum(z)
+        x_aa = a.xyz[0] / BOHR_PER_ANGSTROM
+        y_aa = a.xyz[1] / BOHR_PER_ANGSTROM
+        z_aa = a.xyz[2] / BOHR_PER_ANGSTROM
+        atom.SetVector(x_aa, y_aa, z_aa)
+        if getattr(a, "charge", 0.0):
+            atom.SetFormalCharge(int(round(a.charge)))
+
+    return pybel.Molecule(mol)
+
+
+def parse_openbabel(
+    content_or_path: Union[str, Path],
+    format: str = "smi",
+    units: str = "bohr",
+) -> List[AtomConfig]:
+    """
+    Parses chemical structures via OpenBabel / Pybel into PHATPSY AtomConfig objects.
+
+    Parameters
+    ----------
+    content_or_path : Union[str, Path]
+        File path or string containing molecular data (e.g. SMILES, InChI, etc.).
+    format : str
+        OpenBabel format specifier (e.g. 'smi', 'inchi', 'mol2', 'cml').
+    units : str
+        Target coordinate scale, default 'bohr'.
+
+    Returns
+    -------
+    List[AtomConfig]
+        Parsed atom configurations in atomic units (Bohr).
+    """
+    if not HAS_OPENBABEL:
+        raise ImportError(
+            "The OpenBabel bridge requires 'openbabel'. Please install it via conda or your system package manager."
+        )
+
+    s_input = str(content_or_path)
+    is_file = False
+    if "\n" not in s_input and "\r" not in s_input:
+        try:
+            is_file = Path(s_input).is_file()
+        except (OSError, ValueError):
+            is_file = False
+
+    if is_file:
+        mol = next(pybel.readfile(format, s_input))
+    else:
+        mol = pybel.readstring(format, s_input)
+
+    return from_openbabel(mol, units=units)
+
 
 
