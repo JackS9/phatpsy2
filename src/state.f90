@@ -805,6 +805,60 @@ contains
         1:min(nspin, size(mol_ws%unit3_stream%records(iatom)%fock, 2)))
   end subroutine get_atom_record_fock
 
+  subroutine get_atom_elem_stpot(iatom, m2, nvterm, out_stpot)
+    integer(int32), intent(in)  :: iatom, m2, nvterm
+    real(real64),   intent(out) :: out_stpot(m2, nvterm)
+    integer(int32) :: ielem_cur
+
+    out_stpot = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    ielem_cur = mol_ws%unit3_stream%records(iatom)%ielem
+    if (ielem_cur < 1 .or. ielem_cur > size(mol_ws%elem_stream)) return
+    if (.not. allocated(mol_ws%elem_stream(ielem_cur)%stpot)) return
+    out_stpot(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%stpot, 1)), &
+              1:min(nvterm, size(mol_ws%elem_stream(ielem_cur)%stpot, 2))) = &
+      mol_ws%elem_stream(ielem_cur)%stpot( &
+        1:min(m2, size(mol_ws%elem_stream(ielem_cur)%stpot, 1)), &
+        1:min(nvterm, size(mol_ws%elem_stream(ielem_cur)%stpot, 2)))
+  end subroutine get_atom_elem_stpot
+
+  subroutine get_atom_elem_ontran(iatom, m, out_ontran)
+    integer(int32), intent(in)  :: iatom, m
+    real(real64),   intent(out) :: out_ontran(m, m)
+    integer(int32) :: ielem_cur
+
+    out_ontran = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    ielem_cur = mol_ws%unit3_stream%records(iatom)%ielem
+    if (ielem_cur < 1 .or. ielem_cur > size(mol_ws%elem_stream)) return
+    if (.not. allocated(mol_ws%elem_stream(ielem_cur)%ontran)) return
+    out_ontran(1:min(m, size(mol_ws%elem_stream(ielem_cur)%ontran, 1)), &
+               1:min(m, size(mol_ws%elem_stream(ielem_cur)%ontran, 2))) = &
+      mol_ws%elem_stream(ielem_cur)%ontran( &
+        1:min(m, size(mol_ws%elem_stream(ielem_cur)%ontran, 1)), &
+        1:min(m, size(mol_ws%elem_stream(ielem_cur)%ontran, 2)))
+  end subroutine get_atom_elem_ontran
+
+  subroutine get_atom_elem_stovl(iatom, m2, out_stovl)
+    integer(int32), intent(in)  :: iatom, m2
+    real(real64),   intent(out) :: out_stovl(m2)
+    integer(int32) :: ielem_cur
+
+    out_stovl = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    ielem_cur = mol_ws%unit3_stream%records(iatom)%ielem
+    if (ielem_cur < 1 .or. ielem_cur > size(mol_ws%elem_stream)) return
+    if (.not. allocated(mol_ws%elem_stream(ielem_cur)%stovl)) return
+    out_stovl(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%stovl))) = &
+      mol_ws%elem_stream(ielem_cur)%stovl(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%stovl)))
+  end subroutine get_atom_elem_stovl
+
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
   !---------------------------------------------------------------------

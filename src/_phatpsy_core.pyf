@@ -126,6 +126,18 @@ python module _phatpsy_core
                 integer intent(in) :: iatom, m2, nspin
                 real(kind=real64) intent(out), dimension(m2, nspin) :: out_fock
             end subroutine get_atom_record_fock
+            subroutine get_atom_elem_stpot(iatom, m2, nvterm, out_stpot)
+                integer intent(in) :: iatom, m2, nvterm
+                real(kind=real64) intent(out), dimension(m2, nvterm) :: out_stpot
+            end subroutine get_atom_elem_stpot
+            subroutine get_atom_elem_ontran(iatom, m, out_ontran)
+                integer intent(in) :: iatom, m
+                real(kind=real64) intent(out), dimension(m, m) :: out_ontran
+            end subroutine get_atom_elem_ontran
+            subroutine get_atom_elem_stovl(iatom, m2, out_stovl)
+                integer intent(in) :: iatom, m2
+                real(kind=real64) intent(out), dimension(m2) :: out_stovl
+            end subroutine get_atom_elem_stovl
         end module state
 
         module contrl

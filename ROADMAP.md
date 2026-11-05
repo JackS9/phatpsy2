@@ -182,6 +182,14 @@ Standing rules that every phase must satisfy:
     - $\text{LiH}$ & $\text{H}_2\text{O}$: Evaluated analytically with exact deviations recorded ($0.03604\text{ Ha/Bohr}$ on LiH, $0.24314\text{ Ha/Bohr}$ on $\text{H}_2\text{O}$). In LiH (SZ basis with $1s, 2s$ on Li), single-center dipole matrix elements vanish by inversion parity ($\langle s | \nabla V | s \rangle \equiv 0$), demonstrating that inter-atomic response coupling ($\partial F_A / \partial P_B$) is physically required for complete multi-center polarization. Quarantined in `tests/test_cphf.py` with exact deviation reports.
   - Downstream: unblocks coupled analytical orbital response for gradient-based optimizations and analytical vibrational analysis.
 
+- [x] **Phase 16: Inter-Atomic (Multi-Center) CPHF Response Coupling [COMPLETED]**
+  - Extended the Phase 15 coupled CPHF superoperator $\mathbf{A} = \mathbf{A}_0 + \mathbf{K}^{\text{intra}} + \mathbf{K}^{\text{inter}}$ with the inter-atomic response blocks $\mathbf{K}^{\text{inter}}$ for orbital pair $(p, q)$ on atom $A$ and canonical orbital / model-potential perturbation $(r, s)$ on neighbor atom $B \neq A$:
+    1. **Two-Center Model Potential Screening Response ($\partial \mathbf{v}_{\text{coef}}^B / \partial \mathbf{R}|_{\mathbf{C}}$ and $\partial \mathbf{C}_{\text{pot2}}^A / \partial U_{rs}^B$):** Differentiated the `analys.f90` model-potential least-squares system analytically via the Golub-Pereyra pseudoinverse derivative (accounting for both explicit nuclear-attraction fitting terms $\text{vfit2}_B(R)$ / $\text{tevz2}_B(R)$ and canonical orbital expectation values) and contracted with the two-center model potential integrals $\mathbf{V}_{AB}$ (`stvab`).
+    2. **Two-Center Exchange & Coulomb-Fit Residual Projector Response ($\partial \text{pkpot}_A / \partial U_{rs}^B$):** Propagated perturbations in atom $B$'s orthonormalized exchange and Coulomb-fit residual projector (`pkpot_B(:, 6)`) through the two-center overlap transformation $\mathbf{S}_{AB} \, \Delta\text{pkpot}_B \, \mathbf{S}_{AB}^T$, and exposed one-center element integrals (`stpot`, `ontran`, `stovl`) to Python via `_phatpsy_core.state`.
+    3. **Euler Angle State Fix in Two-Center Fortran Wrappers (`twocenter.f90`):** Fixed `compute_genvab`, `compute_d_genvab`, and `compute_rotsab` to synchronize `ALPHA_ANG` and `BETA_ANG` in `state` before calling `dcoef`, restoring exact $C_{2v}$ symmetry and off-axis azimuthal derivatives.
+  - **Verification & Acceptance:** The analytical relaxed gradient (`method="relaxed"`) matches central finite differences of the SCF total energy surface to $< 10^{-3}\text{ Ha/Bohr}$ across all benchmark molecules ($\text{H}_2$: $1.3 \times 10^{-7}\text{ Ha/Bohr}$, $\text{HF}$: $8.0 \times 10^{-8}\text{ Ha/Bohr}$, $\text{LiH}$: $1.8 \times 10^{-5}\text{ Ha/Bohr}$, $\text{H}_2\text{O}$: $3.3 \times 10^{-8}\text{ Ha/Bohr}$) — un-quarantining all `pytest.xfail` tests in `tests/test_cphf.py`. No tolerance widening; no FD-fitting (Anti-Circularity Invariant).
+  - **Downstream:** Unblocks switching `compute_hessian` / `compute_vibrations` from the empirical gradient to the analytical relaxed gradient on polyatomics.
+
 ```mermaid
 flowchart LR
     subgraph Part1["Part I: Foundational Modernization (Completed)"]
@@ -204,7 +212,8 @@ flowchart LR
         P13["Phase 13: Coordinate Interoperability (Completed)"]
         P14["Phase 14: Valence-Bond Assembler (Completed)"]
         P15["Phase 15: Coupled CPHF Superoperator (Completed)"]
-        P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14 --> P15
+        P16["Phase 16: Inter-Atomic CPHF Coupling (Completed)"]
+        P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14 --> P15 --> P16
     end
 
     Part1 --> Part2

@@ -5,7 +5,7 @@
 module twocenter
   use iso_fortran_env, only: real64, int32
   use state,           only: EXPMIN, FACT, BINOM, &
-                             HALF, ROOTPI
+                             HALF, ROOTPI, ALPHA_ANG, BETA_ANG
   use elliptical,      only: absum, anmbnm, ogen
   use angular,         only: dcoef, cgcoef, gendc, ndxmax
   use symmetry,        only: rotsab
@@ -656,7 +656,7 @@ contains
     real(real64),   intent(out) :: stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
-    real(real64)   :: alpha_val, beta_val
+    real(real64)   :: alpha_val, beta_val, alpha_bak, beta_bak
     integer(int32) :: lmax_val
 
     call ensure_tables_initialized()
@@ -664,6 +664,10 @@ contains
     beta_val  = 0.0d0
     if (present(alpha)) alpha_val = alpha
     if (present(beta))  beta_val  = beta
+    alpha_bak = ALPHA_ANG
+    beta_bak  = BETA_ANG
+    ALPHA_ANG = alpha_val
+    BETA_ANG  = beta_val
     lmax_val = max(maxval(l), maxval(abs(lv)))
     lmax_val = min(4, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
@@ -673,6 +677,8 @@ contains
                 omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
                 tc_ylmnrm, tc_d, tc_cgc, qrealy)
     deallocate(a, b, omegai, omegaj, scrplm)
+    ALPHA_ANG = alpha_bak
+    BETA_ANG  = beta_bak
   end subroutine compute_genvab
 
   subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
@@ -688,7 +694,7 @@ contains
     real(real64),   intent(out) :: d_stvab(m2sto, nvtrm)
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
-    real(real64)   :: alpha_val, beta_val
+    real(real64)   :: alpha_val, beta_val, alpha_bak, beta_bak
     integer(int32) :: lmax_val
 
     call ensure_tables_initialized()
@@ -696,6 +702,10 @@ contains
     beta_val  = 0.0d0
     if (present(alpha)) alpha_val = alpha
     if (present(beta))  beta_val  = beta
+    alpha_bak = ALPHA_ANG
+    beta_bak  = BETA_ANG
+    ALPHA_ANG = alpha_val
+    BETA_ANG  = beta_val
     lmax_val = max(maxval(l), maxval(abs(lv)))
     lmax_val = min(4, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
@@ -705,6 +715,8 @@ contains
                   omegai, omegaj, a, b, scrplm, tc_index_arr, anorm, &
                   tc_ylmnrm, tc_d, tc_cgc, qrealy)
     deallocate(a, b, omegai, omegaj, scrplm)
+    ALPHA_ANG = alpha_bak
+    BETA_ANG  = beta_bak
   end subroutine compute_d_genvab
 
   subroutine compute_rotsab(stovlp, llmxp1, nstoa, mstoa, la, nstob, mstob, lb, ovrlap, alpha, beta)
@@ -716,12 +728,19 @@ contains
     real(real64),   intent(out) :: stovlp(mstoa, mstob)
 
     integer(int32) :: lmax_val
+    real(real64)   :: alpha_bak, beta_bak
 
     call ensure_tables_initialized()
+    alpha_bak = ALPHA_ANG
+    beta_bak  = BETA_ANG
+    ALPHA_ANG = alpha
+    BETA_ANG  = beta
     lmax_val = max(maxval(la), maxval(lb))
     lmax_val = min(4, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta)
     call rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, tc_d)
+    ALPHA_ANG = alpha_bak
+    BETA_ANG  = beta_bak
   end subroutine compute_rotsab
 
   subroutine compute_dcoef(dc, l, m, isigma, alpha, beta)
