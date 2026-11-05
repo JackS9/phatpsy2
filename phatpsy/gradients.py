@@ -283,7 +283,9 @@ def compute_diatomic_potential_matrix_and_gradient(
     nvtrmb = len(vexpb)
 
     r = frame.distance
-    alpha = frame.alpha
+    # Note: In src/bloop.f90, GENVAB is called with mol_ws%d generated from
+    # beta_AB (line 109) after RBETA(JATOM, IATOM) sets ALPHA_ANG = alpha_BA (line 161).
+    alpha = float(np.arctan2(-frame.r_ab_vec[1], -frame.r_ab_vec[0])) if frame.r_perp > 0.0 else 0.0
     beta = frame.beta
 
     # 1. Potential and radial derivative along R
@@ -452,20 +454,10 @@ def compute_polyatomic_analytical_gradient(
                     grad[a - 1, k] += g_ovlp_k
                     grad[b_atom - 1, k] -= g_ovlp_k
             elif n_atoms == 2 and za <= 1.5 and zb <= 1.5:
-                # Homonuclear diatomic minimal-basis fallback when W_ab is uncoupled (e.g. H2):
-                # When molecular orbital mixing is purely atomic-partitioned, the off-diagonal
-                # energy-weighted density block W_ab vanishes. In this limit, the exchange restoring
-                # force between the two centers derives from the Slater exchange expectation value:
-                #   E_x = 1/2 Tr(P_A S_AB K_B S_BA + P_B S_BA K_A S_AB)
-                # For a minimal 1s STO (zeta = 1.0) under Slater alpha = 2/3 exchange:
-                #   K_exch = <1s | V_x^(Slater) | 1s> = -0.72383 * Z_eff (Hartrees), as derived in
-                # Jack A. Smith dissertation (1980), Chapter 3, Table II ("Exchange Eigenvalues
-                # and Interaction Parameters for Diatomic Systems").
-                k_exch = -0.72383 * float(np.mean([za, zb]))
-                for k in range(3):
-                    g_x_k = np.sum((2.0 * s_mol * ds_dra[k]) * k_exch)
-                    grad[a - 1, k] += g_x_k
-                    grad[b_atom - 1, k] -= g_x_k
+                from phatpsy.cphf import CPHFResponseSolver
+                g_h2 = CPHFResponseSolver(calc_state, deck=deck)._compute_fixed_orbital_gradient()
+                trans = np.mean(g_h2, axis=0)
+                return g_h2 - trans
 
             # Model potential derivatives and force contraction
             n_tA, vcA, veA = _phatpsy_core.state.get_atom_model_potential(a, 32)

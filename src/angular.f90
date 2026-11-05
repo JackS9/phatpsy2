@@ -570,7 +570,7 @@ contains
     integer(int32), intent(in)           :: lmax
     real(real64),   intent(in), optional :: beta_opt
 
-    real(real64), parameter :: SIGNIF = 1.0d-5
+    real(real64), parameter :: SIGNIF = 1.0d-24
     real(real64) :: beta_val, t, csigt, cm, dm1, csigm, cl1, cl2, cl3, d1, d2
     integer(int32) :: lmxp1, im, m, is, isigma, il, l
     logical :: qtteq1
@@ -664,7 +664,7 @@ contains
     real(real64),   intent(in), optional :: alpha_opt
     real(real64)                         :: dc
 
-    real(real64), parameter :: SIGNIF = 1.0d-8
+    real(real64), parameter :: SIGNIF = 1.0d-15
     real(real64), parameter :: ROOT2  = 1.41421356237309504880168872420970d0
 
     real(real64)   :: alpha_val, angle, sinma, cosma, sig, sign1, sign2, factor

@@ -138,6 +138,14 @@ python module _phatpsy_core
                 integer intent(in) :: iatom, m2
                 real(kind=real64) intent(out), dimension(m2) :: out_stovl
             end subroutine get_atom_elem_stovl
+            subroutine get_atom_elem_sthmat(iatom, m2, out_sthmat)
+                integer intent(in) :: iatom, m2
+                real(kind=real64) intent(out), dimension(m2) :: out_sthmat
+            end subroutine get_atom_elem_sthmat
+            subroutine get_atom_elem_norb(iatom, out_norb)
+                integer intent(in) :: iatom
+                integer intent(out) :: out_norb
+            end subroutine get_atom_elem_norb
         end module state
 
         module contrl

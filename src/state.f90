@@ -859,6 +859,36 @@ contains
       mol_ws%elem_stream(ielem_cur)%stovl(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%stovl)))
   end subroutine get_atom_elem_stovl
 
+  subroutine get_atom_elem_sthmat(iatom, m2, out_sthmat)
+    integer(int32), intent(in)  :: iatom, m2
+    real(real64),   intent(out) :: out_sthmat(m2)
+    integer(int32) :: ielem_cur
+
+    out_sthmat = 0.0d0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    ielem_cur = mol_ws%unit3_stream%records(iatom)%ielem
+    if (ielem_cur < 1 .or. ielem_cur > size(mol_ws%elem_stream)) return
+    if (.not. allocated(mol_ws%elem_stream(ielem_cur)%sthmat)) return
+    out_sthmat(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%sthmat))) = &
+      mol_ws%elem_stream(ielem_cur)%sthmat(1:min(m2, size(mol_ws%elem_stream(ielem_cur)%sthmat)))
+  end subroutine get_atom_elem_sthmat
+
+  subroutine get_atom_elem_norb(iatom, out_norb)
+    integer(int32), intent(in)  :: iatom
+    integer(int32), intent(out) :: out_norb
+    integer(int32) :: ielem_cur
+
+    out_norb = 0
+    if (.not. allocated(mol_ws%unit3_stream%records)) return
+    if (iatom < 1 .or. iatom > size(mol_ws%unit3_stream%records)) return
+    if (.not. allocated(mol_ws%elem_stream)) return
+    ielem_cur = mol_ws%unit3_stream%records(iatom)%ielem
+    if (ielem_cur < 1 .or. ielem_cur > size(mol_ws%elem_stream)) return
+    out_norb = mol_ws%elem_stream(ielem_cur)%norb
+  end subroutine get_atom_elem_norb
+
   !---------------------------------------------------------------------
   ! In-Memory Atomic Stream Handlers (replacing Units 3 and 4)
   !---------------------------------------------------------------------

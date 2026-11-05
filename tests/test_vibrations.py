@@ -189,6 +189,7 @@ def test_compute_vibrations_n2_calculation():
         step_size=0.005,
         method="forward",
         project_tr=True,
+        gradient_method="empirical",
         temperature_k=298.15,
         pressure_atm=1.0,
         quiet=True,
@@ -246,6 +247,7 @@ def test_compute_vibrations_co_calculation():
         step_size=0.005,
         method="central",
         project_tr=True,
+        gradient_method="empirical",
         temperature_k=298.15,
         pressure_atm=1.0,
         quiet=True,
@@ -603,5 +605,92 @@ def test_analytical_gradient_vibrational_frequencies_water():
     assert vib_res.num_imaginary == 0
     assert vib_res.is_minimum is True
     assert vib_res.thermochemistry.zero_point_energy_kcal > 0.0
+
+
+@pytest.mark.parametrize(
+    "name,geom,net_spin,basis,conv",
+    [
+        ("H2", [("H", [0.0, 0.0, 0.7]), ("H", [0.0, 0.0, -0.7])], 2, "SZ", 1e-6),
+        ("HF", [("F", [0.0, 0.0, 0.0]), ("H", [0.0, 0.0, 1.733])], 2, "SZ", 1e-6),
+        ("LiH", [("Li", [0.0, 0.0, 0.0]), ("H", [0.0, 0.0, 3.015])], 2, "SZ", 1e-8),
+        (
+            "H2O_SZ",
+            [("O", [0.0, 0.0, 0.224]), ("H", [0.0, 1.45, -0.896]), ("H", [0.0, -1.45, -0.896])],
+            3,
+            "SZ",
+            1e-6,
+        ),
+        (
+            "H2O_DZ",
+            [("O", [0.0, 0.0, 0.0]), ("H", [0.0, 1.43, 1.10]), ("H", [0.0, -1.43, 1.10])],
+            3,
+            "DZ",
+            1e-8,
+        ),
+    ],
+)
+def test_default_relaxed_cphf_hessian_and_vibrations_match_scf_surface(
+    name, geom, net_spin, basis, conv
+):
+    """
+    Phase 16 Downstream Acceptance Gate (Non-Circular):
+    Verifies that compute_hessian and compute_vibrations (which default to
+    use_analytical_gradients=True, gradient_method='relaxed') reproduce the direct
+    SCF electronic energy second-difference Hessian (use_analytical_gradients=False)
+    to < 1e-4 Ha/Bohr^2 and harmonic frequencies to < 0.2 cm^-1 across H2, HF, LiH,
+    and H2O (both SZ and DZ).
+    """
+    driver = PhatpsyDriver(quiet=True)
+    deck = build_molecule(
+        geom,
+        basis=basis,
+        units="bohr",
+        spins="up",
+        net_spin=net_spin,
+        spin_unrestricted=False,
+    )
+    deck.control.convergence = conv
+    deck.control.max_cycles = 100
+    if basis == "SZ":
+        deck.control.use_diis = True
+
+    # Default call: uses use_analytical_gradients=True, gradient_method="relaxed"
+    vib_rel = compute_vibrations(
+        deck=deck,
+        driver=driver,
+        step_size=0.005,
+        method="central",
+        project_tr=True,
+        quiet=True,
+    )
+    # Direct SCF electronic energy second-difference reference
+    vib_scf = compute_vibrations(
+        deck=deck,
+        driver=driver,
+        step_size=0.005,
+        method="central",
+        project_tr=True,
+        use_analytical_gradients=False,
+        quiet=True,
+    )
+
+    H_rel = np.array(vib_rel.hessian_cartesian, dtype=np.float64)
+    H_scf = np.array(vib_scf.hessian_cartesian, dtype=np.float64)
+    np.testing.assert_allclose(
+        H_rel,
+        H_scf,
+        atol=1e-4,
+        err_msg=f"{name}: Relaxed CPHF Hessian deviated from SCF energy Hessian",
+    )
+
+    freqs_rel = sorted(m.frequency_cm for m in vib_rel.vibrational_modes)
+    freqs_scf = sorted(m.frequency_cm for m in vib_scf.vibrational_modes)
+    np.testing.assert_allclose(
+        freqs_rel,
+        freqs_scf,
+        atol=0.25,
+        err_msg=f"{name}: Relaxed CPHF frequencies deviated from SCF energy frequencies",
+    )
+
 
 

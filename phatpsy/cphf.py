@@ -106,16 +106,18 @@ class CPHFResponseSolver:
             idx_a = np.where(self.iatomx == a)[0]
             self.atom_basis_indices[a] = idx_a
             m = len(idx_a)
-            norb_a = 1 if m == 1 else m
+            norb_a = int(_phatpsy_core.state.get_atom_elem_norb(a))
+            if norb_a <= 0:
+                norb_a = 1 if m == 1 else m
             self.atom_orb_slices[a] = (korb, korb + norb_a)
             korb += norb_a
+
+        # Lazy cache for multi-center response tensors
+        self._response_cache: Optional[Dict[str, Any]] = None
 
         # Identify active canonical orbital rotation pairs
         self.active_pairs: List[Dict[str, Any]] = []
         self._build_active_pairs()
-
-        # Lazy cache for multi-center response tensors
-        self._response_cache: Optional[Dict[str, Any]] = None
 
     def _extract_radial(self, atom_id: int):
         mask = (self.iatomx == atom_id)
@@ -136,6 +138,74 @@ class CPHFResponseSolver:
         anorm_arr = np.array([f[3] for f in unique_funcs], dtype=np.float64)
         return n_arr, l_arr, eta_arr, anorm_arr
 
+    def _get_atom_full_orbitals(self, a: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Returns the full (m, m, ispin) canonical orbital coefficients C_full,
+        (m, ispin) occupations occ_full, and (m, ispin) eigenvalues eval_full
+        for atom a. When m > norb_a (e.g. DZ / DZP / TZP basis sets), completes
+        the basis with the m - norb_a virtual eigenvectors of the atomic Fock
+        matrix in the S-orthogonal complement of the norb_a stored orbitals.
+        """
+        idx_a = self.atom_basis_indices[a]
+        m = len(idx_a)
+        m2 = (m * (m + 1)) // 2
+        k_start, k_end = self.atom_orb_slices[a]
+        norb_a = k_end - k_start
+
+        C_stored = self.evecx[idx_a, k_start:k_end, :].copy()
+        occ_stored = self.occx[k_start:k_end, :].copy()
+        eval_stored = self.evalx[k_start:k_end, :].copy()
+
+        if m <= norb_a:
+            return C_stored, occ_stored, eval_stored
+
+        C_full = np.zeros((m, m, self.ispin), dtype=np.float64)
+        occ_full = np.zeros((m, self.ispin), dtype=np.float64)
+        eval_full = np.zeros((m, self.ispin), dtype=np.float64)
+        C_full[:, :norb_a, :] = C_stored
+        occ_full[:norb_a, :] = occ_stored
+        eval_full[:norb_a, :] = eval_stored
+
+        znuc = float(self.charges[a - 1])
+        stovl = _unpack_packed(_phatpsy_core.state.get_atom_elem_stovl(a, m2).ravel(), m)
+        w_s, u_s = np.linalg.eigh(stovl)
+        s_inv_sqrt = (u_s / np.sqrt(np.maximum(w_s, 1e-12))) @ u_s.T
+        s_sqrt = (u_s * np.sqrt(np.maximum(w_s, 1e-12))) @ u_s.T
+        sthmat = _unpack_packed(_phatpsy_core.state.get_atom_elem_sthmat(a, m2).ravel(), m)
+        zpot2 = _unpack_packed(_phatpsy_core.state.get_atom_record_zpot2(a, m2).ravel(), m)
+        cpot2 = _unpack_packed(_phatpsy_core.state.get_atom_record_cpot2(a, m2).ravel(), m)
+        pkpot = _phatpsy_core.state.get_atom_record_pkpot(a, m2, 6, self.ispin).copy()
+
+        dP_packed = np.zeros((m2, self.ispin), dtype=np.float64)
+        for s in range(self.ispin):
+            P_s = C_stored[:, :, s] @ np.diag(occ_stored[:, s]) @ C_stored[:, :, s].T
+            idx = 0
+            for i in range(m):
+                for j in range(i + 1):
+                    dP_packed[idx, s] = P_s[i, j]
+                    idx += 1
+        fc_pack, fx_pack = _phatpsy_core.integrals.compute_atom_fokmat(a, dP_packed)
+
+        for s in range(self.ispin):
+            fc_s = _unpack_packed(fc_pack[:, s], m)
+            fx_s = _unpack_packed(fx_pack[:, s], m)
+            xpot2_s = _unpack_packed(pkpot[:, 2, s], m)
+            pk2_s = _unpack_packed(pkpot[:, 1, s], m) if znuc > 1.5 else 0.0
+            F_ao = sthmat + fc_s + fx_s + zpot2 + cpot2 + xpot2_s - pk2_s
+            onfock = s_inv_sqrt.T @ F_ao @ s_inv_sqrt
+
+            # Orthonormal basis for the m - norb_a orthogonal complement in Löwdin space
+            U_occ = s_sqrt @ C_stored[:, :, s]
+            P_comp = np.eye(m) - U_occ @ U_occ.T
+            u_svd, _, _ = np.linalg.svd(P_comp)
+            U_virt = u_svd[:, : m - norb_a]
+            F_virt = U_virt.T @ onfock @ U_virt
+            w_virt, V_virt = np.linalg.eigh(F_virt)
+            C_full[:, norb_a:, s] = s_inv_sqrt @ (U_virt @ V_virt)
+            eval_full[norb_a:, s] = w_virt
+
+        return C_full, occ_full, eval_full
+
     def _build_active_pairs(self):
         """
         Identifies all non-degenerate canonical orbital rotation pairs (p < q)
@@ -152,13 +222,14 @@ class CPHFResponseSolver:
                 continue
             k_start, k_end = self.atom_orb_slices[a]
             norb_a = k_end - k_start
+            _, occ_full, eval_full = self._get_atom_full_orbitals(a)
 
             for s in range(self.ispin):
-                occ_s = self.occx[k_start:k_end, s]
-                eval_s = self.evalx[k_start:k_end, s]
+                occ_s = occ_full[:, s]
+                eval_s = eval_full[:, s]
 
                 for p_local in range(norb_a):
-                    for q_local in range(p_local + 1, norb_a):
+                    for q_local in range(p_local + 1, mstoa):
                         de = float(eval_s[q_local] - eval_s[p_local])
                         if abs(de) > 1e-4:
                             p_global = k_start + p_local
@@ -214,9 +285,7 @@ class CPHFResponseSolver:
             stovl = _unpack_packed(_phatpsy_core.state.get_atom_elem_stovl(a, m2).ravel(), m)
             ontran = _phatpsy_core.state.get_atom_elem_ontran(a, m).copy()
 
-            C_a = self.evecx[idx_a, k_start:k_end, :].copy()
-            occ_a = self.occx[k_start:k_end, :].copy()
-            eval_a = self.evalx[k_start:k_end, :].copy()
+            C_a, occ_a, eval_a = self._get_atom_full_orbitals(a)
             sumocc = float(self.orbocc * np.sum(occ_a))
 
             dP_packed = np.zeros((m2, self.ispin), dtype=np.float64)
@@ -509,14 +578,16 @@ class CPHFResponseSolver:
                 for nv in range(nt):
                     v_pq = float(c_p.T @ aa["stpot_mats"][nv] @ c_q)
                     depot[p, s_rot, nv] = +2.0 * v_pq
-                    depot[q, s_rot, nv] = -2.0 * v_pq
+                    if q < aa["norb"]:
+                        depot[q, s_rot, nv] = -2.0 * v_pq
                 for s in range(self.ispin):
                     for iorb in range(aa["norb"]):
                         c_i = aa["C"][:, iorb, s]
                         dechf[iorb, s] = float(c_i.T @ dfc[s] @ c_i)
                 fc_pq = float(c_p.T @ aa["fc"][s_rot] @ c_q)
                 dechf[p, s_rot] += +2.0 * fc_pq
-                dechf[q, s_rot] += -2.0 * fc_pq
+                if q < aa["norb"]:
+                    dechf[q, s_rot] += -2.0 * fc_pq
 
                 for s in range(self.ispin):
                     for iorb in range(aa["norb"]):
@@ -772,13 +843,11 @@ class CPHFResponseSolver:
         Evaluates the fully relaxed analytical Cartesian nuclear gradient matrix (n_atoms, 3):
             g_{A, k}^{relaxed} = (dE_total / dR_{A, k})_C + sum_{p} Z_p * F^{(A, k)}_p
         """
-        if self.n_active == 0:
-            return compute_polyatomic_analytical_gradient(
-                self.calc_state, self.deck, relaxed=False
-            )
-
         # 1. Fixed-orbital multi-center gradient (dE_total / dR)_C
         g_fixedC = self._compute_fixed_orbital_gradient()
+        if self.n_active == 0:
+            trans = np.mean(g_fixedC, axis=0)
+            return g_fixedC - trans
 
         # 2. Solve coupled Handy-Schaefer Z-vector equation A^T Z = -L
         Z = self.solve_z_vector()
