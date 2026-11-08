@@ -156,15 +156,25 @@ class CPHFResponseSolver:
         occ_stored = self.occx[k_start:k_end, :].copy()
         eval_stored = self.evalx[k_start:k_end, :].copy()
 
-        if m <= norb_a:
+        # Active core/valence orbitals are those populated in at least one spin
+        # channel; trailing unoccupied polarization orbitals (e.g. 3d/4f in DZP/TZP/TZ2P)
+        # have zero occupation and zero model-potential fit weight, so they belong to
+        # the canonical virtual complement orthogonal to the active subspace.
+        active_indices = [i for i in range(norb_a) if np.sum(occ_stored[i, :]) > 1e-6]
+        if active_indices and active_indices == list(range(len(active_indices))):
+            n_act = len(active_indices)
+        else:
+            n_act = norb_a
+
+        if m <= n_act:
             return C_stored, occ_stored, eval_stored
 
         C_full = np.zeros((m, m, self.ispin), dtype=np.float64)
         occ_full = np.zeros((m, self.ispin), dtype=np.float64)
         eval_full = np.zeros((m, self.ispin), dtype=np.float64)
-        C_full[:, :norb_a, :] = C_stored
-        occ_full[:norb_a, :] = occ_stored
-        eval_full[:norb_a, :] = eval_stored
+        C_full[:, :n_act, :] = C_stored[:, :n_act, :]
+        occ_full[:n_act, :] = occ_stored[:n_act, :]
+        eval_full[:n_act, :] = eval_stored[:n_act, :]
 
         znuc = float(self.charges[a - 1])
         stovl = _unpack_packed(_phatpsy_core.state.get_atom_elem_stovl(a, m2).ravel(), m)
@@ -178,7 +188,7 @@ class CPHFResponseSolver:
 
         dP_packed = np.zeros((m2, self.ispin), dtype=np.float64)
         for s in range(self.ispin):
-            P_s = C_stored[:, :, s] @ np.diag(occ_stored[:, s]) @ C_stored[:, :, s].T
+            P_s = C_stored[:, :n_act, s] @ np.diag(occ_stored[:n_act, s]) @ C_stored[:, :n_act, s].T
             idx = 0
             for i in range(m):
                 for j in range(i + 1):
@@ -194,15 +204,15 @@ class CPHFResponseSolver:
             F_ao = sthmat + fc_s + fx_s + zpot2 + cpot2 + xpot2_s - pk2_s
             onfock = s_inv_sqrt.T @ F_ao @ s_inv_sqrt
 
-            # Orthonormal basis for the m - norb_a orthogonal complement in Löwdin space
-            U_occ = s_sqrt @ C_stored[:, :, s]
+            # Orthonormal basis for the m - n_act orthogonal complement in Löwdin space
+            U_occ = s_sqrt @ C_stored[:, :n_act, s]
             P_comp = np.eye(m) - U_occ @ U_occ.T
             u_svd, _, _ = np.linalg.svd(P_comp)
-            U_virt = u_svd[:, : m - norb_a]
+            U_virt = u_svd[:, : m - n_act]
             F_virt = U_virt.T @ onfock @ U_virt
             w_virt, V_virt = np.linalg.eigh(F_virt)
-            C_full[:, norb_a:, s] = s_inv_sqrt @ (U_virt @ V_virt)
-            eval_full[norb_a:, s] = w_virt
+            C_full[:, n_act:, s] = s_inv_sqrt @ (U_virt @ V_virt)
+            eval_full[n_act:, s] = w_virt
 
         return C_full, occ_full, eval_full
 
@@ -223,12 +233,14 @@ class CPHFResponseSolver:
             k_start, k_end = self.atom_orb_slices[a]
             norb_a = k_end - k_start
             _, occ_full, eval_full = self._get_atom_full_orbitals(a)
+            active_indices = [i for i in range(norb_a) if np.sum(occ_full[i, :]) > 1e-6]
+            n_act = len(active_indices) if (active_indices and active_indices == list(range(len(active_indices)))) else norb_a
 
             for s in range(self.ispin):
                 occ_s = occ_full[:, s]
                 eval_s = eval_full[:, s]
 
-                for p_local in range(norb_a):
+                for p_local in range(n_act):
                     for q_local in range(p_local + 1, mstoa):
                         de = float(eval_s[q_local] - eval_s[p_local])
                         if abs(de) > 1e-4:
@@ -323,12 +335,16 @@ class CPHFResponseSolver:
             epot_orb = np.zeros((norb_a, self.ispin, nt), dtype=np.float64)
             echf_orb = np.zeros((norb_a, self.ispin), dtype=np.float64)
 
+            nval_active = sum(
+                1 for iorb in range(ncore, norb_a) if np.sum(occ_a[iorb, :]) > 1e-6
+            )
             for iorb in range(norb_a):
                 if ncore > 0 and (iorb + 1) <= ncore:
                     wgt_orb[iorb] = 1.0 / (self.orbocc * ncore)
+                elif np.sum(occ_a[iorb, :]) > 1e-6 and nval_active > 0:
+                    wgt_orb[iorb] = 1.0 / (self.orbocc * nval_active)
                 else:
-                    denom_orb = max(1, norb_a - ncore)
-                    wgt_orb[iorb] = 1.0 / (self.orbocc * denom_orb)
+                    wgt_orb[iorb] = 0.0
 
             for s in range(self.ispin):
                 for iorb in range(norb_a):

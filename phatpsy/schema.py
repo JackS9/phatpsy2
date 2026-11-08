@@ -5,7 +5,7 @@ Provides two-way conversion between high-level Python/YAML/JSON representations
 and legacy Fortran stdin decks.
 """
 from dataclasses import dataclass, field, asdict, replace
-from typing import List, Dict, Tuple, Optional, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union, Sequence
 from pathlib import Path
 import yaml
 import json
@@ -289,7 +289,8 @@ class AtomConfig:
     fixed: bool = False
     virtual: bool = False
     spin_flip: bool = False  # Backward compatibility fallback
-    spin: Optional[str] = None  # "up", "down", or None
+    spin: Optional[Union[str, Sequence[str]]] = None  # "up", "down", sequence of orbital spins, or None
+    orbital_spins: Optional[List[str]] = None  # Explicit per-bonding-orbital spin list (e.g. ["up", "up", "up"])
     basis: Optional[str] = None  # Atom-specific basis override (e.g. 'ADF-TZ2P')
     hybridization: Optional[str] = None  # Named hybridization type override (e.g. 'sp3', 'sp2', 'dsp2', 'd2sp3')
     embedded_state: Optional[Any] = None
@@ -301,7 +302,32 @@ class AtomConfig:
             self.xyz = [float(c) for c in self.id]
             self.id = None
 
-        # 1. Normalize spin
+        # 1. Normalize spin / orbital_spins
+        if isinstance(self.spin, (list, tuple)):
+            self.orbital_spins = list(self.spin)
+            self.spin = None
+
+        if self.orbital_spins is not None:
+            norm_orb_spins: List[str] = []
+            for item in self.orbital_spins:
+                if item is None:
+                    raise ValueError(f"Orbital spin entry cannot be None in {self.orbital_spins!r}")
+                s_item = str(item).strip().lower()
+                if s_item in ("up", "alpha", "+1", "1", "+"):
+                    norm_orb_spins.append("up")
+                elif s_item in ("down", "beta", "-1", "-"):
+                    norm_orb_spins.append("down")
+                else:
+                    raise ValueError(f"Invalid orbital spin entry {item!r}; expected 'up' or 'down'")
+            if not norm_orb_spins:
+                raise ValueError("orbital_spins list cannot be empty")
+            self.orbital_spins = norm_orb_spins
+            if self.spin is None:
+                n_up_o = sum(1 for x in norm_orb_spins if x == "up")
+                n_down_o = len(norm_orb_spins) - n_up_o
+                self.spin = "up" if n_up_o >= n_down_o else "down"
+                self.spin_flip = (self.spin == "down")
+
         if self.spin is not None:
             s = str(self.spin).strip().lower()
             if s in ("up", "alpha", "+1", "1", "+"):
@@ -406,6 +432,8 @@ class AtomConfig:
             res["spin"] = self.spin
         elif self.spin_flip:
             res["spin"] = "down"
+        if self.orbital_spins:
+            res["orbital_spins"] = list(self.orbital_spins)
         if self.basis:
             res["basis"] = self.basis
         if self.hybridization:
@@ -429,8 +457,12 @@ class AtomConfig:
             sym = SymmetrySpec(**data["symmetry"])
         xyz = data.get("xyz", [0.0, 0.0, 0.0])
         spin_val = data.get("spin")
+        orbital_spins_val = data.get("orbital_spins")
+        if isinstance(spin_val, (list, tuple)) and orbital_spins_val is None:
+            orbital_spins_val = list(spin_val)
+            spin_val = None
         spin_flip_val = bool(data.get("spin_flip", False))
-        if spin_val is None and spin_flip_val:
+        if spin_val is None and orbital_spins_val is None and spin_flip_val:
             spin_val = "down"
 
         emb_data = data.get("embedded_state")
@@ -447,7 +479,7 @@ class AtomConfig:
                 (InitialOrbital.from_dict(o) if isinstance(o, dict) else o)
                 for o in data["starting_orbitals"]
             ]
-            if spin_val is None:
+            if spin_val is None and orbital_spins_val is None:
                 tot_alpha = sum(orb.occno[0] for orb in starting_orbs if len(orb.occno) > 0)
                 tot_beta = sum(orb.occno[1] for orb in starting_orbs if len(orb.occno) > 1)
                 if tot_beta > tot_alpha:
@@ -456,7 +488,7 @@ class AtomConfig:
                 elif tot_alpha > tot_beta:
                     spin_val = "up"
 
-        if spin_val is None and spin_flip_val:
+        if spin_val is None and orbital_spins_val is None and spin_flip_val:
             spin_val = "down"
 
         return cls(
@@ -472,6 +504,7 @@ class AtomConfig:
             virtual=bool(data.get("virtual", False)),
             spin_flip=spin_flip_val,
             spin=spin_val,
+            orbital_spins=orbital_spins_val,
             basis=data.get("basis"),
             hybridization=data.get("hybridization"),
             embedded_state=emb,
@@ -656,6 +689,9 @@ class CalculationDeck:
 
         n_up = 0
         n_down = 0
+        orb_up = 0
+        orb_down = 0
+        has_orb_spins = False
         for a in self.geometry:
             if a.spin not in ("up", "down"):
                 raise ValueError(
@@ -667,9 +703,22 @@ class CalculationDeck:
                 n_up += 1
             else:
                 n_down += 1
+            if getattr(a, "orbital_spins", None):
+                has_orb_spins = True
+                for s_o in a.orbital_spins:
+                    if s_o == "up":
+                        orb_up += 1
+                    else:
+                        orb_down += 1
+            else:
+                if a.spin == "up":
+                    orb_up += 1
+                else:
+                    orb_down += 1
 
         calc_net = n_up - n_down
-        if calc_net != self.net_spin:
+        calc_orb_net = orb_up - orb_down
+        if calc_net != self.net_spin and not (has_orb_spins and calc_orb_net == self.net_spin):
             raise ValueError(
                 f"Net spin mismatch: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
                 f"but deck net_spin is {self.net_spin}. "
@@ -1347,6 +1396,19 @@ class CalculationDeck:
             pbc=pbc,
         )
         deck.resolve_coordinates()
+        if any(getattr(a, "hybridization", None) or getattr(a, "orbital_spins", None) for a in deck.geometry):
+            if any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry):
+                from phatpsy.hybrids import apply_hybrid_seeds
+                bonds_inferred = None
+                if len(deck.geometry) == 2 and all(
+                    getattr(a, "hybridization", None) == "sp" or len(getattr(a, "orbital_spins", None) or []) == 3
+                    for a in deck.geometry
+                ):
+                    for a in deck.geometry:
+                        if not a.hybridization:
+                            a.hybridization = "sp"
+                    bonds_inferred = {(0, 1): 3}
+                apply_hybrid_seeds(deck, bonds=bonds_inferred)
         return deck
 
     @classmethod
@@ -1407,8 +1469,9 @@ class CalculationDeck:
         control: Optional[ControlConfig] = None,
         units: str = "bohr",
         spin_unrestricted: bool = True,
-        spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+        spins: Optional[Union[List[Any], Dict[str, Any], str]] = None,
         net_spin: Optional[int] = None,
+        hybridization: Optional[Union[str, Sequence[Optional[str]], Dict[str, str]]] = None,
         extra_namelist: Optional[Dict[str, Any]] = None,
     ) -> "CalculationDeck":
         """
@@ -1424,6 +1487,7 @@ class CalculationDeck:
             spin_unrestricted=spin_unrestricted,
             spins=spins,
             net_spin=net_spin,
+            hybridization=hybridization,
             extra_namelist=extra_namelist,
         )
 
@@ -1436,9 +1500,10 @@ class CalculationDeck:
         basis: Union[str, Dict[str, str]] = "DZ",
         units: str = "bohr",
         use_symmetry: bool = True,
-        spins: Optional[Union[List[str], Tuple[str, str]]] = None,
+        spins: Optional[Union[List[Any], Tuple[Any, Any]]] = None,
         net_spin: Optional[int] = None,
         spin_flip: Optional[bool] = None,
+        hybridization: Optional[Union[str, Sequence[Optional[str]]]] = None,
         title: Optional[str] = None,
         control: Optional[ControlConfig] = None,
         extra_namelist: Optional[Dict[str, Any]] = None,
@@ -1457,6 +1522,7 @@ class CalculationDeck:
             spins=spins,
             net_spin=net_spin,
             spin_flip=spin_flip,
+            hybridization=hybridization,
             title=title,
             control=control,
             extra_namelist=extra_namelist,

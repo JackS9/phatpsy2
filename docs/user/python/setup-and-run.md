@@ -43,7 +43,15 @@ geometry = [
     ("C", [0.0, 0.0, -1.218]),
     ("O", [0.0, 0.0,  0.914]),
 ]
-deck = build_molecule(geometry, title="Carbon Monoxide", basis="DZ", units="bohr")
+deck = build_molecule(
+    geometry,
+    title="Carbon Monoxide",
+    basis="DZ",
+    hybridization="sp",
+    spins=[["up", "up", "up"], ["down", "down", "down"]],
+    net_spin=0,
+    units="bohr",
+)
 ```
 
 ### 3. Parsing XYZ Strings or Files (`parse_geometry`)

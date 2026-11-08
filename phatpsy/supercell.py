@@ -211,6 +211,8 @@ class PeriodicAtom:
     fixed: bool = False      # QFIXED=T in PHATPSY
     virtual: bool = False    # QVIRTL=T in PHATPSY
     spin: str = "up"            # 'up' or 'down'
+    orbital_spins: Optional[List[str]] = None
+    hybridization: Optional[str] = None
     layer: Optional[int] = None # Atomic layer index in slab
     tag: Optional[str] = None   # Custom label (e.g. 'substrate', 'adsorbate', 'buffer')
     grid_indices: Tuple[int, int, int] = (0, 0, 0) # Supercell translation indices (ix, iy, iz)
@@ -221,7 +223,9 @@ class PeriodicAtom:
             xyz=[float(c) for c in self.cart_coords],
             fixed=self.fixed,
             virtual=self.virtual,
-            spin=self.spin if self.spin in ("up", "down") else "up",
+            spin=self.orbital_spins if self.orbital_spins is not None else (self.spin if self.spin in ("up", "down") else "up"),
+            orbital_spins=list(self.orbital_spins) if self.orbital_spins is not None else None,
+            hybridization=self.hybridization,
         )
 
 
@@ -398,10 +402,14 @@ class PeriodicCell:
         c_title = title or self.title
         deck = CalculationDeck(
             title=c_title,
-            control=ControlConfig(),
+            basis=basis,
+            control=ControlConfig(default_basis=basis),
             geometry=atom_configs,
             net_spin=net_spin,
         )
+        if any(getattr(a, "hybridization", None) for a in deck.geometry):
+            from phatpsy.hybrids import apply_hybrid_seeds
+            apply_hybrid_seeds(deck)
         deck.resolve_elements()
         return deck
 
@@ -720,10 +728,11 @@ def attach_adsorbate(
         if adj_str == "CO":
             # Classic C-O perpendicular (C bonded to surface, O on top)
             # Experimental bond length R(C-O) = 1.128 A = 2.132 Bohr
+            # C(-)O(+) dative 'sp' triple bond, iso-electronic to N2
             r_co = 1.128 * scale
             ads_atoms = [
-                AtomConfig(element="C", xyz=[0.0, 0.0, 0.0]),
-                AtomConfig(element="O", xyz=[0.0, 0.0, r_co]),
+                AtomConfig(element="C", xyz=[0.0, 0.0, 0.0], spin=["up", "up", "up"], hybridization="sp"),
+                AtomConfig(element="O", xyz=[0.0, 0.0, r_co], spin=["down", "down", "down"], hybridization="sp"),
             ]
         elif adj_str == "NO":
             r_no = 1.154 * scale
@@ -771,6 +780,9 @@ def attach_adsorbate(
             cart_coords=new_pos,
             fixed=False,
             virtual=False,
+            spin=a.spin if getattr(a, "spin", None) in ("up", "down") else "up",
+            orbital_spins=list(a.orbital_spins) if getattr(a, "orbital_spins", None) else None,
+            hybridization=getattr(a, "hybridization", None),
             tag="adsorbate",
         ))
 

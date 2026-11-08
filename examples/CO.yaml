@@ -23,6 +23,11 @@ geometry:
   - 0.0
   id: C1
   spin: up
+  orbital_spins:
+  - up
+  - up
+  - up
+  hybridization: sp
 - element: O
   xyz:
   - 0.0
@@ -30,6 +35,11 @@ geometry:
   - 2.13
   id: O1
   spin: down
+  orbital_spins:
+  - down
+  - down
+  - down
+  hybridization: sp
 elements:
   C:
     symbol: C

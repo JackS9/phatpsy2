@@ -37,7 +37,7 @@ contains
     integer(int32)    :: nucz, isym, ixyz, neqat, iuatom, ncoef, iurst, ios
     integer(int32)    :: isto, ni, li, lli, mli, iml, jsto, nv, lvn, mvn
     integer(int32)    :: ntyp, ltyp, mtyp, ij, ntei, isp, jdifat, iorb, iiorb
-    integer(int32)    :: last, icoef, mi, matom, korbt, kstot, ieqat, jsym
+    integer(int32)    :: last, icoef, mi, matom, korbt, kstot, ieqat, jsym, l_min_hyb, l_max_hyb
     real(real64)      :: rscale, rmAx, te, zzrep, znuc, etai, anormi, coef, expn
     real(real64)      :: toten, remain, coef1, coef2, alpha, beta, scale, r2
     real(real64)      :: xyz(3), vcoef0(10), eigval(2), occno(2)
@@ -305,6 +305,7 @@ contains
                 stevec(2:MSTO, iorb, 1) = stevec(1:MSTO-1, last, 1)
                 if (QOPEN) stevec(2:MSTO, iorb, 2) = stevec(1:MSTO-1, last, 2)
               else if (ncoef /= 0) then
+                stevec(1:MSTO, iorb, 1:ISPIN) = 0.0d0
                 ncoef = abs(ncoef)
                 do icoef = 1, ncoef
                   read(iuatom, 14000) isto, mli, coef1, coef2
@@ -325,6 +326,27 @@ contains
           end if
         end if
 
+        ! Detect s-p-d hybridized starting orbitals (more than one angular
+        ! momentum l present in the same orbital) across all atoms of this
+        ! element (including inherited or spin-flipped atoms): mark QNWVEC=.true.
+        ! so QSEPAT on Cycle 1 evaluates their Fock/model-potential matrices
+        ! without diagonalizing the spherical free atom.
+        do iorb = 1, NORB
+          l_min_hyb = 999
+          l_max_hyb = -999
+          do isto = 1, NSTO
+            do mli = -l(isto), l(isto)
+              mi = m0(isto) + mli
+              if (abs(stevec(mi, iorb, 1)) > 1.0d-6 .or. &
+                  (QOPEN .and. abs(stevec(mi, iorb, 2)) > 1.0d-6)) then
+                l_min_hyb = min(l_min_hyb, l(isto))
+                l_max_hyb = max(l_max_hyb, l(isto))
+              end if
+            end do
+          end do
+          if (l_min_hyb < l_max_hyb) QNWVEC = .true.
+        end do
+
         if (.not. (QFLIP .and. .not. QRSTRT)) then
           write(IW, 16000) latom
           if (qdfvec) write(IW, 17000) jdifat
@@ -339,7 +361,7 @@ contains
           if (.not. QRSTRT) then
             call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
             pkpot(:,4,isp) = PKSCAL * pkpot(:,4,isp)
-            call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
+            call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
             pkpot(:,5,isp) = PKSCAL * pkpot(:,5,isp)
             pkpot(:,6,isp) = 0.0d0
           end if
@@ -477,6 +499,19 @@ contains
               call FLIP(fock,   1, 2, fock,   2, 2, N2ORB)
               call FLIP(gamma,  1, 2, gamma,  2, 2, NORB)
               call FLIP(pkpot,  1, ISPIN, pkpot, ISPIN, ISPIN, 6 * M2STO)
+            end if
+            if (.not. QRSTRT .and. isym /= 0) then
+              do isp = 1, ISPIN
+                call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
+                call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
+                if (znuc <= 1.5d0) then
+                  pkpot(:, 4, isp) = 0.0d0
+                  pkpot(:, 5, isp) = 0.0d0
+                else
+                  pkpot(:, 4, isp) = PKSCAL * pkpot(:, 4, isp)
+                  pkpot(:, 5, isp) = PKSCAL * pkpot(:, 5, isp)
+                end if
+              end do
             end if
           end if
 

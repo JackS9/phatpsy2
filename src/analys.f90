@@ -441,7 +441,7 @@ contains
     real(real64)    :: wgt2sv, c1c1, proj, ckck, ckcl2, occup, vdev, wgt, vcalc
     real(real64)    :: smax, hole, screen, schole, el2, pkerr, vcalc0, vcalc2
     real(real64)    :: vdev2, tetot, tpe, virial
-    integer(int32)  :: ncore, isp, iorb, nv, k, indxk, kk, km1, l, kl, i, j, ij
+    integer(int32)  :: ncore, nval_active, isp, iorb, nv, k, indxk, kk, km1, l, kl, i, j, ij
     integer(int32)  :: nelec_int
     integer(int32)  :: idx_sto, li_sto, ni_sto, m_sto
     real(real64)    :: etai_sto, anormi_sto
@@ -469,6 +469,10 @@ contains
     ! typed INTEGER, i.e. truncation toward zero, which int() reproduces.
     nelec_int = int(nelec, int32)
     ncore  = NOBLE(nelec_int)
+    nval_active = 0
+    do iorb = ncore + 1, NORB
+      if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nval_active = nval_active + 1
+    end do
 
     te     = 0.0d0
     vsum   = 0.0d0
@@ -537,9 +541,11 @@ contains
         if (iorb <= ncore) then
           vdevc = vdevc + vdev**2
           wgt   = WGTC / (ORBOCC * ncore)
-        else
+        else if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6 .and. nval_active > 0) then
           vdevv = vdevv + vdev**2
-          wgt   = WGTV / (ORBOCC * (NORB - ncore))
+          wgt   = WGTV / (ORBOCC * nval_active)
+        else
+          wgt   = 0.0d0
         end if
 
         vcalc = vcoef(1) * epot(1)

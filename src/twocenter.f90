@@ -588,6 +588,10 @@ contains
     allocate(tc_ylmnrm(tc_nylm))
     allocate(tc_d(tc_l3mx, 2))
     allocate(tc_scrat(tc_llmxp2, 2))
+    tc_cgc    = 0.0d0
+    tc_ylmnrm = 0.0d0
+    tc_d      = 0.0d0
+    tc_scrat  = 0.0d0
 
     do i = 1, ndxdim
       tc_index_arr(i) = (i * (i - 1)) / 2
@@ -668,8 +672,8 @@ contains
     beta_bak  = BETA_ANG
     ALPHA_ANG = alpha_val
     BETA_ANG  = beta_val
-    lmax_val = max(maxval(l), maxval(abs(lv)))
-    lmax_val = min(4, max(lmax_val, 2))
+    lmax_val = max(2 * maxval(l), maxval(abs(lv)))
+    lmax_val = min(8, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
 
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
@@ -706,8 +710,8 @@ contains
     beta_bak  = BETA_ANG
     ALPHA_ANG = alpha_val
     BETA_ANG  = beta_val
-    lmax_val = max(maxval(l), maxval(abs(lv)))
-    lmax_val = min(4, max(lmax_val, 2))
+    lmax_val = max(2 * maxval(l), maxval(abs(lv)))
+    lmax_val = min(8, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
 
     allocate(a(128), b(128), omegai(16, 16), omegaj(16, 16), scrplm(64))
@@ -736,7 +740,7 @@ contains
     ALPHA_ANG = alpha
     BETA_ANG  = beta
     lmax_val = max(maxval(la), maxval(lb))
-    lmax_val = min(4, max(lmax_val, 2))
+    lmax_val = min(8, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta)
     call rotsab(stovlp, ovrlap, la, nstoa, mstoa, lb, nstob, mstob, tc_d)
     ALPHA_ANG = alpha_bak
@@ -752,7 +756,7 @@ contains
     integer(int32) :: lmax_val
 
     call ensure_tables_initialized()
-    lmax_val = min(4, max(l, 2))
+    lmax_val = min(8, max(l, 2))
     call gendc(tc_d, lmax_val, beta)
     dc = dcoef(tc_d, l, m, isigma, alpha)
   end subroutine compute_dcoef

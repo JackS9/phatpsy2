@@ -6,7 +6,7 @@ or diatomic specifications, automatically binding Clementi & Roetti and Thakkar
 STO basis functions, exponents, and starting orbital configurations.
 """
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union, Sequence
 import re
 import numpy as np
 
@@ -315,6 +315,33 @@ def _parse_xyz_string(text: str, to_bohr: float) -> List[AtomConfig]:
     return atoms
 
 
+def _normalize_spin_entry(entry: Any) -> Tuple[Optional[str], Optional[List[str]]]:
+    """Normalizes a spin entry (either a single spin string or a sequence of per-orbital spins)."""
+    spin_map = {
+        "up": "up", "alpha": "up", "+1": "up", "1": "up", "+": "up",
+        "down": "down", "beta": "down", "-1": "down", "-": "down",
+    }
+    if isinstance(entry, (list, tuple)):
+        if not entry:
+            return None, None
+        orb_list: List[str] = []
+        for item in entry:
+            if item is None:
+                return None, None
+            s_norm = spin_map.get(str(item).strip().lower())
+            if s_norm is None:
+                return None, None
+            orb_list.append(s_norm)
+        n_up = sum(1 for x in orb_list if x == "up")
+        n_down = len(orb_list) - n_up
+        maj = "up" if n_up >= n_down else "down"
+        return maj, orb_list
+    if entry is None:
+        return None, None
+    s_norm = spin_map.get(str(entry).strip().lower())
+    return s_norm, None
+
+
 def build_molecule(
     geometry: Union[str, Path, List[Any]],
     basis: Union[str, Dict[str, str]] = "DZ",
@@ -322,12 +349,13 @@ def build_molecule(
     control: Optional[ControlConfig] = None,
     units: str = "bohr",
     spin_unrestricted: bool = True,
-    spins: Optional[Union[List[str], Dict[str, str], str]] = None,
+    spins: Optional[Union[List[Any], Dict[str, Any], str]] = None,
     net_spin: Optional[int] = None,
     ferromagnetic_links: Optional[List[Tuple[Union[str, int], Union[str, int]]]] = None,
     auto_spin_flip: Optional[bool] = None,
     require_bipartite: bool = False,
     embedded_atoms: Optional[Dict[Union[str, int], Any]] = None,
+    hybridization: Optional[Union[str, Sequence[Optional[str]], Dict[str, str]]] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
     """
@@ -435,17 +463,55 @@ def build_molecule(
             for idx, s in enumerate(spins):
                 if s is None:
                     raise ValueError(f"Explicit spin at index {idx} is None. Spin must be 'up' or 'down'.")
-                atoms[idx].spin = s
+                maj_s, orb_s = _normalize_spin_entry(s)
+                if maj_s is None:
+                    raise ValueError(
+                        f"Atom '{atoms[idx].id or atoms[idx].element}' has unassigned or invalid spin ({s!r}). "
+                        f"Every atom in a built deck must carry an explicit spin ('up' or 'down'). "
+                        f"None anywhere in the spin path is a hard error."
+                    )
+                atoms[idx].spin = maj_s
+                atoms[idx].spin_flip = (maj_s == "down")
+                if orb_s is not None:
+                    atoms[idx].orbital_spins = orb_s
         elif isinstance(spins, dict):
             for idx, a in enumerate(atoms):
                 s = spins.get(a.id) if a.id else None
                 if s is None:
                     s = spins.get(idx, spins.get(str(idx), spins.get(a.element)))
                 if s is not None:
-                    atoms[idx].spin = s
+                    maj_s, orb_s = _normalize_spin_entry(s)
+                    atoms[idx].spin = maj_s if maj_s is not None else s
+                    if maj_s == "down":
+                        atoms[idx].spin_flip = True
+                    if orb_s is not None:
+                        atoms[idx].orbital_spins = orb_s
         elif isinstance(spins, str):
+            maj_s, _ = _normalize_spin_entry(spins)
             for a in atoms:
-                a.spin = spins
+                a.spin = maj_s if maj_s is not None else spins
+                if maj_s == "down":
+                    a.spin_flip = True
+
+    if hybridization is not None:
+        if isinstance(hybridization, str):
+            for a in atoms:
+                a.hybridization = hybridization.strip().lower()
+        elif isinstance(hybridization, (list, tuple)):
+            if len(hybridization) != len(atoms):
+                raise ValueError(
+                    f"Length of hybridization list ({len(hybridization)}) must match number of atoms ({len(atoms)})."
+                )
+            for idx, h in enumerate(hybridization):
+                if h is not None:
+                    atoms[idx].hybridization = str(h).strip().lower()
+        elif isinstance(hybridization, dict):
+            for idx, a in enumerate(atoms):
+                h = hybridization.get(a.id) if a.id else None
+                if h is None:
+                    h = hybridization.get(idx, hybridization.get(str(idx), hybridization.get(a.element)))
+                if h is not None:
+                    a.hybridization = str(h).strip().lower()
 
     # Restricted (closed-shell) decks have one spin channel; per-atom labels are optional
     # and ignored by the engine.
@@ -466,11 +532,21 @@ def build_molecule(
         n_up = sum(1 for a in atoms if a.spin == "up")
         n_down = sum(1 for a in atoms if a.spin == "down")
         calc_net = n_up - n_down
+        has_orb_spins = any(getattr(a, "orbital_spins", None) for a in atoms)
+        orb_up = sum(
+            (sum(1 for x in a.orbital_spins if x == "up") if getattr(a, "orbital_spins", None) else (1 if a.spin == "up" else 0))
+            for a in atoms
+        )
+        orb_down = sum(
+            (sum(1 for x in a.orbital_spins if x == "down") if getattr(a, "orbital_spins", None) else (1 if a.spin == "down" else 0))
+            for a in atoms
+        )
+        calc_orb_net = orb_up - orb_down
 
         if net_spin is None:
-            resolved_net_spin = calc_net
+            resolved_net_spin = calc_orb_net if has_orb_spins else calc_net
         else:
-            if calc_net != net_spin:
+            if calc_net != net_spin and not (has_orb_spins and calc_orb_net == net_spin):
                 raise ValueError(
                     f"Net spin mismatch in build_molecule: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net}, "
                     f"but net_spin={net_spin} was requested."
@@ -564,6 +640,21 @@ def build_molecule(
     elif poscar_pbc is not None:
         deck.pbc = poscar_pbc
 
+    if any(getattr(a, "hybridization", None) or getattr(a, "orbital_spins", None) for a in deck.geometry):
+        # Populate starting_orbitals for atoms carrying explicit hybridization or per-orbital spins
+        if any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry):
+            from phatpsy.hybrids import apply_hybrid_seeds
+            bonds_inferred = None
+            if len(deck.geometry) == 2 and all(
+                getattr(a, "hybridization", None) == "sp" or len(getattr(a, "orbital_spins", None) or []) == 3
+                for a in deck.geometry
+            ):
+                for a in deck.geometry:
+                    if not a.hybridization:
+                        a.hybridization = "sp"
+                bonds_inferred = {(0, 1): 3}
+            apply_hybrid_seeds(deck, bonds=bonds_inferred)
+
     return deck
 
 
@@ -574,9 +665,10 @@ def build_diatomic(
     basis: Union[str, Dict[str, str]] = "DZ",
     units: str = "bohr",
     use_symmetry: bool = True,
-    spins: Optional[Union[List[str], Tuple[str, str]]] = None,
+    spins: Optional[Union[List[Any], Tuple[Any, Any]]] = None,
     net_spin: Optional[int] = None,
     spin_flip: Optional[bool] = None,
+    hybridization: Optional[Union[str, Sequence[Optional[str]]]] = None,
     title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
@@ -588,7 +680,9 @@ def build_diatomic(
     diatomics (e.g. N2, H2) to generate an alternating-spin Perfect-Pairing
     Valence-Bond (PP-VB) state (['up', 'down'], net_spin=0).
     For heteronuclear diatomics (e.g. CO), atoms default to un-flipped configuration
-    (['up', 'up'], net_spin=2) reproducing the physical closed-shell ground-state basin.
+    (['up', 'up'], net_spin=2) or can be configured with explicit hybridized orbital
+    spins (e.g. hybridization='sp', spins=[['up', 'up', 'up'], ['down', 'down', 'down']],
+    net_spin=0 for the C(-)O(+) triple bond iso-electronic to N2).
 
     Args:
         element1: Symbol of the first atom (e.g. 'N', 'C', 'Ag').
@@ -597,10 +691,12 @@ def build_diatomic(
         basis: Basis set ('DZ', 'SZ', 'THAKKAR').
         units: 'bohr' or 'angstrom'.
         use_symmetry: If True and homodiatomic, use reflection/inversion symmetry card.
-        spins: Explicit 2-element spin list (e.g. ['up', 'down'] or ['up', 'up']).
+        spins: Explicit 2-element spin list (e.g. ['up', 'down'], ['up', 'up'], or
+               per-orbital spin lists [['up', 'up', 'up'], ['down', 'down', 'down']]).
         net_spin: Integer (n_up - n_down). Defaults to 0 for alternating spins, 2 for un-flipped.
         spin_flip: [DEPRECATED] Backward compatibility shim. Maps to spins=['up', 'down'] (True)
                    or spins=['up', 'up'] (False). Emits DeprecationWarning.
+        hybridization: Optional named hybridization (e.g. 'sp') or 2-element sequence of hybridizations.
         title: Deck title.
         control: ControlConfig options.
         extra_namelist: Additional namelist options.
@@ -637,13 +733,8 @@ def build_diatomic(
     if len(spins) != 2:
         raise ValueError(f"Diatomic spins must contain exactly 2 spin values, got {len(spins)}: {spins}")
 
-    s1_raw = str(spins[0]).strip().lower() if spins[0] is not None else None
-    s2_raw = str(spins[1]).strip().lower() if spins[1] is not None else None
-
-    spin_map = {"up": "up", "alpha": "up", "+1": "up", "1": "up", "+": "up",
-                "down": "down", "beta": "down", "-1": "down", "-": "down"}
-    s1 = spin_map.get(s1_raw)
-    s2 = spin_map.get(s2_raw)
+    s1, orb_s1 = _normalize_spin_entry(spins[0])
+    s2, orb_s2 = _normalize_spin_entry(spins[1])
 
     if s1 is None or s2 is None:
         raise ValueError(
@@ -654,10 +745,19 @@ def build_diatomic(
     n_down = (1 if s1 == "down" else 0) + (1 if s2 == "down" else 0)
     calc_net = n_up - n_down
 
+    has_orb_spins = (orb_s1 is not None or orb_s2 is not None)
+    orb_up = (sum(1 for x in orb_s1 if x == "up") if orb_s1 else (1 if s1 == "up" else 0)) + (
+        sum(1 for x in orb_s2 if x == "up") if orb_s2 else (1 if s2 == "up" else 0)
+    )
+    orb_down = (sum(1 for x in orb_s1 if x == "down") if orb_s1 else (1 if s1 == "down" else 0)) + (
+        sum(1 for x in orb_s2 if x == "down") if orb_s2 else (1 if s2 == "down" else 0)
+    )
+    calc_orb_net = orb_up - orb_down
+
     if net_spin is None:
-        resolved_net_spin = calc_net
+        resolved_net_spin = calc_orb_net if has_orb_spins else calc_net
     else:
-        if calc_net != net_spin:
+        if calc_net != net_spin and not (has_orb_spins and calc_orb_net == net_spin):
             raise ValueError(
                 f"Net spin mismatch in build_diatomic: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net} "
                 f"from spins={spins}, but net_spin={net_spin} was requested."
@@ -672,7 +772,7 @@ def build_diatomic(
 
     do_flip = (s1 != s2)
 
-    if is_homo and use_symmetry:
+    if is_homo and use_symmetry and hybridization is None and not has_orb_spins:
         # Homonuclear diatomic with symmetry along Z axis
         z_half = r_bohr / 2.0
         geometry = [
@@ -692,8 +792,21 @@ def build_diatomic(
     else:
         # Heteronuclear or explicit coordinates
         geometry = [
-            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin=s1),
-            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin=s2, spin_flip=do_flip if is_homo else False),
+            AtomConfig(
+                id=f"{sym1}1",
+                element=sym1,
+                xyz=[0.0, 0.0, 0.0],
+                spin=s1,
+                orbital_spins=orb_s1,
+            ),
+            AtomConfig(
+                id=f"{sym2}2",
+                element=sym2,
+                xyz=[0.0, 0.0, r_bohr],
+                spin=s2,
+                orbital_spins=orb_s2,
+                spin_flip=do_flip if is_homo else False,
+            ),
         ]
 
     return build_molecule(
@@ -702,8 +815,9 @@ def build_diatomic(
         title=title,
         control=control,
         units="bohr",
-        spins=[s1, s2],
+        spins=[orb_s1 if orb_s1 is not None else s1, orb_s2 if orb_s2 is not None else s2],
         net_spin=resolved_net_spin,
+        hybridization=hybridization,
         extra_namelist=extra_namelist,
     )
 

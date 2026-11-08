@@ -353,7 +353,7 @@ def scan_1d(
         y0, y1, y2 = energies[min_idx - 1], energies[min_idx], energies[min_idx + 1]
         denom = 2.0 * ((x1 - x0) * (y2 - y1) - (x2 - x1) * (y1 - y0))
         if abs(denom) > 1e-12:
-            x_fit = 0.5 * ((x1**2 - x0**2) * (y2 - y1) - (x2**2 - x1**2) * (y1 - y0)) / denom
+            x_fit = ((x1**2 - x0**2) * (y2 - y1) - (x2**2 - x1**2) * (y1 - y0)) / denom
             if min(x0, x2) <= x_fit <= max(x0, x2):
                 equil_val = float(x_fit)
 

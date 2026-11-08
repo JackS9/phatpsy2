@@ -86,6 +86,7 @@ The `geometry:` key contains a list of atomic specifications. Each entry defines
 * **`spin`** (`str` or `int`, optional): Initial spin projection for the atom:
   * Accepts: `up`, `down`, `alpha`, `beta`, `+1`, `-1`, or `None`.
   * Used by the local valence bond (LVB) starting projector.
+* **`orbital_spins`** (`list[str]`, optional): Per-valence-orbital spin assignments (`"up"` / `"down"`) for multi-bond or hybridized centers (e.g. `["up", "up", "up"]` on `C` and `["down", "down", "down"]` on `O` for the $\text{C}^{(-)}\text{O}^{(+)}$ `'sp'` triple bond).
 * **`hybridization`** (`str`, optional): Predefined directed-hybrid valence state type. Overrides automatic skeletal hybridization perception. Options include:
   * Main-group ($s + p$): `"s"`, `"sp"`, `"sp2"`, `"sp2_bent"`, `"sp3"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`.
   * Transition-metal ($s + p + d$): `"dsp2"` (square planar), `"d2sp3"` (octahedral), `"dsp3"` (trigonal bipyramidal), `"sd3"`, `"sd"`, `"delta"` ($\delta$-bonding pair).

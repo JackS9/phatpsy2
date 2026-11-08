@@ -175,6 +175,10 @@ contains
 
       OLDTE  = TMOLE
       TOTKE  = -TMOLE
+      if (QNWVEC) then
+        QSEPAT = .true.
+        CDAMP  = REALS(1)
+      end if
       QPRNT  = QPRINT
       if (QSEPAT) QPRINT = .true.
       if (.not. QAUDMP) then
