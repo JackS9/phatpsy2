@@ -305,30 +305,38 @@ def project_c4v_dband(
     spin_b1 = 0.0
     spin_b2 = 0.0
 
-    for idx in atom_indices:
-        if idx >= pops.shape[0]:
-            continue
-        if lx[idx] == 2:  # d-orbital
-            ml = mlx[idx]
+    d_indices = [idx for idx in atom_indices if lx[idx] == 2]
+    emb_atom = (res.get("embedded_atoms") or {}).get(atom_id)
+    emb_orbs = getattr(emb_atom, "orbitals", None) if emb_atom is not None else None
+
+    for k, idx in enumerate(d_indices):
+        ml = mlx[idx]
+        if emb_orbs is not None and len(emb_orbs) >= 15 and len(d_indices) == 10:
+            orb = emb_orbs[5 + k]
+            pa = float(orb["population_alpha"])
+            pb = float(orb["population_beta"])
+        else:
+            if idx >= pops.shape[0]:
+                continue
             pa = float(pops[idx, 0])
             pb = float(pops[idx, 1]) if pops.shape[1] > 1 else pa
-            if np.isnan(pa) or np.isnan(pb):
-                continue
-            ptot = pa + pb
-            pdiff = pa - pb
+        if np.isnan(pa) or np.isnan(pb):
+            continue
+        ptot = pa + pb
+        pdiff = pa - pb
 
-            if ml == 0:
-                pop_a1 += ptot
-                spin_a1 += pdiff
-            elif abs(ml) == 1:
-                pop_e += ptot
-                spin_e += pdiff
-            elif ml == 2:
-                pop_b1 += ptot
-                spin_b1 += pdiff
-            elif ml == -2:
-                pop_b2 += ptot
-                spin_b2 += pdiff
+        if ml == 0:
+            pop_a1 += ptot
+            spin_a1 += pdiff
+        elif abs(ml) == 1:
+            pop_e += ptot
+            spin_e += pdiff
+        elif ml == 2:
+            pop_b1 += ptot
+            spin_b1 += pdiff
+        elif ml == -2:
+            pop_b2 += ptot
+            spin_b2 += pdiff
 
     tot_d = pop_a1 + pop_e + pop_b1 + pop_b2
 

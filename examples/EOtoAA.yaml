@@ -3,7 +3,7 @@ net_spin: 3
 control:
   spin_unrestricted: true
   max_cycles: 20
-  convergence: 1.0e-6
+  convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
   exchange_kernel: hartree-fock
@@ -65,12 +65,9 @@ elements:
   C:
     symbol: C
     atomic_number: 6
-    basis: DZ
   O:
     symbol: O
     atomic_number: 8
-    basis: DZ
   H:
     symbol: H
     atomic_number: 1
-    basis: DZ

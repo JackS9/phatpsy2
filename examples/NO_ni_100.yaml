@@ -1,9 +1,9 @@
-title: 'NO on Ni(100), R(NO)=2.18 Bohr, R(NiN)=3.40 Bohr, C4v Top Site'
+title: NO on Ni(100), R(NO)=2.18 Bohr, R(NiN)=3.40 Bohr, C4v Top Site
 net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 40
-  convergence: 1.0e-6
+  convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
   exchange_kernel: hartree-fock
@@ -16,7 +16,7 @@ geometry:
   xyz:
   - 0.0
   - 0.0
-  - 3.40
+  - 3.4
   id: N1
   spin: up
 - element: O
@@ -118,12 +118,9 @@ elements:
   N:
     symbol: N
     atomic_number: 7
-    basis: DZ
   O:
     symbol: O
     atomic_number: 8
-    basis: DZ
   Ni:
     symbol: Ni
     atomic_number: 28
-    basis: DZ

@@ -3,7 +3,7 @@ net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 10
-  convergence: 1.0e-6
+  convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
   exchange_kernel: hartree-fock
@@ -101,4 +101,3 @@ elements:
   Ni:
     symbol: Ni
     atomic_number: 28
-    basis: DZ

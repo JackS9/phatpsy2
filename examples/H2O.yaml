@@ -3,7 +3,7 @@ net_spin: -1
 control:
   spin_unrestricted: true
   max_cycles: 200
-  convergence: 1.0e-6
+  convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
   exchange_kernel: hartree-fock
@@ -11,7 +11,6 @@ control:
   correlation_kernel: null
   use_dispersion: false
   dispersion_model: d3bj
-  default_basis: DZ
   separate_atoms_first_cycle: true
   debug: false
   trace: false
@@ -41,27 +40,6 @@ elements:
   O:
     symbol: O
     atomic_number: 8
-    basis: DZ
-    description: Clementi & Roetti (1974) DZ Basis for Neutral Oxygen
-    functions:
-    - n: 1
-      l: 0
-      zeta: 9.46635
-    - n: 1
-      l: 0
-      zeta: 6.83768
-    - n: 2
-      l: 0
-      zeta: 2.68801
-    - n: 2
-      l: 0
-      zeta: 1.67543
-    - n: 2
-      l: 1
-      zeta: 3.69445
-    - n: 2
-      l: 1
-      zeta: 1.65864
   H:
     symbol: H
     atomic_number: 1
@@ -71,4 +49,3 @@ elements:
     - n: 1
       l: 0
       zeta: 1.0
-basis: DZ

@@ -1,9 +1,9 @@
-title: 'Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr'
+title: Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr
 net_spin: 0
 control:
   spin_unrestricted: true
   max_cycles: 200
-  convergence: 1.0e-6
+  convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
   exchange_kernel: hartree-fock
@@ -30,8 +30,6 @@ elements:
   N:
     symbol: N
     atomic_number: 7
-    basis: DZ
   O:
     symbol: O
     atomic_number: 8
-    basis: DZ
