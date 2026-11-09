@@ -12,14 +12,13 @@ In open-shell systems, transition metal clusters (e.g. $\text{Ag}_{13}$), or sys
 
 **Remedies:**
 
-1. **Enable DIIS Acceleration & Fermi Smearing:** Rather than manual empirical damping, activate self-consistent Pulay DIIS and finite Fermi temperature to eliminate orbital oscillations:
+1. **Enable Fermi Smearing:** Rather than manual empirical damping, activate finite Fermi temperature (for metallic clusters) or atomic smearing to eliminate orbital oscillations:
    ```yaml
    control:
-     use_diis: true
      use_global_fermi: true
      fermi_temperature: 300.0
    ```
-   *(Note: Retired empirical damping parameters like `charge_damp` or `potential_damp` should not appear in modern YAML inputs.)*
+   *(Note: Retired parameters like `charge_damp`, `potential_damp`, `time_limit`, `use_diis`, `use_constrained_fit`, and `use_dynamic_exponents` should not appear in modern YAML inputs.)*
 2. **Enable Isolated Atom Pre-Solving:** Ensure `separate_atoms_first_cycle: true` is set. This seeds the initial cycle with accurate spherical atomic densities rather than an unphysical uniform overlap guess.
 3. **Seed Initial Spin Projections:** Set alternating `spin: up` and `spin: down` across adjacent atoms using `deck.assign_alternating_spin()` or `phatpsy build -s`.
 

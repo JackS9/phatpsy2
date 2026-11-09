@@ -152,6 +152,9 @@ RETIRED_YAML_CONTROL_PARAMS: set = {
     "pk_scale",
     "use_pseudometric",
     "pk_energy",
+    "use_constrained_fit",
+    "use_diis",
+    "use_dynamic_exponents",
 }
 
 
@@ -219,38 +222,6 @@ class ControlConfig:
         kwargs = {k: v for k, v in data.items() if k in valid_keys}
         extra = {k: v for k, v in data.items() if k not in valid_keys}
         return cls(**kwargs, extra_namelist=extra)
-
-    @classmethod
-    def first_principles(
-        cls,
-        pk_scale: float = 1.0,
-        use_diis: bool = True,
-        use_constrained_fit: bool = True,
-        use_dynamic_exponents: bool = True,
-        use_global_fermi: bool = False,
-        use_pseudometric: bool = True,
-        charge_damp: float = 0.5,
-        potential_damp: float = 0.5,
-        default_basis: Optional[str] = None,
-        **kwargs,
-    ) -> "ControlConfig":
-        """
-        Creates a first-principles ControlConfig locking PKSCAL=1.0 and retiring
-        empirical damping knobs in favor of self-consistent DIIS acceleration,
-        constrained LAPACK cusp fitting, and dynamic STO radial exponents.
-        """
-        return cls(
-            pk_scale=pk_scale,
-            use_diis=use_diis,
-            use_constrained_fit=use_constrained_fit,
-            use_dynamic_exponents=use_dynamic_exponents,
-            use_global_fermi=use_global_fermi,
-            use_pseudometric=use_pseudometric,
-            charge_damp=charge_damp,
-            potential_damp=potential_damp,
-            default_basis=default_basis,
-            **kwargs,
-        )
 
 
 @dataclass

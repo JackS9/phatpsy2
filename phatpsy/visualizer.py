@@ -279,7 +279,6 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
             "convergence": 1.0e-6,
             "charge_damp": 0.5,
             "potential_damp": 0.5,
-            "use_diis": False,
             "exchange_kernel": "hartree-fock",
             "use_dispersion": False,
             "default_basis": "DZ",
@@ -925,9 +924,6 @@ def generate_html(
         </div>
         <div class="form-row" style="margin-top: 4px;">
           <label><input type="checkbox" id="sys-spin-unrestricted" { 'checked' if data['control'].get('spin_unrestricted', True) else '' }> Spin Unrestricted (UHF)</label>
-        </div>
-        <div class="form-row" style="margin-top: 4px;">
-          <label><input type="checkbox" id="sys-diis" { 'checked' if data['control'].get('use_diis', False) else '' }> DIIS Acceleration</label>
         </div>
       </div>
 
@@ -1942,12 +1938,6 @@ def generate_html(
     if (spinUnresInput) {{
       spinUnresInput.addEventListener('change', (e) => {{
         if (MOL_DATA.control) MOL_DATA.control.spin_unrestricted = e.target.checked;
-      }});
-    }}
-    const diisInput = document.getElementById('sys-diis');
-    if (diisInput) {{
-      diisInput.addEventListener('change', (e) => {{
-        if (MOL_DATA.control) MOL_DATA.control.use_diis = e.target.checked;
       }});
     }}
     const exchInput = document.getElementById('sys-exchange');
@@ -7162,7 +7152,7 @@ def generate_assembler_html(assembler: Any, title: str = "Valence-Bond Molecular
     }}
 
     function downloadDeckYAML() {{
-      let yaml = `title: "Assembled Molecule (PHATPSY 2.0)"\\ncontrol:\\n  convergence: 1.0e-6\\n  use_diis: true\\ngeometry:\\n`;
+      let yaml = `title: "Assembled Molecule (PHATPSY 2.0)"\\ncontrol:\\n  convergence: 1.0e-6\\ngeometry:\\n`;
       state.nodes.forEach(n => {{
         const bX = (n.position[0] * 1.88972612).toFixed(6);
         const bY = (n.position[1] * 1.88972612).toFixed(6);

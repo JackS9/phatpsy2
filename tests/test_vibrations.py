@@ -650,9 +650,6 @@ def test_default_relaxed_cphf_hessian_and_vibrations_match_scf_surface(
         spin_unrestricted=False,
     )
     deck.control.convergence = conv
-    deck.control.max_cycles = 100
-    if basis == "SZ":
-        deck.control.use_diis = True
 
     # Default call: uses use_analytical_gradients=True, gradient_method="relaxed"
     vib_rel = compute_vibrations(

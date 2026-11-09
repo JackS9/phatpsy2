@@ -51,7 +51,7 @@ def evaluate_n2_benchmark(
     R_expt = 2.0744 Bohr (1.0977 Angstrom), omega_e = 2358.57 cm^-1, mu = 0.0 Debye.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
+    ctrl = control or ControlConfig()
     r_expt = 2.0744
 
     deck = build_diatomic("N", "N", r_expt, basis="DZ", spins=["up", "down"], units="bohr")
@@ -86,7 +86,7 @@ def evaluate_co_benchmark(
     R_expt = 2.1322 Bohr (1.1283 Angstrom), omega_e = 2169.81 cm^-1, mu = 0.112 Debye.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
+    ctrl = control or ControlConfig()
     r_expt = 2.1322
 
     deck = build_diatomic(
@@ -132,7 +132,7 @@ def evaluate_h2o_benchmark(
     R_OH = 1.810 Bohr, angle = 104.48 deg, mu = 1.8546 Debye.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
+    ctrl = control or ControlConfig()
 
     r = 1.810
     half_angle = np.radians(104.48 / 2.0)
@@ -319,8 +319,7 @@ def evaluate_dissociation_energies_benchmark(
     non-circular stability check on the calculated electronic total energies and virial ratios.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig.first_principles(
-        use_pseudometric=True,
+    ctrl = control or ControlConfig(
         exchange_kernel="pbe",
         correlation_kernel="pbe",
         use_dispersion=True,
@@ -380,8 +379,7 @@ def evaluate_eo_to_aa_benchmark(
     total energy and dispersion of the reactant without fabricated barrier values.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig.first_principles(
-        use_pseudometric=True,
+    ctrl = control or ControlConfig(
         exchange_kernel="pbe",
         correlation_kernel="pbe",
         use_dispersion=True,

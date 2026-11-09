@@ -121,7 +121,6 @@ The bridge transfers:
 ```python
 # Adjust control parameters
 deck.control.convergence = 1.0e-5
-deck.control.use_diis = True
 deck.control.max_cycles = 80
 
 # Assign alternating spin states (Local Valence Bond seed)
@@ -244,22 +243,18 @@ For systems whose SCF does not settle (some heteronuclear diatomics), `control.u
 
 ## First-Principles Modern Execution & Subsystem Decomposition
 
-### 1. First-Principles Control (`ControlConfig.first_principles`)
+### 1. First-Principles Control (`ControlConfig`)
 
-To run under theoretical unit scaling (`PKSCAL = 1.0`) with Pulay DIIS charge acceleration, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization (retiring empirical manual damping knobs):
+By default, `ControlConfig()` runs under theoretical unit scaling (`pk_scale = 1.0`, `use_pseudometric = True`) with convex radial-grid Coulomb potential fitting (`use_grid_fit = True`) and tight convergence (`convergence = 1.0e-6`, `max_cycles = 200`):
 
 ```python
 from phatpsy.schema import ControlConfig
 
-# Standard first-principles configuration
-deck.control = ControlConfig.first_principles(
-    pk_scale=1.0,
-    use_diis=True,
-    use_constrained_fit=True,
-    use_dynamic_exponents=True,
+# Standard first-principles configuration (with optional DFT exchange-correlation)
+deck.control = ControlConfig(
     exchange_kernel="pbe",  # "hartree-fock" | "slater" | "becke88" | "pbe"
-    # Additional kwargs: use_global_fermi, use_pseudometric, charge_damp,
-    # potential_damp, default_basis, plus **kwargs passthrough
+    correlation_kernel="pbe",
+    use_dispersion=True,
 )
 ```
 

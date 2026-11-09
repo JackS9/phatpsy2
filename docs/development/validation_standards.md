@@ -70,7 +70,7 @@ Documented in [`data/validation_baselines/experimental_benchmarks.json`](https:/
 ## 5. Benchmark Validation Engine & Error Vector Evaluation
 
 An automated literature benchmark evaluation engine in [`phatpsy/benchmarks.py`](https://github.com/JackS9/phatpsy2/blob/master/phatpsy/benchmarks.py) and [`tests/test_benchmarks.py`](https://github.com/JackS9/phatpsy2/blob/master/tests/test_benchmarks.py):
-- Compares calculated values under `ControlConfig.first_principles(pk_scale=1.0)` against external Layer B literature (NIST CCCBDB, CRC Handbook, Somorjai & Li).
+- Compares calculated values under default `ControlConfig()` (`pk_scale=1.0`, `use_pseudometric=True`, `use_grid_fit=True`) against external Layer B literature (NIST CCCBDB, CRC Handbook, Somorjai & Li).
 - Reports quantitative error vectors on bond lengths ($\Delta R_e$), harmonic vibrational frequencies ($\Delta \omega_e$), permanent dipole moments ($\Delta \mu$), virial theorem compliance ($-V/T \to 2.0$), and chemisorption energy ($E_{\text{ads}}$).
 - Formally retires empirical damping parameters (`CDAMP`, `VDAMP`, `CACCEL`) in favor of self-consistent Pulay DIIS, constrained LAPACK cusp fitting, and dynamic STO radial exponent optimization.
 

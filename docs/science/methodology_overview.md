@@ -95,7 +95,7 @@ For open-shell surface clusters, polar diatomics, and chemisorption complexes:
    $$E_{\text{total}} = E_{\text{cluster}} + E_{\text{env}}^{\text{bulk}} + E_{\text{embed}}$$
    with frozen bulk references ($-1502.565\text{ Ha/atom}$ for $\text{Ni}$), isolated atomic ground-state references from Clementi & Roetti / Thakkar, exact energy conservation ($< 10^{-12}\text{ Ha}$), and excess energy metrics ($E_{\text{excess}} = E_{\text{total}} - E_{\text{env}}^{\text{bulk}}$).
 5. **Parameter Retirement:**
-   Legacy empirical knobs (`CDAMP`, `VDAMP`, `CACCEL`) are formally retired in favor of first-principles self-consistency via `ControlConfig.first_principles()`.
+   Legacy empirical knobs (`CDAMP`, `VDAMP`, `CACCEL`, `TIMEND`) are formally retired in favor of first-principles defaults in `ControlConfig()`.
 
 ---
 

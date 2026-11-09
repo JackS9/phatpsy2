@@ -130,7 +130,6 @@ class TestPolarizedCalculations:
             spins="up",
             net_spin=3,
         )
-        deck_dz.control.use_diis = True
         state_dz = driver.run_deck(deck_dz)
         assert state_dz.converged
         eom_dz = compute_eom(deck_dz, driver=driver, state=state_dz)
@@ -143,7 +142,6 @@ class TestPolarizedCalculations:
             spins="up",
             net_spin=3,
         )
-        deck_dzp.control.use_diis = True
         state_dzp = driver.run_deck(deck_dzp)
         assert state_dzp.converged
         eom_dzp = compute_eom(deck_dzp, driver=driver, state=state_dzp)
@@ -231,7 +229,6 @@ class TestPolarizedCalculations:
             spins="up",
             net_spin=3,
         )
-        deck_orig.control.use_diis = True
         state_orig = driver.run_deck(deck_orig)
         eom_orig = compute_eom(deck_orig, driver=driver, state=state_orig, normalize_grid=True)
 
@@ -258,7 +255,6 @@ class TestPolarizedCalculations:
             spins="up",
             net_spin=3,
         )
-        deck_shifted.control.use_diis = True
         state_shifted = driver.run_deck(deck_shifted)
         eom_shifted = compute_eom(deck_shifted, driver=driver, state=state_shifted, normalize_grid=True)
 

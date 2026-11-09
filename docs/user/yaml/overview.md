@@ -43,11 +43,8 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | `spin_unrestricted` | `bool` | `true` | Enables Unrestricted Hartree-Fock (UHF). Solves separate $\alpha$ and $\beta$ Fock equations. Setting it to `false` runs a restricted closed-shell calculation: per-atom `spin` labels are optional and ignored. |
 | `max_cycles` | `int` | `200` | Maximum number of SCF iterations before aborting. |
 | `convergence` | `float` | `1.0e-6` | Convergence threshold on root-mean-square energy change ($\Delta E_h$). |
-| `use_diis` | `bool` | `false` | Enables Pulay Direct Inversion in the Iterative Subspace (DIIS) charge density acceleration. |
-| `use_constrained_fit` | `bool` | `false` | Enforces exact nuclear cusp and asymptotic conditions on model potential fits. |
 | `use_grid_fit` | `bool` | `true` | Fits each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (weights in $[0,1]$ summing to 1), so charge conservation and the nuclear cusp hold exactly and the fitted coefficients cannot cancel. See `docs/science/model_potentials.md`, Section 5. |
-| `atomic_smearing` | `float` | `0.0` | Fermi-Dirac width in Hartree for the atomic orbital occupations. `0` keeps the overlap-tracked occupations; a small positive value (for example `1.0e-3`) makes the occupations a smooth function of the eigenvalues, which removes run-to-run variation in some heteronuclear systems. |
-| `use_dynamic_exponents` | `bool` | `false` | Optimizes STO Slater radial exponents self-consistently against the molecular field. |
+| `atomic_smearing` | `float` | `0.0` | Fermi-Dirac width in Hartree for the atomic orbital occupations. `0` enables automatic early-cycle annealing and gap-floor smearing on unseeded atoms; a positive value sets a fixed width. |
 | `use_global_fermi` | `bool` | `false` | Enables finite-temperature Fermi-Dirac orbital occupation smearing for metallic clusters. |
 | `fermi_temperature` | `float` | `null` | Electron temperature (Kelvin) for Fermi smearing when enabled. |
 | `exchange_kernel` | `str` | `"hartree-fock"` | Exchange-correlation kernel (`hartree-fock`, `slater`, `becke88`/`b88`, `pbe`). |
@@ -62,7 +59,7 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | `extra_namelist`| `dict` | `{}` | Key-value escape hatch passed directly to core engine variables if necessary. |
 
 !!! note "Retired Control Parameters"
-    The legacy parameters `time_limit`, `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, and `pk_energy` should **not** appear in modern YAML input files. They are handled internally by self-consistent DIIS acceleration, first-principles projection scale, and LAPACK solvers.
+    The legacy parameters `time_limit`, `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, `pk_energy`, `use_constrained_fit`, `use_diis`, and `use_dynamic_exponents` should **not** appear in modern YAML input files. They are handled internally by default radial-grid convex potential fitting (`use_grid_fit: true`), first-principles projection scale (`pk_scale: 1.0`, `use_pseudometric: true`), and LAPACK solvers.
 
 !!! tip "Theoretical First-Principles Defaults & Hydrogen Core Exemption"
     In PHATPSY 2.0, the Phillips-Kleinman operator operates under strict first-principles unit scaling (`pk_scale: 1.0`, `use_pseudometric: true`) across all multi-electron elements. Because the energy-weighted projector (thesis Eq. III-24) dynamically suppresses valence-like contributions and Hydrogen's sole occupied orbital ($1s$) is valence-like, Hydrogen is governed by the physical **Hydrogen Core-Exemption Invariant**: Hydrogen centers neither receive nor contribute Phillips-Kleinman projection ($V_{\text{PK}} = 0$), and maintain an unperturbed overlap metric ($M = \mathbf{S}$) — keeping H's bonding $1s$ out of the unweighted pseudometric prevents unphysical valence over-projection. Standard input decks require no empirical tuning or scaling parameters.
