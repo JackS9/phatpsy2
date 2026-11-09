@@ -305,13 +305,13 @@ contains
                 stevec(2:MSTO, iorb, 1) = stevec(1:MSTO-1, last, 1)
                 if (QOPEN) stevec(2:MSTO, iorb, 2) = stevec(1:MSTO-1, last, 2)
               else if (ncoef /= 0) then
-                stevec(1:MSTO, iorb, 1:ISPIN) = 0.0d0
                 ncoef = abs(ncoef)
                 do icoef = 1, ncoef
                   read(iuatom, 14000) isto, mli, coef1, coef2
                   if ((isto > NSTO) .or. (isto <= 0)) call BOMB(11)
                   if (abs(mli) > l(isto)) call BOMB(10)
                   mi = m0(isto) + mli
+                  if (icoef == 1 .and. abs(coef1) < 1.0d0) stevec(1:MSTO, iorb, 1:ISPIN) = 0.0d0
                   stevec(mi, iorb, 1) = coef1
                   if (QOPEN) then
                     if ((coef2 == 0.0d0) .and. (eigval(1) == eigval(2))) coef2 = coef1
