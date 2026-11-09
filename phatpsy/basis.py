@@ -512,63 +512,40 @@ def list_adf_elements(tier: str = "TZP") -> List[str]:
 def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementData:
     """
     Look up element basis from the built-in library.
-    Supports 'DZ' and 'SZ' (Clementi & Roetti 1974 for Z=2..54), and 'THAKKAR' (Z=1..103).
+    Defaults to 'DZ' (Clementi & Roetti 1974 for Z=2..54, falling back to Thakkar for Z=1 and Z>54).
+    Supports 'DZ', 'SZ', 'DZP', 'SZP', 'THAKKAR' (Z=1..103), and 'ADF-*' (Z=1..118).
     """
     sym = symbol.strip().capitalize()
     raw_thakkar = _load_thakkar_raw_data()
     clem_db = _load_clementi_raw_data()
 
-    if basis_name:
-        b_name = basis_name.strip().upper()
-        if b_name.startswith("ADF") or b_name in ("TZP", "TZ2P", "QZ4P", "DZ-ADF", "TZP-ADF", "TZ2P-ADF", "QZ4P-ADF"):
-            return get_adf_basis(sym, b_name)
+    b_name = (basis_name or "DZ").strip().upper()
+    if b_name.startswith("ADF") or b_name in ("TZP", "TZ2P", "QZ4P", "DZ-ADF", "TZP-ADF", "TZ2P-ADF", "QZ4P-ADF"):
+        return get_adf_basis(sym, b_name)
 
-        if b_name in ("THAKKAR", "THAKKAR-RHF", "KOGA", "K99", "K00"):
-            return get_thakkar_basis(sym)
-
-        if b_name in ("DZP", "SZP"):
-            base_type = "DZ" if b_name == "DZP" else "SZ"
-            base_elem = get_element_basis(sym, base_type)
-            return get_polarized_basis(base_elem, b_name)
-
-        if b_name in ("DZ", "SZ"):
-            if b_name in clem_db and sym in clem_db[b_name]:
-                return get_clementi_basis(sym, b_name)
-            if sym in STANDARD_BASIS_LIBRARY and b_name in STANDARD_BASIS_LIBRARY[sym]:
-                return STANDARD_BASIS_LIBRARY[sym][b_name]
-            if sym in raw_thakkar:
-                return get_thakkar_basis(sym)
-
-        if sym in STANDARD_BASIS_LIBRARY and b_name in STANDARD_BASIS_LIBRARY[sym]:
-            return STANDARD_BASIS_LIBRARY[sym][b_name]
-
-        raise KeyError(
-            f"Basis '{b_name}' for element '{sym}' not found. "
-            f"Available basis sets: 'DZ', 'SZ', 'DZP', 'SZP' (Z=2..54), 'THAKKAR' (Z=1..103), "
-            f"'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P', 'ADF-QZ4P' (Z=1..118)"
-        )
-
-
-    # Return default:
-    if sym in STANDARD_BASIS_LIBRARY:
-        elem_dict = STANDARD_BASIS_LIBRARY[sym]
-        if "SZ" in elem_dict:
-            return elem_dict["SZ"]
-        return next(iter(elem_dict.values()))
-
-    # Fallback to Thakkar library (Z=1 to 103)
-    if sym in raw_thakkar:
+    if b_name in ("THAKKAR", "THAKKAR-RHF", "KOGA", "K99", "K00"):
         return get_thakkar_basis(sym)
 
-    # Fallback to Clementi DZ / SZ
-    if "DZ" in clem_db and sym in clem_db["DZ"]:
-        return get_clementi_basis(sym, "DZ")
-    if "SZ" in clem_db and sym in clem_db["SZ"]:
-        return get_clementi_basis(sym, "SZ")
+    if b_name in ("DZP", "SZP"):
+        base_type = "DZ" if b_name == "DZP" else "SZ"
+        base_elem = get_element_basis(sym, base_type)
+        return get_polarized_basis(base_elem, b_name)
+
+    if b_name in ("DZ", "SZ"):
+        if b_name in clem_db and sym in clem_db[b_name]:
+            return get_clementi_basis(sym, b_name)
+        if sym in STANDARD_BASIS_LIBRARY and b_name in STANDARD_BASIS_LIBRARY[sym]:
+            return STANDARD_BASIS_LIBRARY[sym][b_name]
+        if sym in raw_thakkar:
+            return get_thakkar_basis(sym)
+
+    if sym in STANDARD_BASIS_LIBRARY and b_name in STANDARD_BASIS_LIBRARY[sym]:
+        return STANDARD_BASIS_LIBRARY[sym][b_name]
 
     raise KeyError(
-        f"Element '{sym}' not found in standard basis, Clementi, or Thakkar library. "
-        f"Available elements in standard: {list(STANDARD_BASIS_LIBRARY.keys())}"
+        f"Basis '{b_name}' for element '{sym}' not found. "
+        f"Available basis sets: 'DZ', 'SZ', 'DZP', 'SZP' (Z=2..54), 'THAKKAR' (Z=1..103), "
+        f"'ADF-DZ', 'ADF-TZP', 'ADF-TZ2P', 'ADF-QZ4P' (Z=1..118)"
     )
 
 

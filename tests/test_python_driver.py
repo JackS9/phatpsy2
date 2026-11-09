@@ -247,15 +247,22 @@ def test_thakkar_basis_library_coverage():
     assert au_thakkar.nsto > 20
     assert any(f.l == 3 for f in au_thakkar.functions)  # Contains f-orbitals
 
-    # Test fallback: Si is not in Clementi standard, so defaults to Thakkar
+    # Test default basis: Z=2..54 defaults to Clementi DZ, Z=1 and Z>54 fall back to Thakkar
     si = get_element_basis("Si")
     assert si.symbol == "Si"
-    assert si.basis_name == "THAKKAR"
+    assert si.basis_name == "DZ"
     assert si.atomic_number == 14
 
-    # Test Clementi element defaults to SZ, but can explicitly request THAKKAR
+    h_default = get_element_basis("H")
+    assert h_default.basis_name == "THAKKAR"
+    au_default = get_element_basis("Au")
+    assert au_default.basis_name == "THAKKAR"
+
+    # Test Clementi element defaults to DZ, and can explicitly request SZ or THAKKAR
     c_default = get_element_basis("C")
-    assert c_default.basis_name == "SZ"
+    assert c_default.basis_name == "DZ"
+    c_sz = get_element_basis("C", "SZ")
+    assert c_sz.basis_name == "SZ"
     c_thak = get_element_basis("C", "THAKKAR")
     assert c_thak.basis_name == "THAKKAR"
 

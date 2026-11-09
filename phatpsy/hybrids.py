@@ -980,7 +980,12 @@ def build_atom_orbitals_from_valence_config(
         raise ValueError(f"Atom '{getattr(atom, 'id', None) or elem.symbol}' has no valence_config.")
 
     if hasattr(atom, "validate_valence_config"):
-        atom.validate_valence_config()
+        saved_so = getattr(atom, "starting_orbitals", None)
+        atom.starting_orbitals = None
+        try:
+            atom.validate_valence_config()
+        finally:
+            atom.starting_orbitals = saved_so
 
     vs = valence_space(elem)
     lib = [replace(o) for o in elem.default_orbitals]
