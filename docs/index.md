@@ -97,8 +97,8 @@ The system combines:
     title: "Nitrogen Molecule (N2) - Double-Zeta Basis"
     control:
       spin_unrestricted: true
-      max_cycles: 100
-      convergence: 1.0e-4
+      max_cycles: 200
+      convergence: 1.0e-6
       separate_atoms_first_cycle: true
 
     geometry:

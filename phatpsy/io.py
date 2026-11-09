@@ -129,8 +129,8 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
 
     control = ControlConfig(
         spin_unrestricted=bool(ctlinp.get("QOPEN", True)),
-        max_cycles=int(ctlinp.get("MXCYCL", 100)),
-        convergence=float(ctlinp.get("CONVRG", 1.0e-4)),
+        max_cycles=int(ctlinp.get("MXCYCL", 200)),
+        convergence=float(ctlinp.get("CONVRG", 1.0e-6)),
         time_limit=float(ctlinp.get("TIMEND", 360.0)),
         charge_damp=float(ctlinp.get("CDAMP", 0.5)),
         charge_accel=float(ctlinp.get("CACCEL", 1.0)),
@@ -330,7 +330,7 @@ def generate_diatomic_deck(
     basis_exponents: List[Tuple[int, int, float]],
     title: str = "Diatomic Molecule",
     qopen: bool = True,
-    convergence: float = 1e-4,
+    convergence: float = 1e-6,
 ) -> str:
     """
     Generates a valid PHATPSY input deck for a homonuclear diatomic molecule
@@ -347,7 +347,7 @@ def generate_diatomic_deck(
         f"  QOPEN={'T' if qopen else 'F'},",
         f"  NELEM=1, NATOM=2, NORBT={msto},",
         f"  MXNSTO={nsto}, MXMSTO={msto}, MXNORB={msto},",
-        f"  CONVRG={convergence:.1E}, MXCYCL=50, TIMEND=360.0D0,",
+        f"  CONVRG={convergence:.1E}, MXCYCL=200, TIMEND=360.0D0,",
         " &END",
         " &BASDIM",
         f"  MSTO={msto}, NSTO={nsto}, NORB={msto}, NVTERM=5,",

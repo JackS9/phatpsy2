@@ -35,8 +35,6 @@ class TestCPHFRelaxedGradients:
         """
         geom = [("H", [0.0, 0.0, 0.7]), ("H", [0.0, 0.0, -0.7])]
         deck = build_molecule(geom, basis="SZ", units="bohr", spins="up", net_spin=2, spin_unrestricted=False)
-        deck.control.convergence = 1e-6
-        deck.control.max_cycles = 100
         deck.control.use_diis = True
 
         st = driver.run_deck(deck)
@@ -70,8 +68,6 @@ class TestCPHFRelaxedGradients:
         """
         geom = [("F", [0.0, 0.0, 0.0]), ("H", [0.0, 0.0, 1.733])]
         deck = build_molecule(geom, basis="SZ", units="bohr", spins="up", net_spin=2, spin_unrestricted=False)
-        deck.control.convergence = 1e-6
-        deck.control.max_cycles = 100
         deck.control.use_diis = True
 
         st = driver.run_deck(deck)
@@ -104,8 +100,6 @@ class TestCPHFRelaxedGradients:
         """
         geom = [("Li", [0.0, 0.0, 0.0]), ("H", [0.0, 0.0, 3.015])]
         deck = build_molecule(geom, basis="SZ", units="bohr", spins="up", net_spin=2, spin_unrestricted=False)
-        deck.control.convergence = 1e-6
-        deck.control.max_cycles = 100
         deck.control.use_diis = True
 
         st = driver.run_deck(deck)
@@ -135,8 +129,6 @@ class TestCPHFRelaxedGradients:
             ("H", [0.0, -1.45, -0.896]),
         ]
         deck = build_molecule(geom, basis="SZ", units="bohr", spins="up", net_spin=3, spin_unrestricted=False)
-        deck.control.convergence = 1e-6
-        deck.control.max_cycles = 100
         deck.control.use_diis = True
 
         st = driver.run_deck(deck)

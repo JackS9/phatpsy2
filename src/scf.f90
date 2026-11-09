@@ -101,9 +101,11 @@ contains
   !   1. If SMEARW > 0 (explicit user setting), returns SMEARW.
   !   2. If SMEARW < 0 (explicitly disabled), QFIRST (Cycle 1 separated
   !      atoms), QNWVEC (explicit hybrid / valence_config seed),
-  !      .not. QOPEN (RHF half-occupied open shells), or QGFERM (global
-  !      molecular Fermi smearing), returns 0.0d0.
-  !   3. Otherwise (SMEARW == 0.0d0, automatic mode on unseeded UHF atoms):
+  !      .not. QOPEN (RHF half-occupied open shells), QGFERM (global
+  !      molecular Fermi smearing), or CDAMP < 1.0 (interatomic BLOOP
+  !      Fermi equilibration active), returns 0.0d0.
+  !   3. Otherwise (SMEARW == 0.0d0, automatic mode on unseeded UHF atoms
+  !      with integer spin-channel electron count):
   !      Combines:
   !      (a) Early-cycle annealing on Cycles 2..4:
   !          w_anneal = 0.02 * 0.5**(NCYCL - 2) when 1 <= n_occ < nact_orb
@@ -115,10 +117,10 @@ contains
   !          if occ still holds fractional values from earlier smearing cycles.
   !---------------------------------------------------------------------
   function effective_atomic_smearing(eps, occ, norb, nact_orb, smearw_in, &
-                                     ncycl_in, qfirst_in, qnwvec_in,      &
-                                     qopen_in, qgferm_in) result(w_eff)
+                                     cdamp_in, ncycl_in, qfirst_in,       &
+                                     qnwvec_in, qopen_in, qgferm_in) result(w_eff)
     integer(int32), intent(in) :: norb, nact_orb, ncycl_in
-    real(real64),   intent(in) :: eps(norb), occ(norb), smearw_in
+    real(real64),   intent(in) :: eps(norb), occ(norb), smearw_in, cdamp_in
     logical,        intent(in) :: qfirst_in, qnwvec_in, qopen_in, qgferm_in
     real(real64)               :: w_eff
 
@@ -144,6 +146,15 @@ contains
     n_occ = nint(nel)
     if (abs(nel - real(n_occ, real64)) > 1.0d-4) return
     if (n_occ < 1 .or. n_occ >= nact_orb) return
+
+    ! If CDAMP < 1.0 and occ already holds fractional populations from interatomic
+    ! BLOOP equilibration (on cycles after the initial annealing window), do not
+    ! overwrite the BLOOP-equilibrated occupations with intra-atomic Fermi smearing.
+    if (cdamp_in < 1.0d0 - 1.0d-6 .and. ncycl_in > N_ANNEAL_MAX + 1) then
+      do io = 1, norb
+        if (occ(io) > 1.0d-6 .and. occ(io) < 1.0d0 - 1.0d-6) return
+      end do
+    end if
 
     gap_hl = max(0.0d0, eps(n_occ + 1) - eps(n_occ))
 
@@ -491,8 +502,8 @@ contains
             ! Restrict automatic smearing to the active valence subspace (1..nact_orb)
             ! so virtual polarization shells remain strictly unoccupied.
             w_eff = effective_atomic_smearing(eval(1, isp), occ(1, isp), NORB, nact_orb, &
-                                              SMEARW, NCYCL, logical(QFIRST), logical(QNWVEC), &
-                                              logical(QOPEN), logical(QGFERM))
+                                              SMEARW, CDAMP, NCYCL, logical(QFIRST),     &
+                                              logical(QNWVEC), logical(QOPEN), logical(QGFERM))
             if (w_eff > 0.0d0) then
               if (SMEARW > 0.0d0) then
                 call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, w_eff)

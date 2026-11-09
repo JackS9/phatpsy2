@@ -27,12 +27,12 @@ In open-shell systems, transition metal clusters (e.g. $\text{Ag}_{13}$), or sys
 
 ### Symptom 2: Calculation Reaches `max_cycles` Without Converging
 
-If the energy change $\Delta E$ decreases steadily but does not drop below $1.0 \times 10^{-4}$ within 100 cycles:
+If the energy change $\Delta E$ decreases steadily but does not drop below $1.0 \times 10^{-6}$ within 200 cycles:
 
 **Remedies:**
 
-1. **Increase Cycle Limit:** Set `max_cycles: 150` or `200`.
-2. **Tune Convergence Threshold:** For large slabs or cluster geometries undergoing preliminary relaxation, a threshold of `convergence: 1.0e-3` is often sufficient.
+1. **Increase Cycle Limit:** Set `max_cycles: 300` or `400`.
+2. **Tune Convergence Threshold:** For large slabs or cluster geometries undergoing preliminary relaxation, a threshold of `convergence: 1.0e-4` or `1.0e-3` is often sufficient.
 
 ---
 

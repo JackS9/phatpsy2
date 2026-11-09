@@ -3,8 +3,7 @@ net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 10
-  convergence: 0.0001
-  time_limit: 600.0
+  convergence: 1.0e-6
   use_constrained_fit: false
   use_diis: false
   use_global_fermi: false

@@ -228,7 +228,7 @@ res = driver.run_deck(deck)
 print(res["converged"], res["stop_reason"], res["cycles_extended"])
 ```
 
-`stop_reason` is `"converged"`, or starts with `"not_converged:"` followed by the reason (cycle limit, time limit, oscillation, divergence, or too-slow convergence). When the cycle limit is reached, `ScfExtensionPolicy` decides from the energy history whether the run is still contracting fast enough to be worth extending, or should stop and return `converged=False`. Pass your own policy to change the limits, or enable adaptive potential damping:
+`stop_reason` is `"converged"`, or starts with `"not_converged:"` followed by the reason (cycle limit, oscillation, divergence, or too-slow convergence). When the cycle limit is reached, `ScfExtensionPolicy` decides from the energy history whether the run is still contracting fast enough to be worth extending, or should stop and return `converged=False`. Pass your own policy to change the limits, or enable adaptive potential damping:
 
 ```python
 from phatpsy import PhatpsyDriver

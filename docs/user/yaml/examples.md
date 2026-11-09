@@ -12,8 +12,8 @@ This calculation computes the closed-shell $N_2$ molecule at its equilibrium exp
 title: "Nitrogen Molecule (N2) - Double-Zeta Basis"
 control:
   spin_unrestricted: true
-  max_cycles: 100
-  convergence: 1.0e-4
+  max_cycles: 200
+  convergence: 1.0e-6
   separate_atoms_first_cycle: true
 
 geometry:
@@ -47,8 +47,8 @@ A heteronuclear diatomic molecule demonstrating unequal nuclear charges and dipo
 title: "Carbon Monoxide (CO) - Double-Zeta Basis"
 control:
   spin_unrestricted: true
-  max_cycles: 100
-  convergence: 1.0e-4
+  max_cycles: 200
+  convergence: 1.0e-6
   separate_atoms_first_cycle: true
 
 geometry:
@@ -187,8 +187,8 @@ Demonstrates point-symmetry reduction along the molecular $z$-axis:
 title: "Nitrogen Molecule with Inversion Symmetry"
 control:
   spin_unrestricted: true
-  max_cycles: 100
-  convergence: 1.0e-4
+  max_cycles: 200
+  convergence: 1.0e-6
 
 geometry:
   - element: N

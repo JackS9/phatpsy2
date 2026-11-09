@@ -2,9 +2,8 @@ title: '... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)'
 net_spin: 0
 control:
   spin_unrestricted: true
-  max_cycles: 100
-  convergence: 0.0001
-  time_limit: 360.0
+  max_cycles: 200
+  convergence: 1.0e-6
   use_constrained_fit: false
   use_diis: false
   use_global_fermi: false

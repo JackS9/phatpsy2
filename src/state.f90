@@ -370,8 +370,8 @@ contains
     LENBUF = 804;    NRECS  = 200;    LENREC = 50
     NMAX   = 2;      LMAX   = 1
     MXNSTO = 3;      MXMSTO = 5;      MXNORB = 5
-    MXITER = 20;     MXCYCL = 1;      TIMEND = 9.0e4_real32
-    EXPMIN = -60.0d0; THETA = 1.0d5;  CONVRG = 1.0d-3
+    MXITER = 20;     MXCYCL = 200;    TIMEND = 9.0e4_real32
+    EXPMIN = -60.0d0; THETA = 1.0d5;  CONVRG = 1.0d-6
     CDAMP  = 1.0d0;  CACCEL = 1.0d0
     SCF_STOP_REASON = 0; SCF_TEDIFF = 0.0d0; SCF_NCONSEC = 0
     QGRDFT = .true.; SMEARW = 0.0d0

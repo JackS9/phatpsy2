@@ -275,8 +275,8 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
     else:
         control_dict = {
             "spin_unrestricted": True,
-            "max_cycles": 100,
-            "convergence": 1.0e-4,
+            "max_cycles": 200,
+            "convergence": 1.0e-6,
             "charge_damp": 0.5,
             "potential_damp": 0.5,
             "use_diis": False,
@@ -917,11 +917,11 @@ def generate_html(
         <label class="section-label">SCF &amp; Convergence</label>
         <div class="form-row">
           <label for="sys-max-cycles">Max Cycles:</label>
-          <input type="number" id="sys-max-cycles" class="num-input" value="{data['control'].get('max_cycles', 100)}" min="1" max="1000" style="width: 80px;">
+          <input type="number" id="sys-max-cycles" class="num-input" value="{data['control'].get('max_cycles', 200)}" min="1" max="1000" style="width: 80px;">
         </div>
         <div class="form-row" style="margin-top: 4px;">
           <label for="sys-convergence">Convergence:</label>
-          <input type="text" id="sys-convergence" class="text-input" value="{data['control'].get('convergence', 1e-4)}" style="width: 90px;">
+          <input type="text" id="sys-convergence" class="text-input" value="{data['control'].get('convergence', 1e-6)}" style="width: 90px;">
         </div>
         <div class="form-row" style="margin-top: 4px;">
           <label><input type="checkbox" id="sys-spin-unrestricted" { 'checked' if data['control'].get('spin_unrestricted', True) else '' }> Spin Unrestricted (UHF)</label>
@@ -7162,7 +7162,7 @@ def generate_assembler_html(assembler: Any, title: str = "Valence-Bond Molecular
     }}
 
     function downloadDeckYAML() {{
-      let yaml = `title: "Assembled Molecule (PHATPSY 2.0)"\\ncontrol:\\n  convergence: 0.0001\\n  use_diis: true\\ngeometry:\\n`;
+      let yaml = `title: "Assembled Molecule (PHATPSY 2.0)"\\ncontrol:\\n  convergence: 1.0e-6\\n  use_diis: true\\ngeometry:\\n`;
       state.nodes.forEach(n => {{
         const bX = (n.position[0] * 1.88972612).toFixed(6);
         const bY = (n.position[1] * 1.88972612).toFixed(6);

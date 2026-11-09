@@ -64,12 +64,22 @@ def _field_default(node: ast.AnnAssign) -> str:
 
 def build_yaml_reference() -> str:
     classes = {}  # name -> (ClassDef, source lines)
+    retired_control: set[str] = set()
     for fname in SCHEMA_FILES:
         src = (PKG / fname).read_text(encoding="utf-8")
         tree = ast.parse(src)
         for n in tree.body:
             if isinstance(n, ast.ClassDef):
                 classes.setdefault(n.name, (n, src.splitlines()))
+            elif (
+                isinstance(n, ast.AnnAssign)
+                and isinstance(n.target, ast.Name)
+                and n.target.id == "RETIRED_YAML_CONTROL_PARAMS"
+                and isinstance(n.value, ast.Set)
+            ):
+                retired_control = {
+                    e.value for e in n.value.elts if isinstance(e, ast.Constant)
+                }
 
     out = [
         "# YAML key reference",
@@ -91,6 +101,8 @@ def build_yaml_reference() -> str:
         rows = []
         for node in cls.body:
             if not (isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)):
+                continue
+            if name == "ControlConfig" and node.target.id in retired_control:
                 continue
             comment = ""
             line = lines[node.lineno - 1]

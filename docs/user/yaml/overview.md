@@ -15,8 +15,8 @@ net_spin: 1
 control:
   # Convergence and numerical iteration options
   spin_unrestricted: true
-  max_cycles: 100
-  convergence: 1.0e-4
+  max_cycles: 200
+  convergence: 1.0e-6
 
 geometry:
   # List of atomic centers and coordinates
@@ -41,9 +41,8 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | Key | Type | Default | Scientific Meaning & Tuning |
 | :--- | :--- | :--- | :--- |
 | `spin_unrestricted` | `bool` | `true` | Enables Unrestricted Hartree-Fock (UHF). Solves separate $\alpha$ and $\beta$ Fock equations. Setting it to `false` runs a restricted closed-shell calculation: per-atom `spin` labels are optional and ignored. |
-| `max_cycles` | `int` | `100` | Maximum number of SCF iterations before aborting. |
-| `convergence` | `float` | `1.0e-4` | Convergence threshold on root-mean-square energy change ($\Delta E_h$). |
-| `time_limit` | `float` | `360.0` | Maximum allowed calculation wall time in seconds. |
+| `max_cycles` | `int` | `200` | Maximum number of SCF iterations before aborting. |
+| `convergence` | `float` | `1.0e-6` | Convergence threshold on root-mean-square energy change ($\Delta E_h$). |
 | `use_diis` | `bool` | `false` | Enables Pulay Direct Inversion in the Iterative Subspace (DIIS) charge density acceleration. |
 | `use_constrained_fit` | `bool` | `false` | Enforces exact nuclear cusp and asymptotic conditions on model potential fits. |
 | `use_grid_fit` | `bool` | `true` | Fits each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (weights in $[0,1]$ summing to 1), so charge conservation and the nuclear cusp hold exactly and the fitted coefficients cannot cancel. See `docs/science/model_potentials.md`, Section 5. |
@@ -63,7 +62,7 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | `extra_namelist`| `dict` | `{}` | Key-value escape hatch passed directly to core engine variables if necessary. |
 
 !!! note "Retired Control Parameters"
-    The empirical parameters `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, and `pk_energy` should **not** appear in modern YAML input files. They are handled internally by self-consistent DIIS acceleration, first-principles projection scale, and LAPACK solvers.
+    The legacy parameters `time_limit`, `charge_damp`, `charge_accel`, `potential_damp`, `potential_accel`, `pk_scale`, `use_pseudometric`, and `pk_energy` should **not** appear in modern YAML input files. They are handled internally by self-consistent DIIS acceleration, first-principles projection scale, and LAPACK solvers.
 
 !!! tip "Theoretical First-Principles Defaults & Hydrogen Core Exemption"
     In PHATPSY 2.0, the Phillips-Kleinman operator operates under strict first-principles unit scaling (`pk_scale: 1.0`, `use_pseudometric: true`) across all multi-electron elements. Because the energy-weighted projector (thesis Eq. III-24) dynamically suppresses valence-like contributions and Hydrogen's sole occupied orbital ($1s$) is valence-like, Hydrogen is governed by the physical **Hydrogen Core-Exemption Invariant**: Hydrogen centers neither receive nor contribute Phillips-Kleinman projection ($V_{\text{PK}} = 0$), and maintain an unperturbed overlap metric ($M = \mathbf{S}$) — keeping H's bonding $1s$ out of the unweighted pseudometric prevents unphysical valence over-projection. Standard input decks require no empirical tuning or scaling parameters.

@@ -120,6 +120,7 @@ def test_constrained_model_potential_fit():
     deck_leg.control.use_grid_fit = False
     deck_leg.control.use_constrained_fit = False
     deck_leg.control.pk_scale = 0.0
+    deck_leg.control.convergence = 1e-4
     res_leg = driver.run_deck(deck_leg)
 
     # 2. Modern N2 calculation with exact equality-constrained fit (QCSTFT=T)
@@ -127,6 +128,7 @@ def test_constrained_model_potential_fit():
     deck_cst.control.use_grid_fit = False
     deck_cst.control.use_constrained_fit = True
     deck_cst.control.pk_scale = 0.0
+    deck_cst.control.convergence = 1e-4
     res_cst = driver.run_deck(deck_cst)
 
     assert res_leg.converged is True

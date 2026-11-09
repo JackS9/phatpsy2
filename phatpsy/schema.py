@@ -144,6 +144,7 @@ def apply_symmetry_operation(
 
 
 RETIRED_YAML_CONTROL_PARAMS: set = {
+    "time_limit",
     "charge_damp",
     "charge_accel",
     "potential_damp",
@@ -157,8 +158,8 @@ RETIRED_YAML_CONTROL_PARAMS: set = {
 @dataclass
 class ControlConfig:
     spin_unrestricted: bool = True
-    max_cycles: int = 100
-    convergence: float = 1.0e-4
+    max_cycles: int = 200
+    convergence: float = 1.0e-6
     time_limit: float = 360.0
     charge_damp: float = 0.5
     charge_accel: float = 1.0
