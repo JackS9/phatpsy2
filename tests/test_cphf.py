@@ -176,3 +176,61 @@ class TestCPHFRelaxedGradients:
         assert grad_rel.shape == (2, 3)
         np.testing.assert_allclose(grad_rel, grad_ana, atol=1e-10)
 
+    def test_cphf_n2_heavy_atom_pk_relaxed_gradient_and_frequency(self, driver):
+        """
+        Homonuclear triple-bonded N2 (DZ, sp hybridization, orbital-resolved valence_configs):
+        Both heavy atoms (Z=7 > 1.5) emit and receive Phillips-Kleinman (PK) pseudopotential
+        and regularized pseudometric projectors (P1_A, P2_A). Verifies that CPHFResponseSolver
+        includes the exact PK pseudopotential and pseudometric response, matching the SCF
+        finite-difference gradient to < 1e-4 Ha/Bohr and yielding a positive real stretching
+        frequency under use_grid_fit=True.
+        """
+        from phatpsy.builder import build_diatomic
+        from phatpsy.schema import ValenceOrbital
+        from phatpsy.vibrations import compute_vibrations
+
+        n1_valence = [
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="N2"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="N2"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="N2"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        n2_valence = [
+            ValenceOrbital(spin="down", occupation=1, orbital_type="sigma",     connect_to="N1"),
+            ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="N1"),
+            ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="N1"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        deck_n2 = build_diatomic(
+            element1="N",
+            element2="N",
+            bond_length=2.0744,
+            basis="DZ",
+            hybridization="sp",
+            spins=["up", "down"],
+            valence_configs=[n1_valence, n2_valence],
+            net_spin=0,
+            physical_net_spin=0,
+            units="bohr",
+        )
+        deck_n2.control.convergence = 1e-8
+        deck_n2.control.max_cycles = 150
+
+        st = driver.run_deck(deck_n2)
+        assert st["converged"]
+
+        g_rel = compute_polyatomic_relaxed_gradient(st, deck_n2)
+        fd_grad = compute_scf_finite_difference_gradient(driver, deck_n2, step_size=1e-4)
+
+        np.testing.assert_allclose(np.sum(g_rel, axis=0), np.zeros(3), atol=1e-12)
+        np.testing.assert_allclose(g_rel[:, :2], np.zeros((2, 2)), atol=1e-10)
+        np.testing.assert_allclose(g_rel, fd_grad, atol=1e-4)
+
+        vib_n2 = compute_vibrations(
+            deck_n2, driver=driver, step_size=0.005, method="central", gradient_method="relaxed", quiet=True
+        )
+        stretch_mode = [m for m in vib_n2.modes if abs(m.frequency_cm) > 10.0][-1]
+        assert not stretch_mode.is_imaginary
+        assert stretch_mode.frequency_cm > 2000.0
+
+

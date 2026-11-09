@@ -46,7 +46,7 @@ The `control:` section configures the SCF convergence criteria, numerical dampin
 | `time_limit` | `float` | `360.0` | Maximum allowed calculation wall time in seconds. |
 | `use_diis` | `bool` | `false` | Enables Pulay Direct Inversion in the Iterative Subspace (DIIS) charge density acceleration. |
 | `use_constrained_fit` | `bool` | `false` | Enforces exact nuclear cusp and asymptotic conditions on model potential fits. |
-| `use_grid_fit` | `bool` | `false` | Fits each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (weights in $[0,1]$ summing to 1), so charge conservation and the nuclear cusp hold exactly and the fitted coefficients cannot cancel. See `docs/science/model_potentials.md`, Section 5. |
+| `use_grid_fit` | `bool` | `true` | Fits each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (weights in $[0,1]$ summing to 1), so charge conservation and the nuclear cusp hold exactly and the fitted coefficients cannot cancel. See `docs/science/model_potentials.md`, Section 5. |
 | `atomic_smearing` | `float` | `0.0` | Fermi-Dirac width in Hartree for the atomic orbital occupations. `0` keeps the overlap-tracked occupations; a small positive value (for example `1.0e-3`) makes the occupations a smooth function of the eigenvalues, which removes run-to-run variation in some heteronuclear systems. |
 | `use_dynamic_exponents` | `bool` | `false` | Optimizes STO Slater radial exponents self-consistently against the molecular field. |
 | `use_global_fermi` | `bool` | `false` | Enables finite-temperature Fermi-Dirac orbital occupation smearing for metallic clusters. |

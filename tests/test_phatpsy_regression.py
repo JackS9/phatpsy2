@@ -103,11 +103,25 @@ def baseline_n2_results(tmp_path_factory):
 
 
 def test_modernized_cli_matches_legacy_n2(tmp_path, baseline_n2_results):
-    """Verifies that the modernized Fortran 2018 CLI matches legacy FORTRAN 66 output."""
+    """Verifies that the modernized Fortran 2018 CLI matches legacy FORTRAN 66 output when QGRDFT=F,
+    and produces convex radial-grid screening weights under the default QGRDFT=T (approved 2026-11-09)."""
     modern_exe = BUILD_BIN / "phatpsy"
     assert modern_exe.exists(), "Modernized executable bin/phatpsy not found."
 
-    modern_stdout = run_executable(modern_exe, EXAMPLE_N2, tmp_path / "modern_n2")
+    # 1. Default run (QGRDFT=T): verify convex screening mixture on N2
+    default_stdout = run_executable(modern_exe, EXAMPLE_N2, tmp_path / "modern_n2_default")
+    default_parsed = parse_phatpsy_stdout(default_stdout)
+    assert default_parsed["model_potential_coefs"], "Expected model potential coefficients in default run."
+    assert default_parsed["model_potential_coefs"][0] == pytest.approx(7.0, abs=1e-4)
+    assert all(c <= 1e-6 for c in default_parsed["model_potential_coefs"][1:])
+    assert sum(default_parsed["model_potential_coefs"]) == pytest.approx(0.0, abs=1e-3)
+
+    # 2. Legacy fit comparison (QGRDFT=F): matches legacy FORTRAN 66 cycle-by-cycle
+    legacy_fit_stdin = tmp_path / "n2_legacy_fit.stdin"
+    legacy_fit_stdin.write_text(
+        EXAMPLE_N2.read_text().replace("&CTLINP", "&CTLINP QGRDFT=F,")
+    )
+    modern_stdout = run_executable(modern_exe, legacy_fit_stdin, tmp_path / "modern_n2")
     modern = parse_phatpsy_stdout(modern_stdout)
 
     # Verify cycle-by-cycle total energies

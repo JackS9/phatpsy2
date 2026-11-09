@@ -74,6 +74,130 @@ def _compute_vfit2_and_grad(
     return vfit2a, dvfit2a_dcoord
 
 
+def _compute_grid_fit_dvcoef(
+    na: np.ndarray,
+    la: np.ndarray,
+    etaa: np.ndarray,
+    anorma: np.ndarray,
+    vexp: np.ndarray,
+    vcoef: np.ndarray,
+    P_tot: np.ndarray,
+    sumocc: float,
+    dP_tot: np.ndarray,
+) -> np.ndarray:
+    """
+    Evaluates the analytical response dvcoef / dU_{pq} of the radial-grid
+    simplex model-potential fit (fit_screening_simplex in src/analys.f90)
+    to a one-particle density perturbation dP_tot.
+    """
+    nt = len(vexp)
+    nk = nt - 1
+    dvcoef = np.zeros(nt, dtype=np.float64)
+    if nk < 1 or sumocc <= 1e-12:
+        return dvcoef
+
+    w_curr = -vcoef[1:] / vcoef[0] if abs(vcoef[0]) > 1e-12 else np.zeros(nk)
+    idx_act = np.where(w_curr > 1e-12)[0]
+    if len(idx_act) <= 1:
+        return dvcoef
+
+    nsto = len(na)
+    shell_offset = [0]
+    for i in range(1, nsto):
+        shell_offset.append(shell_offset[-1] + 2 * int(la[i - 1]) + 1)
+
+    # Check if dP_tot has any non-zero spherical trace (l_i == l_j, m_i == m_j)
+    has_spherical_trace = False
+    for i in range(nsto):
+        li = int(la[i])
+        for j in range(nsto):
+            if int(la[j]) != li:
+                continue
+            d_bar = sum(
+                dP_tot[shell_offset[i] + m + li, shell_offset[j] + m + li]
+                for m in range(-li, li + 1)
+            )
+            if abs(d_bar) > 1e-15:
+                has_spherical_trace = True
+                break
+        if has_spherical_trace:
+            break
+    if not has_spherical_trace:
+        return dvcoef
+
+    NG = 400
+    R0, RMAX = 1.0e-4, 40.0
+    h = float(np.log(RMAX / R0) / (NG - 1))
+    rg = R0 * np.exp(h * np.arange(NG, dtype=np.float64))
+
+    R_grid = np.zeros((nsto, NG), dtype=np.float64)
+    for i in range(nsto):
+        R_grid[i] = float(anorma[i]) * (rg ** (int(na[i]) - 1)) * np.exp(-float(etaa[i]) * rg)
+
+    def _poisson_integrals(D_mat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        rtot = np.zeros(NG, dtype=np.float64)
+        for i in range(nsto):
+            li = int(la[i])
+            for j in range(nsto):
+                if int(la[j]) != li:
+                    continue
+                d_bar = sum(
+                    D_mat[shell_offset[i] + m + li, shell_offset[j] + m + li]
+                    for m in range(-li, li + 1)
+                )
+                if abs(d_bar) > 1e-16:
+                    rtot += (d_bar / (4.0 * np.pi)) * R_grid[i] * R_grid[j]
+        f = 4.0 * np.pi * (rg ** 3) * rtot
+        f2 = 4.0 * np.pi * (rg ** 2) * rtot
+        qcum = np.zeros(NG, dtype=np.float64)
+        qcum[0] = f[0] / 3.0
+        qcum[1:] = np.cumsum(0.5 * h * (f[:-1] + f[1:])) + qcum[0]
+        ucum = np.zeros(NG, dtype=np.float64)
+        ucum[:-1] = np.cumsum(0.5 * h * (f2[:-1] + f2[1:])[::-1])[::-1]
+        return qcum, ucum
+
+    qcum, ucum = _poisson_integrals(P_tot)
+    ngrid = float(qcum[-1])
+    if ngrid <= 1e-8:
+        return dvcoef
+    dqcum, ducum = _poisson_integrals(dP_tot)
+    dngrid = float(dqcum[-1])
+
+    phi = qcum + rg * ucum
+    dphi = dqcum + rg * ducum
+    sg = 1.0 - phi / ngrid
+    dsg = -(dphi * ngrid - phi * dngrid) / (ngrid ** 2)
+
+    wt = h * rg * np.exp(-rg / 10.0)
+    sqw = np.sqrt(wt)
+    m_rows = NG + 1 + nk
+    A = np.zeros((m_rows, nk), dtype=np.float64)
+    bb = np.zeros(m_rows, dtype=np.float64)
+    dbb = np.zeros(m_rows, dtype=np.float64)
+
+    A[:NG, :] = sqw[:, None] * np.exp(-rg[:, None] * vexp[1:][None, :])
+    bb[:NG] = sqw * sg
+    dbb[:NG] = sqw * dsg
+    A[NG, :] = 1.0e3
+    bb[NG] = 1.0e3
+    trace_ata = float(np.sum(A[:NG, :] ** 2) / nk)
+    ridge = float(np.sqrt(1.0e-9 * trace_ata))
+    for k in range(nk):
+        A[NG + 1 + k, k] = ridge
+        bb[NG + 1 + k] = ridge / nk
+
+    A_sub = A[:, idx_act]
+    ata_sub = A_sub.T @ A_sub
+    x_sub = np.linalg.solve(ata_sub, A_sub.T @ bb)
+    dx_sub = np.linalg.solve(ata_sub, A_sub.T @ dbb)
+    wsum = float(np.sum(x_sub))
+    if wsum <= 1e-12:
+        return dvcoef
+    dw_sub = (dx_sub * wsum - x_sub * float(np.sum(dx_sub))) / (wsum ** 2)
+    dvcoef[1 + idx_act] = -sumocc * dw_sub
+    return dvcoef
+
+
 class CPHFResponseSolver:
     """
     Coupled-Perturbed Hartree-Fock (CPHF) / Z-vector orbital and model-potential
@@ -274,6 +398,10 @@ class CPHFResponseSolver:
         if self._response_cache is not None:
             return self._response_cache
 
+        use_grid_fit = True
+        if self.deck is not None and getattr(self.deck, "control", None) is not None:
+            use_grid_fit = bool(getattr(self.deck.control, "use_grid_fit", True))
+
         atoms: Dict[int, Dict[str, Any]] = {}
         for a in range(1, self.n_atoms + 1):
             idx_a = self.atom_basis_indices[a]
@@ -379,6 +507,13 @@ class CPHFResponseSolver:
                 P_null = np.zeros((nc, nc), dtype=np.float64)
                 c_sub = np.zeros(nc, dtype=np.float64)
 
+            w_check = -vc[1:] / vc[0] if (nt > 1 and abs(vc[0]) > 1e-12) else np.zeros(0)
+            atom_uses_grid_fit = (
+                use_grid_fit
+                and nt > 1
+                and np.all(w_check >= -1e-6)
+                and abs(float(np.sum(w_check)) - 1.0) < 1e-5
+            )
             atoms[a] = {
                 "m": m,
                 "m2": m2,
@@ -388,6 +523,7 @@ class CPHFResponseSolver:
                 "znuc": znuc,
                 "nt": nt,
                 "nc": nc,
+                "use_grid_fit": atom_uses_grid_fit,
                 "vcoef": vc,
                 "c_sub": c_sub,
                 "vexp": ve,
@@ -494,7 +630,7 @@ class CPHFResponseSolver:
         for a, aa in atoms.items():
             nt, nc = aa["nt"], aa["nc"]
             dvc = np.zeros((self.n_atoms, 3, nt), dtype=np.float64)
-            if nc > 0 and aa["sumocc"] > 1e-12:
+            if not aa["use_grid_fit"] and nc > 0 and aa["sumocc"] > 1e-12:
                 c_sub = aa["c_sub"]
                 denom = aa["tevz2"] - 0.5
                 vf = aa["vfit2"]
@@ -586,7 +722,19 @@ class CPHFResponseSolver:
             dfx = np.array([_unpack_packed(dfx_pack[:, s], m) for s in range(self.ispin)])
 
             dvcoef = np.zeros(nt, dtype=np.float64)
-            if nc > 0 and aa["sumocc"] > 1e-12:
+            if aa["use_grid_fit"]:
+                dvcoef = _compute_grid_fit_dvcoef(
+                    aa["na"],
+                    aa["la"],
+                    aa["etaa"],
+                    aa["anorma"],
+                    aa["vexp"],
+                    aa["vcoef"],
+                    aa["P_tot"],
+                    aa["sumocc"],
+                    dP_tot,
+                )
+            elif nc > 0 and aa["sumocc"] > 1e-12:
                 dG0 = np.zeros((nc, nc), dtype=np.float64)
                 dg0_rhs = np.zeros(nc, dtype=np.float64)
                 depot = np.zeros((aa["norb"], self.ispin, nt), dtype=np.float64)
@@ -652,6 +800,16 @@ class CPHFResponseSolver:
                 "dV6": dV6,
             })
 
+        has_any_pk = any(
+            aa["znuc"] > 1.5 and float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
+            for aa in atoms.values()
+        )
+        pk_response = None
+        if has_any_pk:
+            pk_response = self._build_pk_coupled_response(
+                atoms, pair_data, dzpot2_dcoord, dF_fixedC_dcoord, rot_effects
+            )
+
         self._response_cache = {
             "atoms": atoms,
             "pair_data": pair_data,
@@ -659,8 +817,378 @@ class CPHFResponseSolver:
             "dF_fixedC_dcoord": dF_fixedC_dcoord,
             "dvcoef_explicit_dcoord": dvcoef_explicit_dcoord,
             "rot_effects": rot_effects,
+            "pk_response": pk_response,
         }
         return self._response_cache
+
+    def _build_pk_coupled_response(
+        self,
+        atoms: Dict[int, Dict[str, Any]],
+        pair_data: Dict[Tuple[int, int], Dict[str, Any]],
+        dzpot2_dcoord: Dict[int, np.ndarray],
+        dF_fixedC_dcoord: Dict[int, np.ndarray],
+        rot_effects: List[Dict[str, Any]],
+    ) -> Dict[str, np.ndarray]:
+        """
+        Constructs the exact Phillips-Kleinman (PK) pseudopotential and regularized
+        pseudometric response operators for heavy-atom bonds (Z_A > 1.5), where the
+        generalized eigenvalue problem in scf.f90 is solved in the regularized
+        pseudometric S_tilde = S_A - P_{1, A}^reg with F_tilde = F_A - P_{2, A}^reg,
+        followed by PK back-projection Q_A^T = I - S_A^{-1} P_{1, A}^reg and
+        symmetric Löwdin S_A-orthonormalization.
+        """
+        qpsmet = True
+        pkscal = 1.0
+        qnwvec = False
+        if self.deck is not None:
+            if getattr(self.deck, "control", None) is not None:
+                qpsmet = bool(getattr(self.deck.control, "use_pseudometric", True))
+                pkscal = float(getattr(self.deck.control, "pk_scale", 1.0))
+            if getattr(self.deck, "valence_configs", None):
+                qnwvec = True
+            for g in getattr(self.deck, "geometry", []) or []:
+                if (
+                    getattr(g, "hybridization", None) is not None
+                    or getattr(g, "valence_config", None) is not None
+                    or bool(getattr(g, "use_new_vectors", False))
+                ):
+                    qnwvec = True
+        if not qnwvec:
+            # Fallback check on stored energy-weighted projector D5_A (occ*eval vs eval)
+            for aa in atoms.values():
+                if aa["znuc"] > 1.5 and aa["norb"] > 0:
+                    for s in range(self.ispin):
+                        occ_s = aa["occ"][: aa["norb"], s]
+                        if np.any((occ_s < 0.99) & (occ_s > -0.01)):
+                            C_sub = aa["C"][:, : aa["norb"], s]
+                            ev_s = aa["eval"][: aa["norb"], s]
+                            D5_stor = _unpack_packed(aa["pkpot"][:, 4, s], aa["m"])
+                            err_t = np.max(np.abs(D5_stor - pkscal * (C_sub * (occ_s * ev_s)) @ C_sub.T))
+                            err_f = np.max(np.abs(D5_stor - pkscal * (C_sub * ev_s) @ C_sub.T))
+                            if err_t < err_f:
+                                qnwvec = True
+
+        reg_delta = 0.42 if qnwvec else 1.0e-3
+
+        def _lowdin_deriv(C_bar, dC_bar, S_A, w_m, v_m, M_mhalf):
+            dM = dC_bar.T @ S_A @ C_bar + C_bar.T @ S_A @ dC_bar
+            dM_eig = v_m.T @ dM @ v_m
+            denom = np.sqrt(w_m)[:, None] + np.sqrt(w_m)[None, :]
+            dM_half = v_m @ (dM_eig / denom) @ v_m.T
+            dM_mhalf = -M_mhalf @ dM_half @ M_mhalf
+            return dC_bar @ M_mhalf + C_bar @ dM_mhalf
+
+        pk_data: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        occ_slots: List[Tuple[int, int, int]] = []
+
+        for a, aa in atoms.items():
+            m, m2, norb = aa["m"], aa["m2"], aa["norb"]
+            S_A, ontran = aa["stovl"], aa["ontran"]
+            w_s, v_s = np.linalg.eigh(S_A)
+            S_mhalf = (v_s / np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
+            S_half = (v_s * np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
+            H0_A = _unpack_packed(_phatpsy_core.state.get_atom_elem_sthmat(a, m2).ravel(), m)
+            has_pk = qpsmet and (aa["znuc"] > 1.5) and (
+                float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
+            )
+            for s in range(self.ispin):
+                X2_A = _unpack_packed(aa["pkpot"][:, 2, s], m)
+                if has_pk:
+                    # Reconstruct raw environment projectors P1_A, P2_A from neighbor D4_B, D5_B
+                    P1_A = np.zeros((m, m), dtype=np.float64)
+                    P2_A = np.zeros((m, m), dtype=np.float64)
+                    for b, ab in atoms.items():
+                        if b != a and (a, b) in pair_data:
+                            S_ab = pair_data[(a, b)]["S_ab"]
+                            D4_B = _unpack_packed(ab["pkpot"][:, 3, s], ab["m"])
+                            D5_B = _unpack_packed(ab["pkpot"][:, 4, s], ab["m"])
+                            P1_A += S_ab @ D4_B @ S_ab.T
+                            P2_A += S_ab @ D5_B @ S_ab.T
+                else:
+                    P1_A = np.zeros((m, m), dtype=np.float64)
+                    P2_A = np.zeros((m, m), dtype=np.float64)
+
+                P1_low = S_mhalf @ P1_A @ S_mhalf
+                lam_p, v_p = np.linalg.eigh(P1_low)
+                cap = 1.0 - reg_delta
+                g_lam = np.minimum(lam_p, cap)
+                gp_lam = np.where(lam_p <= cap, 1.0, 0.0)
+                D_reg = np.zeros((m, m), dtype=np.float64)
+                for i in range(m):
+                    for j in range(m):
+                        if abs(lam_p[i] - lam_p[j]) > 1e-10:
+                            D_reg[i, j] = (g_lam[i] - g_lam[j]) / (lam_p[i] - lam_p[j])
+                        else:
+                            D_reg[i, j] = gp_lam[i]
+                P1_reg = S_half @ (v_p @ np.diag(g_lam) @ v_p.T) @ S_half if has_pk else np.zeros((m, m))
+                P2_reg = P2_A.copy()
+                if has_pk and reg_delta <= 1.0e-2 and np.max(lam_p) > cap:
+                    s_modes = np.where(lam_p > cap, cap / np.maximum(lam_p, 1e-10), 1.0)
+                    B_low = S_mhalf @ P2_A @ S_mhalf
+                    B_vp = (v_p.T @ B_low @ v_p) * np.sqrt(np.outer(s_modes, s_modes))
+                    P2_reg = S_half @ (v_p @ B_vp @ v_p.T) @ S_half
+
+                F_A = H0_A + aa["fc"][s] + aa["fx"][s] + aa["zpot2"] + aa["cpot2"] + X2_A
+                S_tilde = S_A - P1_reg
+                w_st, v_st = np.linalg.eigh(S_tilde)
+                St_mhalf = (v_st / np.sqrt(np.maximum(w_st, 1e-12))) @ v_st.T
+                eval_t, evec_t = np.linalg.eigh(St_mhalf.T @ (F_A - P2_reg) @ St_mhalf)
+                C_tilde = St_mhalf @ evec_t
+
+                occ_s = aa["occ"][:norb, s]
+                occ_idx = [i for i in range(norb) if occ_s[i] > 1e-6] if qnwvec else list(range(norb))
+                unocc_idx = [i for i in range(norb) if occ_s[i] <= 1e-6] if qnwvec else []
+                for i in range(norb):
+                    if occ_s[i] > 1e-6 or not qnwvec:
+                        occ_slots.append((a, s, i))
+
+                Q_T = np.eye(m) - ontran @ P1_reg
+                if occ_idx:
+                    C_bar_occ = Q_T @ C_tilde[:, occ_idx]
+                    M_occ = C_bar_occ.T @ S_A @ C_bar_occ
+                    w_m, v_m = np.linalg.eigh(M_occ)
+                    M_mhalf = (v_m / np.sqrt(np.maximum(w_m, 1e-12))) @ v_m.T
+                    C_occ = C_bar_occ @ M_mhalf
+                    O_occ = C_occ.T @ S_A @ aa["C"][:, occ_idx, s]
+                    C_tilde[:, occ_idx] = C_tilde[:, occ_idx] @ O_occ
+                    C_bar_occ = Q_T @ C_tilde[:, occ_idx]
+                    M_occ = C_bar_occ.T @ S_A @ C_bar_occ
+                    w_m, v_m = np.linalg.eigh(M_occ)
+                    M_mhalf = (v_m / np.sqrt(np.maximum(w_m, 1e-12))) @ v_m.T
+                    C_occ = C_bar_occ @ M_mhalf
+                    P_occ = C_occ @ C_occ.T
+                else:
+                    C_bar_occ = w_m = v_m = M_mhalf = C_occ = None
+                    P_occ = np.zeros((m, m), dtype=np.float64)
+
+                if unocc_idx:
+                    C_bar_u = (np.eye(m) - P_occ @ S_A) @ (Q_T @ C_tilde[:, unocc_idx])
+                    M_u = C_bar_u.T @ S_A @ C_bar_u
+                    w_u, v_u = np.linalg.eigh(M_u)
+                    M_u_mhalf = (v_u / np.sqrt(np.maximum(w_u, 1e-12))) @ v_u.T
+                    C_u = C_bar_u @ M_u_mhalf
+                    O_u = C_u.T @ S_A @ aa["C"][:, unocc_idx, s]
+                    C_tilde[:, unocc_idx] = C_tilde[:, unocc_idx] @ O_u
+                    C_bar_u = (np.eye(m) - P_occ @ S_A) @ (Q_T @ C_tilde[:, unocc_idx])
+                    M_u = C_bar_u.T @ S_A @ C_bar_u
+                    w_u, v_u = np.linalg.eigh(M_u)
+                    M_u_mhalf = (v_u / np.sqrt(np.maximum(w_u, 1e-12))) @ v_u.T
+                else:
+                    C_bar_u = w_u = v_u = M_u_mhalf = None
+
+                pk_data[(a, s)] = {
+                    "S_A": S_A,
+                    "ontran": ontran,
+                    "S_mhalf": S_mhalf,
+                    "S_half": S_half,
+                    "v_p": v_p,
+                    "D_reg": D_reg,
+                    "eval_t": eval_t,
+                    "C_tilde": C_tilde,
+                    "occ_idx": occ_idx,
+                    "unocc_idx": unocc_idx,
+                    "Q_T": Q_T,
+                    "C_bar_occ": C_bar_occ,
+                    "w_m": w_m,
+                    "v_m": v_m,
+                    "M_mhalf": M_mhalf,
+                    "C_occ": C_occ,
+                    "P_occ": P_occ,
+                    "C_bar_u": C_bar_u,
+                    "w_u": w_u,
+                    "v_u": v_u,
+                    "M_u_mhalf": M_u_mhalf,
+                    "H0_A": H0_A,
+                    "has_pk": has_pk,
+                    "norb": norb,
+                }
+
+        slot_lookup = {slot: idx for idx, slot in enumerate(occ_slots)}
+
+        def _scf_step_response(dF_dict, dP1_raw_dict, dP2_raw_dict):
+            dU_out = np.zeros(self.n_active, dtype=np.float64)
+            deval_out = np.zeros(len(occ_slots), dtype=np.float64)
+            dC_act_map = {}
+            for (a, s), pd in pk_data.items():
+                S_A = pd["S_A"]
+                m, norb = S_A.shape[0], pd["norb"]
+                if pd["has_pk"]:
+                    dP1_raw = dP1_raw_dict[(a, s)]
+                    dP2_r = dP2_raw_dict[(a, s)]
+                    dP1_eig = pd["v_p"].T @ (pd["S_mhalf"] @ dP1_raw @ pd["S_mhalf"]) @ pd["v_p"]
+                    dP1_r = pd["S_half"] @ (pd["v_p"] @ (pd["D_reg"] * dP1_eig) @ pd["v_p"].T) @ pd["S_half"]
+                else:
+                    dP1_r = np.zeros((m, m), dtype=np.float64)
+                    dP2_r = np.zeros((m, m), dtype=np.float64)
+                dF = dF_dict[(a, s)]
+                Ct, ev = pd["C_tilde"], pd["eval_t"]
+                W = np.zeros((m, m), dtype=np.float64)
+                for p in range(m):
+                    W[p, p] = 0.5 * float(Ct[:, p].T @ dP1_r @ Ct[:, p])
+                    for q in range(m):
+                        if abs(ev[p] - ev[q]) > 1e-4:
+                            W[q, p] = float(Ct[:, q].T @ (dF - dP2_r + ev[p] * dP1_r) @ Ct[:, p]) / (
+                                ev[p] - ev[q]
+                            )
+                dCt = Ct @ W
+                occ_idx, unocc_idx = pd["occ_idx"], pd["unocc_idx"]
+                dQ_T = -pd["ontran"] @ dP1_r
+                dC_act = np.zeros((m, norb), dtype=np.float64)
+                if occ_idx:
+                    dC_bar_occ = dQ_T @ Ct[:, occ_idx] + pd["Q_T"] @ dCt[:, occ_idx]
+                    dC_occ = _lowdin_deriv(
+                        pd["C_bar_occ"], dC_bar_occ, S_A, pd["w_m"], pd["v_m"], pd["M_mhalf"]
+                    )
+                    dC_act[:, occ_idx] = dC_occ
+                else:
+                    dC_occ = None
+                if unocc_idx:
+                    C_occ = pd["C_occ"]
+                    dP_occ = (
+                        dC_occ @ C_occ.T + C_occ @ dC_occ.T
+                        if dC_occ is not None
+                        else np.zeros((m, m), dtype=np.float64)
+                    )
+                    dC_bar_u_raw = dQ_T @ Ct[:, unocc_idx] + pd["Q_T"] @ dCt[:, unocc_idx]
+                    dC_bar_u = (np.eye(m) - pd["P_occ"] @ S_A) @ dC_bar_u_raw - (dP_occ @ S_A) @ (
+                        pd["Q_T"] @ Ct[:, unocc_idx]
+                    )
+                    dC_u = _lowdin_deriv(
+                        pd["C_bar_u"], dC_bar_u, S_A, pd["w_u"], pd["v_u"], pd["M_u_mhalf"]
+                    )
+                    dC_act[:, unocc_idx] = dC_u
+                dC_act_map[(a, s)] = dC_act
+                for i_orb in range(norb):
+                    if (a, s, i_orb) in slot_lookup:
+                        slot_idx = slot_lookup[(a, s, i_orb)]
+                        deval_out[slot_idx] = float(
+                            Ct[:, i_orb].T @ (dF - dP2_r + ev[i_orb] * dP1_r) @ Ct[:, i_orb]
+                        )
+
+            for idx_pair, pair in enumerate(self.active_pairs):
+                a, s, p, q = pair["atom"], pair["spin"], pair["p_local"], pair["q_local"]
+                dC_act = dC_act_map[(a, s)]
+                S_A = pk_data[(a, s)]["S_A"]
+                c_q = atoms[a]["C"][:, q, s]
+                dU_out[idx_pair] = float(c_q.T @ S_A @ dC_act[:, p])
+            return dU_out, deval_out
+
+        n_u = self.n_active
+        n_e = len(occ_slots)
+        M_UU = np.zeros((n_u, n_u), dtype=np.float64)
+        M_eU = np.zeros((n_e, n_u), dtype=np.float64)
+        M_Ue = np.zeros((n_u, n_e), dtype=np.float64)
+        M_ee = np.zeros((n_e, n_e), dtype=np.float64)
+
+        for j_r, eff in enumerate(rot_effects):
+            b, s_rot, p_r, q_r = eff["a"], eff["s_rot"], eff["p"], eff["q"]
+            ab = atoms[b]
+            c_p, c_q = ab["C"][:, p_r, s_rot], ab["C"][:, q_r, s_rot]
+            occ_p, occ_q = ab["occ"][p_r, s_rot], ab["occ"][q_r, s_rot]
+            ev_p = ab["eval"][p_r, s_rot]
+            ev_q = ab["eval"][q_r, s_rot] if q_r < ab["norb"] else 0.0
+            w_p = (occ_p if qnwvec else 1.0) * ev_p if p_r < ab["norb"] else 0.0
+            w_q = (occ_q if qnwvec else 1.0) * ev_q if q_r < ab["norb"] else 0.0
+            emit_pk = qpsmet and (ab["znuc"] > 1.5)
+            dD4_b = pkscal * eff["dP_spin"][:, :, s_rot] if emit_pk else np.zeros((ab["m"], ab["m"]))
+            dD5_b = (
+                pkscal * (w_p - w_q) * (np.outer(c_p, c_q) + np.outer(c_q, c_p))
+                if emit_pk
+                else np.zeros((ab["m"], ab["m"]))
+            )
+            dF_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            dP1_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            dP2_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            for s in range(self.ispin):
+                dF_dict[(b, s)] = eff["dfc"][s] + eff["dfx"][s]
+            for a in atoms:
+                if a != b and (a, b) in pair_data:
+                    pd_ab = pair_data[(a, b)]
+                    S_ab = pd_ab["S_ab"]
+                    dcpot2_ab = sum(eff["dvcoef"][nv] * pd_ab["V_ab"][nv] for nv in range(ab["nt"]))
+                    for s in range(self.ispin):
+                        dF_dict[(a, s)] = dcpot2_ab + S_ab @ eff["dV6"][s] @ S_ab.T
+                    if emit_pk:
+                        dP1_dict[(a, s_rot)] = S_ab @ dD4_b @ S_ab.T
+                        dP2_dict[(a, s_rot)] = S_ab @ dD5_b @ S_ab.T
+            M_UU[:, j_r], M_eU[:, j_r] = _scf_step_response(dF_dict, dP1_dict, dP2_dict)
+
+        for k_e, (b, s_rot, i_orb) in enumerate(occ_slots):
+            ab = atoms[b]
+            if not (qpsmet and ab["znuc"] > 1.5):
+                continue
+            c_i = ab["C"][:, i_orb, s_rot]
+            w_i = ab["occ"][i_orb, s_rot] if qnwvec else 1.0
+            dD5_b = pkscal * w_i * np.outer(c_i, c_i)
+            dF_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            dP1_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            dP2_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+            for a in atoms:
+                if a != b and (a, b) in pair_data:
+                    S_ab = pair_data[(a, b)]["S_ab"]
+                    dP2_dict[(a, s_rot)] = S_ab @ dD5_b @ S_ab.T
+            M_Ue[:, k_e], M_ee[:, k_e] = _scf_step_response(dF_dict, dP1_dict, dP2_dict)
+
+        inv_I_Mee = np.linalg.inv(np.eye(n_e) - M_ee) if n_e > 0 else np.zeros((0, 0))
+        de_dU = inv_I_Mee @ M_eU
+        de_vec = np.array([pair["delta_eps"] for pair in self.active_pairs], dtype=np.float64)
+        A_pk = np.diag(de_vec) @ (np.eye(n_u) - M_UU - M_Ue @ de_dU)
+
+        w_occ = np.array(
+            [self.orbocc * atoms[a]["occ"][i, s] for (a, s, i) in occ_slots], dtype=np.float64
+        )
+        L_pk = np.zeros(n_u, dtype=np.float64)
+        for j_r, eff in enumerate(rot_effects):
+            a = eff["a"]
+            H0 = pk_data[(a, 0)]["H0_A"]
+            zpot2 = atoms[a]["zpot2"]
+            d_one = float(np.sum(eff["dP_tot"] * (H0 + zpot2)))
+            d_tev = float(w_occ @ de_dU[:, j_r])
+            L_pk[j_r] = 0.5 * (d_one + d_tev)
+
+        geom = self.deck.geometry if self.deck is not None else [None] * self.n_atoms
+        g_fixedC_pk = compute_nuclear_repulsion_gradient(geom, charges=self.charges)
+        F_deriv_pk = np.zeros((n_u, self.n_atoms, 3), dtype=np.float64)
+
+        for atom_k in range(self.n_atoms):
+            for cart in range(3):
+                dF_exp = {
+                    (a, s): dF_fixedC_dcoord[a][atom_k, cart, s].copy() for (a, s) in pk_data
+                }
+                dP1_exp = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+                dP2_exp = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
+                for a in atoms:
+                    for b in atoms:
+                        if a != b and (a, b) in pair_data:
+                            pd_ab = pair_data[(a, b)]
+                            S_ab, dS_dra = pd_ab["S_ab"], pd_ab["dS_dra"][cart]
+                            sign = (1.0 if atom_k == a - 1 else 0.0) - (
+                                1.0 if atom_k == b - 1 else 0.0
+                            )
+                            if sign != 0.0:
+                                dS = sign * dS_dra
+                                ab = atoms[b]
+                                for s in range(self.ispin):
+                                    D4_B = _unpack_packed(ab["pkpot"][:, 3, s], ab["m"])
+                                    D5_B = _unpack_packed(ab["pkpot"][:, 4, s], ab["m"])
+                                    dP1_exp[(a, s)] += dS @ D4_B @ S_ab.T + S_ab @ D4_B @ dS.T
+                                    dP2_exp[(a, s)] += dS @ D5_B @ S_ab.T + S_ab @ D5_B @ dS.T
+                dU_exp, de_exp = _scf_step_response(dF_exp, dP1_exp, dP2_exp)
+                de_fixedU = inv_I_Mee @ de_exp
+                if n_u > 0:
+                    F_deriv_pk[:, atom_k, cart] = -de_vec * (dU_exp + M_Ue @ de_fixedU)
+                for a, aa in atoms.items():
+                    g_fixedC_pk[atom_k, cart] += 0.5 * float(
+                        np.sum(aa["P_tot"] * dzpot2_dcoord[a][atom_k, cart])
+                    )
+                g_fixedC_pk[atom_k, cart] += 0.5 * float(w_occ @ de_fixedU)
+
+        return {
+            "F_deriv": F_deriv_pk,
+            "L": L_pk,
+            "A": A_pk,
+            "g_fixedC": g_fixedC_pk,
+        }
 
     def compute_fock_derivatives(self) -> np.ndarray:
         """
@@ -675,6 +1203,8 @@ class CPHFResponseSolver:
             return F_deriv
 
         cache = self._prepare_response_data()
+        if cache.get("pk_response") is not None:
+            return cache["pk_response"]["F_deriv"].copy()
         atoms = cache["atoms"]
         dF_fixedC_dcoord = cache["dF_fixedC_dcoord"]
 
@@ -705,6 +1235,8 @@ class CPHFResponseSolver:
             return L
 
         cache = self._prepare_response_data()
+        if cache.get("pk_response") is not None:
+            return cache["pk_response"]["L"].copy()
         atoms = cache["atoms"]
         pair_data = cache["pair_data"]
         rot_effects = cache["rot_effects"]
@@ -767,6 +1299,8 @@ class CPHFResponseSolver:
             return A
 
         cache = self._prepare_response_data()
+        if cache.get("pk_response") is not None:
+            return cache["pk_response"]["A"].copy()
         atoms = cache["atoms"]
         pair_data = cache["pair_data"]
         rot_effects = cache["rot_effects"]
@@ -828,6 +1362,8 @@ class CPHFResponseSolver:
         implicit fixed-orbital screening response (dvcoef / dR)_C.
         """
         cache = self._prepare_response_data()
+        if cache.get("pk_response") is not None:
+            return cache["pk_response"]["g_fixedC"].copy()
         atoms = cache["atoms"]
         dzpot2_dcoord = cache["dzpot2_dcoord"]
         dF_fixedC_dcoord = cache["dF_fixedC_dcoord"]

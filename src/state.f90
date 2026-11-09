@@ -98,14 +98,14 @@ module state
   integer(int32) :: SCF_NCONV_REQ = 3
   real(real64)   :: SCF_TEDIFF = 0.0d0
 
-  ! Optional model-potential / atomic-occupation stabilizers (both OFF by default).
+  ! Model-potential / atomic-occupation stabilizers.
   !   QGRDFT: fit the atom's spherically averaged Coulomb potential on a radial
-  !           grid as a convex mixture of screening exponentials
-  !           (see fit_screening_simplex in analys.f90).
+  !           grid as a convex mixture of screening exponentials (default .true.;
+  !           see fit_screening_simplex in analys.f90).
   !   SMEARW: Fermi-Dirac width in Hartree for the atomic orbital occupations,
   !           replacing overlap-tracked integer-like occupations (0 = off;
   !           see run_scf_element in scf.f90).
-  logical(kind=1) :: QGRDFT = .false.
+  logical(kind=1) :: QGRDFT = .true.
   real(real64)    :: SMEARW = 0.0d0
 
   !---------------------------------------------------------------------
@@ -374,7 +374,7 @@ contains
     EXPMIN = -60.0d0; THETA = 1.0d5;  CONVRG = 1.0d-3
     CDAMP  = 1.0d0;  CACCEL = 1.0d0
     SCF_STOP_REASON = 0; SCF_TEDIFF = 0.0d0; SCF_NCONSEC = 0
-    QGRDFT = .false.; SMEARW = 0.0d0
+    QGRDFT = .true.; SMEARW = 0.0d0
     WGT0   = 1.0d0;  WGT1   = 1.0d0;  WGT2   = 1.0d0
     WGTC   = 1.0d0;  WGTV   = 1.0d0
     VDAMP  = 0.0d0;  VACCEL = 1.0d0

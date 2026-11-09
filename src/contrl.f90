@@ -461,7 +461,7 @@ contains
     QGFERM     = .false.
     QDYNEX     = .false.
     QDFTEX     = .false.
-    QGRDFT     = .false.
+    QGRDFT     = .true.
     SMEARW     = 0.0d0
     EXCH_TYPE  = 1
     EXCH_ALPHA = 2.0d0 / 3.0d0

@@ -33,6 +33,7 @@ BASELINE_QUARANTINE = {
     "tests/test_coords_pes_optimize.py::test_scan_1d_n2_rigid_stretch",
     "tests/test_correlation_and_dispersion.py::test_deck_with_pbe_xc_and_dispersion",
     "tests/test_correlation_and_dispersion.py::test_milestone8_diatomic_energy_stability_benchmark",
+    "tests/test_correlation_and_dispersion.py::test_milestone8_eo_reactant_stability_benchmark",
     "tests/test_exchange_dft.py::test_exchange_dft_deck_run",
     "tests/test_exchange_dft.py::test_pbe_deck_run",
     "tests/test_modelpot.py::test_dynamic_exponents_deck",

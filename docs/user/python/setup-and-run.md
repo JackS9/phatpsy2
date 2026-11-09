@@ -233,7 +233,7 @@ policy = ScfExtensionPolicy(max_extension_cycles=100, adaptive_damping=True)
 driver = PhatpsyDriver(scf_policy=policy)
 ```
 
-For systems whose SCF does not settle (some heteronuclear diatomics), two opt-in controls can help; both are off by default and change the numbers they touch: `control.use_grid_fit` and `control.atomic_smearing` (see the YAML key reference).
+For systems whose SCF does not settle (some heteronuclear diatomics), `control.use_grid_fit` is enabled by default (`True`), and `control.atomic_smearing` (off by default, e.g. `1.0e-3`) can be enabled to smooth near-degenerate atomic orbital occupations (see the YAML key reference).
 
 ---
 

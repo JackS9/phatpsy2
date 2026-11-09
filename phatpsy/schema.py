@@ -168,7 +168,7 @@ class ControlConfig:
     use_pseudometric: bool = True
     pk_energy: float = 0.0
     use_constrained_fit: bool = False
-    use_grid_fit: bool = False  # Fit each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (see model_potentials).
+    use_grid_fit: bool = True  # Fit each atom's Coulomb potential on a radial grid as a convex mixture of screening exponentials (see model_potentials).
     atomic_smearing: float = 0.0  # Fermi-Dirac width in Hartree for atomic orbital occupations; 0 disables smearing.
     use_diis: bool = False
     use_global_fermi: bool = False

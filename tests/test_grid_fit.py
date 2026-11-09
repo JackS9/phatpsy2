@@ -1,9 +1,10 @@
-"""Tests for the optional grid-based screening fit and Fermi-smeared atomic occupations.
+"""Tests for the grid-based screening fit (default ON) and Fermi-smeared atomic occupations.
 
-Both options are OFF by default. These tests assert structural invariants that the
-active code path computes (a convex mixture of screening exponentials, exact charge
-and cusp sum rules, reproducibility, convergence), not calibrated reference numbers,
-so they cannot pass circularly (see docs/development/validation_standards.md, section 9).
+use_grid_fit is ON by default (QGRDFT=T); atomic_smearing is OFF by default (SMEARW=0.0).
+These tests assert structural invariants that the active code path computes (a convex
+mixture of screening exponentials, exact charge and cusp sum rules, reproducibility,
+convergence), not calibrated reference numbers, so they cannot pass circularly
+(see docs/development/validation_standards.md, section 9).
 """
 
 import numpy as np
@@ -29,13 +30,15 @@ def _co_deck(**ctrl):
     return deck
 
 
-def test_options_are_off_by_default():
+def test_default_grid_fit_and_smearing_settings():
     ctrl = ControlConfig()
-    assert ctrl.use_grid_fit is False
+    assert ctrl.use_grid_fit is True
     assert ctrl.atomic_smearing == 0.0
     text = _co_deck().to_stdin_text()
-    assert "QGRDFT=F" in text
+    assert "QGRDFT=T" in text
     assert "SMEARW=0.000000" in text
+    text_off = _co_deck(use_grid_fit=False).to_stdin_text()
+    assert "QGRDFT=F" in text_off
 
 
 def test_options_reach_the_namelist():

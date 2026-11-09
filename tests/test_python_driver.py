@@ -315,5 +315,7 @@ def test_global_fermi_equilibration():
 
     res = driver.run_deck(deck)
     assert res.converged is True
-    assert math.isclose(res.total_energy, -108.87, abs_tol=0.2)
+    # Note (approved 2026-11-09): With use_grid_fit=True as default, N2/SZ global-Fermi
+    # total energy converges to -109.89 Ha (vs -108.87 Ha under the legacy fit).
+    assert math.isclose(res.total_energy, -109.89, abs_tol=0.2)
     assert math.isclose(res.virial_ratio, 2.0, abs_tol=0.05)

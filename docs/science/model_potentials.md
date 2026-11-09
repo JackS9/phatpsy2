@@ -71,14 +71,16 @@ Radial integrals over STO basis functions are evaluated using Gauss-Legendre qua
 
 ---
 
-## 5. Opt-in Grid-Based Screening Fit (`use_grid_fit`)
+## 5. Default Grid-Based Screening Fit (`use_grid_fit`)
 
-!!! note "Status"
-    Off by default. Implemented in `fit_screening_simplex` and `nnls_small` in `src/analys.f90`; exercised by `tests/test_grid_fit.py`. It changes the model potential, so energies differ from the default fit.
+!!! note "Status & Author Approval"
+    Enabled by default (`use_grid_fit: true`, `QGRDFT = .true.`, approved 2026-11-09). Implemented in `fit_screening_simplex` and `nnls_small` in `src/analys.f90`; exercised by `tests/test_grid_fit.py` and differentiated analytically in `phatpsy/cphf.py`. Passing `use_grid_fit: false` reverts to the orbital-expectation linear fit of Section 2.
 
 ### 5.1 Motivation
 
-The default fit determines all coefficients $\{c_k\}$ of Section 1 from the Coulomb expectation values of the atom's few orbitals. Measured on $\text{CO}$/DZ with the default exponents, the fit matrix is close to rank-deficient: after unit-diagonal scaling its four eigenvalues span $\sim 10^{-7}$ to $4$, and from the second SCF cycle (when the external-field term is switched on) its smallest eigenvalue is negative. The solved coefficients reach $|c_k| \approx 6$ with $\sum_k c_k$ fixed near $-N$, i.e. they cancel heavily, and small changes in the density swing the potential. Because the same fit is repeated every SCF cycle, this noise is fed back into the iteration.
+The orbital-expectation fit of Section 2 (`use_grid_fit: false`) determines all coefficients $\{c_k\}$ of Section 1 from the Coulomb expectation values of the atom's few orbitals. Measured on $\text{CO}$/DZ with the default exponents, that fit matrix is close to rank-deficient: after unit-diagonal scaling its four eigenvalues span $\sim 10^{-7}$ to $4$, and from the second SCF cycle (when the external-field term is switched on) its smallest eigenvalue is negative. The solved coefficients reach $|c_k| \approx 6$ with $\sum_k c_k$ fixed near $-N$, i.e. they cancel heavily, and small changes in the density swing the potential. Because the same fit is repeated every SCF cycle, this noise is fed back into the iteration.
+
+By fitting the screening function directly on a radial grid under non-negativity and sum-to-one constraints (`use_grid_fit: true`), both charge conservation and the nuclear cusp condition hold by construction and coefficient cancellation is eliminated.
 
 ### 5.2 Formulation
 

@@ -423,12 +423,22 @@ class TestPolyatomicAnalyticalGradients:
         # 3. Non-trivial physical forces (not all zeros)
         assert np.max(np.abs(g_analytical)) > 1e-3, "Trivial zero polyatomic gradient output!"
 
-        # 4. Agreement with independent SCF finite difference for lateral restoring force (F_y)
+        # 4. Agreement with independent SCF finite difference for lateral restoring force (F_y).
+        # Note (approved 2026-11-09): With use_grid_fit=True as default, orbital relaxation
+        # shifts H2O lateral F_y from 0.0826 Ha/Bohr (unrelaxed method="analytical") to
+        # 0.0481 Ha/Bohr (relaxed CPHF and SCF FD); verify both unrelaxed (< 0.05) and
+        # relaxed CPHF (< 1e-3) agreement against SCF finite difference.
         g_fd = driver.scf_gradient_finite_difference(deck, step_size=1e-4)
         diff_lateral = abs(g_analytical[1, 1] - g_fd[1, 1])
-        assert diff_lateral < 0.02, (
-            f"H2O lateral force mismatch: analytical={g_analytical[1, 1]:.6f}, "
+        assert diff_lateral < 0.05, (
+            f"H2O unrelaxed lateral force mismatch: analytical={g_analytical[1, 1]:.6f}, "
             f"fd={g_fd[1, 1]:.6f}, diff={diff_lateral:.6f}"
+        )
+        g_cphf = driver.gradient(deck, method="relaxed")
+        diff_cphf = abs(g_cphf[1, 1] - g_fd[1, 1])
+        assert diff_cphf < 1e-3, (
+            f"H2O relaxed CPHF lateral force mismatch: cphf={g_cphf[1, 1]:.6f}, "
+            f"fd={g_fd[1, 1]:.6f}, diff={diff_cphf:.6f}"
         )
 
 
