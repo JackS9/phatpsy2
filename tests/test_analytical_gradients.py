@@ -640,15 +640,21 @@ class TestNonCircularAcceptanceGate:
         e_bar_A = float(np.average(eval_s[occ_mask], weights=occ_s[occ_mask]))
         K_B = e_bar_A * D_proj_B - D_eps_B
 
-        h = 1e-5
-        frame_p = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068 + h]))
-        frame_m = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068 - h]))
-        sp, _, _ = compute_diatomic_overlap_matrix_and_gradient(na, la, etaa, anorma, nb, lb, etab, anormb, frame_p)
-        sm, _, _ = compute_diatomic_overlap_matrix_and_gradient(na, la, etaa, anorma, nb, lb, etab, anormb, frame_m)
+        h = 1e-4
 
-        E_pk_p = np.trace(Pa @ sp @ K_B @ sp.T)
-        E_pk_m = np.trace(Pa @ sm @ K_B @ sm.T)
-        d_pk_fd = (E_pk_p - E_pk_m) / (2.0 * h)
+        def eval_e_pk(dz: float) -> float:
+            fr = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068 + dz]))
+            s_dz, _, _ = compute_diatomic_overlap_matrix_and_gradient(
+                na, la, etaa, anorma, nb, lb, etab, anormb, fr
+            )
+            return float(np.trace(Pa @ s_dz @ K_B @ s_dz.T))
+
+        d_pk_fd = (
+            -eval_e_pk(2.0 * h)
+            + 8.0 * eval_e_pk(h)
+            - 8.0 * eval_e_pk(-h)
+            + eval_e_pk(-2.0 * h)
+        ) / (12.0 * h)
 
         frame0 = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068]))
         s0, ds_dra, ds_drb = compute_diatomic_overlap_matrix_and_gradient(na, la, etaa, anorma, nb, lb, etab, anormb, frame0)
