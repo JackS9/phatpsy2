@@ -13,6 +13,8 @@ import re
 import math
 from phatpsy.basis import get_element_basis, BasisFunction, ElementData
 
+BOHR_PER_ANGSTROM: float = 1.8897261246257702
+
 
 def normalize_symmetry_axis(axis: Union[int, str, None]) -> Optional[int]:
     """
@@ -2018,6 +2020,16 @@ class CalculationDeck:
         control = ControlConfig.from_dict(data.get("control", {}))
         geom_data = data.get("geometry", [])
         geometry = [AtomConfig.from_dict(a) for a in geom_data]
+
+        units_raw = str(data.get("units", "bohr") or "bohr").strip().lower()
+        if units_raw in ("angstrom", "angstroms", "aa", "a"):
+            for atom in geometry:
+                if atom.xyz is not None and not atom.equivalent_to:
+                    atom.xyz = [float(c) * BOHR_PER_ANGSTROM for c in atom.xyz]
+        elif units_raw not in ("bohr", "bohrs", "au", "a.u."):
+            raise ValueError(
+                f"Unsupported units '{data.get('units')}' in CalculationDeck; expected 'bohr' or 'angstrom'."
+            )
 
         elem_data = data.get("elements", {})
         elements = {}

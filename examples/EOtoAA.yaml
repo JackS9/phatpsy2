@@ -21,44 +21,44 @@ geometry:
   spin: up
 - element: C
   xyz:
-  - 1.44
+  - 2.721206
   - 0.0
   - 0.0
   id: C2
   spin: down
 - element: O
   xyz:
-  - 1.87
-  - 1.23
+  - 3.533788
+  - 2.324363
   - 0.0
   id: O1
   spin: up
 - element: H
   xyz:
-  - -0.55
-  - 0.8
-  - 0.48
+  - -1.039349
+  - 1.511781
+  - 0.907069
   id: H1
   spin: up
 - element: H
   xyz:
-  - -0.6
-  - -0.67
-  - -0.6
+  - -1.133836
+  - -1.266117
+  - -1.133836
   id: H2
   spin: up
 - element: H
   xyz:
-  - 1.89
-  - -0.62
-  - -0.81
+  - 3.571582
+  - -1.17163
+  - -1.530678
   id: H3
   spin: down
 - element: H
   xyz:
-  - 1.7
-  - -0.58
-  - 0.94
+  - 3.212534
+  - -1.096041
+  - 1.776343
   id: H4
   spin: up
 elements:

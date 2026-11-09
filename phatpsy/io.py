@@ -8,6 +8,7 @@ from typing import Union, Dict, List, Tuple, Any, Optional
 import re
 from pathlib import Path
 from phatpsy.schema import (
+    BOHR_PER_ANGSTROM,
     CalculationDeck,
     ControlConfig,
     AtomConfig,
@@ -142,6 +143,9 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
         trace=bool(ctlinp.get("QTRACE", False)),
     )
 
+    qangst = bool(ctlinp.get("QANGST", False))
+    coord_scale = BOHR_PER_ANGSTROM if qangst else 1.0
+
     deck_body = content[ctlinp_m.end():] if ctlinp_m else content
     elem_blocks = re.split(r"&ELEM\b", deck_body, flags=re.IGNORECASE)
     elements = {}
@@ -199,7 +203,11 @@ def parse_stdin_to_deck(file_path: Union[str, Path]) -> CalculationDeck:
             atom_id = f"{sym}{atom_count_for_elem}"
 
             if xyz_m:
-                xyz = [float(xyz_m.group(1)), float(xyz_m.group(2)), float(xyz_m.group(3))]
+                xyz = [
+                    round(float(xyz_m.group(1)) * coord_scale, 6),
+                    round(float(xyz_m.group(2)) * coord_scale, 6),
+                    round(float(xyz_m.group(3)) * coord_scale, 6),
+                ]
                 starting_orbs = _parse_atorb_blocks(trailing_text) or None
                 if starting_orbs:
                     tot_alpha = sum(orb.occno[0] for orb in starting_orbs if len(orb.occno) > 0)
