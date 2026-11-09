@@ -101,3 +101,41 @@ def test_grid_fit_with_smearing_is_reproducible(co_grid_fit_result):
     assert second["total_energy"] == pytest.approx(co_grid_fit_result["total_energy"], abs=1.0e-8)
     assert second["cycles"] == co_grid_fit_result["cycles"]
 
+
+def test_automatic_annealing_and_gap_floor_on_unseeded_and_seeded_atoms():
+    """
+    Verify default atomic_smearing=0.0 applies early-cycle annealing + HOMO-LUMO gap floor
+    on unseeded atoms (relaxing H2O DZP out of non-Aufbau symmetry traps to integer final
+    occupations) while preserving directed hybrid occupations on seeded atoms (QNWVEC=T).
+    """
+    from phatpsy.builder import build_molecule
+
+    driver = PhatpsyDriver(quiet=True)
+
+    # 1. Unseeded H2O DZP with default atomic_smearing=0.0 reaches the -76.0389 Ha ground state
+    # and snaps back to exact integer occupations once the HOMO-LUMO gap opens.
+    h2o_dzp = build_molecule(
+        [("O", [0.0, 0.0, 0.0], "up"), ("H", [0.0, 1.43, 1.10], "down"), ("H", [0.0, -1.43, 1.10], "down")],
+        basis="DZP",
+        net_spin=-1,
+    )
+    assert h2o_dzp.control.atomic_smearing == 0.0
+    res_auto = driver.run_deck(h2o_dzp)
+    assert res_auto.converged is True
+    assert res_auto.total_energy == pytest.approx(-76.038907, abs=1.0e-4)
+    assert abs(res_auto.virial_ratio - 2.0) <= 0.02
+
+    # Final occupations on O1 and H1 are snapped to exact integers (0 or 1)
+    for aid in ("O1", "H1", "H2"):
+        for orb in res_auto.embedded_atoms[aid].to_dict()["orbitals"]:
+            for k in ("occ_alpha", "occ_beta"):
+                val = orb[k]
+                assert min(abs(val), abs(val - 1.0)) < 1.0e-6
+
+    # 2. Seeded N2 (QNWVEC=T) skips automatic early annealing and converges cleanly
+    n2_seeded = build_diatomic("N", "N", 2.068, basis="DZ", seed_hybrids=True)
+    res_n2 = driver.run_deck(n2_seeded)
+    assert res_n2.converged is True
+    assert abs(res_n2.virial_ratio - 2.0) <= 0.03
+
+

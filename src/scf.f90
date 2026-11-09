@@ -95,6 +95,83 @@ contains
   end function fermi_factor
 
   !---------------------------------------------------------------------
+  ! EFFECTIVE_ATOMIC_SMEARING:
+  ! Determines the effective Fermi-Dirac smearing width w_eff (in Hartree)
+  ! for one spin channel of an atom:
+  !   1. If SMEARW > 0 (explicit user setting), returns SMEARW.
+  !   2. If SMEARW < 0 (explicitly disabled), QFIRST (Cycle 1 separated
+  !      atoms), QNWVEC (explicit hybrid / valence_config seed),
+  !      .not. QOPEN (RHF half-occupied open shells), or QGFERM (global
+  !      molecular Fermi smearing), returns 0.0d0.
+  !   3. Otherwise (SMEARW == 0.0d0, automatic mode on unseeded UHF atoms):
+  !      Combines:
+  !      (a) Early-cycle annealing on Cycles 2..4:
+  !          w_anneal = 0.02 * 0.5**(NCYCL - 2) when 1 <= n_occ < nact_orb
+  !          and the HOMO-LUMO gap is within an open p/d subshell (< 0.15 Ha),
+  !      (b) HOMO-LUMO gap-triggered floor:
+  !          w_gap = max(1e-4, 0.5 * (1e-3 - gap_hl)) whenever gap_hl < 1e-3 Ha
+  !          (genuine frontier orbital degeneracy),
+  !      (c) T -> 0+ snap (1e-4 Ha) once annealing ends and gap_hl >= 1e-3 Ha
+  !          if occ still holds fractional values from earlier smearing cycles.
+  !---------------------------------------------------------------------
+  function effective_atomic_smearing(eps, occ, norb, nact_orb, smearw_in, &
+                                     ncycl_in, qfirst_in, qnwvec_in,      &
+                                     qopen_in, qgferm_in) result(w_eff)
+    integer(int32), intent(in) :: norb, nact_orb, ncycl_in
+    real(real64),   intent(in) :: eps(norb), occ(norb), smearw_in
+    logical,        intent(in) :: qfirst_in, qnwvec_in, qopen_in, qgferm_in
+    real(real64)               :: w_eff
+
+    real(real64), parameter :: W_ANNEAL_INIT  = 0.02d0
+    real(real64), parameter :: GAP_MIN        = 1.0d-3
+    real(real64), parameter :: GAP_SUBSHELL   = 0.15d0
+    real(real64), parameter :: W_SNAP         = 1.0d-4
+    integer(int32), parameter :: N_ANNEAL_MAX = 4
+
+    real(real64)   :: nel, gap_hl, w_anneal, w_gap
+    integer(int32) :: n_occ, io
+    logical        :: has_frac
+
+    if (smearw_in > 0.0d0) then
+      w_eff = smearw_in
+      return
+    end if
+
+    w_eff = 0.0d0
+    if (smearw_in < 0.0d0 .or. qfirst_in .or. qnwvec_in .or. (.not. qopen_in) .or. qgferm_in) return
+
+    nel   = sum(occ(1:norb))
+    n_occ = nint(nel)
+    if (abs(nel - real(n_occ, real64)) > 1.0d-4) return
+    if (n_occ < 1 .or. n_occ >= nact_orb) return
+
+    gap_hl = max(0.0d0, eps(n_occ + 1) - eps(n_occ))
+
+    w_anneal = 0.0d0
+    if (ncycl_in >= 2 .and. ncycl_in <= N_ANNEAL_MAX .and. gap_hl < GAP_SUBSHELL) then
+      w_anneal = W_ANNEAL_INIT * (0.5d0 ** (ncycl_in - 2))
+    end if
+
+    w_gap = 0.0d0
+    if (gap_hl < GAP_MIN) then
+      w_gap = max(W_SNAP, 0.5d0 * (GAP_MIN - gap_hl))
+    end if
+
+    w_eff = max(w_anneal, w_gap)
+
+    if (w_eff <= 0.0d0) then
+      has_frac = .false.
+      do io = 1, norb
+        if (occ(io) > 1.0d-6 .and. occ(io) < 1.0d0 - 1.0d-6) then
+          has_frac = .true.
+          exit
+        end if
+      end do
+      if (has_frac) w_eff = W_SNAP
+    end if
+  end function effective_atomic_smearing
+
+  !---------------------------------------------------------------------
   ! ORTHONORMALIZE_PROJECTED_ORBITALS:
   ! After PK back-projection onevec = (I - S_A^{-1} P_B) * stevec,
   ! orthonormalize the occupied orbitals (occ > 0) among themselves via
@@ -219,7 +296,7 @@ contains
     integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb, nact_orb
     integer(int32)   :: nv, niter, ij, iterm1, ierr, ieqat, isym, ixyz, matom
     real(real64)     :: x, y, z, toten, zzrep, rmAx, tke, te, endiff, oldte
-    real(real64)     :: oldiff, tcoul0, zzrep0
+    real(real64)     :: oldiff, tcoul0, zzrep0, w_eff
     logical(kind=1)  :: qx2inc, qnrmlz, qtrunc, qindef, qdivrg, qdone, qnword, qdummy
 
     real(real64), external :: AVERAG
@@ -401,9 +478,20 @@ contains
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
-            ! Optional Fermi-Dirac atomic occupations (SMEARW > 0): smooth in the
-            ! eigenvalues, so tiny eigensolver noise cannot flip an occupation.
-            if (SMEARW > 0.0d0) call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, SMEARW)
+            ! Identify active core+valence orbital subspace (1..nact_orb)
+            ! excluding trailing purely virtual polarization slots (occ == 0 in both spins).
+            nact_orb = 0
+            do iorb = 1, NORB
+              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
+            end do
+            if (nact_orb <= 0) nact_orb = NORB
+
+            ! Fermi-Dirac atomic occupations: either explicit (SMEARW > 0) or
+            ! automatic early-cycle annealing + HOMO-LUMO gap floor on unseeded atoms.
+            w_eff = effective_atomic_smearing(eval(1, isp), occ(1, isp), NORB, nact_orb, &
+                                              SMEARW, NCYCL, logical(QFIRST), logical(QNWVEC), &
+                                              logical(QOPEN), logical(QGFERM))
+            if (w_eff > 0.0d0) call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, w_eff)
             oldvec(:, :, isp) = stevec(:, :, isp)
 
             call DMPAB(tranx(1,1,isp), MSTO, MSTO, MSTO, MSTO, onevec, MSTO, &
@@ -417,14 +505,6 @@ contains
                 stevec(:, 1:NORB, isp) = onevec(:, 1:NORB)
               end if
 
-              ! Identify active core+valence orbital subspace (1..nact_orb)
-              ! excluding trailing purely virtual polarization slots (occ == 0 in both spins).
-              nact_orb = 0
-              do iorb = 1, NORB
-                if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
-              end do
-              if (nact_orb <= 0) nact_orb = NORB
-
               ! Normalize stevec in S_A metric before MAXOVL so Bessel's inequality
               ! (sum_j |<old_i | S_A | new_j>|^2 <= 1) holds in MAXOVL.
               onevec(:, 1:NORB) = stevec(:, 1:NORB, isp)
@@ -434,7 +514,7 @@ contains
                           stovl_bak, MSTO, M2STO, nact_orb, qnword)
               ! With smeared occupations the occupation follows the energy ordering,
               ! so no overlap-based reordering of occupation numbers is wanted.
-              if (qnword .and. SMEARW <= 0.0d0) then
+              if (qnword .and. w_eff <= 0.0d0) then
                 if (any(abs(occ(1:nact_orb, isp) - occ(iorder(1:nact_orb, isp), isp)) > 1.0d-8)) then
                   call NEWORD(occ(1,isp), scrat1, iorder(1:nact_orb, isp), nact_orb)
                 else
@@ -480,13 +560,14 @@ contains
               end if
 
               if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
+              iorder(1:NORB, isp) = [(iorb, iorb = 1, NORB)]
               call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
-                          stovl, MSTO, M2STO, NORB, qnword)
+                          stovl, MSTO, M2STO, nact_orb, qnword)
               ! With smeared occupations the occupation follows the energy ordering,
               ! so no overlap-based reordering of occupation numbers is wanted.
-              if (qnword .and. SMEARW <= 0.0d0) then
-                if (any(abs(occ(1:NORB, isp) - occ(iorder(1:NORB, isp), isp)) > 1.0d-8)) then
-                  call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
+              if (qnword .and. w_eff <= 0.0d0) then
+                if (any(abs(occ(1:nact_orb, isp) - occ(iorder(1:nact_orb, isp), isp)) > 1.0d-8)) then
+                  call NEWORD(occ(1,isp), scrat1, iorder(1:nact_orb, isp), nact_orb)
                 else
                   qnword = .false.
                 end if
