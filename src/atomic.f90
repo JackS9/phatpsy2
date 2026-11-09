@@ -501,7 +501,7 @@ contains
               call FLIP(gamma,  1, 2, gamma,  2, 2, NORB)
               call FLIP(pkpot,  1, ISPIN, pkpot, ISPIN, ISPIN, 6 * M2STO)
             end if
-            if (.not. QRSTRT .and. isym /= 0) then
+            if (QNWVEC .and. .not. QRSTRT .and. isym /= 0) then
               do isp = 1, ISPIN
                 call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
                 call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &

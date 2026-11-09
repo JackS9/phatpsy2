@@ -541,6 +541,9 @@ contains
         if (iorb <= ncore) then
           vdevc = vdevc + vdev**2
           wgt   = WGTC / (ORBOCC * ncore)
+        else if (.not. QNWVEC) then
+          vdevv = vdevv + vdev**2
+          wgt   = WGTV / (ORBOCC * (NORB - ncore))
         else if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6 .and. nval_active > 0) then
           vdevv = vdevv + vdev**2
           wgt   = WGTV / (ORBOCC * nval_active)
