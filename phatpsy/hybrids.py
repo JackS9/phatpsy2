@@ -491,24 +491,30 @@ def valence_space(elem: ElementData) -> ValenceSpace:
         raise ValueError(f"{elem.symbol}: no occupied s orbital in the default orbitals")
     k_s = max(occupied_s, key=lambda k: orbs[k].eigval[0])
     radial_s = {int(c[0]): float(c[2]) for c in orbs[k_s].coefficients}
+    if radial_s and max(radial_s.values(), key=abs) < 0:
+        radial_s = {k: -v for k, v in radial_s.items()}
     eps_s = float(orbs[k_s].eigval[0])
 
-    # p-orbitals
-    p_orbs = [k for k, o in enumerate(orbs) if ls[k][0] == 1]
+    # p-orbitals (only part of the valence shell for Z > 2)
+    p_orbs = [k for k, o in enumerate(orbs) if ls[k][0] == 1] if elem.atomic_number > 2 else []
     p_group = sorted(p_orbs[-3:]) if len(p_orbs) >= 3 else []
     if p_group:
         k0 = next((k for k in p_group if ls[k][1] == 0), p_group[0])
         radial_p = {int(c[0]): float(c[2]) for c in orbs[k0].coefficients}
+        if radial_p and max(radial_p.values(), key=abs) < 0:
+            radial_p = {k: -v for k, v in radial_p.items()}
         eps_p = float(orbs[k0].eigval[0])
     else:
         radial_p, eps_p = {}, 0.0
 
-    # d-orbitals (transition metals, heavy elements)
-    d_orbs = [k for k, o in enumerate(orbs) if ls[k][0] == 2]
+    # d-orbitals (transition metals, heavy elements, or d-hybrid specs)
+    d_orbs = [k for k, o in enumerate(orbs) if ls[k][0] == 2] if elem.atomic_number > 2 else []
     d_group = sorted(d_orbs[-5:]) if len(d_orbs) >= 5 else []
     if d_group:
         kd0 = next((k for k in d_group if ls[k][1] == 0), d_group[0])
         radial_d = {int(c[0]): float(c[2]) for c in orbs[kd0].coefficients}
+        if radial_d and max(radial_d.values(), key=abs) < 0:
+            radial_d = {k: -v for k, v in radial_d.items()}
         eps_d = float(orbs[kd0].eigval[0])
     else:
         radial_d, eps_d = {}, 0.0
@@ -766,6 +772,8 @@ def build_atom_orbitals(
     s_in_sigma: bool = True,
     hybridization: Optional[Union[str, HybridizationType]] = None,
     delta_dirs: Sequence[np.ndarray] = (),
+    charge: float = 0.0,
+    valence_electrons: Optional[int] = None,
 ) -> List[InitialOrbital]:
     """
     Constructs replacement ``starting_orbitals`` for one atom in its valence state.
@@ -787,6 +795,12 @@ def build_atom_orbitals(
     if hybridization is not None:
         spec = get_hybridization_spec(hybridization)
 
+    eff_nv = (
+        int(valence_electrons)
+        if valence_electrons is not None
+        else int(round(vs.valence_electrons - charge))
+    )
+
     # Check s-only valence shell (H, He)
     if not vs.p_indices and not vs.d_indices:
         n_bonds = len(sigma_dirs) if spec is None else spec.n_sigma
@@ -796,17 +810,39 @@ def build_atom_orbitals(
         lib[k] = replace(lib[k], occno=list(bond_occ))
         return lib
 
-    has_d = (spec is not None and spec.has_d_orbitals) or bool(vs.d_indices) or bool(delta_dirs)
+    is_tm_d = bool(vs.d_indices) and (
+        elem.atomic_number >= 21
+        or any(sum(elem.default_orbitals[k].occno) > 0 for k in vs.d_indices)
+    )
+    has_d = (
+        (spec.has_d_orbitals or bool(delta_dirs))
+        if spec is not None
+        else (is_tm_d or bool(delta_dirs))
+    )
+
+    is_terminal_triple_group14 = False
+    is_terminal_triple_group16 = False
 
     if spec is not None:
         rot_sigma, rot_pi, rot_delta, R = align_hybrid_to_neighbors(spec, sigma_dirs)
         if spec.has_d_orbitals:
             vecs = _construct_d_hybrid_vectors(spec, R)
         else:
-            n_bond_e = spec.n_sigma + spec.n_pi + spec.n_delta
-            leftover = vs.valence_electrons - n_bond_e
+            if spec.name == "sp" and len(sigma_dirs) == 1:
+                rot_sigma = [rot_sigma[0]]
+                n_bond_e = 1 + len(rot_pi) + len(rot_delta)
+                if valence_electrons is None and charge == 0.0 and eff_nv in (4, 6):
+                    is_terminal_triple_group14 = (eff_nv == 4)
+                    is_terminal_triple_group16 = (eff_nv == 6)
+                    eff_nv = 5
+            else:
+                n_bond_e = spec.n_sigma + spec.n_pi + spec.n_delta
+                if spec.name == "sp" and valence_electrons is None and charge == 0.0 and eff_nv == 6:
+                    is_terminal_triple_group16 = True
+                    eff_nv = 5
+            leftover = eff_nv - n_bond_e
             if leftover < 0:
-                raise ValueError(f"{elem.symbol}: {n_bond_e} bonds exceed {vs.valence_electrons} valence electrons")
+                raise ValueError(f"{elem.symbol}: {n_bond_e} bonds exceed {eff_nv} valence electrons")
             n_lp, n_extra = divmod(leftover, 2)
             vecs = atom_valence_vectors(
                 rot_sigma,
@@ -818,9 +854,20 @@ def build_atom_orbitals(
             )
     else:
         n_bond_e = len(sigma_dirs) + len(pi_dirs) + len(delta_dirs)
-        leftover = vs.valence_electrons - n_bond_e
+        if (
+            not has_d
+            and len(sigma_dirs) == 1
+            and len(pi_dirs) == 2
+            and valence_electrons is None
+            and charge == 0.0
+            and eff_nv in (4, 6)
+        ):
+            is_terminal_triple_group14 = (eff_nv == 4)
+            is_terminal_triple_group16 = (eff_nv == 6)
+            eff_nv = 5
+        leftover = eff_nv - n_bond_e
         if leftover < 0:
-            raise ValueError(f"{elem.symbol}: {n_bond_e} bonds exceed {vs.valence_electrons} valence electrons")
+            raise ValueError(f"{elem.symbol}: {n_bond_e} bonds exceed {eff_nv} valence electrons")
         n_lp, n_extra = divmod(leftover, 2)
         vecs = atom_valence_vectors(
             sigma_dirs,
@@ -837,7 +884,7 @@ def build_atom_orbitals(
         # Explicit non-bonding pool (e.g. from d-hybrids)
         nb_pool = vecs["non_bonding"]
         n_bond_e = len(vecs.get("sigma", [])) + len(vecs.get("pi", [])) + len(vecs.get("delta", []))
-        leftover = max(vs.valence_electrons - n_bond_e, 0)
+        leftover = max(eff_nv - n_bond_e, 0)
         n_lp, n_extra = divmod(leftover, 2)
         ordered: List[Tuple[np.ndarray, List[float]]] = []
         ordered += [(v, [1.0, 1.0]) for v in nb_pool[:n_lp]]
@@ -849,10 +896,20 @@ def build_atom_orbitals(
         ordered += [(v, [0.0, 0.0]) for v in nb_pool[n_lp + n_extra :]]
     else:
         # Standard pools from atom_valence_vectors
-        ordered: List[Tuple[np.ndarray, List[float]]] = []
-        ordered += [(v, [1.0, 1.0]) for v in vecs.get("lone", [])]
+        ordered = []
+        lp_occ = [1.0, 1.0]
+        if is_terminal_triple_group14:
+            lp_occ = [0.0, 1.0] if bond_occ[0] >= bond_occ[1] else [1.0, 0.0]
+        ordered += [(v, list(lp_occ)) for v in vecs.get("lone", [])]
         ordered += [(v, list(bond_occ)) for v in vecs.get("sigma", [])]
-        ordered += [(v, list(bond_occ)) for v in vecs.get("pi", [])]
+        for v in vecs.get("pi", []):
+            pi_occ = list(bond_occ)
+            if is_terminal_triple_group16:
+                if pi_occ[0] < pi_occ[1]:
+                    pi_occ = [0.5, pi_occ[1]]
+                else:
+                    pi_occ = [pi_occ[0], 0.5]
+            ordered.append((v, pi_occ))
         ordered += [(v, list(bond_occ)) for v in vecs.get("delta", [])]
         ordered += [(v, list(bond_occ)) for v in vecs.get("extra", [])]
         ordered += [(v, [0.0, 0.0]) for v in vecs.get("empty", [])]
@@ -894,6 +951,18 @@ def apply_hybrid_seeds(
         for (i, j), order in bonds.items():
             neighbours[i].append((j, int(order)))
             neighbours[j].append((i, int(order)))
+    elif any(getattr(a, "hybridization", None) == "sp" for a in deck.geometry):
+        if len(xyz) == 2:
+            neighbours[0].append((1, 3))
+            neighbours[1].append((0, 3))
+        else:
+            sp_indices = [idx for idx, a in enumerate(deck.geometry) if getattr(a, "hybridization", None) == "sp"]
+            for i_sp in sp_indices:
+                other_sp = [j_sp for j_sp in sp_indices if j_sp != i_sp]
+                if other_sp:
+                    j_nearest = min(other_sp, key=lambda j_sp: float(np.linalg.norm(xyz[j_sp] - xyz[i_sp])))
+                    if (j_nearest, 3) not in neighbours[i_sp]:
+                        neighbours[i_sp].append((j_nearest, 3))
 
     def sigma_dirs_of(i: int) -> List[np.ndarray]:
         return [_unit(xyz[j] - xyz[i]) for j, _ in neighbours[i]]
@@ -901,6 +970,7 @@ def apply_hybrid_seeds(
     for i, atom in enumerate(deck.geometry):
         sym = atom.element.strip().capitalize()
         sigma = sigma_dirs_of(i)
+        atom_charge = float(getattr(atom, "charge", 0.0) or 0.0)
 
         # Check explicit named hybridization on atom
         if getattr(atom, "hybridization", None):
@@ -909,7 +979,11 @@ def apply_hybrid_seeds(
                 spin=atom.spin or "up",
                 sigma_dirs=sigma,
                 hybridization=atom.hybridization,
+                charge=atom_charge,
             )
+            continue
+
+        if bonds is None and not neighbours[i]:
             continue
 
         # Automatic derivation from bond graph

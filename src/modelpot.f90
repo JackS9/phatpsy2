@@ -348,7 +348,9 @@ contains
     logical :: needs_reg
 
     delta = 1.0d-3
-    if (present(delta_in)) delta = delta_in
+    if (present(delta_in)) then
+      if (delta_in > 0.0d0) delta = delta_in
+    end if
     tol = 1.0d-10
 
     ! Quick check: if norm of P is negligible, exit immediately
@@ -434,21 +436,23 @@ contains
       end do
       p_lowdin = matmul(tmp1, transpose(v_p))
 
-      ! Scale B in the V_P basis:
-      ! B_vp = V_P^T * B_lowdin * V_P
-      allocate(b_vp(msto, msto))
-      tmp1 = matmul(b_lowdin, v_p)
-      b_vp = matmul(transpose(v_p), tmp1)
+      ! Scale B in the V_P basis only if any mode exceeds 1 - 1e-3:
+      if (max_lam > 0.999d0) then
+        allocate(b_vp(msto, msto))
+        tmp1 = matmul(b_lowdin, v_p)
+        b_vp = matmul(transpose(v_p), tmp1)
 
-      do j = 1, msto
-        do i = 1, msto
-          b_vp(i, j) = b_vp(i, j) * sqrt(s_modes(i) * s_modes(j))
+        do j = 1, msto
+          do i = 1, msto
+            b_vp(i, j) = b_vp(i, j) * sqrt(min(1.0d0, 0.999d0 / max(lam_p(i), tol)) * &
+                                           min(1.0d0, 0.999d0 / max(lam_p(j), tol)))
+          end do
         end do
-      end do
 
-      tmp1 = matmul(b_vp, transpose(v_p))
-      b_lowdin = matmul(v_p, tmp1)
-      deallocate(b_vp)
+        tmp1 = matmul(b_vp, transpose(v_p))
+        b_lowdin = matmul(v_p, tmp1)
+        deallocate(b_vp)
+      end if
 
       ! Transform regularized P and B back to STO basis:
       ! P_reg = S^(1/2) * P_lowdin_reg * S^(1/2)

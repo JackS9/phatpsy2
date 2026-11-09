@@ -82,7 +82,7 @@ The `geometry:` key contains a list of atomic specifications. Each entry defines
 
 ### Electronic Properties
 
-* **`charge`** (`float`, default `0.0`): Net formal charge on the atom.
+* **`charge`** (`float`, default `0.0`): Net formal charge on the atom (must be integer-valued when `valence_config` is specified).
 * **`spin`** (`str` or `int`, optional): Initial spin projection for the atom:
   * Accepts: `up`, `down`, `alpha`, `beta`, `+1`, `-1`, or `None`.
   * Used by the local valence bond (LVB) starting projector.
@@ -90,6 +90,12 @@ The `geometry:` key contains a list of atomic specifications. Each entry defines
   * Main-group ($s + p$): `"s"`, `"sp"`, `"sp2"`, `"sp2_bent"`, `"sp3"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`.
   * Transition-metal ($s + p + d$): `"dsp2"` (square planar), `"d2sp3"` (octahedral), `"dsp3"` (trigonal bipyramidal), `"sd3"`, `"sd"`, `"delta"` ($\delta$-bonding pair).
   The local hybrid frame automatically rotates via the Kabsch algorithm to maximize directional overlap with bonded neighbors.
+* **`valence_config`** (`list[dict]`, optional): Explicit orbital-level valence electron and orientation assignment (`ValenceOrbital` records). Each entry supports:
+  * `spin`: `"up"`, `"down"`, or `"none"` (consistent with `occupation`: `1` $\iff$ `"up"`/`"down"`; `0` or `2` $\iff$ `"none"`).
+  * `orbital_type`: `"sigma"`, `"pi"`, `"delta"`, or `"lone_pair"` (orbital role/symmetry; emptiness is encoded via `occupation: 0`, and `"lone_pair"` requires `occupation: 2`).
+  * `occupation`: `0` (empty), `1` (singly occupied), or `2` (doubly occupied).
+  * `connect_to` (`str`, optional): Target atom `id` this orbital points toward. A dative/coordinate bond is encoded as a matched pair: a donor `lone_pair` (`occupation: 2`, `connect_to: <acceptor>`) and a vacant acceptor orbital on the partner (`occupation: 0`, `connect_to: <donor>`).
+  * `plane` (`list[str]`, optional): 1–3 atom `id` labels defining a reference plane, paired with `orientation: "in_plane"` (default) or `"out_of_plane"` (requires $\ge 2$ plane labels).
 
 ### Special Center Roles
 

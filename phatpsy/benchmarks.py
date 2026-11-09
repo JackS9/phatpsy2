@@ -89,7 +89,16 @@ def evaluate_co_benchmark(
     ctrl = control or ControlConfig.first_principles(use_pseudometric=True)
     r_expt = 2.1322
 
-    deck = build_diatomic("C", "O", r_expt, basis="DZ", spins=["up", "up"], units="bohr")
+    deck = build_diatomic(
+        "C",
+        "O",
+        r_expt,
+        basis="DZ",
+        hybridization="sp",
+        spins=["up", "down"],
+        net_spin=0,
+        units="bohr",
+    )
     deck.control = ctrl
     res = d.run_deck(deck)
 
@@ -321,7 +330,16 @@ def evaluate_dissociation_energies_benchmark(
     deck_n2.control = ctrl
     res_n2 = d.run_deck(deck_n2)
 
-    deck_co = build_diatomic("C", "O", 2.1322, basis="DZ", spins=["up", "up"], units="bohr")
+    deck_co = build_diatomic(
+        "C",
+        "O",
+        2.1322,
+        basis="DZ",
+        hybridization="sp",
+        spins=["up", "down"],
+        net_spin=0,
+        units="bohr",
+    )
     deck_co.control = ctrl
     res_co = d.run_deck(deck_co)
 

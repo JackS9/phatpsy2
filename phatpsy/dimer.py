@@ -497,23 +497,30 @@ def dimer_search(
     n_atoms = len(atoms)
     dim = 3 * n_atoms
 
-    # Active mask (unfrozen, non-virtual)
+    # Active mask (unfrozen, non-virtual, independent primary atoms)
     active_mask = np.zeros(dim, dtype=bool)
     active_indices = []
     for i, a in enumerate(atoms):
-        if not a.fixed and not a.virtual:
+        if not a.fixed and not a.virtual and a.symmetry is None and a.equivalent_to is None:
             active_mask[i * 3: i * 3 + 3] = True
             active_indices.extend([i * 3, i * 3 + 1, i * 3 + 2])
 
+    from phatpsy.schema import resolve_atom_coordinates
+    resolve_atom_coordinates(atoms, force_symmetry=True)
     coords0 = np.array([a.xyz for a in atoms], dtype=np.float64).flatten()
 
     last_state: Optional[CalculationState] = None
 
-    def evaluate_energy(c_flat: np.ndarray) -> float:
-        nonlocal last_state
+    def _unpack_and_sync(c_flat: np.ndarray) -> List[AtomConfig]:
         test_atoms = copy.deepcopy(atoms)
         for i in range(n_atoms):
             test_atoms[i].xyz = [float(c_flat[i * 3]), float(c_flat[i * 3 + 1]), float(c_flat[i * 3 + 2])]
+        resolve_atom_coordinates(test_atoms, force_symmetry=True)
+        return test_atoms
+
+    def evaluate_energy(c_flat: np.ndarray) -> float:
+        nonlocal last_state
+        test_atoms = _unpack_and_sync(c_flat)
         d = copy.deepcopy(calc_deck)
         d.geometry = test_atoms
         if warm_restart and last_state is not None and last_state.converged:
@@ -532,9 +539,7 @@ def dimer_search(
         for idx in active_indices:
             cp = c_flat.copy()
             cp[idx] += h
-            atoms_p = copy.deepcopy(atoms)
-            for i in range(n_atoms):
-                atoms_p[i].xyz = [float(cp[i * 3]), float(cp[i * 3 + 1]), float(cp[i * 3 + 2])]
+            atoms_p = _unpack_and_sync(cp)
             dp = copy.deepcopy(calc_deck)
             dp.geometry = atoms_p
             if warm_restart and last_state is not None and last_state.converged:
@@ -544,9 +549,7 @@ def dimer_search(
 
             cm = c_flat.copy()
             cm[idx] -= h
-            atoms_m = copy.deepcopy(atoms)
-            for i in range(n_atoms):
-                atoms_m[i].xyz = [float(cm[i * 3]), float(cm[i * 3 + 1]), float(cm[i * 3 + 2])]
+            atoms_m = _unpack_and_sync(cm)
             dm = copy.deepcopy(calc_deck)
             dm.geometry = atoms_m
             if warm_restart and last_state is not None and last_state.converged:
@@ -598,9 +601,7 @@ def dimer_search(
     )
 
     # Build saddle CalculationDeck
-    saddle_atoms = copy.deepcopy(atoms)
-    for i in range(n_atoms):
-        saddle_atoms[i].xyz = [float(r_saddle[i * 3]), float(r_saddle[i * 3 + 1]), float(r_saddle[i * 3 + 2])]
+    saddle_atoms = _unpack_and_sync(r_saddle)
     saddle_deck = copy.deepcopy(calc_deck)
     saddle_deck.geometry = saddle_atoms
 
@@ -609,10 +610,8 @@ def dimer_search(
     for rec in traj_recs:
         c_step = rec["coordinates"]
         n_step = rec["orientation"]
-        coords_list = [
-            [float(c_step[i * 3]), float(c_step[i * 3 + 1]), float(c_step[i * 3 + 2])]
-            for i in range(n_atoms)
-        ]
+        step_atoms = _unpack_and_sync(c_step)
+        coords_list = [list(a.xyz) for a in step_atoms]
         n_list = [
             [float(n_step[i * 3]), float(n_step[i * 3 + 1]), float(n_step[i * 3 + 2])]
             for i in range(n_atoms)

@@ -33,7 +33,7 @@ contains
 
     integer(int32)  :: isp, korbta, iorba, kstota, jstoa, istoa, llap1, imla, mla
     integer(int32)  :: nv, nva, incr, nelemb, korb_abs, i, j
-    real(real64)    :: vnorm
+    real(real64)    :: vnorm, vdamp_save
     logical(kind=1) :: qskip
 
     if (.not. QVIRTL) then
@@ -118,7 +118,11 @@ contains
       end if
     end if
 
-    ! Apply external potential damping factor VDAMP
+    ! Apply external potential damping factor VDAMP (skip damping against zero on the
+    ! first cycle that accumulates two-center potentials for hybridized decks so nuclear
+    ! repulsion, nuclear attraction, and the idempotent PK projector start at 100% strength).
+    vdamp_save = VDAMP
+    if (QNWVEC .and. zzrepa == 0.0d0) VDAMP = 0.0d0
     cpot2a = VDAMP * cpot2a
     zpot2a = VDAMP * zpot2a
     vfit2a = VDAMP * vfit2a
@@ -158,6 +162,10 @@ contains
         JDFAT1 = 1
         qskip  = .false.
       end do
+    end if
+    VDAMP = vdamp_save
+
+    if (.not. QVIRTL) then
 
       if (QPNCHK .and. (KATOM < 0) .and. (KORB /= 0)) write(IP, 2000) RENRMA, RENRMB
       if (QPNCHK .and. (KSP > 0) .and. (KSP <= ISPIN)) then

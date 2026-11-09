@@ -5,7 +5,7 @@ Provides two-way conversion between high-level Python/YAML/JSON representations
 and legacy Fortran stdin decks.
 """
 from dataclasses import dataclass, field, asdict, replace
-from typing import List, Dict, Tuple, Optional, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union, Sequence
 from pathlib import Path
 import yaml
 import json
@@ -262,6 +262,282 @@ class SymmetrySpec:
         return asdict(self)
 
 
+# Periodic table atomic numbers (Z = 1..118), cross-checked against phatpsy.formats.PERIODIC_TABLE
+ATOMIC_NUMBERS: Dict[str, int] = {
+    "H": 1, "He": 2,
+    "Li": 3, "Be": 4, "B": 5, "C": 6, "N": 7, "O": 8, "F": 9, "Ne": 10,
+    "Na": 11, "Mg": 12, "Al": 13, "Si": 14, "P": 15, "S": 16, "Cl": 17, "Ar": 18,
+    "K": 19, "Ca": 20, "Sc": 21, "Ti": 22, "V": 23, "Cr": 24, "Mn": 25, "Fe": 26, "Co": 27, "Ni": 28, "Cu": 29, "Zn": 30,
+    "Ga": 31, "Ge": 32, "As": 33, "Se": 34, "Br": 35, "Kr": 36,
+    "Rb": 37, "Sr": 38, "Y": 39, "Zr": 40, "Nb": 41, "Mo": 42, "Tc": 43, "Ru": 44, "Rh": 45, "Pd": 46, "Ag": 47, "Cd": 48,
+    "In": 49, "Sn": 50, "Sb": 51, "Te": 52, "I": 53, "Xe": 54,
+    "Cs": 55, "Ba": 56, "La": 57, "Ce": 58, "Pr": 59, "Nd": 60, "Pm": 61, "Sm": 62, "Eu": 63, "Gd": 64, "Tb": 65, "Dy": 66, "Ho": 67, "Er": 68, "Tm": 69, "Yb": 70, "Lu": 71,
+    "Hf": 72, "Ta": 73, "W": 74, "Re": 75, "Os": 76, "Ir": 77, "Pt": 78, "Au": 79, "Hg": 80,
+    "Tl": 81, "Pb": 82, "Bi": 83, "Po": 84, "At": 85, "Rn": 86,
+    "Fr": 87, "Ra": 88, "Ac": 89, "Th": 90, "Pa": 91, "U": 92, "Np": 93, "Pu": 94, "Am": 95, "Cm": 96, "Bk": 97, "Cf": 98, "Es": 99, "Fm": 100, "Md": 101, "No": 102, "Lr": 103,
+    "Rf": 104, "Db": 105, "Sg": 106, "Bh": 107, "Hs": 108, "Mt": 109, "Ds": 110, "Rg": 111, "Cn": 112,
+    "Nh": 113, "Fl": 114, "Mc": 115, "Lv": 116, "Ts": 117, "Og": 118,
+}
+
+NOBLE_CORES: Tuple[int, ...] = (0, 2, 10, 18, 36, 54, 86)
+NOBLE_NEXT: Tuple[int, ...] = (2, 10, 18, 36, 54, 86, 118)
+
+VALID_ORBITAL_TYPES: Tuple[str, ...] = ("sigma", "pi", "delta", "lone_pair")
+VALID_ORIENTATIONS: Tuple[str, ...] = ("in_plane", "out_of_plane")
+
+
+def core(Z: int) -> int:
+    """Returns the noble-gas core electron count for atomic number Z."""
+    z_int = int(Z)
+    if z_int < 1 or z_int > 118:
+        raise ValueError(f"Atomic number Z must be in 1..118, got {Z!r}")
+    return max(c for c in NOBLE_CORES if c <= z_int)
+
+
+def core_next(Z: int) -> int:
+    """Returns the next noble-gas shell closure electron count for atomic number Z."""
+    z_int = int(Z)
+    if z_int < 1 or z_int > 118:
+        raise ValueError(f"Atomic number Z must be in 1..118, got {Z!r}")
+    return min(c for c in NOBLE_NEXT if c >= z_int)
+
+
+def total_valency_available(Z: int) -> int:
+    """Returns total valence electron capacity (core_next(Z) - core(Z)) in {0, 2, 8, 18, 32}."""
+    return core_next(Z) - core(Z)
+
+
+def n_valence_orbitals(Z: int) -> int:
+    """Returns the number of valence orbitals (total_valency_available(Z) // 2)."""
+    return total_valency_available(Z) // 2
+
+
+def occupied_valency(Z: int, charge: float = 0.0) -> int:
+    """Returns the number of valence electrons (Z - core(Z) - charge)."""
+    if isinstance(charge, bool) or abs(float(charge) - round(float(charge))) > 1e-9:
+        raise ValueError(f"Formal charge must be integer-valued for occupied_valency, got {charge!r}")
+    occ = int(Z) - core(Z) - int(round(float(charge)))
+    if occ < 0 or occ > total_valency_available(Z):
+        raise ValueError(
+            f"Invalid occupied_valency={occ} for Z={Z}, charge={charge} "
+            f"(allowed range 0..{total_valency_available(Z)})"
+        )
+    return occ
+
+
+@dataclass
+class ValenceOrbital:
+    """
+    Orbital-level valence electron and orientation record on an AtomConfig.
+    """
+    spin: str = "none"
+    # 'up' | 'down' | 'none' — same vocabulary as AtomConfig.spin
+    orbital_type: str = "sigma"
+    # role / symmetry: sigma | pi | delta | lone_pair
+    occupation: int = 0
+    # electrons in this orbital: 0 (empty), 1 (singly occupied), 2 (doubly occupied)
+    connect_to: Optional[str] = None
+    # atom label this orbital is directed at / interacts with
+    plane: Optional[List[str]] = None
+    # None / unknown, or 1-3 atom labels
+    orientation: str = "in_plane"
+    # in_plane (default) | out_of_plane
+
+    def __post_init__(self):
+        # Rule 1: Normalize and validate spin
+        if isinstance(self.spin, bool) or self.spin is None:
+            raise ValueError(f"ValenceOrbital.spin must be 'up', 'down', or 'none' (or +1/-1/0), got {self.spin!r}")
+        if isinstance(self.spin, int):
+            if self.spin == 1:
+                self.spin = "up"
+            elif self.spin == -1:
+                self.spin = "down"
+            elif self.spin == 0:
+                self.spin = "none"
+            else:
+                raise ValueError(f"ValenceOrbital.spin integer must be +1, -1, or 0, got {self.spin!r}")
+        elif isinstance(self.spin, str):
+            s = self.spin.strip().lower()
+            if s in ("up", "alpha", "+1", "+"):
+                self.spin = "up"
+            elif s in ("down", "beta", "-1", "-"):
+                self.spin = "down"
+            elif s in ("none", "0"):
+                self.spin = "none"
+            else:
+                raise ValueError(f"ValenceOrbital.spin must be 'up', 'down', or 'none', got {self.spin!r}")
+        else:
+            raise ValueError(f"ValenceOrbital.spin must be 'up', 'down', or 'none', got {self.spin!r}")
+
+        # Rule 2: Validate orbital_type
+        if not isinstance(self.orbital_type, str):
+            raise ValueError(f"ValenceOrbital.orbital_type must be a string in {VALID_ORBITAL_TYPES}, got {self.orbital_type!r}")
+        ot = self.orbital_type.strip().lower()
+        if ot not in VALID_ORBITAL_TYPES:
+            raise ValueError(
+                f"ValenceOrbital.orbital_type must be one of {VALID_ORBITAL_TYPES} "
+                f"(emptiness is an occupation, not a role), got {self.orbital_type!r}"
+            )
+        self.orbital_type = ot
+
+        # Rule 3: Validate occupation and consistency with spin
+        if isinstance(self.occupation, bool) or not isinstance(self.occupation, int):
+            if isinstance(self.occupation, float) and self.occupation.is_integer():
+                self.occupation = int(self.occupation)
+            else:
+                raise ValueError(f"ValenceOrbital.occupation must be an integer in {{0, 1, 2}}, got {self.occupation!r}")
+        if self.occupation not in (0, 1, 2):
+            raise ValueError(f"ValenceOrbital.occupation must be in {{0, 1, 2}}, got {self.occupation!r}")
+
+        if self.occupation == 1 and self.spin not in ("up", "down"):
+            raise ValueError(
+                f"Singly-occupied ValenceOrbital (occupation=1) must have spin 'up' or 'down', got spin={self.spin!r}"
+            )
+        if self.occupation in (0, 2) and self.spin != "none":
+            raise ValueError(
+                f"ValenceOrbital with occupation={self.occupation} must have spin='none', got spin={self.spin!r}"
+            )
+
+        # Rule 4: lone_pair => occupation == 2 (and spin == 'none')
+        if self.orbital_type == "lone_pair" and self.occupation != 2:
+            raise ValueError(
+                f"ValenceOrbital with orbital_type='lone_pair' must have occupation=2 (and spin='none'), "
+                f"got occupation={self.occupation}, spin={self.spin!r}"
+            )
+
+        # Normalize connect_to
+        if self.connect_to is not None:
+            ct = str(self.connect_to).strip()
+            if not ct:
+                raise ValueError("ValenceOrbital.connect_to cannot be an empty string")
+            self.connect_to = ct
+
+        # Validate plane and orientation (Section 3 & Rule 6)
+        if not isinstance(self.orientation, str):
+            raise ValueError(f"ValenceOrbital.orientation must be in {VALID_ORIENTATIONS}, got {self.orientation!r}")
+        ori = self.orientation.strip().lower()
+        if ori not in VALID_ORIENTATIONS:
+            raise ValueError(f"ValenceOrbital.orientation must be in {VALID_ORIENTATIONS}, got {self.orientation!r}")
+        self.orientation = ori
+
+        if self.plane is not None:
+            if not isinstance(self.plane, (list, tuple)) or not (1 <= len(self.plane) <= 3):
+                raise ValueError(
+                    f"ValenceOrbital.plane must be None or a list of 1 to 3 atom labels, got {self.plane!r}"
+                )
+            norm_plane: List[str] = []
+            for p_lbl in self.plane:
+                if not isinstance(p_lbl, str) or not p_lbl.strip():
+                    raise ValueError(f"Invalid atom label {p_lbl!r} in ValenceOrbital.plane={self.plane!r}")
+                norm_plane.append(p_lbl.strip())
+            if len(set(norm_plane)) != len(norm_plane):
+                raise ValueError(f"ValenceOrbital.plane cannot contain duplicate atom labels: {self.plane!r}")
+            self.plane = norm_plane
+
+        if self.plane is None and self.orientation != "in_plane":
+            raise ValueError(
+                "ValenceOrbital.orientation='out_of_plane' requires a plane of >= 2 atom labels, got plane=None"
+            )
+        if self.orientation == "out_of_plane" and (self.plane is None or len(self.plane) < 2):
+            raise ValueError(
+                f"ValenceOrbital.orientation='out_of_plane' requires a plane of >= 2 atom labels, got plane={self.plane!r}"
+            )
+
+    @property
+    def occno_pair(self) -> Tuple[float, float]:
+        """Returns the (n_alpha, n_beta) occupation pair per Encoding Rule 3."""
+        if self.occupation == 1:
+            return (1.0, 0.0) if self.spin == "up" else (0.0, 1.0)
+        elif self.occupation == 2:
+            return (1.0, 1.0)
+        return (0.0, 0.0)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
+            "spin": self.spin,
+            "orbital_type": self.orbital_type,
+            "occupation": self.occupation,
+        }
+        if self.connect_to is not None:
+            d["connect_to"] = self.connect_to
+        if self.plane is not None:
+            d["plane"] = list(self.plane)
+        if self.orientation != "in_plane" or self.plane is not None:
+            d["orientation"] = self.orientation
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ValenceOrbital":
+        if isinstance(data, cls):
+            return data
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict or ValenceOrbital, got {type(data).__name__}")
+        valid_keys = {"spin", "orbital_type", "occupation", "connect_to", "plane", "orientation"}
+        unknown = set(data.keys()) - valid_keys
+        if unknown:
+            raise ValueError(f"Unknown keys in ValenceOrbital specification: {sorted(unknown)}")
+        return cls(
+            spin=data.get("spin", "none"),
+            orbital_type=data.get("orbital_type", "sigma"),
+            occupation=data.get("occupation", 0),
+            connect_to=data.get("connect_to"),
+            plane=data.get("plane"),
+            orientation=data.get("orientation", "in_plane"),
+        )
+
+
+def orbital_counts(valence_config: Sequence[ValenceOrbital]) -> Dict[str, int]:
+    """
+    Returns a dictionary of orbital role counts {'sigma': ..., 'pi': ..., 'delta': ..., 'lone_pair': ...}
+    over explicitly listed entries in valence_config (padded empties are not included).
+    """
+    counts = {t: 0 for t in VALID_ORBITAL_TYPES}
+    for entry in valence_config:
+        orb = ValenceOrbital.from_dict(entry) if isinstance(entry, dict) else entry
+        counts[orb.orbital_type] = counts.get(orb.orbital_type, 0) + 1
+    return counts
+
+
+def occupancy_counts(
+    valence_config: Sequence[ValenceOrbital],
+    n_orbitals: Optional[int] = None,
+) -> Tuple[int, int, int]:
+    """
+    Returns (n_empty, n_singly, n_doubly) from the occupation field (0, 1, 2).
+    If n_orbitals is provided and len(valence_config) < n_orbitals, pads missing entries as empty (occupation=0).
+    """
+    n_empty = 0
+    n_singly = 0
+    n_doubly = 0
+    for entry in valence_config:
+        orb = ValenceOrbital.from_dict(entry) if isinstance(entry, dict) else entry
+        if orb.occupation == 0:
+            n_empty += 1
+        elif orb.occupation == 1:
+            n_singly += 1
+        elif orb.occupation == 2:
+            n_doubly += 1
+    if n_orbitals is not None and len(valence_config) < n_orbitals:
+        n_empty += (n_orbitals - len(valence_config))
+    return (n_empty, n_singly, n_doubly)
+
+
+def valence_net_spin(valence_config: Sequence[ValenceOrbital]) -> int:
+    """Returns (#up) - (#down) over the entries in valence_config."""
+    n_up = 0
+    n_down = 0
+    for entry in valence_config:
+        orb = ValenceOrbital.from_dict(entry) if isinstance(entry, dict) else entry
+        if orb.spin == "up":
+            n_up += 1
+        elif orb.spin == "down":
+            n_down += 1
+    return n_up - n_down
+
+
+net_orbital_spin = valence_net_spin
+
+
 @dataclass
 class AtomConfig:
     """
@@ -292,6 +568,7 @@ class AtomConfig:
     spin: Optional[str] = None  # "up", "down", or None
     basis: Optional[str] = None  # Atom-specific basis override (e.g. 'ADF-TZ2P')
     hybridization: Optional[str] = None  # Named hybridization type override (e.g. 'sp3', 'sp2', 'dsp2', 'd2sp3')
+    valence_config: Optional[List[ValenceOrbital]] = None  # Explicit orbital-level valence configuration
     embedded_state: Optional[Any] = None
     starting_orbitals: Optional[List[Any]] = None
 
@@ -301,7 +578,7 @@ class AtomConfig:
             self.xyz = [float(c) for c in self.id]
             self.id = None
 
-        # 1. Normalize spin
+        # 1. Normalize spin and hybridization
         if self.spin is not None:
             s = str(self.spin).strip().lower()
             if s in ("up", "alpha", "+1", "1", "+"):
@@ -314,7 +591,23 @@ class AtomConfig:
         elif self.spin_flip:
             self.spin = "down"
 
-        # 2. Reconcile / validate against starting_orbitals if present
+        if self.hybridization is not None:
+            self.hybridization = str(self.hybridization).strip().lower()
+
+        # 2. Validate valence_config if present (Checks 1-7)
+        if self.valence_config is not None:
+            if not isinstance(self.valence_config, (list, tuple)):
+                raise ValueError(f"AtomConfig.valence_config must be a list of ValenceOrbital entries, got {type(self.valence_config).__name__}")
+            self.valence_config = [
+                (ValenceOrbital.from_dict(entry) if isinstance(entry, dict) else entry)
+                for entry in self.valence_config
+            ]
+            for entry in self.valence_config:
+                if not isinstance(entry, ValenceOrbital):
+                    raise TypeError(f"Expected ValenceOrbital or dict in valence_config, got {type(entry).__name__}")
+            self.validate_valence_config()
+
+        # 3. Reconcile / validate against starting_orbitals if present
         if self.starting_orbitals:
             net_spin = self.net_orbital_spin
             if net_spin is not None and abs(net_spin) > 1e-6:
@@ -332,10 +625,7 @@ class AtomConfig:
                     self.spin = expected_spin
                     self.spin_flip = (expected_spin == "down")
 
-        if self.hybridization is not None:
-            self.hybridization = str(self.hybridization).strip().lower()
-
-        # 2. Synchronize legacy SymmetrySpec with modern symmetry_op / symmetry_axis
+        # 4. Synchronize legacy SymmetrySpec with modern symmetry_op / symmetry_axis
         if self.symmetry is not None:
             if self.symmetry_op is None:
                 self.symmetry_op = self.symmetry.isym
@@ -352,6 +642,227 @@ class AtomConfig:
             self.symmetry_op = op
             self.symmetry_axis = ax
 
+    def validate_valence_config(self) -> None:
+        """
+        Validates atom-local valence_config invariants (Section 4 encoding rules and Section 5 Checks 1-7).
+        """
+        if self.valence_config is None:
+            return
+
+        atom_name = self.id or self.element
+        sym = self.element.strip().capitalize()
+        if sym not in ATOMIC_NUMBERS:
+            raise ValueError(f"Unknown chemical element '{self.element}' for atom '{atom_name}'")
+        Z = ATOMIC_NUMBERS[sym]
+
+        # Rule 8: Formal charge must be integer-valued when valence_config is present
+        if isinstance(self.charge, bool) or abs(float(self.charge) - round(float(self.charge))) > 1e-9:
+            raise ValueError(
+                f"Atom '{atom_name}': charge must be integer-valued (formal charge) when valence_config is present, "
+                f"got {self.charge!r}"
+            )
+
+        # Rule 5: Self-reference check (when id is known)
+        if self.id:
+            for orb in self.valence_config:
+                if orb.connect_to == self.id:
+                    raise ValueError(
+                        f"Atom '{atom_name}': ValenceOrbital.connect_to cannot reference the atom itself ('{self.id}')"
+                    )
+                if orb.plane and self.id in orb.plane:
+                    raise ValueError(
+                        f"Atom '{atom_name}': ValenceOrbital.plane cannot contain the atom itself ('{self.id}')"
+                    )
+
+        n_orb = n_valence_orbitals(Z)
+        occ_val = occupied_valency(Z, self.charge)
+
+        # Check 1 (Length): len(valence_config) <= n_valence_orbitals
+        if len(self.valence_config) > n_orb:
+            raise ValueError(
+                f"Atom '{atom_name}' ({sym}, Z={Z}): valence_config has {len(self.valence_config)} entries, "
+                f"exceeding n_valence_orbitals={n_orb}"
+            )
+
+        # Check 2 (Orbital count after padding missing entries as empty)
+        n_empty, n_singly, n_doubly = occupancy_counts(self.valence_config, n_orbitals=n_orb)
+        if n_empty + n_singly + n_doubly != n_orb:
+            raise ValueError(
+                f"Atom '{atom_name}' ({sym}, Z={Z}): orbital count mismatch "
+                f"({n_empty} + {n_singly} + {n_doubly} != {n_orb})"
+            )
+
+        # Check 3 (Electron count): n_singly + 2 * n_doubly == occupied_valency
+        counted_electrons = n_singly + 2 * n_doubly
+        if counted_electrons != occ_val:
+            raise ValueError(
+                f"Atom '{atom_name}' ({sym}, Z={Z}, charge={self.charge}): valence_config counts "
+                f"{counted_electrons} valence electrons (n_singly={n_singly}, n_doubly={n_doubly}), "
+                f"but occupied_valency is {occ_val}"
+            )
+
+        # Check 4 (Spin sign): net_orbital_spin must agree in sign with atom's spin label when nonzero
+        net_s = valence_net_spin(self.valence_config)
+        if net_s > 0:
+            if self.spin is not None and self.spin != "up":
+                raise ValueError(
+                    f"Atom '{atom_name}': spin='{self.spin}' contradicts positive valence_config net orbital spin (+{net_s})"
+                )
+            self.spin = "up"
+            self.spin_flip = False
+        elif net_s < 0:
+            if self.spin is not None and self.spin != "down":
+                raise ValueError(
+                    f"Atom '{atom_name}': spin='{self.spin}' contradicts negative valence_config net orbital spin ({net_s})"
+                )
+            self.spin = "down"
+            self.spin_flip = True
+
+        # Check 5 (Hybridization-label consistency over explicitly listed entries only)
+        if self.hybridization is not None:
+            from phatpsy.hybrids import get_hybridization_spec
+            try:
+                spec = get_hybridization_spec(self.hybridization)
+            except KeyError as exc:
+                raise ValueError(f"Atom '{atom_name}': {exc}") from exc
+
+            counts = orbital_counts(self.valence_config)
+            n_hybrids = spec.n_sigma + spec.n_lone_pairs
+            actual_hybrids = counts["sigma"] + counts["lone_pair"]
+            n_dative_lp = sum(
+                1 for o in self.valence_config
+                if o.orbital_type == "lone_pair" and o.connect_to is not None
+            )
+            pi_deficit = spec.n_pi - counts["pi"]
+            used_dative_as_pi = (
+                pi_deficit if (0 <= pi_deficit <= n_dative_lp and actual_hybrids - pi_deficit == n_hybrids) else 0
+            )
+            if (actual_hybrids - used_dative_as_pi) != n_hybrids:
+                raise ValueError(
+                    f"Atom '{atom_name}' (hybridization='{self.hybridization}'): "
+                    f"n_sigma ({counts['sigma']}) + n_lone_pair ({counts['lone_pair']}) = {actual_hybrids}, "
+                    f"expected {n_hybrids} hybrids for '{spec.name}'"
+                )
+            if (counts["pi"] + used_dative_as_pi) != spec.n_pi:
+                raise ValueError(
+                    f"Atom '{atom_name}' (hybridization='{self.hybridization}'): "
+                    f"n_pi={counts['pi']}, expected {spec.n_pi} for '{spec.name}'"
+                )
+            allows_d = ("d" in self.hybridization.lower()) or ("d" in spec.name.lower()) or spec.has_d_orbitals
+            if counts["delta"] > 0 and not allows_d:
+                raise ValueError(
+                    f"Atom '{atom_name}' (hybridization='{self.hybridization}'): "
+                    f"n_delta={counts['delta']} is only allowed when hybridization label contains 'd'"
+                )
+
+        # Check 7 (starting_orbitals agreement when both are present)
+        if self.starting_orbitals:
+            self._validate_starting_orbitals_against_valence_config(Z, n_orb)
+
+    def _validate_starting_orbitals_against_valence_config(self, Z: int, n_orb: int) -> None:
+        """
+        Verifies that starting_orbitals alpha/beta occupations match valence_config (Check 7).
+        """
+        atom_name = self.id or self.element
+        from phatpsy.basis import InitialOrbital
+
+        orbs = [
+            (InitialOrbital.from_dict(o) if isinstance(o, dict) else o)
+            for o in self.starting_orbitals
+        ]
+        padded_vc = list(self.valence_config) + [
+            ValenceOrbital(spin="none", orbital_type="sigma", occupation=0)
+            for _ in range(n_orb - len(self.valence_config))
+        ]
+        vc_pairs = [o.occno_pair for o in padded_vc]
+
+        def _classify_pair(a: float, b: float) -> str:
+            if abs(a - 1.0) < 1e-6 and abs(b - 0.0) < 1e-6:
+                return "up"
+            if abs(a - 0.0) < 1e-6 and abs(b - 1.0) < 1e-6:
+                return "down"
+            if abs(a - 1.0) < 1e-6 and abs(b - 1.0) < 1e-6:
+                return "doubly"
+            if abs(a - 0.0) < 1e-6 and abs(b - 0.0) < 1e-6:
+                return "empty"
+            return f"fractional({a:.4f},{b:.4f})"
+
+        n_core = core(Z) // 2
+        if len(orbs) <= n_orb:
+            # Valence-only starting_orbitals list
+            val_orbs = orbs
+            # Check direct positional match if same length as explicit valence_config or padded
+            if len(val_orbs) == len(self.valence_config):
+                for idx, (so, vo) in enumerate(zip(val_orbs, self.valence_config)):
+                    sa = float(so.occno[0]) if len(so.occno) > 0 else 0.0
+                    sb = float(so.occno[1]) if len(so.occno) > 1 else 0.0
+                    va, vb = vo.occno_pair
+                    if abs(sa - va) > 1e-6 or abs(sb - vb) > 1e-6:
+                        raise ValueError(
+                            f"Atom '{atom_name}': starting_orbitals[{idx}] occno=({sa}, {sb}) conflicts with "
+                            f"valence_config[{idx}] occno=({va}, {vb})"
+                        )
+                return
+        else:
+            # Full-atom starting_orbitals (includes n_core doubly-occupied core orbitals)
+            doubly_indices = [
+                idx for idx, o in enumerate(orbs)
+                if len(o.occno) >= 2 and abs(float(o.occno[0]) - 1.0) < 1e-6 and abs(float(o.occno[1]) - 1.0) < 1e-6
+            ]
+            if len(doubly_indices) < n_core:
+                raise ValueError(
+                    f"Atom '{atom_name}': starting_orbitals has only {len(doubly_indices)} doubly-occupied orbitals, "
+                    f"fewer than the {n_core} required core orbitals for Z={Z}"
+                )
+            # Sort doubly occupied candidates by lowest eigenvalue if present, else index
+            doubly_indices.sort(
+                key=lambda idx: (float(orbs[idx].eigval[0]) if orbs[idx].eigval else 0.0, idx)
+            )
+            core_set = set(doubly_indices[:n_core])
+            val_orbs = [o for idx, o in enumerate(orbs) if idx not in core_set]
+
+        sum_so_a = sum(float(o.occno[0]) if len(o.occno) > 0 else 0.0 for o in val_orbs)
+        sum_so_b = sum(float(o.occno[1]) if len(o.occno) > 1 else 0.0 for o in val_orbs)
+        sum_vc_a = sum(va for va, _ in vc_pairs)
+        sum_vc_b = sum(vb for _, vb in vc_pairs)
+        if abs(sum_so_a - sum_vc_a) > 1e-5 or abs(sum_so_b - sum_vc_b) > 1e-5:
+            raise ValueError(
+                f"Atom '{atom_name}': starting_orbitals valence spin totals (alpha={sum_so_a:.4f}, beta={sum_so_b:.4f}) "
+                f"conflict with valence_config totals (alpha={sum_vc_a:.4f}, beta={sum_vc_b:.4f})"
+            )
+
+        has_dative_entry = any(
+            (o.orbital_type == "lone_pair" and o.connect_to is not None)
+            or (o.occupation == 0 and o.connect_to is not None)
+            for o in self.valence_config
+        )
+        if not has_dative_entry:
+            so_counts = {"up": 0, "down": 0, "doubly": 0, "empty": 0}
+            for o in val_orbs:
+                sa = float(o.occno[0]) if len(o.occno) > 0 else 0.0
+                sb = float(o.occno[1]) if len(o.occno) > 1 else 0.0
+                cat = _classify_pair(sa, sb)
+                if cat not in so_counts:
+                    raise ValueError(
+                        f"Atom '{atom_name}': starting_orbitals contains non-integer occupation ({sa}, {sb}) "
+                        f"incompatible with valence_config"
+                    )
+                so_counts[cat] += 1
+
+            vc_counts = {"up": 0, "down": 0, "doubly": 0, "empty": 0}
+            for va, vb in vc_pairs:
+                vc_counts[_classify_pair(va, vb)] += 1
+
+            if (
+                so_counts["up"] != vc_counts["up"]
+                or so_counts["down"] != vc_counts["down"]
+                or so_counts["doubly"] != vc_counts["doubly"]
+            ):
+                raise ValueError(
+                    f"Atom '{atom_name}': starting_orbitals valence occupations {so_counts} conflict with "
+                    f"valence_config occupations {vc_counts}"
+                )
+
     @property
     def is_spin_down(self) -> bool:
         return self.spin == "down" or self.spin_flip
@@ -362,7 +873,9 @@ class AtomConfig:
 
     @property
     def net_orbital_spin(self) -> Optional[float]:
-        """Returns sum(alpha_occ) - sum(beta_occ) across starting orbitals, if defined."""
+        """Returns sum(alpha_occ) - sum(beta_occ) across valence_config or starting orbitals, if defined."""
+        if self.valence_config is not None:
+            return float(valence_net_spin(self.valence_config))
         if not self.starting_orbitals:
             return None
         tot_alpha = sum(orb.occno[0] for orb in self.starting_orbitals if len(orb.occno) > 0)
@@ -410,6 +923,11 @@ class AtomConfig:
             res["basis"] = self.basis
         if self.hybridization:
             res["hybridization"] = self.hybridization
+        if self.valence_config is not None:
+            res["valence_config"] = [
+                (o.to_dict() if hasattr(o, "to_dict") else o)
+                for o in self.valence_config
+            ]
         if self.embedded_state:
             if hasattr(self.embedded_state, "to_dict"):
                 res["embedded_state"] = self.embedded_state.to_dict()
@@ -440,6 +958,15 @@ class AtomConfig:
         else:
             emb = emb_data
 
+        val_cfg = None
+        if "valence_config" in data and data["valence_config"] is not None:
+            if not isinstance(data["valence_config"], (list, tuple)):
+                raise ValueError(f"valence_config must be a list, got {type(data['valence_config']).__name__}")
+            val_cfg = [
+                (ValenceOrbital.from_dict(o) if isinstance(o, dict) else o)
+                for o in data["valence_config"]
+            ]
+
         starting_orbs = None
         if "starting_orbitals" in data and data["starting_orbitals"]:
             from phatpsy.basis import InitialOrbital
@@ -447,7 +974,7 @@ class AtomConfig:
                 (InitialOrbital.from_dict(o) if isinstance(o, dict) else o)
                 for o in data["starting_orbitals"]
             ]
-            if spin_val is None:
+            if spin_val is None and val_cfg is None:
                 tot_alpha = sum(orb.occno[0] for orb in starting_orbs if len(orb.occno) > 0)
                 tot_beta = sum(orb.occno[1] for orb in starting_orbs if len(orb.occno) > 1)
                 if tot_beta > tot_alpha:
@@ -474,6 +1001,7 @@ class AtomConfig:
             spin=spin_val,
             basis=data.get("basis"),
             hybridization=data.get("hybridization"),
+            valence_config=val_cfg,
             embedded_state=emb,
             starting_orbitals=starting_orbs,
         )
@@ -575,10 +1103,11 @@ def _spin_swapped_orbital(orb: Any) -> Any:
     return replace(orb, **kwargs)
 
 
-def resolve_atom_coordinates(atoms: List[AtomConfig]) -> List[AtomConfig]:
+def resolve_atom_coordinates(atoms: List[AtomConfig], force_symmetry: bool = False) -> List[AtomConfig]:
     """
     Resolves unset [0, 0, 0] or duplicate coordinates on equivalent atoms by
     applying their symmetry operations sequentially (matching Fortran SYMXYZ: LAST = IATOM - 1).
+    If force_symmetry is True, always recomputes symmetry-equivalent atom coordinates from their reference atom.
     """
     id_map = {a.id: a for a in atoms if a.id}
     last_atom_by_elem: Dict[str, AtomConfig] = {}
@@ -596,7 +1125,7 @@ def resolve_atom_coordinates(atoms: List[AtomConfig]) -> List[AtomConfig]:
                 ref = id_map.get(a.equivalent_to) if a.equivalent_to else None
                 source = prev_atom if prev_atom else ref
 
-                if source and (a.xyz == [0.0, 0.0, 0.0] or a.xyz == source.xyz):
+                if source and (force_symmetry or a.xyz == [0.0, 0.0, 0.0] or a.xyz == source.xyz):
                     a.xyz = apply_symmetry_operation(source.xyz, isym=op_val, ixyz=ax_val)
         last_atom_by_elem[a.element] = a
     return atoms
@@ -633,6 +1162,24 @@ class CalculationDeck:
         """Returns the explicit per-atom spin assignments ('up' or 'down')."""
         return [a.spin for a in self.geometry if a.spin is not None]
 
+    @property
+    def physical_net_spin(self) -> Optional[int]:
+        """
+        Returns the molecule's physical net spin 2S = sum_A net_orbital_spin(A) across all
+        non-virtual atoms when every non-virtual atom has an orbital spin source
+        (valence_config or starting_orbitals); otherwise returns None.
+        """
+        real_atoms = [a for a in self.geometry if not a.virtual]
+        if not real_atoms:
+            return None
+        total = 0.0
+        for a in real_atoms:
+            s_val = a.net_orbital_spin
+            if s_val is None:
+                return None
+            total += float(s_val)
+        return int(round(total))
+
     def validate(self) -> None:
         """
         Validates calculation deck invariants:
@@ -641,12 +1188,17 @@ class CalculationDeck:
         3. Pairings sanity check: Genuine symmetry-equivalent centers for spin-flip pairing,
            and bipartite flip-pairing graph without odd cycles.
         4. Ferromagnetic links consistency: links reference existing atoms and have parallel spins.
+        5. Valence configuration cross-atom checks (Checks 8-11).
         """
         if not self.geometry:
             return
 
         self.ensure_atom_ids()
         id_map = {a.id: a for a in self.geometry if a.id}
+
+        # Re-run atom-local valence_config validation now that atom IDs are guaranteed,
+        # and perform cross-atom valence_config checks (Checks 8-10).
+        self._validate_valence_configs(id_map)
 
         if not self.control.spin_unrestricted:
             # Restricted (closed-shell) decks have a single spin channel: per-atom
@@ -657,6 +1209,9 @@ class CalculationDeck:
         n_up = 0
         n_down = 0
         for a in self.geometry:
+            if a.virtual and a.spin is None:
+                # Virtual (ghost) centers carry 0 electrons and have no spin channel
+                continue
             if a.spin not in ("up", "down"):
                 raise ValueError(
                     f"Atom '{a.id or a.element}' has unassigned or invalid spin ({a.spin!r}). "
@@ -722,11 +1277,163 @@ class CalculationDeck:
                     raise ValueError(f"Ferromagnetic link references atom '{id1}', but no atom with that ID was found.")
                 if not a2:
                     raise ValueError(f"Ferromagnetic link references atom '{id2}', but no atom with that ID was found.")
-                if a1.spin != a2.spin:
-                    raise ValueError(
-                        f"Ferromagnetic link ({id1}, {id2}) has antiparallel spins ({a1.spin} vs {a2.spin}). "
-                        f"Ferromagnetic links represent parallel spin couplings forced by non-bipartite frustration."
-                    )
+                if a1.valence_config is not None and a2.valence_config is not None:
+                    # Amendment 2: validate declared ferromagnetic link at the orbital level
+                    if not self._has_same_spin_facing_orbitals(a1, a2):
+                        raise ValueError(
+                            f"Ferromagnetic link ({id1}, {id2}) does not have same-spin facing singly-occupied orbitals "
+                            f"in valence_config."
+                        )
+                else:
+                    if a1.spin != a2.spin:
+                        raise ValueError(
+                            f"Ferromagnetic link ({id1}, {id2}) has antiparallel spins ({a1.spin} vs {a2.spin}). "
+                            f"Ferromagnetic links represent parallel spin couplings forced by non-bipartite frustration."
+                        )
+
+    @staticmethod
+    def _has_same_spin_facing_orbitals(a1: AtomConfig, a2: AtomConfig) -> bool:
+        """
+        Returns True if atoms a1 and a2 have facing singly-occupied orbitals (mutual connect_to)
+        that carry the same spin ('up' == 'up' or 'down' == 'down').
+        """
+        if a1.valence_config is None or a2.valence_config is None:
+            return False
+        facing_1 = [o for o in a1.valence_config if o.occupation == 1 and o.connect_to == a2.id]
+        facing_2 = [o for o in a2.valence_config if o.occupation == 1 and o.connect_to == a1.id]
+        if not facing_1 or not facing_2:
+            return False
+        # Group by orbital_type first (sigma with sigma, pi with pi, delta with delta)
+        by_type_1: Dict[str, List[ValenceOrbital]] = {}
+        for o in facing_1:
+            by_type_1.setdefault(o.orbital_type, []).append(o)
+        by_type_2: Dict[str, List[ValenceOrbital]] = {}
+        for o in facing_2:
+            by_type_2.setdefault(o.orbital_type, []).append(o)
+
+        common_types = set(by_type_1.keys()) & set(by_type_2.keys())
+        if common_types:
+            for t in common_types:
+                list1 = by_type_1[t]
+                list2 = by_type_2[t]
+                # Try to pair antiparallel spins first; if any forced pair has identical spin, it is ferromagnetic
+                rem2 = [o.spin for o in list2]
+                for o1 in list1:
+                    opp = "down" if o1.spin == "up" else "up"
+                    if opp in rem2:
+                        rem2.remove(opp)
+                    elif o1.spin in rem2:
+                        return True
+            return False
+
+        # Fallback if facing orbitals have different roles
+        return any(o1.spin == o2.spin for o1 in facing_1 for o2 in facing_2)
+
+    def _validate_valence_configs(self, id_map: Dict[str, AtomConfig]) -> None:
+        """
+        Runs cross-atom valence_config sanity checks (Checks 8, 9, and 10).
+        """
+        import warnings
+
+        for a in self.geometry:
+            if a.valence_config is not None:
+                a.validate_valence_config()
+
+        # Check 8: Every connect_to and plane label must name an existing atom id (and not self)
+        for a in self.geometry:
+            if a.valence_config is None:
+                continue
+            for orb in a.valence_config:
+                if orb.connect_to is not None:
+                    if orb.connect_to == a.id:
+                        raise ValueError(
+                            f"Atom '{a.id}': ValenceOrbital.connect_to cannot name the atom itself ('{a.id}')"
+                        )
+                    if orb.connect_to not in id_map:
+                        raise ValueError(
+                            f"Atom '{a.id}': ValenceOrbital.connect_to='{orb.connect_to}' does not match any "
+                            f"atom id in the molecule ({list(id_map.keys())})"
+                        )
+                if orb.plane is not None:
+                    for p_lbl in orb.plane:
+                        if p_lbl == a.id:
+                            raise ValueError(
+                                f"Atom '{a.id}': ValenceOrbital.plane cannot contain the atom itself ('{a.id}')"
+                            )
+                        if p_lbl not in id_map:
+                            raise ValueError(
+                                f"Atom '{a.id}': ValenceOrbital.plane label '{p_lbl}' does not match any "
+                                f"atom id in the molecule ({list(id_map.keys())})"
+                            )
+
+        # Check 9: Dative pairing
+        # A lone_pair entry with connect_to = X must be matched by an entry on X with occupation == 0 and connect_to = this atom.
+        for a in self.geometry:
+            if a.valence_config is None:
+                continue
+            for orb in a.valence_config:
+                if orb.orbital_type == "lone_pair" and orb.connect_to is not None:
+                    target = id_map[orb.connect_to]
+                    if target.valence_config is None:
+                        warnings.warn(
+                            f"Dative donor lone_pair on '{a.id}' points to '{target.id}', which has no valence_config; "
+                            f"cannot verify matching vacant acceptor orbital.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+                    else:
+                        has_acceptor = any(
+                            t_orb.occupation == 0 and t_orb.connect_to == a.id
+                            for t_orb in target.valence_config
+                        )
+                        if not has_acceptor:
+                            raise ValueError(
+                                f"Unmatched dative bond: '{a.id}' has a lone_pair with connect_to='{target.id}', "
+                                f"but '{target.id}' has no vacant acceptor orbital (occupation=0, connect_to='{a.id}')"
+                            )
+                elif orb.occupation == 0 and orb.connect_to is not None:
+                    donor = id_map[orb.connect_to]
+                    if donor.valence_config is None:
+                        warnings.warn(
+                            f"Vacant acceptor orbital on '{a.id}' points to '{donor.id}', which has no valence_config; "
+                            f"cannot verify matching donor lone_pair.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+                    else:
+                        has_donor = any(
+                            d_orb.orbital_type == "lone_pair" and d_orb.occupation == 2 and d_orb.connect_to == a.id
+                            for d_orb in donor.valence_config
+                        )
+                        if not has_donor:
+                            raise ValueError(
+                                f"Unmatched dative acceptor: '{a.id}' has a vacant orbital (occupation=0) with "
+                                f"connect_to='{donor.id}', but '{donor.id}' has no lone_pair with connect_to='{a.id}'"
+                            )
+
+        # Check 10: Ferromagnetic declaration
+        # Two atoms whose facing singly-occupied orbitals carry the same spin must appear in ferromagnetic_links.
+        declared_pairs = {
+            frozenset((str(link[0]), str(link[1])))
+            for link in (self.ferromagnetic_links or [])
+            if len(link) == 2
+        }
+        n_atoms = len(self.geometry)
+        for i in range(n_atoms):
+            a1 = self.geometry[i]
+            if a1.valence_config is None:
+                continue
+            for j in range(i + 1, n_atoms):
+                a2 = self.geometry[j]
+                if a2.valence_config is None:
+                    continue
+                if self._has_same_spin_facing_orbitals(a1, a2):
+                    if frozenset((a1.id, a2.id)) not in declared_pairs:
+                        raise ValueError(
+                            f"Undeclared ferromagnetic coupling between '{a1.id}' and '{a2.id}': "
+                            f"facing singly-occupied orbitals carry the same spin, so ('{a1.id}', '{a2.id}') "
+                            f"must be declared in ferromagnetic_links."
+                        )
 
 
 
@@ -960,6 +1667,15 @@ class CalculationDeck:
         """
         Generates the standard Fortran .stdin text representation from this deck.
         """
+        if (
+            len(self.geometry) == 2
+            and all(getattr(a, "hybridization", None) == "sp" for a in self.geometry)
+            and all(not a.embedded_state for a in self.geometry)
+        ):
+            resolve_atom_coordinates(self.geometry, force_symmetry=True)
+            from phatpsy.hybrids import apply_hybrid_seeds
+            apply_hybrid_seeds(self, bonds={(0, 1): 3})
+
         elem_map = self.resolve_elements()
         unique_elems = list(elem_map.keys())
         nelem = len(unique_elems)
@@ -1347,6 +2063,14 @@ class CalculationDeck:
             pbc=pbc,
         )
         deck.resolve_coordinates()
+        if (
+            len(deck.geometry) == 2
+            and bool(deck.elements)
+            and all(getattr(a, "hybridization", None) == "sp" for a in deck.geometry)
+            and any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry)
+        ):
+            from phatpsy.hybrids import apply_hybrid_seeds
+            apply_hybrid_seeds(deck, bonds={(0, 1): 3})
         return deck
 
     @classmethod

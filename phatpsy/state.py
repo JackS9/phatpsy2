@@ -432,11 +432,17 @@ class CalculationState(dict):
                 )
             for old_a, new_a in zip(new_deck.geometry, new_atoms):
                 old_a.xyz = list(new_a.xyz)
+            from phatpsy.schema import resolve_atom_coordinates
+            resolve_atom_coordinates(new_deck.geometry, force_symmetry=True)
 
         # Attach pre-converged embedded atom states to override initial basis starting orbitals
         if use_embedded_orbitals:
             embedded = self.get("embedded_atoms", {})
             for idx, atom in enumerate(new_deck.geometry):
+                if getattr(atom, "hybridization", None):
+                    # Preserve geometric Pauling hybrid seeds (QNWVEC) instead of double-projecting
+                    atom.embedded_state = None
+                    continue
                 # Match by atom ID or positional index
                 cand = None
                 if atom.id and atom.id in embedded:
@@ -451,6 +457,14 @@ class CalculationState(dict):
                         if hasattr(cand, "to_initial_orbitals")
                         else cand.orbitals
                     )
+
+        if (
+            len(new_deck.geometry) == 2
+            and all(getattr(a, "hybridization", None) == "sp" for a in new_deck.geometry)
+            and all(not a.embedded_state for a in new_deck.geometry)
+        ):
+            from phatpsy.hybrids import apply_hybrid_seeds
+            apply_hybrid_seeds(new_deck, bonds={(0, 1): 3})
 
         # Apply control overrides
         if control_overrides:
@@ -513,6 +527,7 @@ def extract_calculation_state(
 
     # Gather atom IDs and elements from deck if available
     deck_atoms = deck.geometry if (deck is not None and hasattr(deck, "geometry")) else []
+    deck_elems = deck.resolve_elements() if (deck is not None and hasattr(deck, "resolve_elements")) else {}
 
     current_orb_offset = 0
     for i in range(1, natom + 1):
@@ -569,9 +584,23 @@ def extract_calculation_state(
             bf_to_radial_idx[local_bf_idx] = matched_idx
 
         # Extract localized embedded orbitals for this atom
-        # In PHATPSY, orbitals centered on atom i occupy the slice [current_orb_offset : current_orb_offset + n_bfs]
+        # Determine how many localized atomic orbitals (NORB) belong to atom i
         atom_orbitals: List[Dict[str, Any]] = []
-        atom_norb = n_bfs  # Each basis component has a corresponding local orbital
+        atom_norb = 0
+        if len(atom_bf_indices) > 0 and current_orb_offset < norbt:
+            # Count contiguous columns in evecx localized on this atom's basis functions
+            for col_idx in range(current_orb_offset, norbt):
+                if np.any(np.abs(evecx[atom_bf_indices, col_idx, :]) > 1e-10):
+                    atom_norb += 1
+                else:
+                    break
+        if atom_norb == 0:
+            if atom_idx < len(deck_atoms) and deck_elems:
+                d_atom = deck_atoms[atom_idx]
+                ed = deck_elems.get(deck.get_atom_element_key(d_atom))
+                atom_norb = len(ed.default_orbitals) if (ed is not None and ed.default_orbitals) else n_bfs
+            else:
+                atom_norb = min(n_bfs, max(0, norbt - current_orb_offset))
 
         for local_orb_idx in range(atom_norb):
             global_orb_idx = current_orb_offset + local_orb_idx

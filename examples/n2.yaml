@@ -3,7 +3,7 @@ net_spin: 0
 control:
   spin_unrestricted: true
   max_cycles: 100
-  convergence: 0.0005
+  convergence: 0.0001
   time_limit: 360.0
   use_constrained_fit: false
   use_diis: false
@@ -23,6 +23,22 @@ geometry:
   - 1.034
   id: N1
   spin: up
+  hybridization: sp
+  valence_config:
+  - orbital_type: sigma
+    occupation: 1
+    spin: up
+    connect_to: N2
+  - orbital_type: pi
+    occupation: 1
+    spin: up
+    connect_to: N2
+  - orbital_type: pi
+    occupation: 1
+    spin: up
+    connect_to: N2
+  - orbital_type: lone_pair
+    occupation: 2
 - element: N
   xyz:
   - 0.0
@@ -33,6 +49,22 @@ geometry:
   symmetry_op: -1
   symmetry_axis: 1
   spin: down
+  hybridization: sp
+  valence_config:
+  - orbital_type: sigma
+    occupation: 1
+    spin: down
+    connect_to: N1
+  - orbital_type: pi
+    occupation: 1
+    spin: down
+    connect_to: N1
+  - orbital_type: pi
+    occupation: 1
+    spin: down
+    connect_to: N1
+  - orbital_type: lone_pair
+    occupation: 2
 elements:
   N:
     symbol: N

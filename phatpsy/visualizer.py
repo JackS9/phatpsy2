@@ -3352,125 +3352,14 @@ def generate_vibrations_html(
     let animPhase = 0.0;
 
     const container = document.getElementById("canvas-container");
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
-
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 8);
-
-    const renderer = new THREE.WebGLRenderer({{ antialias: true }});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-
-    const ambLight = new THREE.AmbientLight(0xffffff, 0.65);
-    scene.add(ambLight);
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
-    dirLight1.position.set(10, 20, 15);
-    scene.add(dirLight1);
-    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.35);
-    dirLight2.position.set(-10, -10, -10);
-    scene.add(dirLight2);
-
-    const moleculeGroup = new THREE.Group();
-    scene.add(moleculeGroup);
-    const vectorsGroup = new THREE.Group();
-    scene.add(vectorsGroup);
 
     // Compute center of mass to center the molecule in view
-    let com = new THREE.Vector3(0, 0, 0);
+    let comX = 0, comY = 0, comZ = 0;
     atoms.forEach(a => {{
-      com.add(new THREE.Vector3(a.xyz[0], a.xyz[1], a.xyz[2]));
+      comX += a.xyz[0]; comY += a.xyz[1]; comZ += a.xyz[2];
     }});
-    com.divideScalar(atoms.length || 1);
-
-    // Build atom sphere meshes
-    const atomMeshes = [];
-    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
-
-    atoms.forEach(a => {{
-      const mat = new THREE.MeshPhongMaterial({{
-        color: new THREE.Color(a.color),
-        shininess: 90,
-        specular: 0x444444,
-      }});
-      const mesh = new THREE.Mesh(sphereGeo, mat);
-      mesh.scale.set(a.radius, a.radius, a.radius);
-      mesh.position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
-      moleculeGroup.add(mesh);
-      atomMeshes.push(mesh);
-    }});
-
-    // Build bond cylinders
-    const bondMeshes = [];
-    const cylGeo = new THREE.CylinderGeometry(0.1, 0.1, 1, 16);
-
-    bonds.forEach(([i, j]) => {{
-      const mat = new THREE.MeshPhongMaterial({{
-        color: 0x94a3b8,
-        shininess: 70,
-        specular: 0x222222,
-      }});
-      const mesh = new THREE.Mesh(cylGeo, mat);
-      moleculeGroup.add(mesh);
-      bondMeshes.push({{ mesh, i, j }});
-    }});
-
-    function updateBonds() {{
-      bondMeshes.forEach(b => {{
-        const p1 = atomMeshes[b.i].position;
-        const p2 = atomMeshes[b.j].position;
-        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        const len = p1.distanceTo(p2);
-        b.mesh.position.copy(mid);
-        b.mesh.scale.set(1, len, 1);
-        b.mesh.quaternion.setFromUnitVectors(
-          new THREE.Vector3(0, 1, 0),
-          new THREE.Vector3().subVectors(p2, p1).normalize()
-        );
-      }});
-    }}
-
-    // Vector arrows for active normal mode
-    let arrowHelpers = [];
-
-    function rebuildVectorArrows() {{
-      // Remove old arrows
-      while (vectorsGroup.children.length > 0) {{
-        vectorsGroup.remove(vectorsGroup.children[0]);
-      }}
-      arrowHelpers = [];
-
-      if (!showVectors || activeModeIdx < 0 || activeModeIdx >= modes.length) return;
-
-      const m = modes[activeModeIdx];
-      const disps = m.displacements;
-
-      atoms.forEach((a, idx) => {{
-        const d = disps[idx];
-        const dir = new THREE.Vector3(d[0], d[1], d[2]);
-        const len = dir.length();
-        if (len > 1e-4) {{
-          dir.normalize();
-          const arrowLen = Math.max(0.2, len * amplitude * 2.2);
-          const arrowColor = m.is_imaginary ? 0xf87171 : 0xfacc15;
-          const headLen = Math.min(arrowLen * 0.35, 0.35);
-          const headWidth = headLen * 0.55;
-          const arrow = new THREE.ArrowHelper(dir, atomMeshes[idx].position, arrowLen, arrowColor, headLen, headWidth);
-          vectorsGroup.add(arrow);
-          arrowHelpers.push({{ arrow, idx, dir, len }});
-        }}
-      }});
-    }}
-
-    function updateVectorArrowPositions() {{
-      arrowHelpers.forEach(item => {{
-        item.arrow.position.copy(atomMeshes[item.idx].position);
-      }});
+    if (atoms.length > 0) {{
+      comX /= atoms.length; comY /= atoms.length; comZ /= atoms.length;
     }}
 
     // UI elements & Mode selection
@@ -3514,26 +3403,23 @@ def generate_vibrations_html(
         modeChar.style.color = "#4ade80";
       }}
     }}
+    updateModeCard();
+
+    let onStateChange = () => {{}};
 
     modeSelect.addEventListener("change", (e) => {{
       activeModeIdx = parseInt(e.target.value);
       animPhase = 0.0;
       updateModeCard();
-      rebuildVectorArrows();
+      onStateChange();
     }});
 
     const playBtn = document.getElementById("play-btn");
     playBtn.addEventListener("click", () => {{
       isPlaying = !isPlaying;
       playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
-      if (!isPlaying) {{
-        // Reset atoms to equilibrium position
-        atoms.forEach((a, idx) => {{
-          atomMeshes[idx].position.set(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z);
-        }});
-        updateBonds();
-        updateVectorArrowPositions();
-      }}
+      if (!isPlaying) animPhase = 0.0;
+      onStateChange();
     }});
 
     const vectorsBtn = document.getElementById("vectors-btn");
@@ -3541,7 +3427,7 @@ def generate_vibrations_html(
       showVectors = !showVectors;
       vectorsBtn.textContent = `🏹 Vectors: ${{showVectors ? "ON" : "OFF"}}`;
       vectorsBtn.className = showVectors ? "btn btn-active" : "btn";
-      rebuildVectorArrows();
+      onStateChange();
     }});
 
     const ampSlider = document.getElementById("amp-slider");
@@ -3549,7 +3435,7 @@ def generate_vibrations_html(
     ampSlider.addEventListener("input", (e) => {{
       amplitude = parseFloat(e.target.value) / 100.0;
       ampLabel.textContent = `Amplitude: ${{amplitude.toFixed(2)}} Å`;
-      rebuildVectorArrows();
+      onStateChange();
     }});
 
     const speedSlider = document.getElementById("speed-slider");
@@ -3559,51 +3445,177 @@ def generate_vibrations_html(
       speedLabel.textContent = `Speed: ${{speed.toFixed(1)}}x`;
     }});
 
-    // Initialize display
-    updateModeCard();
-    updateBonds();
-    rebuildVectorArrows();
+    if (typeof THREE !== "undefined") {{
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
 
-    // Adjust camera distance to fit molecule
-    let maxDist = 1.0;
-    atoms.forEach(a => {{
-      const d = new THREE.Vector3(a.xyz[0] - com.x, a.xyz[1] - com.y, a.xyz[2] - com.z).length();
-      if (d > maxDist) maxDist = d;
-    }});
-    camera.position.set(0, 0, Math.max(5, maxDist * 3.2));
-    controls.update();
+      function getW() {{ return container.clientWidth || window.innerWidth || 800; }}
+      function getH() {{ return container.clientHeight || window.innerHeight || 500; }}
 
-    // Animation loop
-    function animate() {{
-      requestAnimationFrame(animate);
+      const camera = new THREE.PerspectiveCamera(45, (getW() / (getH() || 1)) || 1.6, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+      renderer.setSize(getW(), getH());
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      container.appendChild(renderer.domElement);
 
-      if (isPlaying && activeModeIdx >= 0 && activeModeIdx < modes.length) {{
-        animPhase += 0.06 * speed;
-        const sinFactor = Math.sin(animPhase);
-        const disps = modes[activeModeIdx].displacements;
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
 
-        atoms.forEach((a, idx) => {{
-          const d = disps[idx];
-          const x = (a.xyz[0] - com.x) + sinFactor * amplitude * d[0];
-          const y = (a.xyz[1] - com.y) + sinFactor * amplitude * d[1];
-          const z = (a.xyz[2] - com.z) + sinFactor * amplitude * d[2];
-          atomMeshes[idx].position.set(x, y, z);
+      const ambLight = new THREE.AmbientLight(0xffffff, 0.65);
+      scene.add(ambLight);
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+      dirLight1.position.set(10, 20, 15);
+      scene.add(dirLight1);
+      const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.35);
+      dirLight2.position.set(-10, -10, -10);
+      scene.add(dirLight2);
+
+      const moleculeGroup = new THREE.Group();
+      scene.add(moleculeGroup);
+      const vectorsGroup = new THREE.Group();
+      scene.add(vectorsGroup);
+
+      const atomMeshes = [];
+      const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+
+      atoms.forEach(a => {{
+        const mat = new THREE.MeshPhongMaterial({{
+          color: new THREE.Color(a.color),
+          shininess: 90,
+          specular: 0x444444,
         }});
+        const mesh = new THREE.Mesh(sphereGeo, mat);
+        mesh.scale.set(a.radius, a.radius, a.radius);
+        mesh.position.set(a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ);
+        moleculeGroup.add(mesh);
+        atomMeshes.push(mesh);
+      }});
 
-        updateBonds();
-        updateVectorArrowPositions();
+      const bondMeshes = [];
+      const cylGeo = new THREE.CylinderGeometry(0.1, 0.1, 1, 16);
+
+      bonds.forEach(([i, j]) => {{
+        const mat = new THREE.MeshPhongMaterial({{
+          color: 0x94a3b8,
+          shininess: 70,
+          specular: 0x222222,
+        }});
+        const mesh = new THREE.Mesh(cylGeo, mat);
+        moleculeGroup.add(mesh);
+        bondMeshes.push({{ mesh, i, j }});
+      }});
+
+      function updateBonds() {{
+        bondMeshes.forEach(b => {{
+          const p1 = atomMeshes[b.i].position;
+          const p2 = atomMeshes[b.j].position;
+          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          const len = p1.distanceTo(p2);
+          b.mesh.position.copy(mid);
+          b.mesh.scale.set(1, len, 1);
+          if (len > 1e-6) {{
+            b.mesh.quaternion.setFromUnitVectors(
+              new THREE.Vector3(0, 1, 0),
+              new THREE.Vector3().subVectors(p2, p1).normalize()
+            );
+          }}
+        }});
       }}
 
-      controls.update();
-      renderer.render(scene, camera);
-    }}
-    animate();
+      let arrowHelpers = [];
 
-    window.addEventListener("resize", () => {{
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }});
+      function rebuildVectorArrows() {{
+        while (vectorsGroup.children.length > 0) {{
+          vectorsGroup.remove(vectorsGroup.children[0]);
+        }}
+        arrowHelpers = [];
+        if (!showVectors || activeModeIdx < 0 || activeModeIdx >= modes.length) return;
+        const m = modes[activeModeIdx];
+        const disps = m.displacements;
+        atoms.forEach((a, idx) => {{
+          const d = disps[idx];
+          const dir = new THREE.Vector3(d[0], d[1], d[2]);
+          const len = dir.length();
+          if (len > 1e-4) {{
+            dir.normalize();
+            const arrowLen = Math.max(0.25, len * amplitude * 2.2);
+            const arrowColor = m.is_imaginary ? 0xf87171 : 0xfacc15;
+            const headLen = Math.min(arrowLen * 0.35, 0.35);
+            const headWidth = headLen * 0.55;
+            const arrow = new THREE.ArrowHelper(dir, atomMeshes[idx].position, arrowLen, arrowColor, headLen, headWidth);
+            vectorsGroup.add(arrow);
+            arrowHelpers.push({{ arrow, idx }});
+          }}
+        }});
+      }}
+
+      function updateVectorArrowPositions() {{
+        arrowHelpers.forEach(item => {{
+          item.arrow.position.copy(atomMeshes[item.idx].position);
+        }});
+      }}
+
+      onStateChange = () => {{
+        if (!isPlaying) {{
+          atoms.forEach((a, idx) => {{
+            atomMeshes[idx].position.set(a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ);
+          }});
+          updateBonds();
+        }}
+        rebuildVectorArrows();
+        updateVectorArrowPositions();
+      }};
+
+      updateBonds();
+      rebuildVectorArrows();
+
+      let maxDist = 1.0;
+      atoms.forEach(a => {{
+        const d = Math.hypot(a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ);
+        if (d > maxDist) maxDist = d;
+      }});
+      const camDist = Math.max(4.5, maxDist * 3.2);
+      camera.position.set(camDist * 0.78, camDist * 0.42, camDist * 0.62);
+      controls.update();
+
+      function updateSize() {{
+        const w = getW();
+        const h = getH();
+        if (w > 0 && h > 0) {{
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }}
+      }}
+      window.addEventListener("resize", updateSize);
+      if (window.ResizeObserver) {{
+        new ResizeObserver(updateSize).observe(container);
+      }}
+
+      function animate() {{
+        requestAnimationFrame(animate);
+        if (renderer.domElement.width === 0 || renderer.domElement.height === 0) updateSize();
+        if (isPlaying && activeModeIdx >= 0 && activeModeIdx < modes.length) {{
+          animPhase += 0.06 * speed;
+          const sinFactor = Math.sin(animPhase);
+          const disps = modes[activeModeIdx].displacements;
+          atoms.forEach((a, idx) => {{
+            const d = disps[idx];
+            atomMeshes[idx].position.set(
+              (a.xyz[0] - comX) + sinFactor * amplitude * d[0],
+              (a.xyz[1] - comY) + sinFactor * amplitude * d[1],
+              (a.xyz[2] - comZ) + sinFactor * amplitude * d[2]
+            );
+          }});
+          updateBonds();
+          updateVectorArrowPositions();
+        }}
+        controls.update();
+        renderer.render(scene, camera);
+      }}
+      animate();
+    }}
   </script>
 </body>
 </html>
@@ -3644,24 +3656,341 @@ def show_vibrations(
     amplitude: float = 0.5,
     height: int = 550,
     title: Optional[str] = None,
+    in_browser: bool = False,
 ) -> Any:
     """Displays interactive 3D normal mode vibrational visualizer inside Jupyter notebooks."""
+    if in_browser:
+        visualize_vibrations(
+            vib_result,
+            open_browser=True,
+            mode_index=mode_index,
+            amplitude=amplitude,
+            title=title,
+        )
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+                from IPython.display import HTML
+                return HTML(
+                    '<div style="padding:10px 16px; background:rgba(56,189,248,0.12); '
+                    'border:1px solid rgba(56,189,248,0.35); border-radius:6px; '
+                    'color:#38bdf8; font-family:sans-serif; font-size:13px; display:inline-flex; align-items:center; gap:8px;">'
+                    '<span>🌐</span> <span>Opened 3D normal mode visualizer in default web browser.</span>'
+                    '</div>'
+                )
+        except ImportError:
+            return "Opened 3D normal mode visualizer in default web browser."
+
     try:
-        import html
+        import uuid
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
             from IPython.display import HTML
-            html_code = generate_vibrations_html(vib_result, mode_index=mode_index, amplitude=amplitude, title=title)
-            escaped_html = html.escape(html_code, quote=True)
-            iframe_html = (
-                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
-                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
-                f'sandbox="allow-scripts allow-same-origin allow-popups" '
-                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
-                f'</div>'
-            )
-            return HTML(iframe_html)
+
+            data = generate_vibrations_visualization_data(vib_result)
+            if title:
+                data["title"] = title
+
+            default_mode_idx = 0
+            if mode_index is not None:
+                default_mode_idx = max(0, min(len(data["modes"]) - 1, mode_index - 1))
+            else:
+                for idx, m in enumerate(data["modes"]):
+                    if not m.get("is_tr_mode", False):
+                        default_mode_idx = idx
+                        break
+
+            uid = f"phatpsy_vib_{uuid.uuid4().hex[:8]}"
+            payload = json.dumps(data)
+
+            inline_html = f"""
+<div id="{uid}_root" style="position:relative; width:100%; height:{height}px; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#f8fafc; user-select:none;">
+  <canvas id="{uid}_canvas" style="width:100%; height:100%; display:block; cursor:grab;"></canvas>
+
+  <div style="position:absolute; top:14px; left:14px; background:rgba(15,23,42,0.86); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 14px; z-index:10; max-width:360px;">
+    <div style="font-size:0.95rem; font-weight:700; color:#38bdf8; margin-bottom:6px;">{data['title']}</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      <span style="padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600; background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid rgba(56,189,248,0.4);">{data['num_atoms']} Atoms</span>
+      <span style="padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600; background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid rgba(168,85,247,0.4);">{data['num_modes']} Modes</span>
+      <span style="padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600; {'background:rgba(34,197,94,0.2); color:#4ade80; border:1px solid rgba(34,197,94,0.4);' if data['num_imaginary'] == 0 else 'background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4);'}">
+        {data['num_imaginary']} Imaginary ({'Local Minimum' if data['num_imaginary'] == 0 else 'Saddle Point'})
+      </span>
+    </div>
+  </div>
+
+  <div style="position:absolute; top:14px; right:14px; background:rgba(15,23,42,0.86); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 14px; z-index:10; min-width:230px; font-size:0.8rem;">
+    <div style="font-size:0.74rem; text-transform:uppercase; letter-spacing:0.05em; color:#94a3b8; margin-bottom:6px; font-weight:700;">Active Mode Details</div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="color:#94a3b8;">Frequency:</span><span id="{uid}_freq" style="font-weight:700; color:#38bdf8;">--</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="color:#94a3b8;">Force Constant:</span><span id="{uid}_force" style="font-weight:600;">--</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="color:#94a3b8;">Reduced Mass:</span><span id="{uid}_mass" style="font-weight:600;">--</span></div>
+    <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">Character:</span><span id="{uid}_char" style="font-weight:600; color:#4ade80;">--</span></div>
+  </div>
+
+  <div style="position:absolute; bottom:14px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.92); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:10px 16px; z-index:10; display:flex; flex-direction:column; gap:8px; width:min(580px, 94%);">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <label style="font-size:0.78rem; font-weight:600; color:#94a3b8; white-space:nowrap;">Mode:</label>
+      <select id="{uid}_select" style="flex:1; background:#1e293b; color:#f8fafc; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:5px 10px; font-size:0.8rem; font-weight:600; cursor:pointer;"></select>
+      <button id="{uid}_play" style="background:#2563eb; color:#f8fafc; border:1px solid #3b82f6; border-radius:6px; padding:5px 12px; font-size:0.8rem; font-weight:600; cursor:pointer;">⏸ Pause</button>
+      <button id="{uid}_vec" style="background:#0284c7; color:#f8fafc; border:1px solid #38bdf8; border-radius:6px; padding:5px 12px; font-size:0.8rem; font-weight:600; cursor:pointer;">🏹 Vectors: ON</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="{uid}_amp_lbl" style="font-size:0.74rem; color:#94a3b8; min-width:105px;">Amplitude: {amplitude:.2f} Å</span>
+      <input id="{uid}_amp" type="range" min="0" max="150" value="{int(amplitude * 100)}" style="flex:1; cursor:pointer;">
+      <span id="{uid}_spd_lbl" style="font-size:0.74rem; color:#94a3b8; min-width:75px; margin-left:6px;">Speed: 1.0x</span>
+      <input id="{uid}_spd" type="range" min="20" max="300" value="100" style="flex:1; cursor:pointer;">
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {{
+  const data = {payload};
+  const atoms = data.atoms || [];
+  const bonds = data.bonds || [];
+  const modes = data.modes || [];
+
+  let activeModeIdx = {default_mode_idx};
+  let isPlaying = true;
+  let showVectors = true;
+  let amplitude = {amplitude};
+  let speed = 1.0;
+  let animPhase = 0.0;
+
+  // Camera orbit angles & zoom for 3D projection
+  let rotY = -0.65;
+  let rotX = 0.25;
+  let zoom = 1.0;
+
+  let comX = 0, comY = 0, comZ = 0;
+  atoms.forEach(a => {{ comX += a.xyz[0]; comY += a.xyz[1]; comZ += a.xyz[2]; }});
+  if (atoms.length > 0) {{ comX /= atoms.length; comY /= atoms.length; comZ /= atoms.length; }}
+
+  let maxSpan = 1.2;
+  atoms.forEach(a => {{
+    const d = Math.hypot(a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ);
+    if (d > maxSpan) maxSpan = d;
+  }});
+
+  const sel = document.getElementById("{uid}_select");
+  const elFreq = document.getElementById("{uid}_freq");
+  const elForce = document.getElementById("{uid}_force");
+  const elMass = document.getElementById("{uid}_mass");
+  const elChar = document.getElementById("{uid}_char");
+
+  modes.forEach((m, idx) => {{
+    const opt = document.createElement("option");
+    opt.value = idx;
+    let label = "Mode " + m.index + ": " + m.frequency_cm.toFixed(1) + " cm⁻¹";
+    if (m.is_tr_mode) label += " (Trans/Rot)";
+    else if (m.is_imaginary) label += " (Imaginary)";
+    opt.textContent = label;
+    if (idx === activeModeIdx) opt.selected = true;
+    sel.appendChild(opt);
+  }});
+
+  function updateCard() {{
+    if (activeModeIdx < 0 || activeModeIdx >= modes.length) return;
+    const m = modes[activeModeIdx];
+    elFreq.textContent = m.frequency_cm.toFixed(2) + " cm⁻¹" + (m.is_imaginary ? " (i)" : "");
+    elFreq.style.color = m.is_imaginary ? "#f87171" : "#38bdf8";
+    elForce.textContent = m.force_constant_mdyne_a.toFixed(4) + " mDyne/Å";
+    elMass.textContent = m.reduced_mass_amu.toFixed(4) + " amu";
+    if (m.is_tr_mode) {{
+      elChar.textContent = "Translation / Rotation";
+      elChar.style.color = "#94a3b8";
+    }} else if (m.is_imaginary) {{
+      elChar.textContent = "Transition State (Saddle)";
+      elChar.style.color = "#f87171";
+    }} else {{
+      elChar.textContent = "Harmonic Vibration";
+      elChar.style.color = "#4ade80";
+    }}
+  }}
+  updateCard();
+
+  sel.addEventListener("change", e => {{
+    activeModeIdx = parseInt(e.target.value, 10);
+    animPhase = 0.0;
+    updateCard();
+  }});
+
+  const playBtn = document.getElementById("{uid}_play");
+  playBtn.addEventListener("click", () => {{
+    isPlaying = !isPlaying;
+    playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+    if (!isPlaying) animPhase = 0.0;
+  }});
+
+  const vecBtn = document.getElementById("{uid}_vec");
+  vecBtn.addEventListener("click", () => {{
+    showVectors = !showVectors;
+    vecBtn.textContent = "🏹 Vectors: " + (showVectors ? "ON" : "OFF");
+    vecBtn.style.background = showVectors ? "#0284c7" : "#1e293b";
+  }});
+
+  const ampInput = document.getElementById("{uid}_amp");
+  const ampLbl = document.getElementById("{uid}_amp_lbl");
+  ampInput.addEventListener("input", e => {{
+    amplitude = parseFloat(e.target.value) / 100.0;
+    ampLbl.textContent = "Amplitude: " + amplitude.toFixed(2) + " Å";
+  }});
+
+  const spdInput = document.getElementById("{uid}_spd");
+  const spdLbl = document.getElementById("{uid}_spd_lbl");
+  spdInput.addEventListener("input", e => {{
+    speed = parseFloat(e.target.value) / 100.0;
+    spdLbl.textContent = "Speed: " + speed.toFixed(1) + "x";
+  }});
+
+  const canvas = document.getElementById("{uid}_canvas");
+  const ctx = canvas.getContext("2d");
+
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener("mousedown", e => {{ dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.style.cursor = "grabbing"; }});
+  window.addEventListener("mouseup", () => {{ dragging = false; canvas.style.cursor = "grab"; }});
+  window.addEventListener("mousemove", e => {{
+    if (!dragging) return;
+    rotY += (e.clientX - lastX) * 0.008;
+    rotX = Math.max(-1.4, Math.min(1.4, rotX + (e.clientY - lastY) * 0.008));
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }});
+  canvas.addEventListener("wheel", e => {{
+    e.preventDefault();
+    zoom = Math.max(0.4, Math.min(2.8, zoom * (e.deltaY < 0 ? 1.08 : 0.92)));
+  }}, {{ passive: false }});
+
+  function project(x, y, z, w, h) {{
+    const cy = Math.cos(rotY), sy = Math.sin(rotY);
+    const cx = Math.cos(rotX), sx = Math.sin(rotX);
+    const x1 = x * cy + z * sy;
+    const z1 = -x * sy + z * cy;
+    const y2 = y * cx - z1 * sx;
+    const z2 = y * sx + z1 * cx;
+    const fov = Math.min(w, h) * 0.85 * zoom / Math.max(1.1, maxSpan);
+    const camD = Math.max(4.5, maxSpan * 3.2);
+    const scale = fov / Math.max(0.5, camD - z2 * 0.35);
+    return {{ sx: w * 0.5 + x1 * scale, sy: h * 0.46 - y2 * scale, z: z2, scale: scale }};
+  }}
+
+  function renderFrame() {{
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 700;
+    const h = canvas.clientHeight || {height};
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {{
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+    }}
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(0, 0, w, h);
+
+    if (isPlaying && activeModeIdx >= 0 && activeModeIdx < modes.length) {{
+      animPhase += 0.06 * speed;
+    }}
+    const sinF = isPlaying ? Math.sin(animPhase) : 0.0;
+    const m = (activeModeIdx >= 0 && activeModeIdx < modes.length) ? modes[activeModeIdx] : null;
+    const disps = m ? m.displacements : [];
+
+    const curPos = atoms.map((a, idx) => {{
+      const d = disps[idx] || [0, 0, 0];
+      return [
+        (a.xyz[0] - comX) + sinF * amplitude * d[0],
+        (a.xyz[1] - comY) + sinF * amplitude * d[1],
+        (a.xyz[2] - comZ) + sinF * amplitude * d[2]
+      ];
+    }});
+
+    const proj = curPos.map(p => project(p[0], p[1], p[2], w, h));
+
+    // Draw bonds back-to-front
+    bonds.forEach(([i, j]) => {{
+      const p1 = proj[i], p2 = proj[j];
+      const grad = ctx.createLinearGradient(p1.sx, p1.sy, p2.sx, p2.sy);
+      grad.addColorStop(0, "#64748b");
+      grad.addColorStop(0.5, "#cbd5e1");
+      grad.addColorStop(1, "#64748b");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(4, 0.14 * 0.5 * (p1.scale + p2.scale));
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(p1.sx, p1.sy);
+      ctx.lineTo(p2.sx, p2.sy);
+      ctx.stroke();
+    }});
+
+    // Sort atoms by depth (back-to-front)
+    const order = atoms.map((_, i) => i).sort((a, b) => proj[a].z - proj[b].z);
+    order.forEach(idx => {{
+      const a = atoms[idx];
+      const p = proj[idx];
+      const r = Math.max(10, a.radius * p.scale * 0.95);
+
+      // 3D sphere shading
+      const grad = ctx.createRadialGradient(p.sx - r * 0.32, p.sy - r * 0.32, r * 0.08, p.sx, p.sy, r);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.28, a.color || "#3050F8");
+      grad.addColorStop(1, "#090d16");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Atom label
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "600 12px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(a.id || a.element, p.sx, p.sy);
+
+      // Displacement vector arrow
+      if (showVectors && disps[idx]) {{
+        const d = disps[idx];
+        const dLen = Math.hypot(d[0], d[1], d[2]);
+        if (dLen > 1e-4) {{
+          const scaleVec = Math.max(0.35, amplitude * 1.45);
+          const tip3d = [
+            curPos[idx][0] + (d[0] / dLen) * scaleVec,
+            curPos[idx][1] + (d[1] / dLen) * scaleVec,
+            curPos[idx][2] + (d[2] / dLen) * scaleVec
+          ];
+          const pTip = project(tip3d[0], tip3d[1], tip3d[2], w, h);
+          const dx = pTip.sx - p.sx, dy = pTip.sy - p.sy;
+          const screenLen = Math.hypot(dx, dy);
+          if (screenLen > 4) {{
+            const ux = dx / screenLen, uy = dy / screenLen;
+            const startX = p.sx + ux * (r * 0.55);
+            const startY = p.sy + uy * (r * 0.55);
+            const col = (m && m.is_imaginary) ? "#f87171" : "#facc15";
+            ctx.strokeStyle = col;
+            ctx.fillStyle = col;
+            ctx.lineWidth = 2.6;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(pTip.sx, pTip.sy);
+            ctx.stroke();
+
+            const head = Math.min(11, screenLen * 0.35);
+            ctx.beginPath();
+            ctx.moveTo(pTip.sx, pTip.sy);
+            ctx.lineTo(pTip.sx - ux * head - uy * head * 0.55, pTip.sy - uy * head + ux * head * 0.55);
+            ctx.lineTo(pTip.sx - ux * head + uy * head * 0.55, pTip.sy - uy * head - ux * head * 0.55);
+            ctx.closePath();
+            ctx.fill();
+          }}
+        }}
+      }}
+    }});
+
+    requestAnimationFrame(renderFrame);
+  }}
+  requestAnimationFrame(renderFrame);
+}})();
+</script>
+"""
+            return HTML(inline_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_vibrations() in Jupyter notebooks.")
 
@@ -5254,23 +5583,327 @@ def show_eom(
     height: int = 550,
     title: Optional[str] = None,
 ) -> Any:
-    """Displays interactive 3D EOM visualizer inside Jupyter notebooks."""
+    """Displays interactive 3D EOM visualizer inside Jupyter notebooks using a self-contained inline canvas."""
     try:
-        import html
+        import uuid
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
             from IPython.display import HTML
-            html_code = generate_eom_html(eom_result, title=title)
-            escaped_html = html.escape(html_code, quote=True)
-            iframe_html = (
-                f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
-                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
-                f'sandbox="allow-scripts allow-same-origin allow-popups" '
-                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
-                f'</div>'
-            )
-            return HTML(iframe_html)
+            data = generate_eom_visualization_data(eom_result)
+            if title:
+                data["title"] = title
+            payload = json.dumps(data)
+            uid = "phatpsy_eom_" + uuid.uuid4().hex[:8]
+            dip = data.get("dipole", {})
+            pol = data.get("polarizability", {})
+            mag = data.get("magnetic_susceptibility", {})
+            tot_au = dip.get("total_au", [0.0, 0.0, 0.0])
+
+            inline_html = f"""
+<div id="{uid}_root" style="position:relative; width:100%; height:{height}px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color:#f8fafc; user-select:none;">
+  <canvas id="{uid}_canvas" style="width:100%; height:100%; display:block; cursor:grab;"></canvas>
+
+  <div style="position:absolute; top:12px; left:12px; width:290px; background:rgba(15,23,42,0.88); border:1px solid rgba(255,255,255,0.14); border-radius:10px; padding:12px 14px; box-shadow:0 6px 24px rgba(0,0,0,0.4);">
+    <div style="font-size:14px; font-weight:700; margin-bottom:8px; color:#f8fafc; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">{data.get('title', 'EOM Response Properties')}</div>
+
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#60a5fa; margin:6px 0 3px;">1. Electric Dipole Moment</div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Magnitude:</span><span style="color:#facc15; font-weight:600; font-family:monospace;">{dip.get('magnitude_debye', 0.0):.4f} Debye</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Magnitude (a.u.):</span><span style="color:#f1f5f9; font-weight:600; font-family:monospace;">{dip.get('magnitude_au', 0.0):.5f} e·a₀</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Vector (a.u.):</span><span style="color:#f1f5f9; font-weight:600; font-family:monospace;">[{tot_au[0]:+.2f}, {tot_au[1]:+.2f}, {tot_au[2]:+.2f}]</span>
+    </div>
+
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#60a5fa; margin:8px 0 3px;">2. Optical Polarizability</div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Mean Static (ᾱ):</span><span style="color:#38bdf8; font-weight:600; font-family:monospace;">{pol.get('mean_static_ang3', 0.0):.4f} Å³</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Anisotropy (Δα):</span><span style="color:#f1f5f9; font-weight:600; font-family:monospace;">{pol.get('anisotropy_au', 0.0):.4f} a₀³</span>
+    </div>
+
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#60a5fa; margin:8px 0 3px;">3. Magnetic Susceptibility</div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin:2px 0; color:#94a3b8;">
+      <span>Molar (cgs):</span><span style="color:#f1f5f9; font-weight:600; font-family:monospace;">{mag.get('molar_susceptibility_cgs', 0.0)*1e6:.2f} × 10⁻⁶ cm³/mol</span>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-top:10px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.1); font-size:11px; color:#cbd5e1;">
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="{uid}_chk_dip" checked style="accent-color:#3b82f6;"> Dipole Arrow</label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="{uid}_chk_ell" checked style="accent-color:#3b82f6;"> α Ellipsoid</label>
+    </div>
+  </div>
+
+  <div style="position:absolute; bottom:12px; right:12px; width:340px; background:rgba(15,23,42,0.88); border:1px solid rgba(255,255,255,0.14); border-radius:10px; padding:10px 12px; box-shadow:0 6px 24px rgba(0,0,0,0.4);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <span style="font-size:12px; font-weight:700; color:#f8fafc;">UV-Vis Absorption Spectrum</span>
+      <span style="font-size:10px; color:#94a3b8;">{len(data.get('transitions', []))} transitions</span>
+    </div>
+    <canvas id="{uid}_uvvis" width="316" height="105" style="width:100%; height:105px; background:rgba(0,0,0,0.35); border-radius:6px; display:block;"></canvas>
+    <div style="display:flex; justify-content:space-between; font-size:10px; color:#64748b; margin-top:3px;">
+      <span id="{uid}_wmin">20 nm</span>
+      <span style="color:#94a3b8;">SOS Dipole Transitions</span>
+      <span id="{uid}_wmax">160 nm</span>
+    </div>
+  </div>
+</div>
+<script>
+(function() {{
+  const DATA = {payload};
+  const atoms = (DATA.atoms || []).map(a => ({{
+    id: a.id || a.element,
+    element: a.element,
+    xyz: [
+      a.x !== undefined ? a.x : (a.xyz ? a.xyz[0] : 0),
+      a.y !== undefined ? a.y : (a.xyz ? a.xyz[1] : 0),
+      a.z !== undefined ? a.z : (a.xyz ? a.xyz[2] : 0)
+    ],
+    color: a.color || "#3b82f6",
+    radius: a.radius || 0.42
+  }}));
+  const bonds = (DATA.bonds || []).map(b => [
+    b.atom1 !== undefined ? b.atom1 : b[0],
+    b.atom2 !== undefined ? b.atom2 : b[1]
+  ]);
+  const dipole = DATA.dipole || {{}};
+  const ellipsoid = DATA.ellipsoid || {{}};
+  const transitions = DATA.transitions || [];
+
+  let comX = 0, comY = 0, comZ = 0;
+  atoms.forEach(a => {{ comX += a.xyz[0]; comY += a.xyz[1]; comZ += a.xyz[2]; }});
+  if (atoms.length > 0) {{ comX /= atoms.length; comY /= atoms.length; comZ /= atoms.length; }}
+
+  let maxSpan = 1.6;
+  atoms.forEach(a => {{
+    const d = Math.hypot(a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ);
+    if (d > maxSpan) maxSpan = d;
+  }});
+
+  let rotY = -0.65, rotX = 0.28, zoom = 1.0;
+  let showDipole = true, showEllipsoid = true;
+
+  const chkDip = document.getElementById("{uid}_chk_dip");
+  const chkEll = document.getElementById("{uid}_chk_ell");
+  if (chkDip) chkDip.addEventListener("change", e => {{ showDipole = e.target.checked; }});
+  if (chkEll) chkEll.addEventListener("change", e => {{ showEllipsoid = e.target.checked; }});
+
+  // Draw UV-Vis spectrum
+  const uvCanvas = document.getElementById("{uid}_uvvis");
+  if (uvCanvas) {{
+    const uctx = uvCanvas.getContext("2d");
+    const uw = uvCanvas.width, uh = uvCanvas.height;
+    const valid = transitions.filter(t => t.oscillator_strength > 1e-4);
+    let wmin = 20.0, wmax = 140.0;
+    if (valid.length > 0) {{
+      const wls = valid.map(t => t.wavelength_nm);
+      wmin = Math.max(10.0, Math.floor(Math.min(...wls) * 0.8));
+      wmax = Math.ceil(Math.max(...wls) * 1.2);
+    }}
+    document.getElementById("{uid}_wmin").textContent = Math.round(wmin) + " nm";
+    document.getElementById("{uid}_wmax").textContent = Math.round(wmax) + " nm";
+
+    uctx.clearRect(0, 0, uw, uh);
+    if (valid.length > 0) {{
+      const maxF = Math.max(...valid.map(t => t.oscillator_strength), 1e-4);
+      const nPts = 200;
+      const sigma = Math.max(1.5, (wmax - wmin) / 38.0);
+      const curve = [];
+      let maxC = 1e-6;
+      for (let i = 0; i < nPts; i++) {{
+        const wl = wmin + (i / (nPts - 1)) * (wmax - wmin);
+        let v = 0;
+        valid.forEach(t => {{
+          const d = (wl - t.wavelength_nm) / sigma;
+          v += t.oscillator_strength * Math.exp(-0.5 * d * d);
+        }});
+        curve.push(v);
+        if (v > maxC) maxC = v;
+      }}
+      uctx.beginPath();
+      uctx.moveTo(8, uh - 10);
+      curve.forEach((v, i) => {{
+        const x = 8 + (i / (nPts - 1)) * (uw - 16);
+        const y = uh - 10 - (v / maxC) * (uh - 22);
+        uctx.lineTo(x, y);
+      }});
+      uctx.lineTo(uw - 8, uh - 10);
+      uctx.closePath();
+      uctx.fillStyle = "rgba(56, 189, 248, 0.22)";
+      uctx.fill();
+      uctx.strokeStyle = "#38bdf8";
+      uctx.lineWidth = 1.5;
+      uctx.stroke();
+
+      valid.forEach(t => {{
+        const x = 8 + ((t.wavelength_nm - wmin) / Math.max(1e-3, wmax - wmin)) * (uw - 16);
+        const y = uh - 10 - (t.oscillator_strength / maxF) * (uh - 24);
+        uctx.beginPath();
+        uctx.moveTo(x, uh - 10);
+        uctx.lineTo(x, y);
+        uctx.strokeStyle = "rgba(244, 63, 94, 0.85)";
+        uctx.lineWidth = 1.8;
+        uctx.stroke();
+      }});
+    }}
+  }}
+
+  const canvas = document.getElementById("{uid}_canvas");
+  const ctx = canvas.getContext("2d");
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener("mousedown", e => {{ dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.style.cursor = "grabbing"; }});
+  window.addEventListener("mouseup", () => {{ dragging = false; canvas.style.cursor = "grab"; }});
+  window.addEventListener("mousemove", e => {{
+    if (!dragging) return;
+    rotY += (e.clientX - lastX) * 0.008;
+    rotX = Math.max(-1.4, Math.min(1.4, rotX + (e.clientY - lastY) * 0.008));
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }});
+  canvas.addEventListener("wheel", e => {{
+    e.preventDefault();
+    zoom = Math.max(0.4, Math.min(2.8, zoom * (e.deltaY < 0 ? 1.08 : 0.92)));
+  }}, {{ passive: false }});
+
+  function project(x, y, z, w, h) {{
+    const cy = Math.cos(rotY), sy = Math.sin(rotY);
+    const cx = Math.cos(rotX), sx = Math.sin(rotX);
+    const x1 = x * cy + z * sy;
+    const z1 = -x * sy + z * cy;
+    const y2 = y * cx - z1 * sx;
+    const z2 = y * sx + z1 * cx;
+    const fov = Math.min(w, h) * 0.78 * zoom / Math.max(1.2, maxSpan);
+    const camD = Math.max(4.8, maxSpan * 3.2);
+    const scale = fov / Math.max(0.5, camD - z2 * 0.35);
+    return {{ sx: w * 0.54 + x1 * scale, sy: h * 0.48 - y2 * scale, z: z2, scale: scale }};
+  }}
+
+  function render() {{
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 720;
+    const h = canvas.clientHeight || {height};
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {{
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+    }}
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(0, 0, w, h);
+
+    // 1. Polarizability Ellipsoid wireframe rings
+    if (showEllipsoid && ellipsoid.radii_ang && ellipsoid.eigenvectors) {{
+      const rx = ellipsoid.radii_ang[0] || 1.0;
+      const ry = ellipsoid.radii_ang[1] || 1.0;
+      const rz = ellipsoid.radii_ang[2] || 1.0;
+      const ev = ellipsoid.eigenvectors;
+      const transformPt = (lx, ly, lz) => [
+        ev[0][0]*lx + ev[0][1]*ly + ev[0][2]*lz,
+        ev[1][0]*lx + ev[1][1]*ly + ev[1][2]*lz,
+        ev[2][0]*lx + ev[2][1]*ly + ev[2][2]*lz
+      ];
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.32)";
+      ctx.lineWidth = 1.3;
+      const nSeg = 48;
+      [[1,1,0], [1,0,1], [0,1,1]].forEach(plane => {{
+        ctx.beginPath();
+        for (let i = 0; i <= nSeg; i++) {{
+          const t = (i / nSeg) * Math.PI * 2;
+          let lx = 0, ly = 0, lz = 0;
+          if (plane[0] && plane[1]) {{ lx = rx * Math.cos(t); ly = ry * Math.sin(t); }}
+          else if (plane[0] && plane[2]) {{ lx = rx * Math.cos(t); lz = rz * Math.sin(t); }}
+          else {{ ly = ry * Math.cos(t); lz = rz * Math.sin(t); }}
+          const g = transformPt(lx, ly, lz);
+          const p = project(g[0], g[1], g[2], w, h);
+          if (i === 0) ctx.moveTo(p.sx, p.sy);
+          else ctx.lineTo(p.sx, p.sy);
+        }}
+        ctx.stroke();
+      }});
+    }}
+
+    const pos = atoms.map(a => [a.xyz[0] - comX, a.xyz[1] - comY, a.xyz[2] - comZ]);
+    const proj = pos.map(p => project(p[0], p[1], p[2], w, h));
+
+    // 2. Bonds
+    bonds.forEach(([i, j]) => {{
+      if (!proj[i] || !proj[j]) return;
+      const p1 = proj[i], p2 = proj[j];
+      const grad = ctx.createLinearGradient(p1.sx, p1.sy, p2.sx, p2.sy);
+      grad.addColorStop(0, "#64748b");
+      grad.addColorStop(0.5, "#cbd5e1");
+      grad.addColorStop(1, "#64748b");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(4, 0.14 * 0.5 * (p1.scale + p2.scale));
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(p1.sx, p1.sy);
+      ctx.lineTo(p2.sx, p2.sy);
+      ctx.stroke();
+    }});
+
+    // 3. Atoms sorted by depth
+    const order = atoms.map((_, i) => i).sort((a, b) => proj[a].z - proj[b].z);
+    order.forEach(idx => {{
+      const a = atoms[idx], p = proj[idx];
+      const r = Math.max(10, a.radius * p.scale * 0.95);
+      const grad = ctx.createRadialGradient(p.sx - r * 0.32, p.sy - r * 0.32, r * 0.08, p.sx, p.sy, r);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.28, a.color);
+      grad.addColorStop(1, "#090d16");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "600 12px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(a.id, p.sx, p.sy);
+    }});
+
+    // 4. Permanent Dipole Vector Arrow
+    const vecDebye = dipole.total_debye || [0, 0, 0];
+    const magD = Math.hypot(vecDebye[0], vecDebye[1], vecDebye[2]);
+    if (showDipole && magD > 1e-3) {{
+      const len3d = Math.min(2.4, Math.max(0.95, magD * 1.4));
+      const ux3 = vecDebye[0] / magD, uy3 = vecDebye[1] / magD, uz3 = vecDebye[2] / magD;
+      const p0 = project(-ux3 * len3d * 0.35, -uy3 * len3d * 0.35, -uz3 * len3d * 0.35, w, h);
+      const p1 = project(ux3 * len3d * 0.85, uy3 * len3d * 0.85, uz3 * len3d * 0.85, w, h);
+      const dx = p1.sx - p0.sx, dy = p1.sy - p0.sy;
+      const sLen = Math.hypot(dx, dy);
+      if (sLen > 6) {{
+        const ux = dx / sLen, uy = dy / sLen;
+        ctx.strokeStyle = "#facc15";
+        ctx.fillStyle = "#facc15";
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(p0.sx, p0.sy);
+        ctx.lineTo(p1.sx, p1.sy);
+        ctx.stroke();
+
+        const head = Math.min(13, sLen * 0.32);
+        ctx.beginPath();
+        ctx.moveTo(p1.sx, p1.sy);
+        ctx.lineTo(p1.sx - ux * head - uy * head * 0.55, p1.sy - uy * head + ux * head * 0.55);
+        ctx.lineTo(p1.sx - ux * head + uy * head * 0.55, p1.sy - uy * head - ux * head * 0.55);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.font = "700 11px monospace";
+        ctx.fillText("μ = " + magD.toFixed(3) + " D", p1.sx + ux * 28, p1.sy + uy * 16 - 8);
+      }}
+    }}
+
+    requestAnimationFrame(render);
+  }}
+  requestAnimationFrame(render);
+}})();
+</script>
+"""
+            return HTML(inline_html)
     except ImportError:
         raise RuntimeError("IPython is required to use show_eom() in Jupyter notebooks.")
 
@@ -5574,6 +6207,23 @@ HYBRID_GEOMETRY_PRESETS: Dict[str, Dict[str, Any]] = {
         "bond_length_aa": 1.098,
         "partners": [
             {"element": "N", "bond_length_aa": 1.098},
+        ],
+        "sigma_dirs": [
+            np.array([0.0, 0.0, 1.0]),
+        ],
+        "pi_dirs": [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+        ],
+    },
+    "carbon_monoxide": {
+        "name": "Carbon Monoxide (CO, Cinfv, sp C(-)O(+))",
+        "default_element": "C",
+        "partner_element": "O",
+        "bond_length_aa": 1.128,
+        "hybridization": "sp",
+        "partners": [
+            {"element": "O", "bond_length_aa": 1.128},
         ],
         "sigma_dirs": [
             np.array([0.0, 0.0, 1.0]),

@@ -150,6 +150,30 @@ apply_hybrid_seeds(deck)
 
 The hybrid frame automatically aligns with bonded neighbor directions via the Kabsch algorithm. Supported named types include main-group hybrids (`"sp3"`, `"sp2"`, `"sp"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`) and transition-metal coordination geometries (`"dsp2"`, `"d2sp3"`, `"sd3"`, `"sd"`, `"delta"`).
 
+### Orbital-Level Valence Configuration (`ValenceOrbital` & `propose_valence_config`)
+
+To record explicit orbital-level electron assignments—including mixed spins in frustrated rings (e.g., $\text{O}$ in ethylene oxide), open-shell radicals ($\text{NO}$), dative/coordinate bonds ($\text{NH}_3 \to \text{BH}_3$), and transition-metal crystal-field states—attach a list of `ValenceOrbital` records to `AtomConfig.valence_config` or generate an editable proposal via `propose_valence_config`:
+
+```python
+from phatpsy import AtomConfig, ValenceOrbital, propose_valence_config
+
+# Explicit mixed-spin valence configuration on Oxygen in ethylene oxide
+o_atom = AtomConfig(
+    element="O",
+    id="O1",
+    xyz=[0.0, 0.0, 0.0],
+    valence_config=[
+        ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="C1"),
+        ValenceOrbital(spin="down", orbital_type="sigma", occupation=1, connect_to="C2"),
+        ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="in_plane"),
+        ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="out_of_plane"),
+    ],
+)
+
+# Or materialize an automated proposal for review and editing
+proposals = propose_valence_config(deck)
+```
+
 ### Interactive 3D Preview in Notebooks
 
 Render interactive Three.js views directly inside Jupyter notebook output cells:

@@ -6,7 +6,7 @@ or diatomic specifications, automatically binding Clementi & Roetti and Thakkar
 STO basis functions, exponents, and starting orbital configurations.
 """
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union, Sequence
 import re
 import numpy as np
 
@@ -16,6 +16,11 @@ from phatpsy.schema import (
     AtomConfig,
     ElementConfig,
     SymmetrySpec,
+    ValenceOrbital,
+    ATOMIC_NUMBERS,
+    n_valence_orbitals,
+    occupied_valency,
+    valence_net_spin,
 )
 from phatpsy.basis import list_available_elements, get_element_basis
 
@@ -139,6 +144,7 @@ def parse_geometry(
                     spin=item.spin,
                     basis=item.basis,
                     hybridization=item.hybridization,
+                    valence_config=item.valence_config,
                     embedded_state=item.embedded_state,
                     starting_orbitals=item.starting_orbitals,
                 ))
@@ -169,6 +175,7 @@ def parse_geometry(
                 spin=spin_val,
                 basis=item.get("basis"),
                 hybridization=item.get("hybridization"),
+                valence_config=item.get("valence_config"),
                 embedded_state=item.get("embedded_state"),
                 starting_orbitals=item.get("starting_orbitals"),
             ))
@@ -196,6 +203,9 @@ def parse_geometry(
                 coords = [float(c) * to_bohr for c in item[1]]
                 opts = item[2]
                 basis_val = None
+                hyb_val = None
+                val_cfg_val = None
+                id_val = None
                 if isinstance(opts, str):
                     opt_lower = opts.lower()
                     is_virt = is_virt or ("virt" in opt_lower or "ghost" in opt_lower)
@@ -207,6 +217,7 @@ def parse_geometry(
                     symm_obj = None
                     charge = 0.0
                 else:
+                    id_val = opts.get("id")
                     is_virt = bool(opts.get("virtual", is_virt))
                     is_fix = bool(opts.get("fixed", is_fix))
                     spin_tag = opts.get("spin", spin_tag)
@@ -216,8 +227,11 @@ def parse_geometry(
                     symm = opts.get("symmetry")
                     symm_obj = SymmetrySpec(**symm) if isinstance(symm, dict) else symm
                     basis_val = opts.get("basis")
+                    hyb_val = opts.get("hybridization")
+                    val_cfg_val = opts.get("valence_config")
                 atom_configs.append(AtomConfig(
                     element=sym,
+                    id=id_val,
                     xyz=coords,
                     symmetry=symm_obj,
                     charge=charge,
@@ -226,6 +240,8 @@ def parse_geometry(
                     spin_flip=(spin_tag == "down"),
                     spin=spin_tag,
                     basis=basis_val,
+                    hybridization=hyb_val,
+                    valence_config=val_cfg_val,
                 ))
             elif len(item) == 4:
                 # ("C", x, y, z)
@@ -324,10 +340,13 @@ def build_molecule(
     spin_unrestricted: bool = True,
     spins: Optional[Union[List[str], Dict[str, str], str]] = None,
     net_spin: Optional[int] = None,
+    physical_net_spin: Optional[int] = None,
     ferromagnetic_links: Optional[List[Tuple[Union[str, int], Union[str, int]]]] = None,
     auto_spin_flip: Optional[bool] = None,
     require_bipartite: bool = False,
     embedded_atoms: Optional[Dict[Union[str, int], Any]] = None,
+    hybridization: Optional[Union[str, Sequence[Optional[str]], Dict[str, str]]] = None,
+    valence_configs: Optional[Union[Sequence[Optional[List[Any]]], Dict[Union[str, int], List[Any]]]] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
     """
@@ -447,6 +466,54 @@ def build_molecule(
             for a in atoms:
                 a.spin = spins
 
+    if hybridization is not None:
+        if isinstance(hybridization, str):
+            for a in atoms:
+                a.hybridization = hybridization.strip().lower()
+        elif isinstance(hybridization, (list, tuple)):
+            if len(hybridization) != len(atoms):
+                raise ValueError(
+                    f"Length of hybridization list ({len(hybridization)}) must match number of atoms ({len(atoms)})."
+                )
+            for idx, h in enumerate(hybridization):
+                if h is not None:
+                    atoms[idx].hybridization = str(h).strip().lower()
+        elif isinstance(hybridization, dict):
+            for idx, a in enumerate(atoms):
+                h = hybridization.get(a.id) if a.id else None
+                if h is None:
+                    h = hybridization.get(idx, hybridization.get(str(idx), hybridization.get(a.element)))
+                if h is not None:
+                    a.hybridization = str(h).strip().lower()
+
+    if valence_configs is not None:
+        if isinstance(valence_configs, (list, tuple)):
+            if len(valence_configs) != len(atoms):
+                raise ValueError(
+                    f"Length of valence_configs list ({len(valence_configs)}) must match number of atoms ({len(atoms)})."
+                )
+            for idx, vc in enumerate(valence_configs):
+                if vc is not None:
+                    atoms[idx].valence_config = [
+                        v if isinstance(v, ValenceOrbital) else ValenceOrbital.from_dict(v)
+                        for v in vc
+                    ]
+        elif isinstance(valence_configs, dict):
+            for idx, a in enumerate(atoms):
+                vc = valence_configs.get(a.id) if a.id else None
+                if vc is None:
+                    vc = valence_configs.get(idx, valence_configs.get(str(idx), valence_configs.get(a.element)))
+                if vc is not None:
+                    a.valence_config = [
+                        v if isinstance(v, ValenceOrbital) else ValenceOrbital.from_dict(v)
+                        for v in vc
+                    ]
+
+    # Re-validate atom-local valence_config if spins, hybridization, or valence_configs were updated
+    for a in atoms:
+        if a.valence_config is not None:
+            a.validate_valence_config()
+
     # Restricted (closed-shell) decks have one spin channel; per-atom labels are optional
     # and ignored by the engine.
     restricted = (not control.spin_unrestricted) if control is not None else (not spin_unrestricted)
@@ -554,6 +621,19 @@ def build_molecule(
         ferromagnetic_reports=detected_ferromagnetic_reports,
     )
 
+    if physical_net_spin is not None:
+        calc_phys = deck.physical_net_spin
+        if calc_phys is None:
+            raise ValueError(
+                f"Cannot verify physical_net_spin={physical_net_spin}: not all non-virtual atoms have a "
+                f"valence_config or starting_orbitals spin source."
+            )
+        if calc_phys != int(physical_net_spin):
+            raise ValueError(
+                f"Physical net spin (2S) mismatch in build_molecule: sum of net_orbital_spin across atoms is "
+                f"{calc_phys}, but physical_net_spin={physical_net_spin} was requested."
+            )
+
     if hasattr(geometry, "cell") and np.any(geometry.cell):
         deck.cell = (np.array(geometry.cell, dtype=np.float64) * BOHR_PER_ANGSTROM).tolist()
     elif poscar_cell is not None:
@@ -563,6 +643,15 @@ def build_molecule(
         deck.pbc = geometry.pbc.tolist() if hasattr(geometry.pbc, "tolist") else list(geometry.pbc)
     elif poscar_pbc is not None:
         deck.pbc = poscar_pbc
+
+    if (
+        len(deck.geometry) == 2
+        and bool(deck.elements)
+        and all(getattr(a, "hybridization", None) == "sp" for a in deck.geometry)
+        and any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry)
+    ):
+        from phatpsy.hybrids import apply_hybrid_seeds
+        apply_hybrid_seeds(deck, bonds={(0, 1): 3})
 
     return deck
 
@@ -576,7 +665,11 @@ def build_diatomic(
     use_symmetry: bool = True,
     spins: Optional[Union[List[str], Tuple[str, str]]] = None,
     net_spin: Optional[int] = None,
+    physical_net_spin: Optional[int] = None,
     spin_flip: Optional[bool] = None,
+    hybridization: Optional[Union[str, Sequence[Optional[str]]]] = None,
+    valence_configs: Optional[Union[Sequence[Optional[List[Any]]], Dict[Union[str, int], List[Any]]]] = None,
+    charges: Optional[Union[Sequence[float], Dict[Union[str, int], float]]] = None,
     title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
@@ -672,11 +765,21 @@ def build_diatomic(
 
     do_flip = (s1 != s2)
 
-    if is_homo and use_symmetry:
+    c1, c2 = 0.0, 0.0
+    if charges is not None:
+        if isinstance(charges, (list, tuple)):
+            if len(charges) != 2:
+                raise ValueError(f"Diatomic charges must contain 2 values, got {charges}")
+            c1, c2 = float(charges[0]), float(charges[1])
+        elif isinstance(charges, dict):
+            c1 = float(charges.get(f"{sym1}1", charges.get(0, charges.get("0", charges.get(sym1, 0.0)))))
+            c2 = float(charges.get(f"{sym2}2", charges.get(1, charges.get("1", charges.get(sym2, 0.0)))))
+
+    if is_homo and use_symmetry and hybridization is None:
         # Homonuclear diatomic with symmetry along Z axis
         z_half = r_bohr / 2.0
         geometry = [
-            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, z_half], spin=s1),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, z_half], spin=s1, charge=c1),
             AtomConfig(
                 id=f"{sym1}2",
                 element=sym1,
@@ -687,13 +790,14 @@ def build_diatomic(
                 symmetry=SymmetrySpec(ixyz=1, isym=-1, qflip=do_flip),
                 spin_flip=do_flip,
                 spin=s2,
+                charge=c2,
             ),
         ]
     else:
         # Heteronuclear or explicit coordinates
         geometry = [
-            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin=s1),
-            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin=s2, spin_flip=do_flip if is_homo else False),
+            AtomConfig(id=f"{sym1}1", element=sym1, xyz=[0.0, 0.0, 0.0], spin=s1, charge=c1),
+            AtomConfig(id=f"{sym2}2", element=sym2, xyz=[0.0, 0.0, r_bohr], spin=s2, charge=c2, spin_flip=do_flip if is_homo else False),
         ]
 
     return build_molecule(
@@ -704,6 +808,311 @@ def build_diatomic(
         units="bohr",
         spins=[s1, s2],
         net_spin=resolved_net_spin,
+        physical_net_spin=physical_net_spin,
+        hybridization=hybridization,
+        valence_configs=valence_configs,
         extra_namelist=extra_namelist,
     )
+
+
+def _infer_atom_hybridization_from_geometry(
+    idx: int,
+    atoms: List[AtomConfig],
+    neighbours: List[Tuple[int, int]],
+    Z: int,
+    occ_val: int,
+) -> Optional[str]:
+    """
+    Infers the geometry-driven hybridization label ('s', 'sp', 'sp2', 'sp3') for an atom
+    when atom.hybridization is not explicitly set.
+    """
+    if atoms[idx].hybridization is not None:
+        return str(atoms[idx].hybridization).strip().lower()
+    if Z <= 2:
+        return "s"
+    n_orb = n_valence_orbitals(Z)
+    if n_orb != 4:
+        # Transition metals or heavier shells default to None unless explicitly labeled
+        return None
+
+    cn = len(neighbours)
+    n_pi = sum(max(order - 1, 0) for _, order in neighbours)
+    if n_pi >= 2:
+        return "sp"
+    if n_pi == 1:
+        return "sp2"
+
+    # Use local geometry angles when all bonds are single bonds
+    xyz_i = np.asarray(atoms[idx].xyz, dtype=float)
+    vecs = []
+    for j, _ in neighbours:
+        v = np.asarray(atoms[j].xyz, dtype=float) - xyz_i
+        norm = float(np.linalg.norm(v))
+        if norm > 1e-8:
+            vecs.append(v / norm)
+
+    n_bond_e = sum(order for _, order in neighbours)
+    leftover = max(occ_val - n_bond_e, 0)
+    n_lp = leftover // 2
+
+    if cn == 2 and len(vecs) == 2 and n_lp == 0:
+        cos_ang = float(np.clip(np.dot(vecs[0], vecs[1]), -1.0, 1.0))
+        ang_deg = float(np.degrees(np.arccos(cos_ang)))
+        if ang_deg >= 165.0:
+            return "sp"
+    if cn == 3 and len(vecs) == 3 and n_lp == 0:
+        # Check coplanarity (sum of 3 bond angles ~ 360 deg)
+        angles = []
+        for a_i in range(3):
+            for b_i in range(a_i + 1, 3):
+                c_ab = float(np.clip(np.dot(vecs[a_i], vecs[b_i]), -1.0, 1.0))
+                angles.append(float(np.degrees(np.arccos(c_ab))))
+        if sum(angles) >= 355.0:
+            return "sp2"
+
+    return "sp3"
+
+
+def propose_valence_config(
+    target: Union[CalculationDeck, List[Any], str, Path],
+    bonds: Optional[Dict[Tuple[int, int], int]] = None,
+    units: str = "bohr",
+    tolerance: float = 1.25,
+) -> Dict[str, List[ValenceOrbital]]:
+    """
+    Materializes the automated spin and hybridization assignment as an explicit
+    mapping of {atom_id: List[ValenceOrbital]} for user review and editing.
+
+    Rules (Section 8):
+    - Automation proposes; the record disposes.
+    - Precedence: an explicit valence_config on an atom wins over automation for the
+      entries it specifies; automation fills only unspecified orbitals (default empty)
+      and atoms with no config at all.
+    - Automation never invents a dative bond (lone_pair with connect_to is never
+      created unprompted).
+    - Rehybridization is geometry-driven (planar BF3 -> sp2; pyramidal adduct -> sp3).
+    """
+    from phatpsy.spin import build_connectivity_graph, solve_alternating_spin
+
+    if isinstance(target, CalculationDeck):
+        atoms = [
+            AtomConfig.from_dict(a.to_dict())
+            for a in target.geometry
+        ]
+    else:
+        atoms = [
+            AtomConfig.from_dict(a.to_dict()) if isinstance(a, AtomConfig) else a
+            for a in parse_geometry(target, units=units)
+        ]
+
+    if not atoms:
+        return {}
+
+    # Ensure unique atom IDs
+    elem_counts: Dict[str, int] = {}
+    existing_ids = {a.id for a in atoms if a.id}
+    for a in atoms:
+        sym = a.element.strip().capitalize()
+        elem_counts[sym] = elem_counts.get(sym, 0) + 1
+        if not a.id:
+            cand = f"{sym}{elem_counts[sym]}"
+            while cand in existing_ids:
+                elem_counts[sym] += 1
+                cand = f"{sym}{elem_counts[sym]}"
+            a.id = cand
+            existing_ids.add(cand)
+
+    n = len(atoms)
+    adj = build_connectivity_graph(atoms, tolerance=tolerance)
+    neighbours: Dict[int, List[Tuple[int, int]]] = {i: [] for i in range(n)}
+    if bonds is not None:
+        for (i, j), order in bonds.items():
+            neighbours[i].append((j, int(order)))
+            neighbours[j].append((i, int(order)))
+            if j not in adj[i]:
+                adj[i].append(j)
+            if i not in adj[j]:
+                adj[j].append(i)
+    else:
+        for i in range(n):
+            for j in adj[i]:
+                neighbours[i].append((j, 1))
+
+    # Determine locked spins from explicit valence_config or explicit atom.spin
+    locked_spins: Dict[int, str] = {}
+    for idx, a in enumerate(atoms):
+        if a.valence_config is not None:
+            net_s = valence_net_spin(a.valence_config)
+            if net_s > 0:
+                locked_spins[idx] = "up"
+            elif net_s < 0:
+                locked_spins[idx] = "down"
+            elif a.spin in ("up", "down"):
+                locked_spins[idx] = a.spin
+        elif a.spin in ("up", "down"):
+            locked_spins[idx] = a.spin
+
+    solved_spins = solve_alternating_spin(
+        adj,
+        start_spin="up",
+        locked_spins=locked_spins,
+        require_bipartite=False,
+    )
+    for idx, a in enumerate(atoms):
+        if a.spin not in ("up", "down"):
+            a.spin = solved_spins[idx]
+            a.spin_flip = (a.spin == "down")
+
+    # Determine facing bond spins for any already-specified valence_config entries
+    id_to_idx = {a.id: idx for idx, a in enumerate(atoms)}
+    explicit_facing_spin: Dict[Tuple[int, int, str], List[str]] = {}
+    for i, a in enumerate(atoms):
+        if a.valence_config:
+            for orb in a.valence_config:
+                if orb.occupation == 1 and orb.connect_to in id_to_idx:
+                    j = id_to_idx[orb.connect_to]
+                    explicit_facing_spin.setdefault((i, j, orb.orbital_type), []).append(orb.spin)
+
+    proposals: Dict[str, List[ValenceOrbital]] = {}
+
+    for i, a in enumerate(atoms):
+        sym = a.element.strip().capitalize()
+        Z = ATOMIC_NUMBERS[sym]
+        n_orb = n_valence_orbitals(Z)
+        occ_val = occupied_valency(Z, a.charge)
+        atom_spin = a.spin or "up"
+        opp_spin = "down" if atom_spin == "up" else "up"
+
+        if n_orb == 0:
+            proposals[a.id] = []
+            continue
+
+        # If atom already has a valence_config, preserve its explicit entries and pad/complete if partial
+        hyb = _infer_atom_hybridization_from_geometry(i, atoms, neighbours[i], Z, occ_val)
+        if a.valence_config is not None:
+            entries = [ValenceOrbital.from_dict(o.to_dict()) for o in a.valence_config]
+            if len(entries) >= n_orb:
+                proposals[a.id] = entries
+                continue
+        else:
+            entries = []
+
+        rem_e = occ_val - sum(e.occupation for e in entries)
+
+        # 1. Create bonding orbitals for each neighbor
+        for j, order in neighbours[i]:
+            if rem_e <= 0 or len(entries) >= n_orb:
+                break
+            nbr_id = atoms[j].id
+            existing_sigma = sum(
+                1 for e in entries if e.connect_to == nbr_id and e.orbital_type == "sigma"
+            )
+            existing_pi = sum(
+                1 for e in entries if e.connect_to == nbr_id and e.orbital_type == "pi"
+            )
+            if existing_sigma == 0:
+                # Check if neighbor j has an explicit facing orbital toward i
+                nbr_facing = explicit_facing_spin.get((j, i, "sigma"), [])
+                if nbr_facing:
+                    b_spin = "down" if nbr_facing[0] == "up" else "up"
+                else:
+                    b_spin = atom_spin
+                entries.append(
+                    ValenceOrbital(
+                        spin=b_spin,
+                        orbital_type="sigma",
+                        occupation=1,
+                        connect_to=nbr_id,
+                    )
+                )
+                rem_e -= 1
+
+            # Additional pi bonds if order > 1
+            for pi_idx in range(existing_pi, order - 1):
+                if rem_e <= 0 or len(entries) >= n_orb:
+                    break
+                nbr_pi = explicit_facing_spin.get((j, i, "pi"), [])
+                if pi_idx < len(nbr_pi):
+                    p_spin = "down" if nbr_pi[pi_idx] == "up" else "up"
+                else:
+                    p_spin = atom_spin
+                # Determine plane if neighbor or atom has another neighbor
+                plane_ids: Optional[List[str]] = None
+                ori = "in_plane"
+                other_nbrs = [atoms[k].id for k, _ in neighbours[i] if k != j]
+                if not other_nbrs:
+                    other_nbrs = [atoms[k].id for k, _ in neighbours[j] if k != i]
+                if other_nbrs and pi_idx == 0:
+                    plane_ids = [nbr_id, other_nbrs[0]]
+                    ori = "out_of_plane"
+                entries.append(
+                    ValenceOrbital(
+                        spin=p_spin,
+                        orbital_type="pi",
+                        occupation=1,
+                        connect_to=nbr_id,
+                        plane=plane_ids,
+                        orientation=ori,
+                    )
+                )
+                rem_e -= 1
+
+        # 2. Allocate remaining electrons (lone pairs first, then unpaired radical electrons)
+        while rem_e >= 2 and len(entries) < n_orb:
+            entries.append(
+                ValenceOrbital(
+                    spin="none",
+                    orbital_type="lone_pair",
+                    occupation=2,
+                )
+            )
+            rem_e -= 2
+
+        while rem_e == 1 and len(entries) < n_orb:
+            entries.append(
+                ValenceOrbital(
+                    spin=atom_spin,
+                    orbital_type="pi" if hyb in ("sp", "sp2") else "sigma",
+                    occupation=1,
+                )
+            )
+            rem_e -= 1
+
+        # 3. Fill any remaining empty valence orbitals with role matching hybridization
+        n_pi_target = 2 if hyb == "sp" else (1 if hyb == "sp2" else 0)
+        cur_pi = sum(1 for e in entries if e.orbital_type == "pi")
+        while len(entries) < n_orb:
+            if cur_pi < n_pi_target:
+                plane_ids = None
+                ori = "in_plane"
+                nbr_labels = [atoms[j].id for j, _ in neighbours[i]]
+                if len(nbr_labels) >= 3:
+                    plane_ids = nbr_labels[:3]
+                    ori = "out_of_plane"
+                elif len(nbr_labels) == 2:
+                    plane_ids = nbr_labels[:2]
+                    ori = "out_of_plane"
+                entries.append(
+                    ValenceOrbital(
+                        spin="none",
+                        orbital_type="pi",
+                        occupation=0,
+                        plane=plane_ids,
+                        orientation=ori,
+                    )
+                )
+                cur_pi += 1
+            else:
+                entries.append(
+                    ValenceOrbital(
+                        spin="none",
+                        orbital_type="sigma",
+                        occupation=0,
+                    )
+                )
+
+        proposals[a.id] = entries
+
+    return proposals
+
 

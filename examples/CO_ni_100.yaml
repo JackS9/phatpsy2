@@ -23,6 +23,23 @@ geometry:
   - 3.59
   id: C1
   spin: up
+  hybridization: sp
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: none
+    occupation: 0
+    orbital_type: pi
+    connect_to: O1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 - element: O
   xyz:
   - 0.0
@@ -30,6 +47,23 @@ geometry:
   - 5.72
   id: O1
   spin: down
+  hybridization: sp
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: down
+    occupation: 1
+    orbital_type: pi
+    connect_to: C1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+    connect_to: C1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 - element: Ni
   xyz:
   - 0.0

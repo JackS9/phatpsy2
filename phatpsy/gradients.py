@@ -197,6 +197,8 @@ def compute_diatomic_overlap_matrix_and_gradient(
     nstob = len(nb)
     mstoa = sum(2 * l + 1 for l in la)
     mstob = sum(2 * l + 1 for l in lb)
+    max_l = max(int(np.max(la)) if nstoa else 0, int(np.max(lb)) if nstob else 0)
+    llmxp1 = max(int(llmxp1), 2 * max_l + 1)
 
     r = frame.distance
     alpha = frame.alpha

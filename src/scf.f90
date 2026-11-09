@@ -94,6 +94,108 @@ contains
     f = 1.0d0 / (1.0d0 + exp(max(-200.0d0, min(200.0d0, (e - mu) / width))))
   end function fermi_factor
 
+  !---------------------------------------------------------------------
+  ! ORTHONORMALIZE_PROJECTED_ORBITALS:
+  ! After PK back-projection onevec = (I - S_A^{-1} P_B) * stevec,
+  ! orthonormalize the occupied orbitals (occ > 0) among themselves via
+  ! symmetric Löwdin (ITYPE = 2), then project the occupied subspace out
+  ! of any unoccupied orbitals (occ == 0) in the S_A metric and
+  ! orthonormalize the unoccupied orbitals among themselves.
+  ! This prevents Pauli-annihilated unoccupied virtual residuals from
+  ! rotating into the occupied valence/core orbitals.
+  !---------------------------------------------------------------------
+  subroutine orthonormalize_projected_orbitals(onevec, stevec_out, stovl_s, &
+                                               occ_col, msto, m2sto, norb, qindef)
+    integer(int32),  intent(in)    :: msto, m2sto, norb
+    real(real64),    intent(in)    :: onevec(msto, norb), stovl_s(m2sto), occ_col(norb)
+    real(real64),    intent(inout) :: stevec_out(msto, norb)
+    logical(kind=1), intent(out)   :: qindef
+
+    integer(int32) :: iorb, uorb, i, k, ii, ik, nocc, nunocc
+    integer(int32), allocatable :: idx_occ(:), idx_unocc(:)
+    real(real64),   allocatable :: vec_occ(:,:), vec_unocc(:,:),               &
+                                   s_sub(:), u_occ(:,:), u_unocc(:,:),         &
+                                   scrat(:,:), s_vec(:)
+    logical(kind=1) :: qindef_u
+    real(real64)    :: ovl_ou, sum_val
+
+    allocate(idx_occ(norb), idx_unocc(norb))
+    nocc   = 0
+    nunocc = 0
+    do iorb = 1, norb
+      if (occ_col(iorb) > 1.0d-6) then
+        nocc = nocc + 1
+        idx_occ(nocc) = iorb
+      else
+        nunocc = nunocc + 1
+        idx_unocc(nunocc) = iorb
+      end if
+    end do
+
+    allocate(s_sub(m2sto), scrat(msto, norb))
+
+    if (nocc == norb .or. nocc == 0) then
+      allocate(u_occ(norb, norb))
+      call CTSC(onevec, stovl_s, scrat, s_sub, msto, norb)
+      call run_lowdin(s_sub, u_occ, scrat, norb, norb, 2, qindef)
+      if (.not. qindef) then
+        stevec_out(:, 1:norb) = matmul(onevec(:, 1:norb), u_occ)
+      end if
+      deallocate(u_occ)
+    else
+      allocate(vec_occ(msto, nocc), vec_unocc(msto, nunocc), &
+               u_occ(nocc, nocc), u_unocc(nunocc, nunocc), s_vec(msto))
+      do iorb = 1, nocc
+        vec_occ(:, iorb) = onevec(:, idx_occ(iorb))
+      end do
+      do uorb = 1, nunocc
+        vec_unocc(:, uorb) = onevec(:, idx_unocc(uorb))
+      end do
+
+      call CTSC(vec_occ, stovl_s, scrat, s_sub, msto, nocc)
+      call run_lowdin(s_sub, u_occ, scrat, nocc, nocc, 2, qindef)
+      if (.not. qindef) then
+        vec_occ = matmul(vec_occ, u_occ)
+
+        ! Project occupied subspace out of unoccupied orbitals in S_A metric
+        do iorb = 1, nocc
+          do i = 1, msto
+            ii = (i * (i - 1)) / 2
+            sum_val = 0.0d0
+            do k = 1, msto
+              ik = ii + k
+              if (k > i) ik = (k * (k - 1)) / 2 + i
+              sum_val = sum_val + stovl_s(ik) * vec_occ(k, iorb)
+            end do
+            s_vec(i) = sum_val
+          end do
+          do uorb = 1, nunocc
+            ovl_ou = dot_product(s_vec, vec_unocc(:, uorb))
+            vec_unocc(:, uorb) = vec_unocc(:, uorb) - ovl_ou * vec_occ(:, iorb)
+          end do
+        end do
+
+        call CTSC(vec_unocc, stovl_s, scrat, s_sub, msto, nunocc)
+        call run_lowdin(s_sub, u_unocc, scrat, nunocc, nunocc, 2, qindef_u)
+        if (.not. qindef_u) then
+          vec_unocc = matmul(vec_unocc, u_unocc)
+        else
+          call NORMLZ(vec_unocc, nunocc, stovl_s, msto, m2sto)
+        end if
+
+        do iorb = 1, nocc
+          stevec_out(:, idx_occ(iorb)) = vec_occ(:, iorb)
+        end do
+        do uorb = 1, nunocc
+          stevec_out(:, idx_unocc(uorb)) = vec_unocc(:, uorb)
+        end do
+      end if
+      deallocate(vec_occ, vec_unocc, u_occ, u_unocc, s_vec)
+    end if
+
+    deallocate(idx_occ, idx_unocc, s_sub, scrat)
+  end subroutine orthonormalize_projected_orbitals
+
   subroutine run_scf_element()
     ! Local allocatable workspaces (formerly CORE(IC(1))..CORE(IC(35)) in contrl.f)
     integer(int32), allocatable :: n(:), l(:), lv(:), mv(:), iorder(:,:)
@@ -114,7 +216,7 @@ contains
 
     real(real64), parameter :: ESCALE = 1.55d0
     character(len=2) :: latom
-    integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb
+    integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb, nact_orb
     integer(int32)   :: nv, niter, ij, iterm1, ierr, ieqat, isym, ixyz, matom
     real(real64)     :: x, y, z, toten, zzrep, rmAx, tke, te, endiff, oldte
     real(real64)     :: oldiff, tcoul0, zzrep0
@@ -177,7 +279,7 @@ contains
       if (QATOM) zzrep = 0.0d0
 
       if (.not. QVIRTL) then
-        if (.not. QFIRST) then
+        if (.not. QFIRST .and. .not. QNWVEC) then
           do isp = 1, ISPIN
             do iorb = 1, NORB
               occ(iorb, isp) = CDAMP * occ(iorb, isp) &
@@ -195,12 +297,14 @@ contains
         ! Construct pseudometric and Löwdin transformation matrix TRANX
         do isp = 1, ISPIN
           stovl = stovl_bak
+          pkpot_bak(:, 1:2, isp) = pkpot(:, 1:2, isp)
           ! Hydrogen exemption (thesis Eq. III-24): H 1s is valence-like, so the
           ! energy-weighted projector is negligible; the unweighted pseudometric
           ! would unphysically remove the bonding orbital -> M = S for H.
           if (QPSMET .and. nucz > 1.5d0) then
-            call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, 1.0d-3)
-            stovl = stovl - pkpot(:, 1, isp)
+            call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, &
+                                         merge(0.42d0, 1.0d-3, logical(QNWVEC)))
+            stovl = stovl_bak - pkpot(:, 1, isp)
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
           end if
           call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
@@ -217,7 +321,7 @@ contains
         !---------------------------------------------------------------
         niter  = 0
         qdivrg = .false.
-        qdone  = (QFIXED .or. (MXITER <= 0))
+        qdone  = (QFIXED .or. (MXITER <= 0) .or. (QFIRST .and. QSEPAT .and. QNWVEC))
 
         scf_loop: do
           do isp = 1, ISPIN
@@ -247,7 +351,19 @@ contains
             stfock_prev(:, isp) = stfock(:, isp)
           end do
 
-          if (qdone) exit scf_loop
+          if (qdone) then
+            if (QFIRST .and. QSEPAT .and. QNWVEC) then
+              if (maxval(abs(eval(1:NORB, 1) - eval(1:NORB, ISPIN))) <= 1.0d-4) then
+                do isp = 1, ISPIN
+                  call CTSC(stevec(1,1,isp), stfock(1,isp), scrat1, aofock(1,isp), MSTO, NORB)
+                  do iorb = 1, NORB
+                    eval(iorb, isp) = aofock((iorb * (iorb + 1)) / 2, isp)
+                  end do
+                end do
+              end if
+            end if
+            exit scf_loop
+          end if
 
           niter  = niter + 1
           oldte  = te
@@ -293,36 +409,87 @@ contains
             call DMPAB(tranx(1,1,isp), MSTO, MSTO, MSTO, MSTO, onevec, MSTO, &
                        NORB, MSTO, NORB, stevec(1,1,isp), MSTO, NORB)
 
-            if (QPSMET .and. .not. qtrunc) then
-              call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
-                          stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
-                          onevec, MSTO, NORB)
-              call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
-              call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
-              if (.not. qindef) then
-                call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,     &
-                           NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
+            if (QNWVEC) then
+              if (QPSMET .and. .not. qtrunc) then
+                call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
+                            stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
+                            onevec, MSTO, NORB)
+                stevec(:, 1:NORB, isp) = onevec(:, 1:NORB)
+              end if
+
+              ! Identify active core+valence orbital subspace (1..nact_orb)
+              ! excluding trailing purely virtual polarization slots (occ == 0 in both spins).
+              nact_orb = 0
+              do iorb = 1, NORB
+                if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
+              end do
+              if (nact_orb <= 0) nact_orb = NORB
+
+              ! Normalize stevec in S_A metric before MAXOVL so Bessel's inequality
+              ! (sum_j |<old_i | S_A | new_j>|^2 <= 1) holds in MAXOVL.
+              onevec(:, 1:NORB) = stevec(:, 1:NORB, isp)
+              call NORMLZ(onevec, NORB, stovl_bak, MSTO, M2STO)
+              iorder(1:NORB, isp) = [(iorb, iorb = 1, NORB)]
+              call MAXOVL(iorder(1,isp), oldvec(1,1,isp), onevec,              &
+                          stovl_bak, MSTO, M2STO, nact_orb, qnword)
+              ! With smeared occupations the occupation follows the energy ordering,
+              ! so no overlap-based reordering of occupation numbers is wanted.
+              if (qnword .and. SMEARW <= 0.0d0) then
+                if (any(abs(occ(1:nact_orb, isp) - occ(iorder(1:nact_orb, isp), isp)) > 1.0d-8)) then
+                  call NEWORD(occ(1,isp), scrat1, iorder(1:nact_orb, isp), nact_orb)
+                else
+                  qnword = .false.
+                end if
+              end if
+
+              if (QPSMET .and. .not. qtrunc) then
+                onevec(:, 1:NORB) = stevec(:, 1:NORB, isp)
+                call orthonormalize_projected_orbitals(onevec, stevec(1,1,isp), &
+                                                       stovl_bak, occ(1,isp),   &
+                                                       MSTO, M2STO, nact_orb, qindef)
                 stovl  = stovl_bak
                 ontran = ontran_bak
               end if
-            end if
 
-            if (qnrmlz) then
-              stovl  = stovl_bak
-              ontran = ontran_bak
-              call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
-            end if
+              if (qnrmlz) then
+                stovl  = stovl_bak
+                ontran = ontran_bak
+                call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
+              end if
 
-            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
-            call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
-                        stovl, MSTO, M2STO, NORB, qnword)
-            ! With smeared occupations the occupation follows the energy ordering,
-            ! so no overlap-based reordering of occupation numbers is wanted.
-            if (qnword .and. SMEARW <= 0.0d0) then
-              if (any(abs(occ(1:NORB, isp) - occ(iorder(1:NORB, isp), isp)) > 1.0d-8)) then
-                call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
-              else
-                qnword = .false.
+              if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
+            else
+              if (QPSMET .and. .not. qtrunc) then
+                call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
+                            stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
+                            onevec, MSTO, NORB)
+                call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
+                call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
+                if (.not. qindef) then
+                  call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,     &
+                             NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
+                  stovl  = stovl_bak
+                  ontran = ontran_bak
+                end if
+              end if
+
+              if (qnrmlz) then
+                stovl  = stovl_bak
+                ontran = ontran_bak
+                call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
+              end if
+
+              if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
+              call MAXOVL(iorder(1,isp), oldvec(1,1,isp), stevec(1,1,isp),     &
+                          stovl, MSTO, M2STO, NORB, qnword)
+              ! With smeared occupations the occupation follows the energy ordering,
+              ! so no overlap-based reordering of occupation numbers is wanted.
+              if (qnword .and. SMEARW <= 0.0d0) then
+                if (any(abs(occ(1:NORB, isp) - occ(iorder(1:NORB, isp), isp)) > 1.0d-8)) then
+                  call NEWORD(occ(1,isp), scrat1, iorder(1,isp), NORB)
+                else
+                  qnword = .false.
+                end if
               end if
             end if
           end do
@@ -345,6 +512,7 @@ contains
 
         ! Update external projection, pseudopotential, and exchange matrices
         do isp = 1, ISPIN
+          pkpot(:, 1:2, isp) = pkpot_bak(:, 1:2, isp)
           ijorb = 0
           do iorb = 1, NORB
             do jorb = 1, iorb
@@ -354,7 +522,7 @@ contains
           end do
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
+          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
           ! Hydrogen exemption: H emits no projector onto neighboring atoms.
           if (nucz <= 1.5d0) then
             pkpot(:, 4, isp) = 0.0d0
@@ -470,7 +638,7 @@ contains
                 end do
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), eval(1,isp), MSTO, M2STO, NORB)
+              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
               ! Hydrogen exemption: H emits no projector onto neighboring atoms.
               if (nucz <= 1.5d0) then
                 pkpot(:, 4, isp) = 0.0d0

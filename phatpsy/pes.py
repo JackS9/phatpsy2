@@ -178,12 +178,16 @@ def _apply_bond_length(atoms: List[AtomConfig], atom1: int, atom2: int, target_l
         if np.linalg.norm(u1) < 1e-12:
             u1 = np.array([0.0, 0.0, 1.0])
         new_atoms[atom1].xyz = [float(c) for c in (0.5 * target_length * u1)]
+        from phatpsy.schema import resolve_atom_coordinates
+        resolve_atom_coordinates(new_atoms, force_symmetry=True)
         return new_atoms
     elif new_atoms[atom1].symmetry is not None:
         u2, _ = normalize_vector(p2)
         if np.linalg.norm(u2) < 1e-12:
             u2 = np.array([0.0, 0.0, 1.0])
         new_atoms[atom2].xyz = [float(c) for c in (0.5 * target_length * u2)]
+        from phatpsy.schema import resolve_atom_coordinates
+        resolve_atom_coordinates(new_atoms, force_symmetry=True)
         return new_atoms
 
     center = 0.5 * (p1 + p2)
@@ -353,7 +357,7 @@ def scan_1d(
         y0, y1, y2 = energies[min_idx - 1], energies[min_idx], energies[min_idx + 1]
         denom = 2.0 * ((x1 - x0) * (y2 - y1) - (x2 - x1) * (y1 - y0))
         if abs(denom) > 1e-12:
-            x_fit = 0.5 * ((x1**2 - x0**2) * (y2 - y1) - (x2**2 - x1**2) * (y1 - y0)) / denom
+            x_fit = ((x1**2 - x0**2) * (y2 - y1) - (x2**2 - x1**2) * (y1 - y0)) / denom
             if min(x0, x2) <= x_fit <= max(x0, x2):
                 equil_val = float(x_fit)
 

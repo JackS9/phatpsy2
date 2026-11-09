@@ -145,7 +145,10 @@ def optimize_geometry(
 
     # Identify free (unfrozen) coordinate degrees of freedom
     # Each non-fixed, non-virtual atom contributes 3 degrees of freedom
-    free_indices = [i for i, a in enumerate(atoms) if not a.fixed and not a.virtual and a.symmetry is None]
+    free_indices = [
+        i for i, a in enumerate(atoms)
+        if not a.fixed and not a.virtual and a.symmetry is None and a.equivalent_to is None
+    ]
     if not free_indices:
         # All atoms fixed; return initial state
         state = driver.run_deck(current_deck, quiet=quiet)
@@ -159,16 +162,18 @@ def optimize_geometry(
         return np.array(coords, dtype=np.float64)
 
     def unpack_free_coords(free_x: np.ndarray, base_atoms: List[AtomConfig]) -> List[AtomConfig]:
+        from phatpsy.schema import resolve_atom_coordinates
         new_atoms = copy.deepcopy(base_atoms)
         idx = 0
         for i in free_indices:
             new_atoms[i].xyz = [float(free_x[idx]), float(free_x[idx + 1]), float(free_x[idx + 2])]
             idx += 3
+        resolve_atom_coordinates(new_atoms, force_symmetry=True)
         return new_atoms
 
     last_state: Optional[CalculationState] = None
 
-    def evaluate_energy_and_state(x: np.ndarray) -> Tuple[float, CalculationState]:
+    def evaluate_energy_and_state(x: np.ndarray, update_restart: bool = True) -> Tuple[float, CalculationState]:
         nonlocal last_state
         test_atoms = unpack_free_coords(x, atoms)
         test_deck = copy.deepcopy(current_deck)
@@ -182,7 +187,7 @@ def optimize_geometry(
             test_deck = last_state.create_restart_deck(new_geometry=new_geom)
 
         state = driver.run_deck(test_deck, quiet=quiet)
-        if state.converged:
+        if update_restart and state.converged:
             last_state = state
         return float(state.total_energy), state
 
@@ -192,11 +197,11 @@ def optimize_geometry(
         for i in range(len(x)):
             x_plus = x.copy()
             x_plus[i] += h
-            e_plus, _ = evaluate_energy_and_state(x_plus)
+            e_plus, _ = evaluate_energy_and_state(x_plus, update_restart=False)
 
             x_minus = x.copy()
             x_minus[i] -= h
-            e_minus, _ = evaluate_energy_and_state(x_minus)
+            e_minus, _ = evaluate_energy_and_state(x_minus, update_restart=False)
 
             grad[i] = (e_plus - e_minus) / (2.0 * h)
         return grad

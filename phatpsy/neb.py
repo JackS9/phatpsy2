@@ -435,7 +435,8 @@ def neb_search(
 
     # Identify unfrozen degrees of freedom (non-fixed, non-virtual)
     free_indices = [
-        i for i, a in enumerate(ref_atoms) if not a.fixed and not a.virtual and a.symmetry is None
+        i for i, a in enumerate(ref_atoms)
+        if not a.fixed and not a.virtual and a.symmetry is None and a.equivalent_to is None
     ]
     if not free_indices:
         raise ValueError("Cannot perform NEB: all atoms are marked fixed or virtual.")
@@ -447,17 +448,19 @@ def neb_search(
         return np.array(coords, dtype=np.float64)
 
     def unpack_coords(x: np.ndarray, base_atoms: List[AtomConfig]) -> List[AtomConfig]:
+        from phatpsy.schema import resolve_atom_coordinates
         new_atoms = copy.deepcopy(base_atoms)
         idx = 0
         for i in free_indices:
             new_atoms[i].xyz = [float(x[idx]), float(x[idx + 1]), float(x[idx + 2])]
             idx += 3
+        resolve_atom_coordinates(new_atoms, force_symmetry=True)
         return new_atoms
 
     # Track wavefunctions for warm restarts
     image_states: List[Optional[CalculationState]] = [None] * n_images
 
-    def evaluate_image(img_idx: int, x: np.ndarray) -> Tuple[float, CalculationState]:
+    def evaluate_image(img_idx: int, x: np.ndarray, update_restart: bool = True) -> Tuple[float, CalculationState]:
         img_atoms = images[img_idx].geometry if hasattr(images[img_idx], "geometry") else images[img_idx].atoms
         current_atoms = unpack_coords(x, img_atoms)
         deck_eval = copy.deepcopy(images[img_idx])
@@ -471,7 +474,7 @@ def neb_search(
             deck_eval = image_states[img_idx].create_restart_deck(new_geometry=new_geom)
 
         state = driver.run_deck(deck_eval, quiet=quiet)
-        if state.converged:
+        if update_restart and state.converged:
             image_states[img_idx] = state
         return float(state.total_energy), state
 
@@ -481,11 +484,11 @@ def neb_search(
         for dim in range(len(x)):
             xp = x.copy()
             xp[dim] += h
-            ep, _ = evaluate_image(img_idx, xp)
+            ep, _ = evaluate_image(img_idx, xp, update_restart=False)
 
             xm = x.copy()
             xm[dim] -= h
-            em, _ = evaluate_image(img_idx, xm)
+            em, _ = evaluate_image(img_idx, xm, update_restart=False)
 
             raw_g = (ep - em) / (2.0 * h)
             grad[dim] = float(np.clip(raw_g, -20.0, 20.0))
@@ -528,9 +531,11 @@ def neb_search(
         # 5. Identify climbing image if enabled
         climbing_idx = None
         if climb:
-            # Highest energy intermediate image
+            # Highest energy intermediate image (activate CI-NEB only when it forms an interior peak)
             intermediate_energies = [(energies[i], i) for i in range(1, n_images - 1)]
-            climbing_idx = max(intermediate_energies, key=lambda pair: pair[0])[1]
+            cand_e, cand_idx = max(intermediate_energies, key=lambda pair: pair[0])
+            if cand_e > energies[cand_idx - 1] and cand_e > energies[cand_idx + 1]:
+                climbing_idx = cand_idx
 
         # 6. Calculate NEB forces
         forces, true_f, spring_f = calculate_neb_forces(
