@@ -901,7 +901,7 @@ def main(argv=None):
         parser.add_argument("--site", choices=["top", "bridge", "hollow"], default="top", help="Adsorption site type (default: top)")
         parser.add_argument("--height", type=float, default=2.0, help="Adsorbate vertical clearance above surface in Angstroms (default: 2.0)")
         parser.add_argument("--tilt", type=float, default=0.0, help="Adsorbate tilt angle in degrees (default: 0.0)")
-        parser.add_argument("-b", "--basis", default="DZ", help="Basis set name for calculation deck export (default: DZ)")
+        parser.add_argument("-b", "--basis", default="DZP", help="Basis set name for calculation deck export (default: DZP)")
         parser.add_argument("--format", choices=["yaml", "stdin", "json", "poscar", "cif", "xyz"], default=None, help="Explicit output format")
         parser.add_argument("-o", "--output", default=None, help="Output file path (.yaml, .json, .stdin, .poscar, .cif, .xyz)")
         parser.add_argument("--view", action="store_true", help="Open interactive 3D WebGL visualization")
@@ -941,7 +941,7 @@ def main(argv=None):
             description="Build a calculation deck from an XYZ molecular geometry file."
         )
         parser.add_argument("xyz_file", help="Input XYZ file path")
-        parser.add_argument("-b", "--basis", default="DZ", help="Basis set name ('DZ', 'SZ', 'THAKKAR', default: DZ)")
+        parser.add_argument("-b", "--basis", default="DZP", help="Basis set name ('DZP', 'DZ', 'SZ', 'THAKKAR', default: DZP)")
         parser.add_argument("-u", "--units", default="angstrom", help="Coordinate units ('angstrom' or 'bohr', default: angstrom)")
         parser.add_argument("-t", "--title", default=None, help="Calculation title")
         parser.add_argument("--spins", default=None, help="Explicit per-atom spins (e.g. 'up,down' or 'up')")

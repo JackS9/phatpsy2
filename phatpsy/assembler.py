@@ -617,7 +617,7 @@ class HybridAssembler:
     def to_deck(
         self,
         title: str = "PHATPSY Assembled Molecule",
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         control: Optional[ControlConfig] = None,
         spins: Optional[Union[List[str], Dict[str, str], str]] = None,
         net_spin: Optional[int] = None,

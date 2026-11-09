@@ -283,8 +283,10 @@ def _generate_degenerate_orbitals(l: int, eigval: float, n_electrons: float,
 # - 3d on Li through Ar
 POLARIZATION_PARAMETERS: Dict[str, Tuple[int, int, float]] = {
     # Symbol: (n, l, zeta in bohr^-1)
+    # Period 1 (2p polarization)
     "H":  (2, 1, 1.25),
     "He": (2, 1, 1.00),
+    # Period 2 (3d polarization)
     "Li": (3, 2, 1.20),
     "Be": (3, 2, 1.90),
     "B":  (3, 2, 2.00),
@@ -293,6 +295,7 @@ POLARIZATION_PARAMETERS: Dict[str, Tuple[int, int, float]] = {
     "O":  (3, 2, 2.00),
     "F":  (3, 2, 2.00),
     "Ne": (3, 2, 2.00),
+    # Period 3 (3d polarization)
     "Na": (3, 2, 1.20),
     "Mg": (3, 2, 1.50),
     "Al": (3, 2, 1.60),
@@ -301,6 +304,46 @@ POLARIZATION_PARAMETERS: Dict[str, Tuple[int, int, float]] = {
     "S":  (3, 2, 2.10),
     "Cl": (3, 2, 2.00),
     "Ar": (3, 2, 2.20),
+    # Period 4 s-block and 3d transition metals (4p polarization)
+    "K":  (4, 1, 0.80),
+    "Ca": (4, 1, 1.06),
+    "Sc": (4, 1, 1.14),
+    "Ti": (4, 1, 1.20),
+    "V":  (4, 1, 1.26),
+    "Cr": (4, 1, 1.30),
+    "Mn": (4, 1, 1.35),
+    "Fe": (4, 1, 1.39),
+    "Co": (4, 1, 1.43),
+    "Ni": (4, 1, 1.47),
+    "Cu": (4, 1, 1.37),
+    "Zn": (4, 1, 1.54),
+    # Period 4 p-block (4d polarization)
+    "Ga": (4, 2, 1.50),
+    "Ge": (4, 2, 1.60),
+    "As": (4, 2, 1.60),
+    "Se": (4, 2, 1.80),
+    "Br": (4, 2, 1.80),
+    "Kr": (4, 2, 1.80),
+    # Period 5 s-block and 4d transition metals (5p polarization)
+    "Rb": (5, 1, 0.95),
+    "Sr": (5, 1, 1.15),
+    "Y":  (5, 1, 1.20),
+    "Zr": (5, 1, 1.30),
+    "Nb": (5, 1, 1.30),
+    "Mo": (5, 1, 1.35),
+    "Tc": (5, 1, 1.35),
+    "Ru": (5, 1, 1.40),
+    "Rh": (5, 1, 1.45),
+    "Pd": (5, 1, 1.45),
+    "Ag": (5, 1, 1.55),
+    "Cd": (5, 1, 1.70),
+    # Period 5 p-block (5d polarization)
+    "In": (5, 2, 1.30),
+    "Sn": (5, 2, 1.45),
+    "Sb": (5, 2, 1.60),
+    "Te": (5, 2, 1.80),
+    "I":  (5, 2, 1.90),
+    "Xe": (5, 2, 2.00),
 }
 
 
@@ -512,14 +555,18 @@ def list_adf_elements(tier: str = "TZP") -> List[str]:
 def get_element_basis(symbol: str, basis_name: Optional[str] = None) -> ElementData:
     """
     Look up element basis from the built-in library.
-    Defaults to 'DZ' (Clementi & Roetti 1974 for Z=2..54, falling back to Thakkar for Z=1 and Z>54).
-    Supports 'DZ', 'SZ', 'DZP', 'SZP', 'THAKKAR' (Z=1..103), and 'ADF-*' (Z=1..118).
+    Defaults to 'DZP' for Z=1..54 (Clementi & Roetti 1974 DZ for Z=2..54 and Thakkar DZ for H,
+    augmented with van Lenthe & Baerends polarization shells), falling back to 'THAKKAR' for Z>54.
+    Supports 'DZP', 'DZ', 'SZP', 'SZ', 'THAKKAR' (Z=1..103), and 'ADF-*' (Z=1..118).
     """
     sym = symbol.strip().capitalize()
     raw_thakkar = _load_thakkar_raw_data()
     clem_db = _load_clementi_raw_data()
 
-    b_name = (basis_name or "DZ").strip().upper()
+    if basis_name is None:
+        b_name = "DZP" if sym in POLARIZATION_PARAMETERS else "DZ"
+    else:
+        b_name = basis_name.strip().upper()
     if b_name.startswith("ADF") or b_name in ("TZP", "TZ2P", "QZ4P", "DZ-ADF", "TZP-ADF", "TZ2P-ADF", "QZ4P-ADF"):
         return get_adf_basis(sym, b_name)
 

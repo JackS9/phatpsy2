@@ -28,13 +28,32 @@ class TestPolarizedBasisDefinition:
     """Unit tests for polarized basis set library construction."""
 
     def test_polarization_parameters_presence(self):
-        """Ensure standard elements have defined polarization exponents from ADF ZORA standard."""
-        for sym in ["H", "C", "N", "O", "F"]:
+        """Ensure all Z=1..54 elements (H through Xe) have defined polarization exponents."""
+        assert len(POLARIZATION_PARAMETERS) == 54
+        for sym in ["H", "C", "N", "O", "F", "Si", "Ti", "Fe", "Ni", "Cu", "Br", "Ag", "Xe"]:
             assert sym in POLARIZATION_PARAMETERS
         assert POLARIZATION_PARAMETERS["H"] == (2, 1, 1.25)
         assert POLARIZATION_PARAMETERS["C"] == (3, 2, 2.20)
         assert POLARIZATION_PARAMETERS["N"] == (3, 2, 2.20)
         assert POLARIZATION_PARAMETERS["O"] == (3, 2, 2.00)
+        assert POLARIZATION_PARAMETERS["Ni"] == (4, 1, 1.47)
+        assert POLARIZATION_PARAMETERS["Ag"] == (5, 1, 1.55)
+        assert POLARIZATION_PARAMETERS["Xe"] == (5, 2, 2.00)
+
+        # Verify every element in POLARIZATION_PARAMETERS builds a valid DZP basis conserving Z electrons
+        for sym, (n_pol, l_pol, zeta_pol) in POLARIZATION_PARAMETERS.items():
+            ed_dz = get_element_basis(sym, "DZ")
+            ed_dzp = get_element_basis(sym, "DZP")
+            assert ed_dzp.basis_name == "DZP"
+            assert len(ed_dzp.functions) == len(ed_dz.functions) + 1
+            assert ed_dzp.functions[-1].n == n_pol
+            assert ed_dzp.functions[-1].l == l_pol
+            assert ed_dzp.functions[-1].zeta == pytest.approx(zeta_pol)
+            deg = 2 * l_pol + 1
+            assert ed_dzp.msto == ed_dz.msto + deg
+            assert len(ed_dzp.default_orbitals) == len(ed_dz.default_orbitals) + deg
+            tot_e = sum(sum(o.occno) for o in ed_dzp.default_orbitals)
+            assert tot_e == pytest.approx(float(ed_dzp.atomic_number))
 
     def test_hydrogen_dzp(self):
         """Verify H DZP basis has 1s + 2p functions and unoccupied 2p virtual orbitals."""

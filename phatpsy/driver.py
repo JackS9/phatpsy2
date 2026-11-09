@@ -67,7 +67,7 @@ class PhatpsyDriver:
     def run_molecule(
         self,
         geometry,
-        basis="DZ",
+        basis="DZP",
         title="PHATPSY Calculation",
         control=None,
         units="bohr",
@@ -116,7 +116,7 @@ class PhatpsyDriver:
             return self.run_deck(deck, custom_damping_hook=custom_damping_hook)
         elif suffix == ".xyz":
             from phatpsy.builder import build_molecule
-            deck = build_molecule(target, basis="DZ", units="angstrom")
+            deck = build_molecule(target, basis="DZP", units="angstrom")
             return self.run_deck(deck, custom_damping_hook=custom_damping_hook)
 
         fd_stdin = 0

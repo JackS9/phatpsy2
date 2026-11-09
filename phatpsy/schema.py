@@ -1435,7 +1435,7 @@ class CalculationDeck:
             return self.control.default_basis
         if self.basis:
             return self.basis
-        return "DZ"
+        return "DZP"
 
     def get_atom_element_key(self, atom: AtomConfig) -> str:
         """
@@ -1489,7 +1489,11 @@ class CalculationDeck:
                 funcs = user_elem.functions
                 desc = user_elem.description or f"Custom Basis for {sym}"
                 z = user_elem.atomic_number or lib_elem.atomic_number
-                orbs = lib_elem.default_orbitals
+                base_lib = get_element_basis(sym, "DZ") if len(funcs) < len(lib_elem.functions) else lib_elem
+                orbs = [
+                    o for o in base_lib.default_orbitals
+                    if all(int(c[0]) <= len(funcs) for c in o.coefficients)
+                ]
                 if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
                     orbs = embedded_atom.embedded_state.to_initial_orbitals()
                 resolved[ekey] = ElementData(
@@ -2118,7 +2122,7 @@ class CalculationDeck:
     def from_geometry(
         cls,
         geometry: Union[str, Path, List[Any]],
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         title: str = "PHATPSY Calculation",
         control: Optional[ControlConfig] = None,
         units: str = "bohr",
@@ -2149,7 +2153,7 @@ class CalculationDeck:
         element1: str,
         element2: Optional[str] = None,
         bond_length: float = 2.068,
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         units: str = "bohr",
         use_symmetry: bool = True,
         spins: Optional[Union[List[str], Tuple[str, str]]] = None,
@@ -2182,7 +2186,7 @@ class CalculationDeck:
     def from_ase(
         cls,
         atoms: Any,
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         title: str = "PHATPSY Calculation (ASE)",
         control: Optional[ControlConfig] = None,
         units: str = "bohr",
@@ -2220,7 +2224,7 @@ class CalculationDeck:
     def from_mol2(
         cls,
         content_or_path: Any,
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         title: Optional[str] = None,
         control: Optional[ControlConfig] = None,
         spins: Optional[Union[List[str], Dict[str, str], str]] = None,
@@ -2245,7 +2249,7 @@ class CalculationDeck:
     def from_cml(
         cls,
         content_or_path: Any,
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         title: Optional[str] = None,
         control: Optional[ControlConfig] = None,
         spins: Optional[Union[List[str], Dict[str, str], str]] = None,
@@ -2270,7 +2274,7 @@ class CalculationDeck:
     def from_openbabel(
         cls,
         mol: Any,
-        basis: Union[str, Dict[str, str]] = "DZ",
+        basis: Union[str, Dict[str, str]] = "DZP",
         title: Optional[str] = None,
         control: Optional[ControlConfig] = None,
         spins: Optional[Union[List[str], Dict[str, str], str]] = None,

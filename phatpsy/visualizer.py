@@ -271,7 +271,7 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
 
     if hasattr(deck_or_atoms, "control"):
         control_dict = deck_or_atoms.control.to_dict()
-        default_basis = deck_or_atoms.control.default_basis or getattr(deck_or_atoms, "basis", None) or "DZ"
+        default_basis = deck_or_atoms.control.default_basis or getattr(deck_or_atoms, "basis", None) or "DZP"
     else:
         control_dict = {
             "spin_unrestricted": True,
@@ -281,9 +281,9 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
             "potential_damp": 0.5,
             "exchange_kernel": "hartree-fock",
             "use_dispersion": False,
-            "default_basis": "DZ",
+            "default_basis": "DZP",
         }
-        default_basis = "DZ"
+        default_basis = "DZP"
 
     available_bases = [
         "ADF-TZP", "ADF-DZ", "ADF-TZ2P", "ADF-QZ4P",
@@ -401,7 +401,7 @@ def generate_html(
     if not isinstance(data.get("control"), dict):
         data["control"] = {}
     if not data.get("default_basis"):
-        data["default_basis"] = "DZ"
+        data["default_basis"] = "DZP"
     if not data.get("available_bases"):
         data["available_bases"] = [
             "ADF-TZP", "ADF-DZ", "ADF-TZ2P", "ADF-QZ4P",

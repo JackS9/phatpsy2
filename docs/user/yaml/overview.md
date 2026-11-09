@@ -139,8 +139,8 @@ elements:
 | :--- | :--- | :--- |
 | `SZ` | Single-Zeta Slater-Type Orbitals (Clementi–Roetti) | Z = 2–54 |
 | `DZ` | Double-Zeta Slater-Type Orbitals (Clementi–Roetti) | Z = 2–54 |
-| `SZP` | SZ plus polarization functions (2p on H/He, 3d on Li–Ar) | Z = 2–54 |
-| `DZP` | DZ plus polarization functions (2p on H/He, 3d on Li–Ar) | Z = 2–54 |
+| `SZP` | SZ plus polarization functions (2p on H/He, 3d on Li–Ar, 4p/4d on K–Kr, 5p/5d on Rb–Xe) | Z = 1–54 |
+| `DZP` | DZ plus polarization functions (default; 2p on H/He, 3d on Li–Ar, 4p/4d on K–Kr, 5p/5d on Rb–Xe) | Z = 1–54 |
 | `THAKKAR` | Thakkar even-tempered STO sets | Z = 1–103 |
 | `ADF-DZ` | ADF ZORA-contracted STO, double-zeta | Z = 1–118 |
 | `ADF-TZP` | ADF ZORA-contracted STO, triple-zeta + 1 polarization | Z = 1–118 |

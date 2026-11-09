@@ -56,7 +56,7 @@ python -m phatpsy build molecule.xyz -b DZ -s -o deck.yaml
 ```
 
 * **Options:**
-  * `-b`, `--basis`: Basis set name (`SZ`, `DZ`, or `THAKKAR`). Default: `DZ`.
+  * `-b`, `--basis`: Basis set name (`DZP`, `DZ`, `SZ`, `THAKKAR`, `ADF-TZP`, etc.). Default: `DZP`.
   * `-u`, `--units`: Input coordinate units (`angstrom` or `bohr`). Default: `angstrom`.
   * `-s`, `--auto-spin`: Automatically assign alternating Local Valence Bond (LVB) spins (`up`/`down`).
   * `-t`, `--title`: Calculation title string.

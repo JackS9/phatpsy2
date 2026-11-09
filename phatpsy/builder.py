@@ -333,7 +333,7 @@ def _parse_xyz_string(text: str, to_bohr: float) -> List[AtomConfig]:
 
 def build_molecule(
     geometry: Union[str, Path, List[Any]],
-    basis: Union[str, Dict[str, str]] = "DZ",
+    basis: Union[str, Dict[str, str]] = "DZP",
     title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     units: str = "bohr",
@@ -685,7 +685,7 @@ def build_diatomic(
     element1: str,
     element2: Optional[str] = None,
     bond_length: float = 2.068,
-    basis: Union[str, Dict[str, str]] = "DZ",
+    basis: Union[str, Dict[str, str]] = "DZP",
     units: str = "bohr",
     use_symmetry: bool = True,
     spins: Optional[Union[List[str], Tuple[str, str]]] = None,
