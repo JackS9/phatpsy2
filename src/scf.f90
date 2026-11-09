@@ -159,7 +159,7 @@ contains
 
     w_eff = max(w_anneal, w_gap)
 
-    if (w_eff <= 0.0d0) then
+    if (w_eff <= 0.0d0 .and. ncycl_in == N_ANNEAL_MAX + 1) then
       has_frac = .false.
       do io = 1, norb
         if (occ(io) > 1.0d-6 .and. occ(io) < 1.0d0 - 1.0d-6) then
@@ -488,17 +488,26 @@ contains
 
             ! Fermi-Dirac atomic occupations: either explicit (SMEARW > 0) or
             ! automatic early-cycle annealing + HOMO-LUMO gap floor on unseeded atoms.
+            ! Restrict automatic smearing to the active valence subspace (1..nact_orb)
+            ! so virtual polarization shells remain strictly unoccupied.
             w_eff = effective_atomic_smearing(eval(1, isp), occ(1, isp), NORB, nact_orb, &
                                               SMEARW, NCYCL, logical(QFIRST), logical(QNWVEC), &
                                               logical(QOPEN), logical(QGFERM))
-            if (w_eff > 0.0d0) call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, w_eff)
+            if (w_eff > 0.0d0) then
+              if (SMEARW > 0.0d0) then
+                call smear_atomic_occupations(eval(1, isp), occ(1, isp), NORB, w_eff)
+              else
+                call smear_atomic_occupations(eval(1, isp), occ(1, isp), nact_orb, w_eff)
+                if (nact_orb < NORB) occ(nact_orb + 1:NORB, isp) = 0.0d0
+              end if
+            end if
             oldvec(:, :, isp) = stevec(:, :, isp)
 
             call DMPAB(tranx(1,1,isp), MSTO, MSTO, MSTO, MSTO, onevec, MSTO, &
                        NORB, MSTO, NORB, stevec(1,1,isp), MSTO, NORB)
 
             if (QNWVEC) then
-              if (QPSMET .and. .not. qtrunc) then
+              if (QPSMET .and. .not. qtrunc .and. nucz > 1.5d0) then
                 call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
                             stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
                             onevec, MSTO, NORB)
@@ -522,7 +531,7 @@ contains
                 end if
               end if
 
-              if (QPSMET .and. .not. qtrunc) then
+              if (QPSMET .and. .not. qtrunc .and. nucz > 1.5d0) then
                 onevec(:, 1:NORB) = stevec(:, 1:NORB, isp)
                 call orthonormalize_projected_orbitals(onevec, stevec(1,1,isp), &
                                                        stovl_bak, occ(1,isp),   &
@@ -540,16 +549,20 @@ contains
               if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
             else
               if (QPSMET .and. .not. qtrunc) then
-                call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
-                            stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
-                            onevec, MSTO, NORB)
-                call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
-                call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
-                if (.not. qindef) then
-                  call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,     &
-                             NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
-                  stovl  = stovl_bak
-                  ontran = ontran_bak
+                if (nucz > 1.5d0) then
+                  call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,         &
+                              stevec(1,1,isp), MSTO, NORB, MSTO, NORB,         &
+                              onevec, MSTO, NORB)
+                  call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
+                  call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
+                  if (.not. qindef) then
+                    call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,   &
+                               NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
+                    stovl  = stovl_bak
+                    ontran = ontran_bak
+                  end if
+                else
+                  stevec(:, 1:NORB, isp) = 0.0d0
                 end if
               end if
 
