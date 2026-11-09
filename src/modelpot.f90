@@ -436,8 +436,22 @@ contains
       end do
       p_lowdin = matmul(tmp1, transpose(v_p))
 
-      ! Scale B in the V_P basis only if any mode exceeds 1 - 1e-3:
-      if (max_lam > 0.999d0) then
+      ! Scale B in the V_P basis:
+      if (delta <= 1.0d-2) then
+        allocate(b_vp(msto, msto))
+        tmp1 = matmul(b_lowdin, v_p)
+        b_vp = matmul(transpose(v_p), tmp1)
+
+        do j = 1, msto
+          do i = 1, msto
+            b_vp(i, j) = b_vp(i, j) * sqrt(s_modes(i) * s_modes(j))
+          end do
+        end do
+
+        tmp1 = matmul(b_vp, transpose(v_p))
+        b_lowdin = matmul(v_p, tmp1)
+        deallocate(b_vp)
+      else if (max_lam > 0.999d0) then
         allocate(b_vp(msto, msto))
         tmp1 = matmul(b_lowdin, v_p)
         b_vp = matmul(transpose(v_p), tmp1)

@@ -512,7 +512,7 @@ contains
 
         ! Update external projection, pseudopotential, and exchange matrices
         do isp = 1, ISPIN
-          pkpot(:, 1:2, isp) = pkpot_bak(:, 1:2, isp)
+          if (QNWVEC) pkpot(:, 1:2, isp) = pkpot_bak(:, 1:2, isp)
           ijorb = 0
           do iorb = 1, NORB
             do jorb = 1, iorb
@@ -522,7 +522,8 @@ contains
           end do
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
+          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
+                      merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), logical(QNWVEC)), MSTO, M2STO, NORB)
           ! Hydrogen exemption: H emits no projector onto neighboring atoms.
           if (nucz <= 1.5d0) then
             pkpot(:, 4, isp) = 0.0d0
@@ -638,7 +639,8 @@ contains
                 end do
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), occ(1:NORB,isp) * eval(1:NORB,isp), MSTO, M2STO, NORB)
+              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
+                          merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), logical(QNWVEC)), MSTO, M2STO, NORB)
               ! Hydrogen exemption: H emits no projector onto neighboring atoms.
               if (nucz <= 1.5d0) then
                 pkpot(:, 4, isp) = 0.0d0
