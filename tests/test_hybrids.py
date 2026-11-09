@@ -254,3 +254,63 @@ def test_deck_explicit_named_hybridization_override():
     total_electrons = sum(sum(o.occno) for a in deck.geometry for o in a.starting_orbitals)
     assert total_electrons == pytest.approx(16.0)
 
+
+def test_lone_pair_complement_is_rotation_invariant_across_axes():
+    """Verify s-carrying complement lone pair is canonically separated from pure-p lone pairs for any axis."""
+    for axis in (
+        np.array([1.0, 0.0, 0.0]),
+        np.array([0.0, 1.0, 0.0]),
+        np.array([0.0, 0.0, 1.0]),
+        np.array([1.0, 2.0, -1.5]),
+    ):
+        vecs = atom_valence_vectors([axis], (), n_lone_pairs=3)
+        s_weights = [float(v[0] ** 2) for v in vecs["lone"]]
+        assert s_weights[0] == pytest.approx(0.75, abs=1e-12)
+        assert s_weights[1] == pytest.approx(0.0, abs=1e-12)
+        assert s_weights[2] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_apply_hybrid_seeds_automated_without_bonds_or_valence_config():
+    """Verify apply_hybrid_seeds(deck) automatically infers valence_config and bond orders when bonds is None."""
+    from phatpsy.builder import build_molecule
+
+    # 1. Ethylene (C=C double bond inferred automatically from geometry & valency)
+    c2h4 = build_molecule(
+        [
+            ("C", [0.0, 0.0, 0.0], "up"),
+            ("C", [2.53, 0.0, 0.0], "down"),
+            ("H", [-1.10, 1.75, 0.0], "down"),
+            ("H", [-1.10, -1.75, 0.0], "down"),
+            ("H", [3.63, 1.75, 0.0], "up"),
+            ("H", [3.63, -1.75, 0.0], "up"),
+        ],
+        basis="DZ",
+        net_spin=0,
+        seed_hybrids=True,
+    )
+    for atom in c2h4.geometry:
+        assert atom.starting_orbitals
+    # Check C1 has 3 sp2 sigma hybrids (in xy plane) + 1 pure-pz pi orbital
+    c1_orbs = c2h4.geometry[0].starting_orbitals[1:]
+    assert len(c1_orbs) == 4
+    # One of the 4 valence orbitals on C1 is pure p (no s coefficient -> 2 STO coefficients in DZ)
+    n_coefs = sorted(len(o.coefficients) for o in c1_orbs)
+    assert n_coefs[0] == 2  # pure pz pi orbital
+
+    # 2. N2 triple bond inferred automatically
+    n2 = build_molecule(
+        [
+            ("N", [0.0, 0.0, -1.034], "up"),
+            ("N", [0.0, 0.0, 1.034], "down"),
+        ],
+        basis="DZ",
+        net_spin=0,
+        seed_hybrids=True,
+    )
+    assert n2.physical_net_spin == 0
+    # Each N has 1 doubly-occupied lone pair + 3 singly-occupied bonding orbitals (1 sigma + 2 pi)
+    n1_occs = [o.occno for o in n2.geometry[0].starting_orbitals[1:]]
+    assert n1_occs.count([1.0, 1.0]) == 1
+    assert n1_occs.count([1.0, 0.0]) == 3
+
+

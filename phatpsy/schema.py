@@ -1821,7 +1821,7 @@ class CalculationDeck:
                     flags.append("QFIXED=T")
                 if p_atom.virtual:
                     flags.append("QVIRTL=T")
-                has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals)
+                has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals or p_atom.valence_config)
                 # QFLIP is never combined with custom starting orbitals: the engine skips the
                 # &ATORB cards for a flipped atom, and custom orbitals already carry their spin.
                 if (group_idx > 0 and p_atom.is_spin_down and not has_custom_orbs
@@ -1849,7 +1849,7 @@ class CalculationDeck:
                     # (group_idx > 0) are flipped relative to group 0 via QFLIP above.
                     swap_default_spin = (
                         group_idx == 0 and p_atom.is_spin_down
-                        and not p_atom.embedded_state and not p_atom.starting_orbitals
+                        and not p_atom.embedded_state and not p_atom.starting_orbitals and not p_atom.valence_config
                     )
                     if swap_default_spin:
                         orbitals_to_use = [_spin_swapped_orbital(o) for o in ed.default_orbitals]
@@ -1862,6 +1862,14 @@ class CalculationDeck:
                             orbitals_to_use = emb.to_initial_orbitals()
                     elif p_atom.starting_orbitals:
                         orbitals_to_use = p_atom.starting_orbitals
+                    elif p_atom.valence_config:
+                        from phatpsy.hybrids import build_atom_orbitals_from_valence_config
+                        atoms_by_id = {a.id: a for a in self.geometry if getattr(a, "id", None)}
+                        orbitals_to_use = build_atom_orbitals_from_valence_config(
+                            elem=ed,
+                            atom=p_atom,
+                            atoms_by_id=atoms_by_id,
+                        )
 
                     for orb in orbitals_to_use:
                         parts = ["&ATORB"]

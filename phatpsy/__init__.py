@@ -93,6 +93,7 @@ from phatpsy.volumetric import (
 )
 from phatpsy.hybrids import (
     build_atom_orbitals,
+    build_atom_orbitals_from_valence_config,
     apply_hybrid_seeds,
     atom_valence_vectors,
     valence_space,
@@ -296,6 +297,7 @@ __all__ = [
     "generate_hybrid_orbitals_visualization_data",
     "HYBRID_GEOMETRY_PRESETS",
     "build_atom_orbitals",
+    "build_atom_orbitals_from_valence_config",
     "apply_hybrid_seeds",
     "atom_valence_vectors",
     "valence_space",

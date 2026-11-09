@@ -621,14 +621,18 @@ def atom_valence_vectors(
     if n_sigma:
         w = (1.0 / np.sqrt(max(n_sigma_slots, 1))) if s_in_sigma else 0.0
         for d in sigma_dirs:
-            p_comp = np.sqrt(1.0 - w * w) * _unit(d)
+            u = _unit(d)
+            p_comp = np.sqrt(1.0 - w * w) * u
             v = np.zeros(dim, dtype=np.float64)
             v[0] = w
             v[1:4] = p_comp
+            if has_d_orbitals and n_sigma > 4:
+                v[4:9] = [float(u @ Q @ u) for Q in Q_MATRICES]
             rows.append(v)
         T = np.array(rows)
         evals, evecs = np.linalg.eigh(T @ T.T)
-        B = (evecs @ np.diag(evals ** -0.5) @ evecs.T) @ T  # symmetric orthonormalization
+        inv_sqrt = np.where(evals > 1e-10, np.maximum(evals, 1e-12) ** -0.5, 0.0)
+        B = (evecs @ np.diag(inv_sqrt) @ evecs.T) @ T  # symmetric orthonormalization
         basis = [b for b in B]
     else:
         basis = []
@@ -658,10 +662,20 @@ def atom_valence_vectors(
     used_list = basis + pi_vecs + delta_vecs
     used = np.array(used_list) if used_list else np.zeros((0, dim))
     proj = np.eye(dim) - used.T @ used if len(used) else np.eye(dim)
-    evals, evecs = np.linalg.eigh(proj)
-    complement = [evecs[:, k] for k in range(dim) if evals[k] > 0.5]
-    # deterministic sign
-    complement = [c if next(x for x in c if abs(x) > 1e-9) > 0 else -c for c in complement]
+    # Break degeneracy inside the orthogonal complement by boosting the s-component (index 0)
+    # so the unique s-carrying complement hybrid is separated from pure-p/d complement orbitals
+    # in a 3D rotation-invariant manner (descending eigenvalue order puts s-hybrid first).
+    e0 = np.zeros((1, dim), dtype=np.float64)
+    e0[0, 0] = 1.0
+    proj_s = proj + 0.5 * (proj @ e0.T @ e0 @ proj)
+    evals, evecs = np.linalg.eigh(proj_s)
+    order_idx = [k for k in np.argsort(evals)[::-1] if evals[k] > 0.5]
+    complement = [evecs[:, k] for k in order_idx]
+    # deterministic sign: prefer positive s-component when present, else first non-zero component
+    complement = [
+        c if (c[0] > 1e-9 or (abs(c[0]) <= 1e-9 and next(x for x in c if abs(x) > 1e-9) > 0)) else -c
+        for c in complement
+    ]
 
     need = n_lone_pairs + n_extra
     if len(complement) < need:
@@ -935,44 +949,417 @@ def build_atom_orbitals(
     return lib
 
 
+def _valence_orbital_occno(orb) -> List[float]:
+    """Converts a ValenceOrbital record into [occ_alpha, occ_beta]."""
+    if orb.occupation == 0:
+        return [0.0, 0.0]
+    if orb.occupation == 2:
+        return [1.0, 1.0]
+    if orb.spin == "up":
+        return [1.0, 0.0]
+    if orb.spin == "down":
+        return [0.0, 1.0]
+    raise ValueError(f"Singly occupied ValenceOrbital must have spin 'up' or 'down', got {orb.spin!r}")
+
+
+def build_atom_orbitals_from_valence_config(
+    elem: ElementData,
+    atom,
+    atoms_by_id: Optional[Dict[str, Any]] = None,
+    s_in_sigma: bool = True,
+) -> List[InitialOrbital]:
+    """
+    Constructs replacement ``starting_orbitals`` for an ``AtomConfig`` directly from its
+    ``valence_config`` (a list of ``ValenceOrbital`` entries), honoring per-orbital
+    spins (including mixed-spin atoms), occupations, ``connect_to`` bond directions,
+    dative ``lone_pair`` directions, and ``plane``/``orientation`` specifiers.
+    """
+    from phatpsy.schema import ValenceOrbital, n_valence_orbitals
+
+    if not getattr(atom, "valence_config", None):
+        raise ValueError(f"Atom '{getattr(atom, 'id', None) or elem.symbol}' has no valence_config.")
+
+    if hasattr(atom, "validate_valence_config"):
+        atom.validate_valence_config()
+
+    vs = valence_space(elem)
+    lib = [replace(o) for o in elem.default_orbitals]
+    n_orb = n_valence_orbitals(elem.atomic_number)
+
+    entries: List[ValenceOrbital] = [
+        o if isinstance(o, ValenceOrbital) else ValenceOrbital.from_dict(o)
+        for o in atom.valence_config
+    ]
+
+    # S-only valence shell (H, He)
+    if not vs.p_indices and not vs.d_indices:
+        if n_orb == 0:
+            return lib
+        k = vs.s_index
+        occ = _valence_orbital_occno(entries[0]) if entries else [0.0, 0.0]
+        lib[k] = replace(lib[k], occno=occ)
+        return lib
+
+    # Pad partial valence_config up to n_orb with empty orbitals matching hybridization
+    hyb_label = str(atom.hybridization).strip().lower() if getattr(atom, "hybridization", None) else None
+    n_pi_target = 2 if hyb_label == "sp" else (1 if hyb_label in ("sp2", "sp2_bent") else 0)
+    cur_pi = sum(1 for e in entries if e.orbital_type == "pi")
+    while len(entries) < n_orb:
+        if cur_pi < n_pi_target:
+            entries.append(ValenceOrbital(spin="none", orbital_type="pi", occupation=0))
+            cur_pi += 1
+        else:
+            entries.append(ValenceOrbital(spin="none", orbital_type="sigma", occupation=0))
+
+    xyz_a = np.asarray(getattr(atom, "xyz", [0.0, 0.0, 0.0]), dtype=float)
+
+    def _resolve_dir(target_id: Optional[str]) -> Optional[np.ndarray]:
+        if not target_id or not atoms_by_id or target_id not in atoms_by_id:
+            return None
+        other = atoms_by_id[target_id]
+        vec = np.asarray(getattr(other, "xyz", [0.0, 0.0, 0.0]), dtype=float) - xyz_a
+        if float(np.linalg.norm(vec)) <= 1e-8:
+            return None
+        return _unit(vec)
+
+    def _resolve_plane_normal(plane_ids: Optional[Sequence[str]]) -> Optional[np.ndarray]:
+        if not plane_ids or not atoms_by_id:
+            return None
+        p_vecs: List[np.ndarray] = []
+        for pid in plane_ids:
+            u = _resolve_dir(pid)
+            if u is not None:
+                p_vecs.append(u)
+        if len(p_vecs) >= 2:
+            return _plane_normal(p_vecs)
+        return None
+
+    is_tm_d = bool(vs.d_indices) and (
+        elem.atomic_number >= 21
+        or n_orb == 9
+        or any(e.orbital_type == "delta" for e in entries)
+        or any(sum(elem.default_orbitals[k].occno) > 0 for k in vs.d_indices)
+    )
+    spec: Optional[HybridizationSpec] = get_hybridization_spec(hyb_label) if hyb_label else None
+    has_d = (spec.has_d_orbitals if spec is not None else False) or is_tm_d
+    dim = 9 if has_d else 4
+
+    # 1. Identify directed sigma-hybrid orbitals (sigma with connect_to, plus dative lone_pair with connect_to)
+    directed_sigma_indices: List[int] = []
+    directed_sigma_dirs: List[np.ndarray] = []
+    for idx_e, orb in enumerate(entries):
+        if orb.orbital_type in ("sigma", "lone_pair") and orb.connect_to:
+            u = _resolve_dir(orb.connect_to)
+            if u is not None:
+                directed_sigma_indices.append(idx_e)
+                directed_sigma_dirs.append(u)
+
+    # Fallback when no connect_to coordinates could be resolved (e.g. isolated atom or single-atom test)
+    if not directed_sigma_dirs:
+        sigma_entry_indices = [
+            idx_e for idx_e, orb in enumerate(entries)
+            if orb.orbital_type == "sigma" or (orb.orbital_type == "lone_pair" and orb.connect_to)
+        ]
+        if spec is not None and spec.canonical_sigma_dirs:
+            n_take = min(len(sigma_entry_indices), len(spec.canonical_sigma_dirs))
+            directed_sigma_indices = sigma_entry_indices[:n_take]
+            directed_sigma_dirs = [np.array(d, dtype=float) for d in spec.canonical_sigma_dirs[:n_take]]
+        elif sigma_entry_indices:
+            n_pi_total = sum(1 for orb in entries if orb.orbital_type == "pi")
+            fallback_hyb = "sp" if n_pi_total >= 2 else ("sp2" if n_pi_total == 1 else "sp3")
+            fb_spec = get_hybridization_spec(fallback_hyb)
+            n_take = min(len(sigma_entry_indices), len(fb_spec.canonical_sigma_dirs))
+            directed_sigma_indices = sigma_entry_indices[:n_take]
+            directed_sigma_dirs = [np.array(d, dtype=float) for d in fb_spec.canonical_sigma_dirs[:n_take]]
+
+    # Transition-metal explicit d-hybridization path (dsp2, d2sp3, sd, delta)
+    if has_d and spec is not None and spec.has_d_orbitals:
+        _, _, _, R = align_hybrid_to_neighbors(spec, directed_sigma_dirs)
+        d_vecs = _construct_d_hybrid_vectors(spec, R)
+        sigma_pool = list(d_vecs.get("sigma", []))
+        pi_pool = list(d_vecs.get("pi", []))
+        delta_pool = list(d_vecs.get("delta", []))
+        nb_pool = list(d_vecs.get("non_bonding", d_vecs.get("lone", [])))
+        ordered: List[Tuple[np.ndarray, List[float]]] = []
+        for orb in entries:
+            occ = _valence_orbital_occno(orb)
+            if orb.orbital_type == "sigma" and sigma_pool:
+                v = sigma_pool.pop(0)
+            elif orb.orbital_type == "pi" and pi_pool:
+                v = pi_pool.pop(0)
+            elif orb.orbital_type == "delta" and delta_pool:
+                v = delta_pool.pop(0)
+            elif nb_pool:
+                v = nb_pool.pop(0)
+            elif sigma_pool:
+                v = sigma_pool.pop(0)
+            else:
+                raise ValueError(f"{elem.symbol}: insufficient d-hybrid vectors for valence_config")
+            ordered.append((v, occ))
+    else:
+        # 2. Construct Löwdin-orthonormalized directed sigma hybrids
+        use_s = spec.s_in_sigma if spec is not None else s_in_sigma
+        if directed_sigma_dirs:
+            rows = []
+            for d in directed_sigma_dirs:
+                u = _unit(d)
+                row = np.zeros(dim, dtype=np.float64)
+                row[0] = 1.0 if use_s else 0.0
+                row[1:4] = np.sqrt(max(len(directed_sigma_dirs), 1)) * u if use_s else u
+                if has_d and len(directed_sigma_dirs) > 4:
+                    row[4:9] = np.sqrt(max(len(directed_sigma_dirs), 1)) * np.array(
+                        [float(u @ Q @ u) for Q in Q_MATRICES], dtype=np.float64
+                    )
+                rows.append(row)
+            T = np.array(rows, dtype=np.float64)
+            evals, evecs = np.linalg.eigh(T @ T.T)
+            inv_sqrt = np.where(evals > 1e-10, np.maximum(evals, 1e-12) ** -0.5, 0.0)
+            B = (evecs @ np.diag(inv_sqrt) @ evecs.T) @ T
+            sigma_basis = [b for b in B]
+        else:
+            sigma_basis = []
+
+        # 3. Resolve 3D directions for pi orbitals and orthonormalize against sigma_basis
+        pi_indices = [idx_e for idx_e, orb in enumerate(entries) if orb.orbital_type == "pi"]
+        pi_vecs: List[np.ndarray] = []
+        raw_pi_dirs: List[np.ndarray] = []
+        default_mol_normal = _plane_normal(directed_sigma_dirs) if len(directed_sigma_dirs) >= 2 else None
+
+        for p_pos, idx_e in enumerate(pi_indices):
+            orb = entries[idx_e]
+            p_dir: Optional[np.ndarray] = None
+            n_plane = _resolve_plane_normal(orb.plane)
+            u_conn = _resolve_dir(orb.connect_to)
+
+            if n_plane is not None:
+                if orb.orientation == "in_plane" and u_conn is not None:
+                    in_p = np.cross(n_plane, u_conn)
+                    if float(np.linalg.norm(in_p)) > 1e-8:
+                        p_dir = _unit(in_p)
+                if p_dir is None:
+                    p_dir = n_plane
+            elif u_conn is not None:
+                c1, c2 = _canonical_perpendicular_pair(u_conn)
+                if default_mol_normal is not None and abs(float(np.dot(default_mol_normal, u_conn))) < 0.95:
+                    c1 = _unit(default_mol_normal - float(np.dot(default_mol_normal, u_conn)) * u_conn)
+                    c2 = _unit(np.cross(u_conn, c1))
+                # Pick first perpendicular vector not parallel to an already chosen raw_pi_dir
+                p_dir = c1
+                for prev in raw_pi_dirs:
+                    if abs(float(np.dot(prev, c1))) > 0.9:
+                        p_dir = c2
+                        break
+            elif default_mol_normal is not None:
+                p_dir = default_mol_normal
+            elif directed_sigma_dirs:
+                c1, c2 = _canonical_perpendicular_pair(directed_sigma_dirs[0])
+                p_dir = c1 if p_pos == 0 else c2
+            else:
+                canon_pi = [np.array([0.0, 0.0, 1.0]), np.array([0.0, 1.0, 0.0]), np.array([1.0, 0.0, 0.0])]
+                p_dir = canon_pi[min(p_pos, 2)]
+
+            raw_pi_dirs.append(p_dir)
+            v = np.zeros(dim, dtype=np.float64)
+            v[1:4] = _unit(p_dir)
+            for b in sigma_basis + pi_vecs:
+                v = v - (b @ v) * b
+            norm_v = float(np.linalg.norm(v))
+            if norm_v <= 1e-8 and directed_sigma_dirs:
+                # Fallback to second canonical perpendicular if first was in span
+                for cand in _canonical_perpendicular_pair(directed_sigma_dirs[0]):
+                    v_try = np.zeros(dim, dtype=np.float64)
+                    v_try[1:4] = cand
+                    for b in sigma_basis + pi_vecs:
+                        v_try = v_try - (b @ v_try) * b
+                    if float(np.linalg.norm(v_try)) > 1e-8:
+                        v = v_try
+                        norm_v = float(np.linalg.norm(v))
+                        break
+            if norm_v > 1e-8:
+                pi_vecs.append(v / norm_v)
+
+        # 4. Delta orbitals (transition metals)
+        delta_indices = [idx_e for idx_e, orb in enumerate(entries) if orb.orbital_type == "delta"]
+        delta_vecs: List[np.ndarray] = []
+        if has_d and delta_indices:
+            for i_delta in range(min(len(delta_indices), 2)):
+                v = np.zeros(dim, dtype=np.float64)
+                v[7 + i_delta] = 1.0
+                for b in sigma_basis + pi_vecs + delta_vecs:
+                    v = v - (b @ v) * b
+                norm_v = float(np.linalg.norm(v))
+                if norm_v > 1e-8:
+                    delta_vecs.append(v / norm_v)
+
+        # 5. Orthogonal complement for undirected lone pairs and remaining undirected orbitals
+        used_list = sigma_basis + pi_vecs + delta_vecs
+        used = np.array(used_list) if used_list else np.zeros((0, dim))
+        proj = np.eye(dim) - used.T @ used if len(used) else np.eye(dim)
+        e0 = np.zeros((1, dim), dtype=np.float64)
+        e0[0, 0] = 1.0
+        proj_s = proj + 0.5 * (proj @ e0.T @ e0 @ proj)
+        evals, evecs = np.linalg.eigh(proj_s)
+        order_idx = [k for k in np.argsort(evals)[::-1] if evals[k] > 0.5]
+        complement = [evecs[:, k] for k in order_idx]
+        complement = [
+            c if (c[0] > 1e-9 or (abs(c[0]) <= 1e-9 and next(x for x in c if abs(x) > 1e-9) > 0)) else -c
+            for c in complement
+        ]
+
+        # Map each entry to its constructed vector
+        assigned_vecs: Dict[int, np.ndarray] = {}
+        for idx_e, vec in zip(directed_sigma_indices, sigma_basis):
+            assigned_vecs[idx_e] = vec
+        for idx_e, vec in zip(pi_indices, pi_vecs):
+            assigned_vecs[idx_e] = vec
+        for idx_e, vec in zip(delta_indices, delta_vecs):
+            assigned_vecs[idx_e] = vec
+
+        rem_indices = [idx_e for idx_e in range(len(entries)) if idx_e not in assigned_vecs]
+        avail_comp = list(complement)
+
+        # First match any out_of_plane oriented lone pairs/orbitals to the normal-aligned complement vector
+        for idx_e in list(rem_indices):
+            orb = entries[idx_e]
+            if orb.orientation == "out_of_plane" and avail_comp:
+                n_plane = _resolve_plane_normal(orb.plane)
+                if n_plane is None:
+                    n_plane = default_mol_normal
+                if n_plane is not None:
+                    best_k = max(
+                        range(len(avail_comp)),
+                        key=lambda k: abs(float(np.dot(avail_comp[k][1:4], n_plane))),
+                    )
+                    v_pick = avail_comp.pop(best_k)
+                    if float(np.dot(v_pick[1:4], n_plane)) < 0:
+                        v_pick = -v_pick
+                    assigned_vecs[idx_e] = v_pick
+                    rem_indices.remove(idx_e)
+
+        # Assign remaining undirected entries (in_plane lone_pair gets s-rich complement[0] first)
+        for idx_e in rem_indices:
+            if not avail_comp:
+                raise ValueError(f"{elem.symbol}: insufficient orthogonal complement orbitals for valence_config")
+            assigned_vecs[idx_e] = avail_comp.pop(0)
+
+        ordered = [(assigned_vecs[idx_e], _valence_orbital_occno(entries[idx_e])) for idx_e in range(len(entries))]
+
+    if has_d and vs.d_indices:
+        slots = sorted([vs.s_index, *vs.p_indices, *vs.d_indices])
+    else:
+        slots = sorted([vs.s_index, *vs.p_indices])
+
+    for slot, (v, occ) in zip(slots[: len(ordered)], ordered):
+        eps_val = vs.eps_s * (v[0] ** 2)
+        if len(v) > 1 and vs.radial_p:
+            eps_val += vs.eps_p * sum(v[1:4] ** 2)
+        if len(v) > 4 and vs.radial_d:
+            eps_val += vs.eps_d * sum(v[4:9] ** 2)
+        lib[slot] = InitialOrbital(
+            eigval=[float(eps_val), float(eps_val)],
+            occno=list(occ),
+            coefficients=_vec_to_coefficients(v, vs),
+        )
+
+    return lib
+
+
 def apply_hybrid_seeds(
     deck,
     bonds: Optional[Dict[Tuple[int, int], int]] = None,
     s_in_sigma: bool = True,
+    auto_propose: bool = True,
 ) -> None:
     """
-    Set ``starting_orbitals`` on every atom of ``deck`` using either explicit bonds
-    or assigned named hybridizations on ``AtomConfig.hybridization``.
+    Set ``starting_orbitals`` on every primary atom of ``deck`` using:
+    1. Explicit ``AtomConfig.valence_config`` when present on an atom,
+    2. Explicit ``AtomConfig.hybridization`` when present on an atom,
+    3. Explicit ``bonds`` graph when passed to ``apply_hybrid_seeds``, or
+    4. Automated ``propose_valence_config(deck)`` when ``bonds is None`` and ``auto_propose=True``.
     """
+    from phatpsy.spin import build_connectivity_graph
+
     elems = deck.resolve_elements()
     xyz = [np.asarray(a.xyz, dtype=float) for a in deck.geometry]
-    neighbours: Dict[int, List[Tuple[int, int]]] = {i: [] for i in range(len(xyz))}
+    n_atoms = len(xyz)
+
+    # Ensure every atom has a stable ID for connect_to resolution
+    elem_counts: Dict[str, int] = {}
+    existing_ids = {a.id for a in deck.geometry if getattr(a, "id", None)}
+    for a in deck.geometry:
+        sym = a.element.strip().capitalize()
+        elem_counts[sym] = elem_counts.get(sym, 0) + 1
+        if not getattr(a, "id", None):
+            cand = f"{sym}{elem_counts[sym]}"
+            while cand in existing_ids:
+                elem_counts[sym] += 1
+                cand = f"{sym}{elem_counts[sym]}"
+            a.id = cand
+            existing_ids.add(cand)
+
+    atoms_by_id = {a.id: a for a in deck.geometry if getattr(a, "id", None)}
+
+    neighbours: Dict[int, List[Tuple[int, int]]] = {i: [] for i in range(n_atoms)}
     if bonds:
         for (i, j), order in bonds.items():
             neighbours[i].append((j, int(order)))
             neighbours[j].append((i, int(order)))
-    elif any(getattr(a, "hybridization", None) == "sp" for a in deck.geometry):
-        if len(xyz) == 2:
-            neighbours[0].append((1, 3))
-            neighbours[1].append((0, 3))
-        else:
-            sp_indices = [idx for idx, a in enumerate(deck.geometry) if getattr(a, "hybridization", None) == "sp"]
-            for i_sp in sp_indices:
-                other_sp = [j_sp for j_sp in sp_indices if j_sp != i_sp]
-                if other_sp:
-                    j_nearest = min(other_sp, key=lambda j_sp: float(np.linalg.norm(xyz[j_sp] - xyz[i_sp])))
-                    if (j_nearest, 3) not in neighbours[i_sp]:
-                        neighbours[i_sp].append((j_nearest, 3))
+    else:
+        adj = build_connectivity_graph(deck.geometry)
+        for i_at in range(n_atoms):
+            nbr_list = list(adj[i_at]) if i_at < len(adj) else []
+            nbr_list.sort(key=lambda j_at: float(np.linalg.norm(xyz[j_at] - xyz[i_at])))
+            hyb_i = getattr(deck.geometry[i_at], "hybridization", None)
+            if hyb_i:
+                spec_i = get_hybridization_spec(hyb_i)
+                nbr_list = nbr_list[: max(spec_i.n_sigma, len(spec_i.canonical_sigma_dirs))]
+            for j_at in nbr_list:
+                order_ij = (
+                    3
+                    if (
+                        getattr(deck.geometry[i_at], "hybridization", None) == "sp"
+                        and getattr(deck.geometry[j_at], "hybridization", None) == "sp"
+                    )
+                    else 1
+                )
+                neighbours[i_at].append((j_at, order_ij))
+        if any(getattr(a, "hybridization", None) == "sp" for a in deck.geometry):
+            if n_atoms == 2 and not neighbours[0]:
+                neighbours[0].append((1, 3))
+                neighbours[1].append((0, 3))
+            else:
+                sp_indices = [idx for idx, a in enumerate(deck.geometry) if getattr(a, "hybridization", None) == "sp"]
+                for i_sp in sp_indices:
+                    if not neighbours[i_sp]:
+                        other_sp = [j_sp for j_sp in sp_indices if j_sp != i_sp]
+                        if other_sp:
+                            j_nearest = min(other_sp, key=lambda j_sp: float(np.linalg.norm(xyz[j_sp] - xyz[i_sp])))
+                            neighbours[i_sp].append((j_nearest, 3))
 
     def sigma_dirs_of(i: int) -> List[np.ndarray]:
-        return [_unit(xyz[j] - xyz[i]) for j, _ in neighbours[i]]
+        return [_unit(xyz[j] - xyz[i]) for j, _ in neighbours[i] if float(np.linalg.norm(xyz[j] - xyz[i])) > 1e-8]
+
+    # Lazily compute automated valence_config proposals if needed for unconfigured atoms
+    proposed_vc: Optional[Dict[str, List[Any]]] = None
 
     for i, atom in enumerate(deck.geometry):
+        if getattr(atom, "virtual", False) or getattr(atom, "equivalent_to", None):
+            continue
         sym = atom.element.strip().capitalize()
         sigma = sigma_dirs_of(i)
         atom_charge = float(getattr(atom, "charge", 0.0) or 0.0)
 
-        # Check explicit named hybridization on atom
+        # 1. Explicit per-orbital valence_config on atom takes highest precedence
+        if getattr(atom, "valence_config", None):
+            atom.starting_orbitals = build_atom_orbitals_from_valence_config(
+                elem=elems[sym],
+                atom=atom,
+                atoms_by_id=atoms_by_id,
+                s_in_sigma=s_in_sigma,
+            )
+            continue
+
+        # 2. Explicit named hybridization on atom
         if getattr(atom, "hybridization", None):
             atom.starting_orbitals = build_atom_orbitals(
                 elem=elems[sym],
@@ -983,42 +1370,60 @@ def apply_hybrid_seeds(
             )
             continue
 
-        if bonds is None and not neighbours[i]:
+        # 3. Explicit bonds dictionary passed to apply_hybrid_seeds
+        if bonds is not None:
+            if not neighbours[i]:
+                continue
+            n_pi = sum(order - 1 for _, order in neighbours[i])
+            pi_dirs: List[np.ndarray] = []
+            if n_pi:
+                normal = _plane_normal(sigma)
+                if normal is None:  # borrow the partner's plane
+                    for j, order in neighbours[i]:
+                        if order > 1:
+                            normal = _plane_normal(sigma_dirs_of(j))
+                            if normal is not None:
+                                break
+                if n_pi == 1:
+                    if normal is None and neighbours[i]:
+                        j = next((j for j, order in neighbours[i] if order > 1), neighbours[i][0][0])
+                        normal = _canonical_perpendicular_pair(xyz[j] - xyz[i])[0]
+                    elif normal is None:
+                        normal = np.array([0.0, 0.0, 1.0])
+                    pi_dirs = [normal]
+                elif n_pi == 2:
+                    if len(sigma) == 1:
+                        axis = sigma[0]
+                    elif len(sigma) == 2 and abs(float(np.dot(sigma[0], sigma[1])) + 1.0) < 1e-3:
+                        axis = sigma[0]
+                    else:
+                        raise NotImplementedError("two pi bonds on a non-linear centre")
+                    pi_dirs = list(_canonical_perpendicular_pair(axis))
+                else:
+                    raise NotImplementedError("more than two pi bonds on one atom")
+
+            atom.starting_orbitals = build_atom_orbitals(
+                elem=elems[sym],
+                spin=atom.spin or "up",
+                sigma_dirs=sigma,
+                pi_dirs=pi_dirs,
+                s_in_sigma=s_in_sigma,
+                charge=atom_charge,
+            )
             continue
 
-        # Automatic derivation from bond graph
-        n_pi = sum(order - 1 for _, order in neighbours[i])
-        pi_dirs: List[np.ndarray] = []
-        if n_pi:
-            normal = _plane_normal(sigma)
-            if normal is None:  # borrow the partner's plane
-                for j, order in neighbours[i]:
-                    if order > 1:
-                        normal = _plane_normal(sigma_dirs_of(j))
-                        if normal is not None:
-                            break
-            if n_pi == 1:
-                if normal is None and neighbours[i]:
-                    j = next((j for j, order in neighbours[i] if order > 1), neighbours[i][0][0])
-                    normal = _canonical_perpendicular_pair(xyz[j] - xyz[i])[0]
-                elif normal is None:
-                    normal = np.array([0.0, 0.0, 1.0])
-                pi_dirs = [normal]
-            elif n_pi == 2:
-                if len(sigma) == 1:
-                    axis = sigma[0]
-                elif len(sigma) == 2 and abs(float(np.dot(sigma[0], sigma[1])) + 1.0) < 1e-3:
-                    axis = sigma[0]
-                else:
-                    raise NotImplementedError("two pi bonds on a non-linear centre")
-                pi_dirs = list(_canonical_perpendicular_pair(axis))
-            else:
-                raise NotImplementedError("more than two pi bonds on one atom")
+        # 4. Automated proposal via propose_valence_config when neither valence_config, hybridization, nor bonds is given
+        if auto_propose:
+            if proposed_vc is None:
+                from phatpsy.builder import propose_valence_config
+                proposed_vc = propose_valence_config(deck)
+            vc_for_atom = proposed_vc.get(atom.id)
+            if vc_for_atom:
+                temp_atom = replace(atom, valence_config=vc_for_atom)
+                atom.starting_orbitals = build_atom_orbitals_from_valence_config(
+                    elem=elems[sym],
+                    atom=temp_atom,
+                    atoms_by_id=atoms_by_id,
+                    s_in_sigma=s_in_sigma,
+                )
 
-        atom.starting_orbitals = build_atom_orbitals(
-            elem=elems[sym],
-            spin=atom.spin or "up",
-            sigma_dirs=sigma,
-            pi_dirs=pi_dirs,
-            s_in_sigma=s_in_sigma,
-        )

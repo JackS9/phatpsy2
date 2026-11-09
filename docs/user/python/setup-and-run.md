@@ -139,14 +139,19 @@ In standard quantum calculations, atoms initialize in spherical ground-state con
 ```python
 from phatpsy import apply_hybrid_seeds
 
-# 1. Apply seeds from an explicit bond skeleton
+# 1. Automated seeding from geometry, valency, and any AtomConfig.valence_config
+apply_hybrid_seeds(deck)
+
+# 2. Or apply seeds from an explicit bond skeleton
 bonds = {(0, 1): 1, (0, 2): 1}  # Atom index pairs -> bond order
 apply_hybrid_seeds(deck, bonds=bonds)
 
-# 2. Or assign predefined named hybridizations to individual atoms
+# 3. Or assign predefined named hybridizations to individual atoms
 deck.geometry[0].hybridization = "sp3"
 apply_hybrid_seeds(deck)
 ```
+
+You can also pass `seed_hybrids=True` directly to `build_molecule` or `build_diatomic` to seed all atoms automatically upon deck construction. When an atom carries an explicit `valence_config`, `build_atom_orbitals_from_valence_config` and `apply_hybrid_seeds` construct oriented hybrid `starting_orbitals` honoring each orbital's spin (`up`, `down`, or `none`), occupation, `connect_to` bond direction, and `plane`/`orientation` specifiers.
 
 The hybrid frame automatically aligns with bonded neighbor directions via the Kabsch algorithm. Supported named types include main-group hybrids (`"sp3"`, `"sp2"`, `"sp"`, `"sp3_pyramidal"`, `"sp3_bent"`, `"pure_p"`) and transition-metal coordination geometries (`"dsp2"`, `"d2sp3"`, `"sd3"`, `"sd"`, `"delta"`).
 

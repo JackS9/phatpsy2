@@ -696,3 +696,92 @@ def test_propose_valence_config_automation():
     proposals_after = propose_valence_config(deck)
     assert proposals_after["O1"] == edited_o
 
+
+def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
+    """
+    Verify build_atom_orbitals_from_valence_config and apply_hybrid_seeds construct
+    oriented hybrid starting_orbitals for mixed-spin EO oxygen, planar BF3, and dative H3N->BF3.
+    """
+    from phatpsy.hybrids import apply_hybrid_seeds, build_atom_orbitals_from_valence_config
+
+    # 1. Ethylene oxide oxygen with mixed-spin sigma bonds and in_plane / out_of_plane lone pairs
+    eo_o = AtomConfig(
+        element="O",
+        id="O1",
+        xyz=[0.0, 0.0, 1.6],
+        spin="up",
+        valence_config=[
+            ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="C1"),
+            ValenceOrbital(spin="down", orbital_type="sigma", occupation=1, connect_to="C2"),
+            ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="in_plane"),
+            ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="out_of_plane"),
+        ],
+    )
+    eo_c1 = AtomConfig(element="C", id="C1", xyz=[-1.38, 0.0, 0.0], spin="down")
+    eo_c2 = AtomConfig(element="C", id="C2", xyz=[1.38, 0.0, 0.0], spin="up")
+    ed_o = get_element_basis("O", "DZ")
+    orbs_o = build_atom_orbitals_from_valence_config(
+        ed_o,
+        eo_o,
+        atoms_by_id={"O1": eo_o, "C1": eo_c1, "C2": eo_c2},
+    )
+    val_orbs_o = orbs_o[1:]
+    assert [o.occno for o in val_orbs_o] == [
+        [1.0, 0.0],  # sigma to C1 (up)
+        [0.0, 1.0],  # sigma to C2 (down)
+        [1.0, 1.0],  # in_plane lone pair
+        [1.0, 1.0],  # out_of_plane lone pair (pure py along normal to xz plane)
+    ]
+    # Out-of-plane lone pair is pure p_y (ml=-1 in engine convention) with no s component
+    oop_mls = {c[1] for c in val_orbs_o[3].coefficients}
+    assert oop_mls == {-1}
+
+    # 2. Free planar BF3 vs H3N->BF3 adduct via apply_hybrid_seeds
+    bf3_deck = build_molecule(
+        [
+            AtomConfig(
+                element="B",
+                id="B1",
+                xyz=[0.0, 0.0, 0.0],
+                hybridization="sp2",
+                spin="up",
+                valence_config=[
+                    ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="F1"),
+                    ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="F2"),
+                    ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="F3"),
+                    ValenceOrbital(spin="none", orbital_type="pi", occupation=0, plane=["F1", "F2", "F3"], orientation="out_of_plane"),
+                ],
+            ),
+            AtomConfig(element="F", id="F1", xyz=[2.46, 0.0, 0.0], spin="down"),
+            AtomConfig(element="F", id="F2", xyz=[-1.23, 2.1304, 0.0], spin="down"),
+            AtomConfig(element="F", id="F3", xyz=[-1.23, -2.1304, 0.0], spin="down"),
+        ],
+        basis="DZ",
+        net_spin=-2,
+    )
+    apply_hybrid_seeds(bf3_deck)
+    b_val = bf3_deck.geometry[0].starting_orbitals[1:]
+    assert [o.occno for o in b_val] == [[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [0.0, 0.0]]
+    # 4th orbital on planar B1 is pure p_z (ml=0, l=1 only -> 2 STO functions in DZ)
+    assert len(b_val[3].coefficients) == 2
+
+    # 3. Multiple-bond inference in propose_valence_config for N2, C2H4, NO
+    n2_prop = propose_valence_config(
+        [
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, 0.0], spin="up"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0, 2.068], spin="down"),
+        ]
+    )
+    assert orbital_counts(n2_prop["N1"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}
+    assert orbital_counts(n2_prop["N2"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}
+
+    no_prop = propose_valence_config(
+        [
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, 0.0], spin="up"),
+            AtomConfig(element="O", id="O1", xyz=[0.0, 0.0, 2.175], spin="down"),
+        ]
+    )
+    assert orbital_counts(no_prop["N1"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}
+    assert orbital_counts(no_prop["O1"]) == {"sigma": 1, "pi": 1, "delta": 0, "lone_pair": 2}
+
+

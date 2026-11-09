@@ -347,6 +347,7 @@ def build_molecule(
     embedded_atoms: Optional[Dict[Union[str, int], Any]] = None,
     hybridization: Optional[Union[str, Sequence[Optional[str]], Dict[str, str]]] = None,
     valence_configs: Optional[Union[Sequence[Optional[List[Any]]], Dict[Union[str, int], List[Any]]]] = None,
+    seed_hybrids: bool = False,
     extra_namelist: Optional[Dict[str, Any]] = None,
 ) -> CalculationDeck:
     """
@@ -644,14 +645,38 @@ def build_molecule(
     elif poscar_pbc is not None:
         deck.pbc = poscar_pbc
 
-    if (
-        len(deck.geometry) == 2
-        and bool(deck.elements)
-        and all(getattr(a, "hybridization", None) == "sp" for a in deck.geometry)
-        and any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry)
-    ):
+    if seed_hybrids and bool(deck.elements):
         from phatpsy.hybrids import apply_hybrid_seeds
-        apply_hybrid_seeds(deck, bonds={(0, 1): 3})
+        apply_hybrid_seeds(deck)
+    elif bool(deck.elements):
+        if (
+            len(deck.geometry) == 2
+            and all(getattr(a, "hybridization", None) == "sp" for a in deck.geometry)
+            and any(not a.starting_orbitals and not a.embedded_state for a in deck.geometry)
+        ):
+            from phatpsy.hybrids import apply_hybrid_seeds
+            apply_hybrid_seeds(deck, bonds={(0, 1): 3})
+        elif any(
+            getattr(a, "valence_config", None) and not a.starting_orbitals and not a.embedded_state
+            for a in deck.geometry
+        ):
+            from phatpsy.hybrids import build_atom_orbitals_from_valence_config
+            elems_res = deck.resolve_elements()
+            atoms_by_id = {a.id: a for a in deck.geometry if getattr(a, "id", None)}
+            for a in deck.geometry:
+                if (
+                    getattr(a, "valence_config", None)
+                    and not a.starting_orbitals
+                    and not a.embedded_state
+                    and not getattr(a, "virtual", False)
+                    and not getattr(a, "equivalent_to", None)
+                ):
+                    sym = a.element.strip().capitalize()
+                    a.starting_orbitals = build_atom_orbitals_from_valence_config(
+                        elem=elems_res[sym],
+                        atom=a,
+                        atoms_by_id=atoms_by_id,
+                    )
 
     return deck
 
@@ -670,6 +695,7 @@ def build_diatomic(
     hybridization: Optional[Union[str, Sequence[Optional[str]]]] = None,
     valence_configs: Optional[Union[Sequence[Optional[List[Any]]], Dict[Union[str, int], List[Any]]]] = None,
     charges: Optional[Union[Sequence[float], Dict[Union[str, int], float]]] = None,
+    seed_hybrids: bool = False,
     title: Optional[str] = None,
     control: Optional[ControlConfig] = None,
     extra_namelist: Optional[Dict[str, Any]] = None,
@@ -811,8 +837,96 @@ def build_diatomic(
         physical_net_spin=physical_net_spin,
         hybridization=hybridization,
         valence_configs=valence_configs,
+        seed_hybrids=seed_hybrids,
         extra_namelist=extra_namelist,
     )
+
+
+def _infer_bond_orders(
+    atoms: List[AtomConfig],
+    adj: Sequence[Sequence[int]],
+) -> Dict[Tuple[int, int], int]:
+    """
+    Infers integer bond orders (1, 2, or 3) across edges in ``adj`` when explicit
+    ``bonds`` are not provided, using main-group covalent valency satisfaction
+    and any explicit hybridization or valence_config hints on ``atoms``.
+    """
+    n = len(atoms)
+    orders: Dict[Tuple[int, int], int] = {}
+    for i in range(n):
+        for j in adj[i]:
+            if i < j:
+                orders[(i, j)] = 1
+
+    # 1. Honor any explicit pi bonds already declared in atom.valence_config
+    explicit_pi_on_edge: Dict[Tuple[int, int], int] = {}
+    for i, a in enumerate(atoms):
+        if a.valence_config:
+            for j in adj[i]:
+                nbr_id = atoms[j].id
+                n_pi_ij = sum(
+                    1 for e in a.valence_config
+                    if e.orbital_type == "pi" and e.connect_to == nbr_id and e.occupation > 0
+                )
+                if n_pi_ij > 0:
+                    edge = (min(i, j), max(i, j))
+                    explicit_pi_on_edge[edge] = max(explicit_pi_on_edge.get(edge, 0), n_pi_ij)
+
+    for edge, n_pi_ij in explicit_pi_on_edge.items():
+        orders[edge] = max(orders.get(edge, 1), 1 + n_pi_ij)
+
+    # 2. Compute remaining pi-bond capacity for each main-group atom
+    rem_pi_cap: Dict[int, int] = {}
+    for i, a in enumerate(atoms):
+        sym = a.element.strip().capitalize()
+        Z = ATOMIC_NUMBERS.get(sym, 0)
+        n_orb = n_valence_orbitals(Z)
+        occ_val = occupied_valency(Z, a.charge)
+        cn = len(adj[i])
+        if Z <= 2 or n_orb != 4 or cn == 0:
+            rem_pi_cap[i] = 0
+            continue
+        if a.valence_config is not None and len(a.valence_config) >= n_orb:
+            rem_pi_cap[i] = 0
+            continue
+
+        used_pi = sum(
+            orders[(min(i, j), max(i, j))] - 1
+            for j in adj[i]
+            if (min(i, j), max(i, j)) in orders
+        )
+        hyb_hint = str(a.hybridization).strip().lower() if a.hybridization else None
+        if hyb_hint == "sp3":
+            max_pi = 0
+        elif hyb_hint in ("sp2", "sp2_bent"):
+            max_pi = 1 if occ_val > cn else 0
+        elif hyb_hint == "sp":
+            max_pi = 2 if occ_val >= cn + 2 else max(0, occ_val - cn)
+        else:
+            # Standard main-group covalent target valency: min(v, 8 - v)
+            target_bonds = min(occ_val, 8 - occ_val)
+            max_pi = max(0, min(target_bonds - cn, n_orb - cn, 2))
+        rem_pi_cap[i] = max(0, max_pi - used_pi)
+
+    # 3. Pair unsaturated neighbors (prioritizing terminal/low-degree unsaturated centers)
+    candidate_edges = [
+        (i, j) for (i, j) in sorted(orders.keys())
+        if rem_pi_cap.get(i, 0) > 0 and rem_pi_cap.get(j, 0) > 0
+    ]
+    candidate_edges.sort(
+        key=lambda e: (
+            min(len(adj[e[0]]), len(adj[e[1]])),
+            -(rem_pi_cap.get(e[0], 0) + rem_pi_cap.get(e[1], 0)),
+        )
+    )
+    for i, j in candidate_edges:
+        delta = min(rem_pi_cap[i], rem_pi_cap[j], 3 - orders[(i, j)])
+        if delta > 0:
+            orders[(i, j)] += delta
+            rem_pi_cap[i] -= delta
+            rem_pi_cap[j] -= delta
+
+    return orders
 
 
 def _infer_atom_hybridization_from_geometry(
@@ -934,9 +1048,11 @@ def propose_valence_config(
             if i not in adj[j]:
                 adj[j].append(i)
     else:
+        inferred_orders = _infer_bond_orders(atoms, adj)
         for i in range(n):
             for j in adj[i]:
-                neighbours[i].append((j, 1))
+                edge = (min(i, j), max(i, j))
+                neighbours[i].append((j, inferred_orders.get(edge, 1)))
 
     # Determine locked spins from explicit valence_config or explicit atom.spin
     locked_spins: Dict[int, str] = {}
@@ -1036,14 +1152,26 @@ def propose_valence_config(
                     p_spin = "down" if nbr_pi[pi_idx] == "up" else "up"
                 else:
                     p_spin = atom_spin
-                # Determine plane if neighbor or atom has another neighbor
+                # Determine plane if neighbor or atom has a non-collinear second neighbor
                 plane_ids: Optional[List[str]] = None
                 ori = "in_plane"
-                other_nbrs = [atoms[k].id for k, _ in neighbours[i] if k != j]
-                if not other_nbrs:
-                    other_nbrs = [atoms[k].id for k, _ in neighbours[j] if k != i]
-                if other_nbrs and pi_idx == 0:
-                    plane_ids = [nbr_id, other_nbrs[0]]
+                xyz_i_arr = np.asarray(atoms[i].xyz, dtype=float)
+                u_ij = np.asarray(atoms[j].xyz, dtype=float) - xyz_i_arr
+                norm_ij = float(np.linalg.norm(u_ij))
+                cand_nbr_indices = [k for k, _ in neighbours[i] if k != j]
+                if not cand_nbr_indices:
+                    cand_nbr_indices = [k for k, _ in neighbours[j] if k != i]
+                non_collinear_id: Optional[str] = None
+                if norm_ij > 1e-8:
+                    u_ij_unit = u_ij / norm_ij
+                    for k_idx in cand_nbr_indices:
+                        u_ik = np.asarray(atoms[k_idx].xyz, dtype=float) - xyz_i_arr
+                        norm_ik = float(np.linalg.norm(u_ik))
+                        if norm_ik > 1e-8 and float(np.linalg.norm(np.cross(u_ij_unit, u_ik / norm_ik))) > 1e-3:
+                            non_collinear_id = atoms[k_idx].id
+                            break
+                if non_collinear_id and pi_idx == 0:
+                    plane_ids = [nbr_id, non_collinear_id]
                     ori = "out_of_plane"
                 entries.append(
                     ValenceOrbital(
