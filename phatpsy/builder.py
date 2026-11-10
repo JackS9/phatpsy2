@@ -684,7 +684,7 @@ def build_molecule(
 def build_diatomic(
     element1: str,
     element2: Optional[str] = None,
-    bond_length: float = 2.068,
+    bond_length: float = 2.0744,
     basis: Union[str, Dict[str, str]] = "DZP",
     units: str = "bohr",
     use_symmetry: bool = True,
@@ -712,7 +712,7 @@ def build_diatomic(
     Args:
         element1: Symbol of the first atom (e.g. 'N', 'C', 'Ag').
         element2: Symbol of second atom. Defaults to element1 (homodiatomic).
-        bond_length: Interatomic distance (default: 2.068 Bohr for N2).
+        bond_length: Interatomic distance (default: 2.0744 Bohr for N2).
         basis: Basis set ('DZ', 'SZ', 'THAKKAR').
         units: 'bohr' or 'angstrom'.
         use_symmetry: If True and homodiatomic, use reflection/inversion symmetry card.

@@ -116,7 +116,7 @@ def test_constrained_model_potential_fit():
     driver = PhatpsyDriver(quiet=True)
 
     # 1. Standard N2 calculation with legacy penalty fit
-    deck_leg = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
+    deck_leg = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck_leg.control.use_grid_fit = False
     deck_leg.control.use_constrained_fit = False
     deck_leg.control.pk_scale = 0.0
@@ -124,7 +124,7 @@ def test_constrained_model_potential_fit():
     res_leg = driver.run_deck(deck_leg)
 
     # 2. Modern N2 calculation with exact equality-constrained fit (QCSTFT=T)
-    deck_cst = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
+    deck_cst = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck_cst.control.use_grid_fit = False
     deck_cst.control.use_constrained_fit = True
     deck_cst.control.pk_scale = 0.0
@@ -174,7 +174,7 @@ def test_dynamic_exponents_deck():
     from phatpsy.driver import PhatpsyDriver
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
+    deck = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck.control.use_dynamic_exponents = True
     deck.control.max_cycles = 10
 

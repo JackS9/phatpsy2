@@ -207,7 +207,7 @@ def test_neb_search_n2_stretch():
     """
     Integration test: run CI-NEB on diatomic nitrogen bond extension (2.0 to 2.4 Bohrs) with 3 images.
     """
-    deck_r = build_diatomic("N", "N", bond_length=2.068, basis="DZ")
+    deck_r = build_diatomic("N", "N", bond_length=2.0744, basis="DZ")
     deck_p = build_diatomic("N", "N", bond_length=2.300, basis="DZ")
 
     # Fast run with 3 images and 2 iterations to exercise the optimizer loop
@@ -238,7 +238,7 @@ def test_cli_neb(tmp_path):
     out_xyz = tmp_path / "neb_out.xyz"
     out_plot = tmp_path / "neb_out.png"
 
-    deck_r = build_diatomic("N", "N", bond_length=2.068, basis="DZ")
+    deck_r = build_diatomic("N", "N", bond_length=2.0744, basis="DZ")
     deck_p = build_diatomic("N", "N", bond_length=2.200, basis="DZ")
     deck_r.to_yaml(yaml_r)
     deck_p.to_yaml(yaml_p)

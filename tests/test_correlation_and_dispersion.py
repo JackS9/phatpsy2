@@ -203,8 +203,8 @@ def test_deck_with_pbe_xc_and_dispersion():
             use_dispersion=True,
         ),
         geometry=[
-            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.037], spin="up"),
-            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.037], spin="down"),
+            AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, -1.0372], spin="up"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0,  1.0372], spin="down"),
         ],
         net_spin=0,
     )

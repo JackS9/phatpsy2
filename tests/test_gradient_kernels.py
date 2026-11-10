@@ -24,7 +24,7 @@ class TestTwoCenterIntegralDerivatives:
     """Non-circular verification for Phase 11.3 analytical radial derivative recurrences."""
 
 
-    @pytest.mark.parametrize("rab", [1.0, 1.5, 2.068, 3.0, 4.5])
+    @pytest.mark.parametrize("rab", [1.0, 1.5, 2.0744, 3.0, 4.5])
     def test_d_gensab_vs_finite_difference_homonuclear(self, rab):
         """
         Verify d_gensab analytical recurrence matches 2-point central difference of gensab

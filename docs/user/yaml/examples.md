@@ -6,7 +6,7 @@ This chapter presents production-ready calculation decks from the `examples/` di
 
 ## 1. Diatomic Nitrogen ($N_2$) with Double-Zeta Basis
 
-This calculation computes the closed-shell $N_2$ molecule at its equilibrium experimental bond distance ($R_e = 2.068\text{ Bohrs} \approx 1.094\text{ \AA}$).
+This calculation computes the closed-shell $N_2$ molecule at its equilibrium experimental bond distance ($R_e = 2.0744\text{ Bohrs} \approx 1.094\text{ \AA}$).
 
 ```yaml
 title: "Nitrogen Molecule (N2) - Double-Zeta Basis"
@@ -19,11 +19,11 @@ control:
 geometry:
   - element: N
     id: N1
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: up
   - element: N
     id: N2
-    xyz: [0.0, 0.0, -1.034]
+    xyz: [0.0, 0.0, -1.0372]
     spin: down
 
 elements:
@@ -193,11 +193,11 @@ control:
 geometry:
   - element: N
     id: N1
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: up
   - element: N
     id: N2
-    xyz: [0.0, 0.0, -1.034]
+    xyz: [0.0, 0.0, -1.0372]
     equivalent_to: N1
     symmetry_op: -2
     symmetry_axis: 1

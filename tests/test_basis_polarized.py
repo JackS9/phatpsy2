@@ -206,7 +206,7 @@ class TestPolarizedCalculations:
         - DZP converges cleanly with physical virial ratio.
         - Total energy in physical range [-110, -105] Hartree.
         """
-        deck_dzp = build_diatomic("N", "N", bond_length=2.068, basis="DZP", title="N2 DZP")
+        deck_dzp = build_diatomic("N", "N", bond_length=2.0744, basis="DZP", title="N2 DZP")
         state_dzp = driver.run_deck(deck_dzp)
 
         assert state_dzp.converged

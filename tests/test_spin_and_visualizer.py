@@ -107,7 +107,7 @@ def test_explicit_spin_in_builder_and_xyz():
 
 
 def test_visualization_data_generation():
-    deck = CalculationDeck.from_diatomic("N", bond_length=2.068, basis="DZ", use_symmetry=True)
+    deck = CalculationDeck.from_diatomic("N", bond_length=2.0744, basis="DZ", use_symmetry=True)
     # Add virtual and fixed attributes to test visualizer encoding
     deck.geometry[0].fixed = True
     deck.geometry.append(AtomConfig(element="H", xyz=[0.0, 1.5, 0.0], virtual=True, spin="up"))

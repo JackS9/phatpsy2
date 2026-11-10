@@ -769,7 +769,7 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     n2_prop = propose_valence_config(
         [
             AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, 0.0], spin="up"),
-            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0, 2.068], spin="down"),
+            AtomConfig(element="N", id="N2", xyz=[0.0, 0.0, 2.0744], spin="down"),
         ]
     )
     assert orbital_counts(n2_prop["N1"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}

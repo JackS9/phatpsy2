@@ -2152,7 +2152,7 @@ class CalculationDeck:
         cls,
         element1: str,
         element2: Optional[str] = None,
-        bond_length: float = 2.068,
+        bond_length: float = 2.0744,
         basis: Union[str, Dict[str, str]] = "DZP",
         units: str = "bohr",
         use_symmetry: bool = True,

@@ -77,7 +77,7 @@ The system combines:
     from phatpsy import PhatpsyDriver, build_diatomic, compute_grid, show_grid
 
     # Build an N2 molecule with Double-Zeta (DZ) basis
-    deck = build_diatomic("N", "N", bond_length=2.068, units="bohr", basis="DZ")
+    deck = build_diatomic("N", "N", bond_length=2.0744, units="bohr", basis="DZ")
 
     # Run SCF calculation
     driver = PhatpsyDriver()
@@ -104,11 +104,11 @@ The system combines:
     geometry:
       - element: N
         id: N1
-        xyz: [0.0, 0.0, 1.034]
+        xyz: [0.0, 0.0, 1.0372]
         spin: up
       - element: N
         id: N2
-        xyz: [0.0, 0.0, -1.034]
+        xyz: [0.0, 0.0, -1.0372]
         spin: down
 
     elements:

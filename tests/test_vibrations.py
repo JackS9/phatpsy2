@@ -111,10 +111,10 @@ def test_project_translations_rotations_nonlinear():
 
 def test_thermochemistry_analytical_n2():
     """Verify RRHO statistical thermochemistry on standard N2 against benchmark values."""
-    # N2 experimental bond length R = 1.0977 Å ≈ 2.074 Bohr, frequency = 2358.6 cm^-1
+    # N2 experimental bond length R = 1.0977 Å ≈ 2.0744 Bohr, frequency = 2358.6 cm^-1
     m_n = 14.007
     masses = np.array([m_n, m_n])
-    coords = np.array([[0.0, 0.0, 1.037], [0.0, 0.0, -1.037]])
+    coords = np.array([[0.0, 0.0, 1.0372], [0.0, 0.0, -1.0372]])
     nu_exp = [2358.6]
     e_elec = -109.565398
 
@@ -291,7 +291,7 @@ def test_empirical_gradient_vs_finite_difference_consistency():
     def eval_pair_energy(d: CalculationDeck) -> float:
         r = float(np.linalg.norm(np.array(d.geometry[0].xyz) - np.array(d.geometry[1].xyz)))
         k = 1.4744
-        re = 2.068
+        re = 2.0744
         return 0.5 * k * (r - re) ** 2
 
     fd_grad_0z = (eval_pair_energy(d_plus) - eval_pair_energy(d_minus)) / (2.0 * h)

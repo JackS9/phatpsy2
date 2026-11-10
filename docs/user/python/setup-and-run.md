@@ -30,8 +30,8 @@ PHATPSY provides high-level builder utilities to synthesize `CalculationDeck` in
 ```python
 from phatpsy import build_diatomic
 
-# Build N2 at 2.068 Bohrs with Double-Zeta basis
-deck = build_diatomic("N", "N", bond_length=2.068, units="bohr", basis="DZ")
+# Build N2 at 2.0744 Bohrs with Double-Zeta basis
+deck = build_diatomic("N", "N", bond_length=2.0744, units="bohr", basis="DZ")
 ```
 
 ### 2. Multi-Atom Molecules (`build_molecule`)

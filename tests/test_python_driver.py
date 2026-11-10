@@ -27,9 +27,9 @@ def test_io_parse_n2_stdin():
 
 def test_io_generate_diatomic_deck():
     basis = [(1, 0, 6.6651), (2, 0, 1.9237), (2, 1, 1.9170)]
-    deck = generate_diatomic_deck("N", 7, 2.068, basis)
+    deck = generate_diatomic_deck("N", 7, 2.0744, basis)
     assert "LATOM='N'" in deck
-    assert "XYZ=0.0,0.0,1.03400" in deck
+    assert "XYZ=0.0,0.0,1.03720" in deck
     assert "&ATOM IXYZ=001, ISYM=-1, QFLIP=T" in deck
 
 
@@ -179,7 +179,7 @@ control:
   convergence: 1.0e-4
 geometry:
   - element: N
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: "up"
   - element: N
     xyz: [0.0, 0.0, 0.0]
@@ -313,7 +313,7 @@ def test_global_fermi_equilibration():
     from phatpsy.driver import PhatpsyDriver
 
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "up"], net_spin=2, units="bohr")
+    deck = build_diatomic("N", "N", 2.0744, basis="SZ", spins=["up", "up"], net_spin=2, units="bohr")
     deck.control.max_cycles = 10
     deck.control.use_global_fermi = True
     deck.control.fermi_temperature = 1000.0

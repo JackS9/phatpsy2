@@ -78,8 +78,8 @@ class TestNuclearRepulsionGradient:
     def test_nuclear_repulsion_translational_invariance(self):
         """Translational invariance sum_A g_A = 0 holds to machine precision."""
         coords = np.array([
-            [0.0, 0.0, 1.034],
-            [0.0, 0.0, -1.034],
+            [0.0, 0.0, 1.0372],
+            [0.0, 0.0, -1.0372],
         ])
         charges = [7.0, 7.0]
 
@@ -134,7 +134,7 @@ class TestCoordinateTransformationsAndKernels:
         anorm = np.array([compute_slater_norm(n, e) for n, e in zip(na, etaa)], dtype=np.float64)
 
         r_a = np.array([0.0, 0.0, 0.0])
-        r_b = np.array([0.0, 0.0, 2.068])
+        r_b = np.array([0.0, 0.0, 2.0744])
         frame = DiatomicFrame(r_a, r_b)
 
         s_mol, ds_dra, ds_drb = compute_diatomic_overlap_matrix_and_gradient(
@@ -555,7 +555,7 @@ class TestNonCircularAcceptanceGate:
             },
             "geometry": [
                 {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.0744], "spin": "down"},
             ],
             "net_spin": 0,
             "elements": {
@@ -600,7 +600,7 @@ class TestNonCircularAcceptanceGate:
             "control": {"spin_unrestricted": False, "convergence": 1e-6, "max_cycles": 100},
             "geometry": [
                 {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.0744], "spin": "down"},
             ],
             "net_spin": 0,
             "elements": {"N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}}
@@ -653,7 +653,7 @@ class TestNonCircularAcceptanceGate:
         h = 1e-4
 
         def eval_e_pk(dz: float) -> float:
-            fr = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068 + dz]))
+            fr = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.0744 + dz]))
             s_dz, _, _ = compute_diatomic_overlap_matrix_and_gradient(
                 na, la, etaa, anorma, nb, lb, etab, anormb, fr
             )
@@ -666,7 +666,7 @@ class TestNonCircularAcceptanceGate:
             + eval_e_pk(-2.0 * h)
         ) / (12.0 * h)
 
-        frame0 = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.068]))
+        frame0 = DiatomicFrame(np.array([0, 0, 0.]), np.array([0, 0, 2.0744]))
         s0, ds_dra, ds_drb = compute_diatomic_overlap_matrix_and_gradient(na, la, etaa, anorma, nb, lb, etab, anormb, frame0)
         d_pk_ana = 2.0 * np.trace(Pa @ ds_drb[2] @ K_B @ s0.T)
 
@@ -686,7 +686,7 @@ class TestNonCircularAcceptanceGate:
             "control": {"spin_unrestricted": False, "convergence": 1e-6, "max_cycles": 100},
             "geometry": [
                 {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.0744], "spin": "down"},
             ],
             "net_spin": 0,
             "elements": {"N": {"symbol": "N", "atomic_number": 7, "basis": "DZ"}}
@@ -786,7 +786,7 @@ class TestNonCircularAcceptanceGate:
             return E_nuc + E_pk_A + E_pk_B + E_pot_A + E_pot_B
 
         h = 1e-5
-        R0 = 2.068
+        R0 = 2.0744
         fd_frozen = (eval_frozen_total_energy(R0 + h) - eval_frozen_total_energy(R0 - h)) / (2.0 * h)
 
         # Analytical unrelaxed gradient on atom 2 along z evaluated on the exact state res0
@@ -839,7 +839,7 @@ class TestNonCircularAcceptanceGate:
             },
             "geometry": [
                 {"element": "N", "xyz": [0.0, 0.0, 0.0], "spin": "up"},
-                {"element": "N", "xyz": [0.0, 0.0, 2.068], "spin": "down"},
+                {"element": "N", "xyz": [0.0, 0.0, 2.0744], "spin": "down"},
             ],
             "net_spin": 0,
             "elements": {

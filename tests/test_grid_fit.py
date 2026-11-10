@@ -146,7 +146,7 @@ def test_automatic_annealing_and_gap_floor_on_unseeded_and_seeded_atoms():
             assert orb["occ_beta"] == pytest.approx(0.0, abs=1.0e-12)
 
     # 3. Seeded N2 (QNWVEC=T) skips automatic early annealing and converges cleanly
-    n2_seeded = build_diatomic("N", "N", 2.068, basis="DZ", seed_hybrids=True)
+    n2_seeded = build_diatomic("N", "N", 2.0744, basis="DZ", seed_hybrids=True)
     res_n2 = driver.run_deck(n2_seeded)
     assert res_n2.converged is True
     assert abs(res_n2.virial_ratio - 2.0) <= 0.03

@@ -89,7 +89,7 @@ def test_fixed_atom_constraints():
 
 def test_md_result_exports_and_visualization(tmp_path):
     """Verify MDResult serialization to JSON, multi-frame XYZ export, plot, and 3D HTML viewer."""
-    deck = build_diatomic("N", "N", bond_length=2.068)
+    deck = build_diatomic("N", "N", bond_length=2.0744)
 
     steps = [
         MDStep(
@@ -100,7 +100,7 @@ def test_md_result_exports_and_visualization(tmp_path):
             total_energy=-109.495,
             temperature=300.0,
             virial_ratio=2.01,
-            coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.068]],
+            coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.0744]],
             velocities=[[0.0, 0.0, 0.001], [0.0, 0.0, -0.001]],
             forces=[[0.0, 0.0, 0.01], [0.0, 0.0, -0.01]],
         ),
@@ -174,7 +174,7 @@ def test_bomd_n2_nve_trajectory():
     Integration test: run a 2-step NVE Born-Oppenheimer MD on N2 with symmetry.
     Tests force evaluation, Velocity Verlet numerical updates, and energy accounting.
     """
-    deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+    deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
 
     res = run_md(
         deck=deck,
@@ -208,7 +208,7 @@ def test_bomd_n2_nve_trajectory():
 
 def test_bomd_thermostats():
     """Verify Berendsen and velocity rescaling thermostat operations."""
-    deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+    deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
 
     # Run 1 step under Berendsen thermostat targeting 200 K
     res_b = run_md(
@@ -243,7 +243,7 @@ def test_bomd_thermostats():
 def test_cli_md(tmp_path, monkeypatch):
     """Verify 'phatpsy md' CLI command with all flags and output artifacts."""
     deck_path = tmp_path / "n2.yaml"
-    deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+    deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
     deck.to_yaml(deck_path)
 
     out_json = tmp_path / "md_out.json"
@@ -291,7 +291,7 @@ def test_deck_without_atoms_property():
         def to_stdin_text(self):
             return self._orig_deck.to_stdin_text()
 
-    deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+    deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
     legacy_deck = LegacyDeck(deck.geometry, deck.title, deck.control, deck.elements)
     legacy_deck._orig_deck = deck
 

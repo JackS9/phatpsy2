@@ -22,7 +22,7 @@ geometry:
   # List of atomic centers and coordinates
   - element: N
     id: N1
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: up
 
 elements:

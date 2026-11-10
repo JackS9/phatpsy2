@@ -129,7 +129,7 @@ def test_heteronuclear_diatomic_no_flip_unless_requested():
 def test_builder_default_spin_lists_pinned():
     """Requirement 6: Builder's explicit default spin lists for N2, CO, and H2."""
     # N2: Homonuclear PP-VB alternating spin
-    deck_n2 = build_diatomic("N", "N", 2.068, basis="DZ")
+    deck_n2 = build_diatomic("N", "N", 2.0744, basis="DZ")
     assert deck_n2.spins == ["up", "down"]
     assert deck_n2.net_spin == 0
 
@@ -151,7 +151,7 @@ def test_deprecated_spin_flip_shims_emit_warnings():
     """Requirement 4: Deprecated spin_flip and auto_spin_flip shims emit DeprecationWarning."""
     # spin_flip=True in build_diatomic
     with pytest.deprecated_call(match="The 'spin_flip' parameter in build_diatomic is deprecated"):
-        d_flip = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True)
+        d_flip = build_diatomic("N", "N", 2.0744, basis="DZ", spin_flip=True)
         assert d_flip.spins == ["up", "down"]
         assert d_flip.net_spin == 0
 

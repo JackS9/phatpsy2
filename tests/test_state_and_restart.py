@@ -180,9 +180,9 @@ def test_warm_restart_on_modified_geometry():
     """
     driver = PhatpsyDriver()
 
-    # 1. Equilibrium calculation (z = +/- 1.034 Bohr)
+    # 1. Equilibrium calculation (z = +/- 1.0372 Bohr)
     deck_eq = build_molecule(
-        [("N", [0.0, 0.0, 1.034]), ("N", [0.0, 0.0, -1.034])],
+        [("N", [0.0, 0.0, 1.0372]), ("N", [0.0, 0.0, -1.0372])],
         basis="SZ",
         units="bohr",
         spins="up",
@@ -216,7 +216,7 @@ def test_override_reading_starting_orbitals_from_embedded_atom():
 
     # 1. Run reference calculation to obtain converged embedded atom state
     deck_ref = build_molecule(
-        [("N", [0.0, 0.0, 1.034]), ("N", [0.0, 0.0, -1.034])],
+        [("N", [0.0, 0.0, 1.0372]), ("N", [0.0, 0.0, -1.0372])],
         basis="SZ",
         units="bohr",
         control=ControlConfig(pk_scale=0.0),

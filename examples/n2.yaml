@@ -1,4 +1,4 @@
-title: '... N-N, R=2.068, N(4S) + N(4S) ... (Exp: -109.15)'
+title: '... N-N, R=2.0744, N(4S) + N(4S) ... (Exp: -109.15)'
 net_spin: 0
 control:
   spin_unrestricted: true
@@ -16,7 +16,7 @@ geometry:
   xyz:
   - 0.0
   - 0.0
-  - 1.034
+  - 1.0372
   id: N1
   spin: up
   hybridization: sp
@@ -39,7 +39,7 @@ geometry:
   xyz:
   - 0.0
   - 0.0
-  - -1.034
+  - -1.0372
   id: N2
   equivalent_to: N1
   symmetry_op: -1

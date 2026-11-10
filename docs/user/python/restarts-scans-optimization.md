@@ -158,7 +158,7 @@ grad_emp = driver.gradient(deck, method="empirical")
 ### Legacy Empirical Gradient Fallback (`method="empirical"`)
 
 Passing `method="empirical"` activates the legacy harmonic bond-stretch model:
-* **Calibrated pairs** (N–N, C–O, O–H, H–H, C–C, C–H, N–H): equilibrium distances and force constants fitted to NIST CCCBDB vibrational data (e.g. N–N: $r_e = 2.068$ Bohr, $k = 1.4744$ Ha/Bohr²).
+* **Calibrated pairs** (N–N, C–O, O–H, H–H, C–C, C–H, N–H): equilibrium distances and force constants fitted to NIST CCCBDB vibrational data (e.g. N–N: $r_e = 2.0744$ Bohr, $k = 1.4744$ Ha/Bohr²).
 * **Badger's rule fallback**: for unlisted pairs, $r_e$ from covalent radii sums and $k = 0.50$ Ha/Bohr².
 
 
@@ -205,7 +205,7 @@ To locate reaction transition states (first-order saddle points) and calculate a
 from phatpsy import neb_search, build_diatomic
 
 # 1. Define reactant and product states
-deck_reactant = build_diatomic("N", "N", bond_length=2.068, basis="DZ")
+deck_reactant = build_diatomic("N", "N", bond_length=2.0744, basis="DZ")
 deck_product = build_diatomic("N", "N", bond_length=2.800, basis="DZ")
 
 # 2. Run CI-NEB calculation across 7 pathway images
@@ -265,7 +265,7 @@ To investigate thermal vibrations, conformational exploration, and time-dependen
 from phatpsy import run_md, build_diatomic
 
 # 1. Prepare initial geometry deck
-deck = build_diatomic("N", "N", bond_length=2.068, basis="DZ", use_symmetry=False)
+deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
 
 # 2. Run NVE dynamics with 0.5 fs timestep at 300 K
 md_res = run_md(
@@ -593,7 +593,7 @@ from phatpsy.driver import PhatpsyDriver
 from phatpsy.eom import compute_eom
 
 driver = PhatpsyDriver(quiet=True)
-deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
+deck = build_diatomic("N", "N", 2.0744, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
 
 eom_res = compute_eom(
     deck=deck,

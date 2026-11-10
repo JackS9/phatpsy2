@@ -53,7 +53,7 @@ def test_subsystem_energy_conservation_pure_cluster(driver):
     Verify exact subsystem energy decomposition on a pure active cluster (N2).
     E_total = E_cluster + E_env + E_embed, with E_env = 0.
     """
-    deck = build_diatomic("N", "N", 2.074, basis="SZ", spins=["up", "down"], units="bohr")
+    deck = build_diatomic("N", "N", 2.0744, basis="SZ", spins=["up", "down"], units="bohr")
     deck.control.max_cycles = 15
     deck.control.convergence = 1e-5
 

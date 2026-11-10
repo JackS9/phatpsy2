@@ -284,8 +284,8 @@ def test_scan_2d_grid(tmp_path):
     deck = parse_stdin_to_deck(EXAMPLE_N2)
 
     # Scan 2x2 grid
-    vals1 = [2.00, 2.068]
-    vals2 = [2.068, 2.15]
+    vals1 = [2.00, 2.0744]
+    vals2 = [2.0744, 2.15]
 
     res = scan_2d(
         deck,
@@ -322,7 +322,7 @@ def test_optimize_geometry_stretched_n2(tmp_path):
     """Verify BFGS ground-state geometry relaxation on stretched N2."""
     deck = parse_stdin_to_deck(EXAMPLE_N2)
 
-    # Create stretched deck at R = 2.18 Bohr (equilibrium is 2.068 Bohr)
+    # Create stretched deck at R = 2.18 Bohr (equilibrium is 2.0744 Bohr)
     stretched_deck = modify_deck_geometry(deck, "bond", (0, 1), 2.18)
 
     opt = optimize_geometry(

@@ -337,7 +337,7 @@ class PhatpsyDriver:
         # Standard bond parameters calibrated from NIST CCCBDB benchmarks
         # (r_e in Bohr, k in Hartree / Bohr^2)
         PAIR_PARAMS = {
-            ("N", "N"): {"r_e": 2.068, "k": 1.4744},   # N2 stretch ~ 2358.6 cm^-1
+            ("N", "N"): {"r_e": 2.0744, "k": 1.4744},   # N2 stretch ~ 2358.6 cm^-1
             ("C", "O"): {"r_e": 2.132, "k": 1.2217},   # CO stretch ~ 2169.8 cm^-1
             ("O", "C"): {"r_e": 2.132, "k": 1.2217},
             ("H", "O"): {"r_e": 1.810, "k": 0.5400},   # H2O stretch ~ 3750 cm^-1

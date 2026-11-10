@@ -25,11 +25,11 @@ control:
 geometry:
   - element: N
     id: N1
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: up
   - element: N
     id: N2
-    xyz: [0.0, 0.0, -1.034]
+    xyz: [0.0, 0.0, -1.0372]
     spin: down
 
 elements:
@@ -97,8 +97,8 @@ The Python API allows seamless calculation execution, data manipulation, and vis
 ```python
 from phatpsy import PhatpsyDriver, build_diatomic, compute_grid, show_grid
 
-# 1. Synthesize diatomic deck (equilibrium bond distance = 2.068 Bohrs)
-deck = build_diatomic("N", "N", bond_length=2.068, units="bohr", basis="DZ")
+# 1. Synthesize diatomic deck (equilibrium bond distance = 2.0744 Bohrs)
+deck = build_diatomic("N", "N", bond_length=2.0744, units="bohr", basis="DZ")
 
 # 2. Preview 3D molecular structure
 deck.show()

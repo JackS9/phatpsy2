@@ -74,13 +74,13 @@ def main():
     # 1. N2 Homonuclear Anchor (Double-Zeta DZ with PKSCAL=1.0)
     # =========================================================================
     print("1. Running N2 (DZ, PKSCAL=1.0)...")
-    deck_n2_exp = build_diatomic("N", "N", 2.068, basis="DZ", spin_flip=True, units="bohr")
+    deck_n2_exp = build_diatomic("N", "N", 2.0744, basis="DZ", spin_flip=True, units="bohr")
     deck_n2_exp.control.pk_scale = 1.0
     res_n2_exp = driver.run_deck(deck_n2_exp)
     eom_n2 = compute_eom(deck_n2_exp, driver=driver, quiet=True)
 
     # Find relaxed equilibrium bond length and frequency at R_min
-    r_n2_opt = optimize_diatomic_bond("N", "N", "DZ", 1.0, 2.068, driver)
+    r_n2_opt = optimize_diatomic_bond("N", "N", "DZ", 1.0, 2.0744, driver)
     deck_n2_opt = build_diatomic("N", "N", r_n2_opt, basis="DZ", spin_flip=True, units="bohr")
     deck_n2_opt.control.pk_scale = 1.0
     res_n2_opt = driver.run_deck(deck_n2_opt)
@@ -93,7 +93,7 @@ def main():
         "basis_set": "DZ",
         "description": "Homonuclear anchor in Double-Zeta STO basis with theoretical PKSCAL=1.0",
         "experimental_geometry": {
-            "r_expt_bohr": 2.068,
+            "r_expt_bohr": 2.0744,
             "total_energy_hartree": res_n2_exp.total_energy,
             "virial_ratio": res_n2_exp.virial_ratio,
             "converged": res_n2_exp.converged,

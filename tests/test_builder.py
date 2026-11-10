@@ -62,10 +62,10 @@ def test_parse_geometry_xyz_file(tmp_path):
 
 
 def test_build_diatomic_homonuclear_symmetry():
-    deck = build_diatomic("N", bond_length=2.068, basis="DZ", use_symmetry=True)
+    deck = build_diatomic("N", bond_length=2.0744, basis="DZ", use_symmetry=True)
     assert len(deck.geometry) == 2
     assert deck.geometry[0].element == "N"
-    assert deck.geometry[0].xyz == [0.0, 0.0, 1.034]
+    assert deck.geometry[0].xyz == [0.0, 0.0, 1.0372]
     assert deck.geometry[1].symmetry is not None
     assert deck.geometry[1].symmetry.isym == -1
     assert deck.geometry[1].symmetry.qflip is True
@@ -120,7 +120,7 @@ def test_build_molecule_water_mixed_basis():
 
 
 def test_calculation_deck_classmethods():
-    deck1 = CalculationDeck.from_diatomic("N", bond_length=2.068, basis="SZ")
+    deck1 = CalculationDeck.from_diatomic("N", bond_length=2.0744, basis="SZ")
     assert len(deck1.geometry) == 2
 
     deck2 = CalculationDeck.from_geometry([("C", [0, 0, 0]), ("O", [0, 0, 2.13])], basis="SZ", spins=["up", "up"], net_spin=2)
@@ -148,7 +148,7 @@ def test_driver_run_molecule_scf():
 
     # Run quick SCF on N2 with Clementi DZ
     res = driver.run_molecule(
-        geometry=[("N", [0.0, 0.0, 1.034]), ("N", [0.0, 0.0, -1.034])],
+        geometry=[("N", [0.0, 0.0, 1.0372]), ("N", [0.0, 0.0, -1.0372])],
         basis="DZ",
         title="N2 DZ Builder Test",
         spins=["up", "down"],
@@ -167,7 +167,7 @@ def test_symmetry_operations_and_roundtrip(tmp_path):
     from phatpsy.io import parse_stdin_to_deck
     from phatpsy.schema import SymmetrySpec
 
-    deck = build_diatomic("N", bond_length=2.068, basis="SZ", use_symmetry=True)
+    deck = build_diatomic("N", bond_length=2.0744, basis="SZ", use_symmetry=True)
     assert len(deck.geometry) == 2
     assert deck.geometry[1].symmetry is not None
     assert deck.geometry[1].symmetry.ixyz == 1
@@ -269,7 +269,7 @@ def test_driver_run_symmetry_scf():
     driver = PhatpsyDriver()
 
     # Build diatomic N2 using Fortran reflection symmetry (ISYM=-1)
-    deck = build_diatomic("N", bond_length=2.068, basis="DZ", use_symmetry=True, extra_namelist={"MXCYCL": 5})
+    deck = build_diatomic("N", bond_length=2.0744, basis="DZ", use_symmetry=True, extra_namelist={"MXCYCL": 5})
     res = driver.run_deck(deck)
     assert res is not None
     assert "total_energy" in res

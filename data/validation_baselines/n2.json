@@ -3,7 +3,7 @@
   "basis_set": "DZ",
   "description": "Homonuclear anchor in Double-Zeta STO basis with theoretical PKSCAL=1.0",
   "experimental_geometry": {
-    "r_expt_bohr": 2.068,
+    "r_expt_bohr": 2.0744,
     "total_energy_hartree": -108.3561606077693,
     "virial_ratio": 1.9513742367865932,
     "converged": true,

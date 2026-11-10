@@ -300,8 +300,8 @@ def test_apply_hybrid_seeds_automated_without_bonds_or_valence_config():
     # 2. N2 triple bond inferred automatically
     n2 = build_molecule(
         [
-            ("N", [0.0, 0.0, -1.034], "up"),
-            ("N", [0.0, 0.0, 1.034], "down"),
+            ("N", [0.0, 0.0, -1.0372], "up"),
+            ("N", [0.0, 0.0, 1.0372], "down"),
         ],
         basis="DZ",
         net_spin=0,

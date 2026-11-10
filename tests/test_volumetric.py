@@ -213,7 +213,7 @@ def test_red_white_blue_colormap_mapping():
 
 def test_n2_volumetric_electron_density_and_orbitals():
     """Runs N2 diatomic calculation and evaluates density, MO, deformation, and ESP."""
-    deck = build_diatomic("N", "N", bond_length=2.068, units="bohr", basis="DZ")
+    deck = build_diatomic("N", "N", bond_length=2.0744, units="bohr", basis="DZ")
     driver = PhatpsyDriver()
     res = driver.run_deck(deck)
     assert res is not None

@@ -30,7 +30,7 @@ def load_baseline(name: str):
 def test_n2_physics_invariants():
     """Verify N2 ground state satisfies fundamental physical invariants."""
     driver = PhatpsyDriver(quiet=True)
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], units="bohr")
+    deck = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], units="bohr")
     deck.control.pk_scale = 1.0
     res = driver.run_deck(deck)
 

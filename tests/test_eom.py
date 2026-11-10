@@ -40,8 +40,8 @@ from phatpsy.visualizer import (
 
 @pytest.fixture(scope="module")
 def n2_eom_result():
-    """Compute EOM properties for N2 at experimental equilibrium bond length (2.068 Bohr)."""
-    deck = build_diatomic("N", "N", 2.068, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
+    """Compute EOM properties for N2 at experimental equilibrium bond length (2.0744 Bohr)."""
+    deck = build_diatomic("N", "N", 2.0744, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     driver = PhatpsyDriver(quiet=True)
     res = compute_eom(
         deck=deck,
@@ -187,7 +187,7 @@ def test_open_shell_curie_susceptibility():
 
 def test_eom_cli_execution(tmp_path):
     """Test CLI subcommand 'phatpsy eom' end-to-end with file outputs."""
-    deck = build_diatomic("N", "N", 2.068, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
+    deck = build_diatomic("N", "N", 2.0744, basis="SZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck_path = tmp_path / "n2_test.yaml"
     deck.to_yaml(deck_path)
 

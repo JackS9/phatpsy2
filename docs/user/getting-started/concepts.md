@@ -83,11 +83,11 @@ PHATPSY 2.0 can exploit molecular point symmetry to eliminate redundant integral
 geometry:
   - element: N
     id: N1
-    xyz: [0.0, 0.0, 1.034]
+    xyz: [0.0, 0.0, 1.0372]
     spin: up
   - element: N
     id: N2
-    xyz: [0.0, 0.0, -1.034]
+    xyz: [0.0, 0.0, -1.0372]
     equivalent_to: N1
     symmetry_op: -2
     symmetry_axis: 1
