@@ -165,7 +165,7 @@ def main():
         },
         "irc_mass_weighting_ratio": math.sqrt(15.999 / 12.011),
         "delta_vs_experiment": {
-            "delta_r_bohr": r_co_opt - 2.1322,
+            "delta_r_bohr": r_co_opt - 2.132,
             "delta_frequency_cm": freq_co - 2169.81,
             "delta_dipole_debye": eom_co.dipole.magnitude_debye - 0.112,
         },
@@ -450,7 +450,7 @@ def main():
             },
             "CO": {
                 "r_e_angstrom": 1.1283,
-                "r_e_bohr": 2.1322,
+                "r_e_bohr": 2.132,
                 "harmonic_frequency_cm": 2169.81,
                 "dissociation_energy_d0_ev": 11.087,
                 "dissociation_energy_d0_kcal_mol": 255.68,

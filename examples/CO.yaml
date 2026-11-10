@@ -1,4 +1,4 @@
-title: '... CO, R=2.13 ...'
+title: '... CO, R=2.132 ...'
 net_spin: 0
 control:
   spin_unrestricted: true
@@ -40,7 +40,7 @@ geometry:
   xyz:
   - 0.0
   - 0.0
-  - 2.13
+  - 2.132
   id: O1
   spin: down
   hybridization: sp

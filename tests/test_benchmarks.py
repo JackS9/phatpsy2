@@ -33,6 +33,7 @@ def test_load_experimental_benchmarks():
     assert "CO_on_Ni100" in exp["systems"]
 
     assert exp["systems"]["N2"]["r_e_bohr"] == 2.0744
+    assert exp["systems"]["CO"]["r_e_bohr"] == 2.132
     assert exp["systems"]["CO"]["permanent_dipole_debye"] == 0.112
 
 
@@ -49,6 +50,7 @@ def test_co_benchmark(driver):
     """Verify CO benchmark evaluation against NIST CCCBDB."""
     res = evaluate_co_benchmark(driver)
     assert res["converged"]
+    assert abs(res["r_bohr"] - 2.132) < 1e-4
     assert abs(res["virial_ratio"] - 2.0) < 0.10
     assert isinstance(res["dipole_moment_debye"], float)
     assert res["harmonic_frequency_cm"] > 1000.0
@@ -81,8 +83,8 @@ def test_format_benchmark_summary_table():
                 "experimental": {"r_e_bohr": 2.0744, "harmonic_frequency_cm": 2358.57},
             },
             "CO": {
-                "calculated": {"r_bohr": 2.1322, "dipole_moment_debye": 0.115, "delta_dipole_debye": 0.003, "harmonic_frequency_cm": 2165.0, "delta_frequency_cm": -4.8, "virial_ratio": 1.999},
-                "experimental": {"r_e_bohr": 2.1322, "permanent_dipole_debye": 0.112, "harmonic_frequency_cm": 2169.81},
+                "calculated": {"r_bohr": 2.132, "dipole_moment_debye": 0.115, "delta_dipole_debye": 0.003, "harmonic_frequency_cm": 2165.0, "delta_frequency_cm": -4.8, "virial_ratio": 1.999},
+                "experimental": {"r_e_bohr": 2.132, "permanent_dipole_debye": 0.112, "harmonic_frequency_cm": 2169.81},
             },
             "H2O": {
                 "calculated": {"dipole_moment_debye": 1.850, "delta_dipole_debye": -0.0046, "virial_ratio": 2.002},

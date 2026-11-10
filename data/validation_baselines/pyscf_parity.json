@@ -65,7 +65,7 @@
       "density_rmsd_au": 0.045
     },
     "CO": {
-      "system_name": "... CO, R=2.13 ...",
+      "system_name": "... CO, R=2.132 ...",
       "formula": "CO",
       "geometry_bohr": [
         {
@@ -81,7 +81,7 @@
           "xyz": [
             0.0,
             0.0,
-            2.13
+            2.132
           ]
         }
       ],

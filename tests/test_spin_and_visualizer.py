@@ -126,7 +126,7 @@ def test_generate_html_content(tmp_path):
     deck = build_molecule(
         geometry=[
             ("C", [0.0, 0.0, 0.0], {"fixed": True, "spin": "up"}),
-            ("O", [0.0, 0.0, 2.13], {"spin": "down"}),
+            ("O", [0.0, 0.0, 2.132], {"spin": "down"}),
             ("Gh.H", [0.0, 1.5, 0.0], {"spin": "up"}),
         ],
         basis="SZ",
@@ -194,7 +194,7 @@ def test_interactive_parameter_editor(tmp_path):
     - Atom inspector panel with per-atom basis, 3D coordinate inputs, spin switcher
     - Live client-side update scripts and deck serialization
     """
-    deck = CalculationDeck.from_diatomic("CO", bond_length=2.13, basis="ADF-TZ2P")
+    deck = CalculationDeck.from_diatomic("CO", bond_length=2.132, basis="ADF-TZ2P")
     deck.control.default_basis = "ADF-TZ2P"
     deck.geometry[0].basis = "ADF-QZ4P"  # Per-atom basis override
 

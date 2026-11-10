@@ -17,13 +17,13 @@ from phatpsy.cli import main as cli_main
 
 
 def test_parse_geometry_tuples():
-    geom = [("C", [0.0, 0.0, 0.0]), ("O", [0.0, 0.0, 2.13])]
+    geom = [("C", [0.0, 0.0, 0.0]), ("O", [0.0, 0.0, 2.132])]
     atoms = parse_geometry(geom, units="bohr")
     assert len(atoms) == 2
     assert atoms[0].element == "C"
     assert atoms[0].xyz == [0.0, 0.0, 0.0]
     assert atoms[1].element == "O"
-    assert atoms[1].xyz == [0.0, 0.0, 2.13]
+    assert atoms[1].xyz == [0.0, 0.0, 2.132]
 
 
 def test_parse_geometry_4tuples_and_angstrom():
@@ -53,12 +53,12 @@ def test_parse_geometry_xyz_string():
 
 def test_parse_geometry_xyz_file(tmp_path):
     xyz_path = tmp_path / "sample.xyz"
-    xyz_path.write_text("2\nCO\nC 0 0 0\nO 0 0 2.13\n")
+    xyz_path.write_text("2\nCO\nC 0 0 0\nO 0 0 2.132\n")
     atoms = parse_geometry(xyz_path, units="bohr")
     assert len(atoms) == 2
     assert atoms[0].element == "C"
     assert atoms[1].element == "O"
-    assert atoms[1].xyz == [0.0, 0.0, 2.13]
+    assert atoms[1].xyz == [0.0, 0.0, 2.132]
 
 
 def test_build_diatomic_homonuclear_symmetry():
@@ -84,7 +84,7 @@ def test_build_diatomic_homonuclear_symmetry():
 
 
 def test_build_diatomic_heteronuclear():
-    deck = build_diatomic("C", "O", bond_length=2.13, basis="SZ")
+    deck = build_diatomic("C", "O", bond_length=2.132, basis="SZ")
     assert len(deck.geometry) == 2
     assert deck.geometry[0].element == "C"
     assert deck.geometry[1].element == "O"
@@ -95,7 +95,7 @@ def test_build_diatomic_heteronuclear():
     assert "LATOM='C'" in stdin_text
     assert "LATOM='O'" in stdin_text
     assert "XYZ=0.00000,0.00000,0.00000" in stdin_text
-    assert "XYZ=0.00000,0.00000,2.13000" in stdin_text
+    assert "XYZ=0.00000,0.00000,2.13200" in stdin_text
 
 
 def test_build_molecule_water_mixed_basis():
@@ -123,7 +123,7 @@ def test_calculation_deck_classmethods():
     deck1 = CalculationDeck.from_diatomic("N", bond_length=2.0744, basis="SZ")
     assert len(deck1.geometry) == 2
 
-    deck2 = CalculationDeck.from_geometry([("C", [0, 0, 0]), ("O", [0, 0, 2.13])], basis="SZ", spins=["up", "up"], net_spin=2)
+    deck2 = CalculationDeck.from_geometry([("C", [0, 0, 0]), ("O", [0, 0, 2.132])], basis="SZ", spins=["up", "up"], net_spin=2)
     assert len(deck2.geometry) == 2
     assert "C" in deck2.elements
     assert "O" in deck2.elements
@@ -223,7 +223,7 @@ def test_fixed_atoms(tmp_path):
     from phatpsy.io import parse_stdin_to_deck
 
     deck = build_molecule(
-        geometry=[("C", [0.0, 0.0, 0.0], {"fixed": True}), ("O", [0.0, 0.0, 2.13])],
+        geometry=[("C", [0.0, 0.0, 0.0], {"fixed": True}), ("O", [0.0, 0.0, 2.132])],
         basis="SZ",
         spins=["up", "up"],
         net_spin=2,

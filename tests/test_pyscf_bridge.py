@@ -79,8 +79,8 @@ def test_compute_l2_error_norm_exact():
                 "experimental": {"r_e_bohr": 2.0744, "harmonic_frequency_cm": 2358.57},
             },
             "CO": {
-                "calculated": {"r_bohr": 2.1322, "harmonic_frequency_cm": 2169.81, "virial_ratio": 2.0},
-                "experimental": {"r_e_bohr": 2.1322, "harmonic_frequency_cm": 2169.81},
+                "calculated": {"r_bohr": 2.132, "harmonic_frequency_cm": 2169.81, "virial_ratio": 2.0},
+                "experimental": {"r_e_bohr": 2.132, "harmonic_frequency_cm": 2169.81},
             },
         }
     }

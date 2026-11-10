@@ -37,8 +37,8 @@ def parse_geometry(
     Supported inputs:
     - Path or file path to an .xyz file
     - Multi-line XYZ string or list of lines
-    - List of tuples: [("C", [0.0, 0.0, 0.0]), ("O", [0.0, 0.0, 2.13])]
-    - List of 4-tuples: [("C", 0.0, 0.0, 0.0), ("O", 0.0, 0.0, 2.13)]
+    - List of tuples: [("C", [0.0, 0.0, 0.0]), ("O", [0.0, 0.0, 2.132])]
+    - List of 4-tuples: [("C", 0.0, 0.0, 0.0), ("O", 0.0, 0.0, 2.132)]
     - List of dicts: [{"element": "C", "xyz": [0, 0, 0]}, ...]
     - List of AtomConfig objects
 

@@ -19,7 +19,7 @@ EXPONENTS = [0.45, 0.9, 1.8, 3.6, 7.2]
 
 
 def _co_deck(**elements):
-    deck = build_diatomic("C", "O", 2.1322, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
+    deck = build_diatomic("C", "O", 2.132, basis="DZ", spins=["up", "down"], net_spin=0, units="bohr")
     deck.control.pk_scale = 1.0
     deck.control.max_cycles = 6
     for sym, cfg in elements.items():

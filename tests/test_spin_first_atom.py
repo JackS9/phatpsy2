@@ -30,7 +30,7 @@ def _totals(block):
     return sum(o[0] for o in block[1]), sum(o[1] for o in block[1])
 
 
-def _deck(first, second, net_spin, a="C", b="O", r=2.1322):
+def _deck(first, second, net_spin, a="C", b="O", r=2.132):
     return build_diatomic(a, b, r, basis="DZ", spins=[first, second], net_spin=net_spin, units="bohr")
 
 

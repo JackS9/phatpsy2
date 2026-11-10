@@ -83,11 +83,11 @@ def evaluate_co_benchmark(
 ) -> Dict[str, Any]:
     """
     Evaluates CO polar benchmark against NIST CCCBDB:
-    R_expt = 2.1322 Bohr (1.1283 Angstrom), omega_e = 2169.81 cm^-1, mu = 0.112 Debye.
+    R_expt = 2.132 Bohr (1.1283 Angstrom), omega_e = 2169.81 cm^-1, mu = 0.112 Debye.
     """
     d = driver or PhatpsyDriver(quiet=True)
     ctrl = control or ControlConfig()
-    r_expt = 2.1322
+    r_expt = 2.132
 
     deck = build_diatomic(
         "C",
@@ -332,7 +332,7 @@ def evaluate_dissociation_energies_benchmark(
     deck_co = build_diatomic(
         "C",
         "O",
-        2.1322,
+        2.132,
         basis="DZ",
         hybridization="sp",
         spins=["up", "down"],
@@ -355,7 +355,7 @@ def evaluate_dissociation_energies_benchmark(
             "dispersion_energy_hartree": float(res_n2.dispersion_energy) if "dispersion_energy" in res_n2 else 0.0,
         },
         "CO": {
-            "r_e_bohr": 2.1322,
+            "r_e_bohr": 2.132,
             "total_energy_hartree": float(res_co.total_energy),
             "virial_ratio": float(res_co.virial_ratio),
             "converged": bool(res_co.converged),
@@ -547,7 +547,7 @@ def compute_l2_error_norm(
     # 4. CO Re
     if "CO" in benchmarks and "calculated" in benchmarks["CO"]:
         c = benchmarks["CO"]["calculated"].get("r_bohr")
-        r = benchmarks["CO"].get("experimental", {}).get("r_e_bohr", 2.1322)
+        r = benchmarks["CO"].get("experimental", {}).get("r_e_bohr", 2.132)
         if c is not None and r:
             components["CO_Re"] = {"calc": float(c), "ref": float(r)}
 

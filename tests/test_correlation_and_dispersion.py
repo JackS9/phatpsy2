@@ -120,7 +120,7 @@ def test_d3_dispersion_energy_and_distance_dependence():
     atoms = ["C", "O"]
 
     # Short vs long separation
-    r_short = 2.13  # near equilibrium
+    r_short = 2.132  # near equilibrium
     r_long = 4.00   # stretched van der Waals region
 
     e_short = compute_dispersion_energy([("C", [0.0, 0.0, 0.0]), ("O", [0.0, 0.0, r_short])])

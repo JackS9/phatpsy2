@@ -18,7 +18,7 @@
     },
     "CO": {
       "r_e_angstrom": 1.1283,
-      "r_e_bohr": 2.1322,
+      "r_e_bohr": 2.132,
       "harmonic_frequency_cm": 2169.81,
       "dissociation_energy_d0_ev": 11.087,
       "dissociation_energy_d0_kcal_mol": 255.68,
