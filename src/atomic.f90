@@ -476,6 +476,7 @@ contains
                         zpot2, toten, zzrep, rmAx
           end if
           if (QMOVE) xyz = 0.0d0
+          isym = 0; ixyz = 0
           QFLIP = .false.; QPNCHV = .false.; QPLOT_AT = .false.
           read(IR, nml=ATOM)
           if (.not. QOPEN) QFLIP = .false.

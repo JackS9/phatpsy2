@@ -77,6 +77,11 @@ def test_bulk_ni_unit_pk_scale_convergence():
     """Verify Bulk Ni13 cluster converges stably with theoretical PKSCAL=1.0 and physical overlap metric."""
     repo_root = Path(__file__).resolve().parent.parent
     deck = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
+    assert deck.net_spin == 13
+    assert deck.physical_net_spin == 26
+    assert all(a.spin == "up" for a in deck.geometry)
+    assert all(a.equivalent_to == "Ni1" for a in deck.geometry[1:])
+    assert all(a.net_orbital_spin == 2 for a in deck.geometry)
     deck.control.pk_scale = 1.0
     deck.control.max_cycles = 25
 

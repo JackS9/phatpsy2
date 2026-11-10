@@ -84,6 +84,9 @@ def test_bulk_ni_unit_scale_benchmark(driver):
     res = evaluate_bulk_ni_benchmark(driver)
     assert res["converged"]
     assert res["pk_scale"] == 1.0
+    assert res["net_spin"] == 13
+    assert res["physical_net_spin"] == 26
+    assert res["unpaired_electrons_per_atom"] == 2
     assert abs(res["virial_ratio"] - 2.0) < 0.05
     assert res["total_energy_hartree"] < -19000.0
 

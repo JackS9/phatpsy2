@@ -1,5 +1,6 @@
 title: '... Ni13, R(Ni-Ni)=4.71'
-net_spin: 1
+net_spin: 13
+physical_net_spin: 26
 control:
   spin_unrestricted: true
   max_cycles: 20
@@ -19,120 +20,162 @@ geometry:
   - 0.0
   id: Ni1
   spin: up
+  valence_config: &ni_valence
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
 - element: Ni
   xyz:
   - 4.71
   - 0.0
   - 0.0
   id: Ni2
-  spin: down
+  equivalent_to: Ni1
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 0.0
   - 4.71
   - 0.0
   id: Ni3
-  equivalent_to: Ni2
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -4.71
   - 0.0
   - 0.0
   id: Ni4
-  equivalent_to: Ni2
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 0.0
   - -4.71
   - 0.0
   id: Ni5
-  equivalent_to: Ni2
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 2.72
   - 2.72
   - 2.72
   id: Ni6
+  equivalent_to: Ni1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -2.72
   - 2.72
   - 2.72
   id: Ni7
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -2.72
   - -2.72
   - 2.72
   id: Ni8
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 2.72
   - -2.72
   - 2.72
   id: Ni9
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 2.72
   - -2.72
   - -2.72
   id: Ni10
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: -1
   symmetry_axis: 1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 2.72
   - 2.72
   - -2.72
   id: Ni11
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -2.72
   - 2.72
   - -2.72
   id: Ni12
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -2.72
   - -2.72
   - -2.72
   id: Ni13
-  equivalent_to: Ni6
+  equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 elements:
   Ni:
     symbol: Ni

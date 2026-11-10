@@ -850,4 +850,29 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     assert eo_deck_auto.ferromagnetic_links == []
     assert eo_deck_auto.physical_net_spin == 0
 
+    # 5. Bulk Ni13 embedded cluster: all 13 Ni atoms have 2 unpaired spin-up electrons
+    # ferromagnetically coupled to their equivalent neighbors (Ni2..Ni13 equivalent_to Ni1)
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parent.parent
+    deck_ni13 = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
+    deck_ni13.validate()
+    assert len(deck_ni13.geometry) == 13
+    assert deck_ni13.net_spin == 13
+    assert deck_ni13.physical_net_spin == 26
+    assert deck_ni13.geometry[0].id == "Ni1"
+    assert deck_ni13.geometry[0].equivalent_to is None
+    for at in deck_ni13.geometry:
+        assert at.spin == "up"
+        assert at.net_orbital_spin == 2
+        assert at.valence_config is not None
+        assert sum(o.occupation for o in at.valence_config) == 10
+        assert sum(1 for o in at.valence_config if o.occupation == 1 and o.spin == "up") == 2
+    for at in deck_ni13.geometry[1:]:
+        assert at.equivalent_to == "Ni1"
+    stdin_ni13 = deck_ni13.to_stdin_text()
+    assert "MDIFAT=1" in stdin_ni13
+    assert "NEQAT=12" in stdin_ni13
+    assert "QFLIP=T" not in stdin_ni13
+
+
 

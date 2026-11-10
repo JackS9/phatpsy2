@@ -1867,10 +1867,18 @@ class CalculationDeck:
 
                 for s_atom in eq_atoms:
                     s = s_atom.symmetry
-                    isym_val = s_atom.symmetry_op if s_atom.symmetry_op is not None else (s.isym if s else -1)
-                    ixyz_val = s_atom.symmetry_axis if s_atom.symmetry_axis is not None else (s.ixyz if s else 1)
-                    isym_val = normalize_symmetry_op(isym_val) or -1
-                    ixyz_val = normalize_symmetry_axis(ixyz_val) or 1
+                    has_explicit_sym = (
+                        s_atom.symmetry_op is not None
+                        or (s is not None and s.isym is not None and s.isym != 0)
+                    )
+                    if has_explicit_sym:
+                        isym_val = s_atom.symmetry_op if s_atom.symmetry_op is not None else s.isym
+                        ixyz_val = s_atom.symmetry_axis if s_atom.symmetry_axis is not None else (s.ixyz if s else 1)
+                        isym_val = normalize_symmetry_op(isym_val) or -1
+                        ixyz_val = normalize_symmetry_axis(ixyz_val) or 1
+                    else:
+                        isym_val = 0
+                        ixyz_val = 0
 
                     s_flags = []
                     if s_atom.fixed:
@@ -1887,7 +1895,15 @@ class CalculationDeck:
                         qflip_val = bool(s_atom.is_spin_down)
 
                     s_flag_str = (", " + ", ".join(s_flags)) if s_flags else ""
-                    lines.append(f" &ATOM IXYZ={ixyz_val:03d}, ISYM={isym_val}, QFLIP={'T' if qflip_val else 'F'}{s_flag_str} &END")
+                    if isym_val == 0:
+                        sx, sy, sz = s_atom.xyz if s_atom.xyz and len(s_atom.xyz) == 3 else (0.0, 0.0, 0.0)
+                        lines.append(
+                            f" &ATOM XYZ={sx:.5f},{sy:.5f},{sz:.5f}, ISYM=0, QFLIP={'T' if qflip_val else 'F'}{s_flag_str} &END"
+                        )
+                    else:
+                        lines.append(
+                            f" &ATOM IXYZ={ixyz_val:03d}, ISYM={isym_val}, QFLIP={'T' if qflip_val else 'F'}{s_flag_str} &END"
+                        )
 
         return "\n".join(lines) + "\n"
 

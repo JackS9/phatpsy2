@@ -1059,6 +1059,25 @@ def build_atom_orbitals_from_valence_config(
                 directed_sigma_indices.append(idx_e)
                 directed_sigma_dirs.append(u)
 
+    # Transition-metal undirected atomic valence_config path:
+    # When a transition-metal atom (e.g. Ni 3d8 4s2 4p0) has no explicit hybridization
+    # and no directed connect_to / plane vectors, preserve the GCHF atomic s, d, and p
+    # eigenvectors from elem.default_orbitals while applying the requested occupations/spins.
+    if (
+        is_tm_d
+        and spec is None
+        and not directed_sigma_dirs
+        and not any(orb.connect_to or orb.plane for orb in entries)
+    ):
+        slots_energy_order = [vs.s_index] + list(vs.d_indices) + list(vs.p_indices)
+        doubly = [orb for orb in entries if orb.occupation == 2]
+        singly = [orb for orb in entries if orb.occupation == 1]
+        empty = [orb for orb in entries if orb.occupation == 0]
+        ordered_entries = doubly + singly + empty
+        for slot, orb in zip(slots_energy_order[: len(ordered_entries)], ordered_entries):
+            lib[slot] = replace(lib[slot], occno=list(_valence_orbital_occno(orb)))
+        return lib
+
     # Fallback when no connect_to coordinates could be resolved (e.g. isolated atom or single-atom test)
     if not directed_sigma_dirs:
         sigma_entry_indices = [
