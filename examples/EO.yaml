@@ -1,0 +1,154 @@
+title: Ethylene Oxide (Oxirane, c-C2H4O), Singlet Mixed-Spin Oxygen Configuration
+net_spin: 1
+control:
+  spin_unrestricted: true
+  max_cycles: 100
+  convergence: 1.0e-06
+  use_global_fermi: false
+  fermi_temperature: null
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: C
+  xyz:
+  - 1.39
+  - 0.0
+  - -0.73
+  id: C1
+  spin: up
+  hybridization: sp3
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H2
+- element: C
+  xyz:
+  - -1.39
+  - 0.0
+  - -0.73
+  id: C2
+  spin: down
+  hybridization: sp3
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H3
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H4
+- element: O
+  xyz:
+  - 0.0
+  - 0.0
+  - 1.56
+  id: O1
+  spin: up
+  hybridization: sp3
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+    plane:
+    - C1
+    - C2
+    orientation: in_plane
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+    plane:
+    - C1
+    - C2
+    orientation: out_of_plane
+- element: H
+  xyz:
+  - 2.3
+  - 1.72
+  - -1.18
+  id: H1
+  spin: down
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+- element: H
+  xyz:
+  - 2.3
+  - -1.72
+  - -1.18
+  id: H2
+  spin: down
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+- element: H
+  xyz:
+  - -2.3
+  - 1.72
+  - -1.18
+  id: H3
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+- element: H
+  xyz:
+  - -2.3
+  - -1.72
+  - -1.18
+  id: H4
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+elements:
+  C:
+    symbol: C
+    atomic_number: 6
+  O:
+    symbol: O
+    atomic_number: 8
+  H:
+    symbol: H
+    atomic_number: 1
+

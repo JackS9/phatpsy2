@@ -467,13 +467,31 @@ def evaluate_eo_to_aa_benchmark(
         ("H", [-2.30, -1.72, -1.18]),
     ]
 
+    eo_singlet_valence = [
+        [ValenceOrbital(spin="up", occupation=1, orbital_type="sigma", connect_to=t) for t in ("C2", "O1", "H1", "H2")],
+        [ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to=t) for t in ("C1", "O1", "H3", "H4")],
+        [
+            ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="C1"),
+            ValenceOrbital(spin="up", occupation=1, orbital_type="sigma", connect_to="C2"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair", plane=["C1", "C2"], orientation="in_plane"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair", plane=["C1", "C2"], orientation="out_of_plane"),
+        ],
+        [ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="C1")],
+        [ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="C1")],
+        [ValenceOrbital(spin="up", occupation=1, orbital_type="sigma", connect_to="C2")],
+        [ValenceOrbital(spin="up", occupation=1, orbital_type="sigma", connect_to="C2")],
+    ]
+
     deck_eo = build_molecule(
         geom_eo,
         basis={"C": "SZ", "O": "SZ", "H": "THAKKAR"},
         title="Ethylene Oxide (Reactant)",
         spin_unrestricted=False,
-        spins="up",
-        net_spin=7,
+        spins=["up", "down", "up", "down", "down", "up", "up"],
+        hybridization=["sp3", "sp3", "sp3", None, None, None, None],
+        valence_configs=eo_singlet_valence,
+        net_spin=1,
+        physical_net_spin=0,
     )
     deck_eo.control = ctrl
     res_eo = d.run_deck(deck_eo)

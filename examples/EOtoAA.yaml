@@ -1,5 +1,5 @@
 title: '... Ethylene Oxide -> Acetaldehyde Transition State ...'
-net_spin: 3
+net_spin: 1
 control:
   spin_unrestricted: true
   max_cycles: 20
@@ -19,6 +19,24 @@ geometry:
   - 0.0
   id: C1
   spin: up
+  hybridization: sp3
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H2
 - element: C
   xyz:
   - 2.721206
@@ -26,6 +44,24 @@ geometry:
   - 0.0
   id: C2
   spin: down
+  hybridization: sp3
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H3
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H4
 - element: O
   xyz:
   - 3.533788
@@ -33,27 +69,66 @@ geometry:
   - 0.0
   id: O1
   spin: up
+  hybridization: sp3
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+    plane:
+    - C1
+    - C2
+    orientation: in_plane
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+    plane:
+    - C1
+    - C2
+    orientation: out_of_plane
 - element: H
   xyz:
   - -1.039349
   - 1.511781
   - 0.907069
   id: H1
-  spin: up
+  spin: down
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
 - element: H
   xyz:
   - -1.133836
   - -1.266117
   - -1.133836
   id: H2
-  spin: up
+  spin: down
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
 - element: H
   xyz:
   - 3.571582
   - -1.17163
   - -1.530678
   id: H3
-  spin: down
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
 - element: H
   xyz:
   - 3.212534
@@ -61,6 +136,11 @@ geometry:
   - 1.776343
   id: H4
   spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
 elements:
   C:
     symbol: C

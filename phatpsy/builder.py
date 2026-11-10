@@ -1091,16 +1091,22 @@ def propose_valence_config(
 
     proposals: Dict[str, List[ValenceOrbital]] = {}
 
-    for i, a in enumerate(atoms):
+    # Process higher-coordination atoms before lower-coordination / divalent atoms so that
+    # in odd rings (e.g. oxirane C1-C2-O1), 4-coordinate carbons assign uniform spins first
+    # and divalent oxygen adapts with a mixed-spin configuration (zero ferromagnetic links).
+    atom_order = sorted(range(n), key=lambda idx: (-len(neighbours[idx]), idx))
+    computed_proposals: Dict[int, List[ValenceOrbital]] = {}
+
+    for i in atom_order:
+        a = atoms[i]
         sym = a.element.strip().capitalize()
         Z = ATOMIC_NUMBERS[sym]
         n_orb = n_valence_orbitals(Z)
         occ_val = occupied_valency(Z, a.charge)
         atom_spin = a.spin or "up"
-        opp_spin = "down" if atom_spin == "up" else "up"
 
         if n_orb == 0:
-            proposals[a.id] = []
+            computed_proposals[i] = []
             continue
 
         # If atom already has a valence_config, preserve its explicit entries and pad/complete if partial
@@ -1108,7 +1114,7 @@ def propose_valence_config(
         if a.valence_config is not None:
             entries = [ValenceOrbital.from_dict(o.to_dict()) for o in a.valence_config]
             if len(entries) >= n_orb:
-                proposals[a.id] = entries
+                computed_proposals[i] = entries
                 continue
         else:
             entries = []
@@ -1127,7 +1133,7 @@ def propose_valence_config(
                 1 for e in entries if e.connect_to == nbr_id and e.orbital_type == "pi"
             )
             if existing_sigma == 0:
-                # Check if neighbor j has an explicit facing orbital toward i
+                # Check if neighbor j has an explicit or already-assigned facing orbital toward i
                 nbr_facing = explicit_facing_spin.get((j, i, "sigma"), [])
                 if nbr_facing:
                     b_spin = "down" if nbr_facing[0] == "up" else "up"
@@ -1141,6 +1147,7 @@ def propose_valence_config(
                         connect_to=nbr_id,
                     )
                 )
+                explicit_facing_spin.setdefault((i, j, "sigma"), []).append(b_spin)
                 rem_e -= 1
 
             # Additional pi bonds if order > 1
@@ -1183,17 +1190,37 @@ def propose_valence_config(
                         orientation=ori,
                     )
                 )
+                explicit_facing_spin.setdefault((i, j, "pi"), []).append(p_spin)
                 rem_e -= 1
 
         # 2. Allocate remaining electrons (lone pairs first, then unpaired radical electrons)
+        ring_lp_plane: Optional[List[str]] = None
+        if len(neighbours[i]) == 2 and rem_e >= 4 and hyb == "sp3":
+            j1, j2 = neighbours[i][0][0], neighbours[i][1][0]
+            if j2 in adj[j1]:
+                ring_lp_plane = [atoms[j1].id, atoms[j2].id]
+
+        lp_idx = 0
         while rem_e >= 2 and len(entries) < n_orb:
-            entries.append(
-                ValenceOrbital(
-                    spin="none",
-                    orbital_type="lone_pair",
-                    occupation=2,
+            if ring_lp_plane is not None and lp_idx < 2:
+                entries.append(
+                    ValenceOrbital(
+                        spin="none",
+                        orbital_type="lone_pair",
+                        occupation=2,
+                        plane=list(ring_lp_plane),
+                        orientation="in_plane" if lp_idx == 0 else "out_of_plane",
+                    )
                 )
-            )
+            else:
+                entries.append(
+                    ValenceOrbital(
+                        spin="none",
+                        orbital_type="lone_pair",
+                        occupation=2,
+                    )
+                )
+            lp_idx += 1
             rem_e -= 2
 
         while rem_e == 1 and len(entries) < n_orb:
@@ -1239,7 +1266,10 @@ def propose_valence_config(
                     )
                 )
 
-        proposals[a.id] = entries
+        computed_proposals[i] = entries
+
+    for i, a in enumerate(atoms):
+        proposals[a.id] = computed_proposals[i]
 
     return proposals
 

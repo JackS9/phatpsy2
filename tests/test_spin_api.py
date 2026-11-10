@@ -268,3 +268,23 @@ def test_ferromagnetic_links_deck_validation():
     with pytest.raises(ValueError, match="no atom with that ID"):
         CalculationDeck(geometry=atoms_parallel, net_spin=1, ferromagnetic_links=[("C1", "N99")])
 
+
+def test_eo_mixed_spin_oxygen_eliminates_ferromagnetic_link():
+    """
+    Ethylene Oxide (EO): Oxygen has a mixed-spin sp3 configuration with one sp3 sigma orbital
+    antiferromagnetically bonded to C1 and the other antiferromagnetically bonded to C2,
+    so there is NO ferromagnetic bond between C1 and C2 (or anywhere in the ring).
+    """
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent
+    deck = CalculationDeck.from_yaml(repo_root / "examples" / "EO.yaml")
+    assert deck.ferromagnetic_links == []
+    assert deck.ferromagnetic_reports == []
+    assert deck.physical_net_spin == 0
+    c1, c2, o1 = deck.geometry[0], deck.geometry[1], deck.geometry[2]
+    assert c1.spin == "up" and c2.spin == "down"
+    assert o1.hybridization == "sp3"
+    assert o1.net_orbital_spin == 0
+
+

@@ -165,10 +165,11 @@ from phatpsy import AtomConfig, ValenceOrbital, propose_valence_config
 o_atom = AtomConfig(
     element="O",
     id="O1",
-    xyz=[0.0, 0.0, 0.0],
+    xyz=[0.0, 0.0, 1.56],
+    hybridization="sp3",
     valence_config=[
-        ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="C1"),
-        ValenceOrbital(spin="down", orbital_type="sigma", occupation=1, connect_to="C2"),
+        ValenceOrbital(spin="down", orbital_type="sigma", occupation=1, connect_to="C1"),
+        ValenceOrbital(spin="up", orbital_type="sigma", occupation=1, connect_to="C2"),
         ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="in_plane"),
         ValenceOrbital(spin="none", orbital_type="lone_pair", occupation=2, plane=["C1", "C2"], orientation="out_of_plane"),
     ],

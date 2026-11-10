@@ -96,23 +96,50 @@ def test_occupied_valency_with_formal_charges(sym, z, charge, exp_occ):
 # ==============================================================================
 
 def test_eo_oxygen_mixed_spins_example():
-    """EO oxygen: 2 sigma bonds with opposite spins (+1 to C1, -1 to C2), 2 lone pairs."""
+    """
+    EO oxygen: sp3 hybridization, 2 sigma bonds with opposite spins (antiferromagnetically
+    bonded to C1 and C2), 2 lone pairs, and zero ferromagnetic links across the 3-membered ring.
+    """
+    from pathlib import Path
+
     yaml_str = """
     element: O
     id: O1
+    hybridization: sp3
     valence_config:
-      - {spin: up, orbital_type: sigma, occupation: 1, connect_to: C1}
-      - {spin: down, orbital_type: sigma, occupation: 1, connect_to: C2}
+      - {spin: down, orbital_type: sigma, occupation: 1, connect_to: C1}
+      - {spin: up, orbital_type: sigma, occupation: 1, connect_to: C2}
       - {spin: none, orbital_type: lone_pair, occupation: 2, plane: [C1, C2], orientation: in_plane}
       - {spin: none, orbital_type: lone_pair, occupation: 2, plane: [C1, C2], orientation: out_of_plane}
     """
     atom = AtomConfig.from_dict(yaml.safe_load(yaml_str))
+    assert atom.hybridization == "sp3"
     assert occupancy_counts(atom.valence_config) == (0, 2, 2)
     assert orbital_counts(atom.valence_config) == {"sigma": 2, "pi": 0, "delta": 0, "lone_pair": 2}
     assert valence_net_spin(atom.valence_config) == 0
     assert net_orbital_spin(atom.valence_config) == 0
     # Net orbital spin is 0, so atom.spin is not forced by valence_config
     assert atom.spin is None
+
+    # Full Ethylene Oxide (EO.yaml) and Transition State (EOtoAA.yaml):
+    # No ferromagnetic bond between C1 and C2; O1 has mixed-spin sp3 orbitals antiferromagnetically bonded to C1 and C2
+    repo_root = Path(__file__).resolve().parent.parent
+    for fname in ("EO.yaml", "EOtoAA.yaml"):
+        deck_eo = CalculationDeck.from_yaml(repo_root / "examples" / fname)
+        assert deck_eo.ferromagnetic_links == []
+        assert deck_eo.physical_net_spin == 0
+        c1, c2, o1 = deck_eo.geometry[0], deck_eo.geometry[1], deck_eo.geometry[2]
+        assert c1.hybridization == "sp3" and c1.net_orbital_spin == 4
+        assert c2.hybridization == "sp3" and c2.net_orbital_spin == -4
+        assert o1.hybridization == "sp3" and o1.net_orbital_spin == 0
+        # C1-C2 bond is antiferromagnetically paired (C1 up <-> C2 down)
+        c1_to_c2 = next(vo for vo in c1.valence_config if vo.connect_to == "C2")
+        c2_to_c1 = next(vo for vo in c2.valence_config if vo.connect_to == "C1")
+        assert c1_to_c2.spin == "up" and c2_to_c1.spin == "down"
+        # O1 is antiferromagnetically paired to both C1 (up <-> down) and C2 (down <-> up)
+        o1_to_c1 = next(vo for vo in o1.valence_config if vo.connect_to == "C1")
+        o1_to_c2 = next(vo for vo in o1.valence_config if vo.connect_to == "C2")
+        assert o1_to_c1.spin == "down" and o1_to_c2.spin == "up"
 
 
 def test_no_radical_non_alternant_pi_and_check_11():
@@ -795,5 +822,32 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     )
     assert orbital_counts(no_prop["N1"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}
     assert orbital_counts(no_prop["O1"]) == {"sigma": 1, "pi": 1, "delta": 0, "lone_pair": 2}
+
+    # 4. Ethylene oxide (oxirane) automated proposal assigns mixed-spin sp3 on O1 with zero ferromagnetic links
+    geom_eo = [
+        ("C", [1.39, 0.00, -0.73]),
+        ("C", [-1.39, 0.00, -0.73]),
+        ("O", [0.00, 0.00, 1.56]),
+        ("H", [2.30, 1.72, -1.18]),
+        ("H", [2.30, -1.72, -1.18]),
+        ("H", [-2.30, 1.72, -1.18]),
+        ("H", [-2.30, -1.72, -1.18]),
+    ]
+    eo_prop = propose_valence_config(geom_eo)
+    assert valence_net_spin(eo_prop["C1"]) == 4
+    assert valence_net_spin(eo_prop["C2"]) == -4
+    assert valence_net_spin(eo_prop["O1"]) == 0
+    o1_sigmas = {vo.connect_to: vo.spin for vo in eo_prop["O1"] if vo.orbital_type == "sigma"}
+    assert o1_sigmas == {"C1": "down", "C2": "up"}
+    eo_deck_auto = build_molecule(
+        geom_eo,
+        spins=["up", "down", "up", "down", "down", "up", "up"],
+        hybridization=["sp3", "sp3", "sp3", None, None, None, None],
+        valence_configs=[eo_prop[k] for k in ("C1", "C2", "O1", "H1", "H2", "H3", "H4")],
+        net_spin=1,
+        physical_net_spin=0,
+    )
+    assert eo_deck_auto.ferromagnetic_links == []
+    assert eo_deck_auto.physical_net_spin == 0
 
 
