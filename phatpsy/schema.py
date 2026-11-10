@@ -703,13 +703,9 @@ class AtomConfig:
             counts = orbital_counts(self.valence_config)
             n_hybrids = spec.n_sigma + spec.n_lone_pairs
             actual_hybrids = counts["sigma"] + counts["lone_pair"]
-            n_dative_lp = sum(
-                1 for o in self.valence_config
-                if o.orbital_type == "lone_pair" and o.connect_to is not None
-            )
             pi_deficit = spec.n_pi - counts["pi"]
             used_dative_as_pi = (
-                pi_deficit if (0 <= pi_deficit <= n_dative_lp and actual_hybrids - pi_deficit == n_hybrids) else 0
+                pi_deficit if (0 <= pi_deficit <= counts["lone_pair"] and actual_hybrids - pi_deficit == n_hybrids) else 0
             )
             if (actual_hybrids - used_dative_as_pi) != n_hybrids:
                 raise ValueError(

@@ -187,7 +187,7 @@
       "density_rmsd_au": 0.045
     },
     "NO": {
-      "system_name": "Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr",
+      "system_name": "Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.1747 Bohr",
       "formula": "NO",
       "geometry_bohr": [
         {
@@ -203,7 +203,7 @@
           "xyz": [
             0.0,
             0.0,
-            2.18
+            2.1747
           ]
         }
       ],

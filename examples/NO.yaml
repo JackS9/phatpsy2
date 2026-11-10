@@ -1,4 +1,4 @@
-title: Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.180 Bohr
+title: Nitric Oxide Diatomic (NO), X^2Pi ground state, R=2.1747 Bohr
 net_spin: 0
 control:
   spin_unrestricted: true
@@ -19,13 +19,46 @@ geometry:
   - 0.0
   id: N1
   spin: up
+  hybridization: sp
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: down
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 - element: O
   xyz:
   - 0.0
   - 0.0
-  - 2.18
+  - 2.1747
   id: O1
   spin: down
+  hybridization: sp
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: N1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: N1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 elements:
   N:
     symbol: N

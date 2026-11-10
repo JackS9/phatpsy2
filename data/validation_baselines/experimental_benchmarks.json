@@ -27,6 +27,21 @@
       "dipole_polarity": "C(-) O(+)",
       "mean_polarizability_bohr3": 13.08
     },
+    "NO": {
+      "r_e_angstrom": 1.1508,
+      "r_e_bohr": 2.1747,
+      "ground_state": "X^2Pi",
+      "spin_multiplicity": 2,
+      "valence_configuration": "(sigma_2s)^2 (sigma*_2s)^2 (pi_2p)^4 (sigma_2p)^2 (pi*_2p)^1",
+      "bonding_electrons": 8,
+      "antibonding_electrons": 3,
+      "formal_bond_order": 2.5,
+      "harmonic_frequency_cm": 1904.20,
+      "dissociation_energy_d0_ev": 6.496,
+      "dissociation_energy_d0_kcal_mol": 149.8,
+      "ionization_potential_ev": 9.264,
+      "permanent_dipole_debye": 0.1587
+    },
     "H2O": {
       "r_oh_angstrom": 0.9578,
       "r_oh_bohr": 1.81,

@@ -1,4 +1,4 @@
-title: NO on Ni(100), R(NO)=2.18 Bohr, R(NiN)=3.40 Bohr, C4v Top Site
+title: NO on Ni(100), R(NO)=2.1747 Bohr, R(NiN)=3.40 Bohr, C4v Top Site
 net_spin: 1
 control:
   spin_unrestricted: true
@@ -19,13 +19,46 @@ geometry:
   - 3.4
   id: N1
   spin: up
+  hybridization: sp
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: down
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 - element: O
   xyz:
   - 0.0
   - 0.0
-  - 5.58
+  - 5.5747
   id: O1
   spin: down
+  hybridization: sp
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: N1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: N1
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
 - element: Ni
   xyz:
   - 0.0

@@ -26,7 +26,7 @@ import numpy as np
 from phatpsy.builder import build_diatomic, build_molecule
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.eom import compute_eom
-from phatpsy.schema import CalculationDeck, ControlConfig, AtomConfig
+from phatpsy.schema import CalculationDeck, ControlConfig, AtomConfig, ValenceOrbital
 from phatpsy.vibrations import compute_vibrations
 from phatpsy.subsystem import get_isolated_atomic_energy
 from phatpsy.dispersion import compute_dispersion_energy
@@ -118,6 +118,78 @@ def evaluate_co_benchmark(
         "delta_dipole_debye": calc_dipole - 0.112,
         "harmonic_frequency_cm": float(calc_freq),
         "delta_frequency_cm": float(calc_freq - 2169.81),
+        "converged": bool(res.converged),
+        "cycles": int(res.cycles),
+    }
+
+
+def evaluate_no_benchmark(
+    driver: Optional[PhatpsyDriver] = None,
+    control: Optional[ControlConfig] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluates NO paramagnetic doublet radical (X^2Pi) benchmark against NIST CCCBDB / Herzberg:
+    R_expt = 2.1747 Bohr (1.1508 Angstrom), omega_e = 1904.20 cm^-1, mu = 0.1587 Debye.
+    Valence occupancy: (sigma_2s)^2 (sigma*_2s)^2 (pi_2p)^4 (sigma_2p)^2 (pi*_2p)^1
+    Formal MO bond order = (8 bonding - 3 antibonding) / 2 = 2.5.
+    """
+    d = driver or PhatpsyDriver(quiet=True)
+    ctrl = control or ControlConfig()
+    r_expt = 2.1747
+
+    n1_no_valence = [
+        ValenceOrbital(spin="up", occupation=1, orbital_type="sigma", connect_to="O2"),
+        ValenceOrbital(spin="down", occupation=1, orbital_type="pi", connect_to="O2"),
+        ValenceOrbital(spin="up", occupation=1, orbital_type="pi", connect_to="O2"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+    ]
+    o2_no_valence = [
+        ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="N1"),
+        ValenceOrbital(spin="up", occupation=1, orbital_type="pi", connect_to="N1"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+    ]
+    deck = build_diatomic(
+        "N",
+        "O",
+        r_expt,
+        hybridization="sp",
+        spins=["up", "down"],
+        valence_configs=[n1_no_valence, o2_no_valence],
+        net_spin=0,
+        physical_net_spin=1,
+        units="bohr",
+    )
+    deck.control = ctrl
+    res = d.run_deck(deck)
+
+    eom = compute_eom(deck, driver=d, quiet=True)
+    calc_dipole = float(eom.dipole.magnitude_debye)
+
+    vib = compute_vibrations(deck, driver=d, step_size=0.005, method="central", quiet=True)
+    freqs = [abs(m.frequency_cm) for m in vib.modes if abs(m.frequency_cm) > 10.0]
+    calc_freq = freqs[-1] if freqs else 0.0
+
+    bonding_electrons = 8
+    antibonding_electrons = 3
+    formal_bond_order = (bonding_electrons - antibonding_electrons) / 2.0
+
+    return {
+        "system": "NO",
+        "r_bohr": r_expt,
+        "ground_state": "X^2Pi",
+        "spin_multiplicity": 2,
+        "physical_net_spin": int(deck.physical_net_spin or 1),
+        "valence_configuration": "(sigma_2s)^2 (sigma*_2s)^2 (pi_2p)^4 (sigma_2p)^2 (pi*_2p)^1",
+        "bonding_electrons": bonding_electrons,
+        "antibonding_electrons": antibonding_electrons,
+        "formal_bond_order": formal_bond_order,
+        "total_energy_hartree": float(res.total_energy),
+        "virial_ratio": float(res.virial_ratio),
+        "dipole_moment_debye": calc_dipole,
+        "delta_dipole_debye": calc_dipole - 0.1587,
+        "harmonic_frequency_cm": float(calc_freq),
+        "delta_frequency_cm": float(calc_freq - 1904.20),
         "converged": bool(res.converged),
         "cycles": int(res.cycles),
     }
@@ -433,6 +505,7 @@ def evaluate_all_benchmarks(
 
     res_n2 = evaluate_n2_benchmark(d)
     res_co = evaluate_co_benchmark(d)
+    res_no = evaluate_no_benchmark(d)
     res_h2o = evaluate_h2o_benchmark(d)
     res_ni = evaluate_bulk_ni_benchmark(d)
     res_slab = evaluate_ni100_slab_benchmark(d)
@@ -456,6 +529,10 @@ def evaluate_all_benchmarks(
             "CO": {
                 "calculated": res_co,
                 "experimental": exp["systems"]["CO"],
+            },
+            "NO": {
+                "calculated": res_no,
+                "experimental": exp["systems"]["NO"],
             },
             "H2O": {
                 "calculated": res_h2o,
@@ -649,6 +726,14 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
     lines.append(f"| $\\text{{CO}}$ | $R_e$ | {co_c['r_bohr']:.4f} | {co_e['r_e_bohr']:.4f} | Bohr | {co_c['r_bohr'] - co_e['r_e_bohr']:+.4f} |")
     lines.append(f"| $\\text{{CO}}$ | $\\mu$ | {co_c['dipole_moment_debye']:.3f} | {co_e['permanent_dipole_debye']:.3f} | Debye | {co_c['delta_dipole_debye']:+.3f} |")
     lines.append(f"| $\\text{{CO}}$ | $\\omega_e$ | {co_c['harmonic_frequency_cm']:.1f} | {co_e['harmonic_frequency_cm']:.1f} | $\\text{{cm}}^{{-1}}$ | {co_c['delta_frequency_cm']:+.1f} |")
+
+    # NO (optional if present in summary)
+    if "NO" in summary.get("benchmarks", {}):
+        no_c = summary["benchmarks"]["NO"]["calculated"]
+        no_e = summary["benchmarks"]["NO"]["experimental"]
+        lines.append(f"| $\\text{{NO}}$ | $R_e$ | {no_c['r_bohr']:.4f} | {no_e['r_e_bohr']:.4f} | Bohr | {no_c['r_bohr'] - no_e['r_e_bohr']:+.4f} |")
+        if "formal_bond_order" in no_c and "formal_bond_order" in no_e:
+            lines.append(f"| $\\text{{NO}}$ | Bond Order | {no_c['formal_bond_order']:.1f} | {no_e['formal_bond_order']:.1f} | — | {no_c['formal_bond_order'] - no_e['formal_bond_order']:+.1f} |")
 
     # H2O
     h2o_c = summary["benchmarks"]["H2O"]["calculated"]

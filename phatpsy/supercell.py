@@ -726,7 +726,8 @@ def attach_adsorbate(
                 AtomConfig(element="O", xyz=[0.0, 0.0, r_co]),
             ]
         elif adj_str == "NO":
-            r_no = 1.154 * scale
+            # Experimental bond length R(N-O) = 1.1508 A = 2.1747 Bohr
+            r_no = 2.1747 if units.strip().lower().startswith("b") else 1.1508
             ads_atoms = [
                 AtomConfig(element="N", xyz=[0.0, 0.0, 0.0]),
                 AtomConfig(element="O", xyz=[0.0, 0.0, r_no]),

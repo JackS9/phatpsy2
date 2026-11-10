@@ -8,6 +8,7 @@ from phatpsy.benchmarks import (
     load_experimental_benchmarks,
     evaluate_n2_benchmark,
     evaluate_co_benchmark,
+    evaluate_no_benchmark,
     evaluate_h2o_benchmark,
     evaluate_bulk_ni_benchmark,
     evaluate_ni100_slab_benchmark,
@@ -28,6 +29,7 @@ def test_load_experimental_benchmarks():
     assert "systems" in exp
     assert "N2" in exp["systems"]
     assert "CO" in exp["systems"]
+    assert "NO" in exp["systems"]
     assert "H2O" in exp["systems"]
     assert "Bulk_Ni" in exp["systems"]
     assert "CO_on_Ni100" in exp["systems"]
@@ -35,6 +37,11 @@ def test_load_experimental_benchmarks():
     assert exp["systems"]["N2"]["r_e_bohr"] == 2.0744
     assert exp["systems"]["CO"]["r_e_bohr"] == 2.132
     assert exp["systems"]["CO"]["permanent_dipole_debye"] == 0.112
+    assert exp["systems"]["NO"]["r_e_bohr"] == 2.1747
+    assert exp["systems"]["NO"]["formal_bond_order"] == 2.5
+    assert exp["systems"]["NO"]["bonding_electrons"] == 8
+    assert exp["systems"]["NO"]["antibonding_electrons"] == 3
+    assert exp["systems"]["NO"]["spin_multiplicity"] == 2
 
 
 def test_n2_benchmark(driver):
@@ -51,6 +58,22 @@ def test_co_benchmark(driver):
     res = evaluate_co_benchmark(driver)
     assert res["converged"]
     assert abs(res["r_bohr"] - 2.132) < 1e-4
+    assert abs(res["virial_ratio"] - 2.0) < 0.10
+    assert isinstance(res["dipole_moment_debye"], float)
+    assert res["harmonic_frequency_cm"] > 1000.0
+
+
+def test_no_benchmark(driver):
+    """Verify NO doublet radical benchmark (R_e = 2.1747 Bohr, bond order = 2.5)."""
+    res = evaluate_no_benchmark(driver)
+    assert res["converged"]
+    assert abs(res["r_bohr"] - 2.1747) < 1e-4
+    assert res["ground_state"] == "X^2Pi"
+    assert res["spin_multiplicity"] == 2
+    assert res["physical_net_spin"] == 1
+    assert res["bonding_electrons"] == 8
+    assert res["antibonding_electrons"] == 3
+    assert res["formal_bond_order"] == 2.5
     assert abs(res["virial_ratio"] - 2.0) < 0.10
     assert isinstance(res["dipole_moment_debye"], float)
     assert res["harmonic_frequency_cm"] > 1000.0

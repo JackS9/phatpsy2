@@ -116,7 +116,12 @@ def test_eo_oxygen_mixed_spins_example():
 
 
 def test_no_radical_non_alternant_pi_and_check_11():
-    """NO radical: N has net orbital spin +1 (spin='up'), O has 0, molecule physical_net_spin = +1."""
+    """
+    NO radical (R = 2.1747 Bohr):
+    Valence MO occupancy (sigma_2s)^2 (sigma*_2s)^2 (pi_2p)^4 (sigma_2p)^2 (pi*_2p)^1,
+    formal MO bond order = (8 bonding - 3 antibonding) / 2 = 2.5,
+    N has net orbital spin +1 (spin='up'), O has 0, molecule physical_net_spin = +1 (doublet).
+    """
     yaml_str = """
     title: NO Radical
     net_spin: 0
@@ -124,6 +129,7 @@ def test_no_radical_non_alternant_pi_and_check_11():
       - element: N
         id: N1
         xyz: [0.0, 0.0, 0.0]
+        hybridization: sp
         valence_config:
           - {spin: up, orbital_type: sigma, occupation: 1, connect_to: O1}
           - {spin: down, orbital_type: pi, occupation: 1, connect_to: O1}
@@ -131,8 +137,9 @@ def test_no_radical_non_alternant_pi_and_check_11():
           - {spin: none, orbital_type: lone_pair, occupation: 2}
       - element: O
         id: O1
-        xyz: [0.0, 0.0, 2.175]
+        xyz: [0.0, 0.0, 2.1747]
         spin: down
+        hybridization: sp
         valence_config:
           - {spin: down, orbital_type: sigma, occupation: 1, connect_to: N1}
           - {spin: up, orbital_type: pi, occupation: 1, connect_to: N1}
@@ -143,10 +150,15 @@ def test_no_radical_non_alternant_pi_and_check_11():
     n_atom, o_atom = deck.geometry
     assert n_atom.spin == "up"
     assert o_atom.spin == "down"
+    assert o_atom.xyz[2] == pytest.approx(2.1747)
     assert valence_net_spin(n_atom.valence_config) == 1
     assert valence_net_spin(o_atom.valence_config) == 0
     assert deck.net_spin == 0
     assert deck.physical_net_spin == 1
+    # 11 valence electrons: 8 bonding, 3 antibonding -> formal MO bond order = 2.5
+    total_val_e = sum(o.occupation for a in deck.geometry for o in a.valence_config)
+    assert total_val_e == 11
+    assert (8 - 3) / 2 == 2.5
 
     # Also test build_molecule with physical_net_spin assertion
     deck2 = build_molecule(
@@ -778,7 +790,7 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     no_prop = propose_valence_config(
         [
             AtomConfig(element="N", id="N1", xyz=[0.0, 0.0, 0.0], spin="up"),
-            AtomConfig(element="O", id="O1", xyz=[0.0, 0.0, 2.175], spin="down"),
+            AtomConfig(element="O", id="O1", xyz=[0.0, 0.0, 2.1747], spin="down"),
         ]
     )
     assert orbital_counts(no_prop["N1"]) == {"sigma": 1, "pi": 2, "delta": 0, "lone_pair": 1}
