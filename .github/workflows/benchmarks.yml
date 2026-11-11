@@ -19,9 +19,8 @@ jobs:
 
       - name: Install Fortran toolchain and BLAS/LAPACK
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E apt-get update
-          sudo -E apt-get install -y --no-install-recommends gfortran libopenblas-dev liblapack-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends --fix-missing gfortran libopenblas-dev liblapack-dev
 
       - name: Set up Python
         uses: actions/setup-python@v5
