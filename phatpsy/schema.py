@@ -1840,6 +1840,10 @@ class CalculationDeck:
                 if (group_idx > 0 and p_atom.is_spin_down and not has_custom_orbs
                         and p_atom.spin != primary_groups[0]["primary"].spin):
                     flags.append("QFLIP=T")
+                # When explicit bonding seeds (valence_config or hybridization) are active
+                # in the molecule, mark Hydrogen atoms with QNWVEC=T so non-bonded parallel-spin
+                # H-H pairs (e.g. H1(beta)..H2(beta) in H2O) receive Phillips-Kleinman Pauli
+                # orthogonalization, while heteronuclear H-X pairs remain exempt (Thesis Eq. III-24).
                 if ed.atomic_number == 1 and (
                     p_atom.valence_config
                     or p_atom.hybridization

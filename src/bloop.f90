@@ -285,24 +285,41 @@ contains
 
                 do isp = 1, ISPIN
                   do nv = 1, 3
-                    if (nv <= 2 .and. (znuca <= 1.5d0 .neqv. znucb <= 1.5d0)) cycle
+                    ! Heteronuclear H-X PK exemption (Thesis Eq. III-24):
+                    ! Hydrogen 1s is a valence orbital with no inner core shell; projecting
+                    ! H 1s onto a bonded heavy atom X (or X onto H) would unphysically remove
+                    ! the X-H bonding orbital and force a radial node into X's valence shell.
+                    ! Only homonuclear pairs (X-X or seeded non-bonded H-H) transfer PK projectors
+                    ! nv=1..2; when QNWVEC is active, two-center exchange residual nv=3 is also
+                    ! skipped for H pairs because H has no core shell.
+                    if (nv <= 2 .and. ((znuca <= 1.5d0) .neqv. (znucb <= 1.5d0))) cycle
                     if (nv == 3 .and. QNWVEC .and. (znuca <= 1.5d0 .or. znucb <= 1.5d0)) cycle
                     if (.not. qtrans_ab) then
                       call CSCT(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
                     else
                       call CTSC(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
                     end if
+                    ! Homonuclear H-H Pauli attenuation (0.40):
+                    ! Unlike heavy atoms where pkpot(:,4:5) contains a tightly localized
+                    ! inner core shell alongside valence hybrids, Hydrogen has only a single
+                    ! diffuse 1s valence shell (zeta = 1.0). Applying the full unit PK
+                    ! projector between non-bonded parallel-spin H atoms (e.g. H1(beta)..H2(beta)
+                    ! in H2O at R_HH ~ 2.87 Bohr, S_HH ~ 0.25) over-projects the O-H bonding
+                    ! tails; scaling the H-H PK transfer by 0.40 balances non-bonded H..H
+                    ! Pauli repulsion without distorting the equilibrium X-H bond length.
                     if (nv <= 2 .and. znuca <= 1.5d0 .and. znucb <= 1.5d0) then
-                      scrat1(1:M2STO) = 0.40d0 * scrat1(1:M2STO)
+                      pkpota(:, nv, isp) = pkpota(:, nv, isp) + 0.40d0 * fractn * scrat1(1:M2STO)
+                    else
+                      pkpota(:, nv, isp) = pkpota(:, nv, isp) + fractn * scrat1(1:M2STO)
                     end if
-                    pkpota(:, nv, isp) = pkpota(:, nv, isp) + fractn * scrat1(1:M2STO)
                   end do
                 end do
 
                 ! With seeded orbitals (QNWVEC), restrict two-center nuclear/model-potential
-                ! electrostatic attraction (zpot2a, cpot2a) to the active core+valence STO
-                ! subspace (1..nact_stoa) so virtual polarization shells (3d on C/N/O, 2p on H)
-                ! do not collapse onto Neighbor B's core cusp.
+                ! electrostatic attraction (zpot2a, cpot2a) on Atom A from heavy neighbors
+                ! (znucb > 1.5) to the active core+valence STO subspace (1..nact_stoa) so
+                ! virtual polarization shells (3d on C/N/O, 2p on H) do not collapse onto
+                ! a heavy Neighbor B's core cusp.
                 nsto_es = merge(nact_stoa, MSTO, QNWVEC .and. znucb > 1.5d0)
                 do istoa = 1, nsto_es
                   indxi = mol_ws%index_arr(istoa)

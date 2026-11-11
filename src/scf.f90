@@ -15,13 +15,12 @@ module scf
 
 contains
 
-  subroutine solve_orthonormal_fock(onfock, tranx_in, eval_all, onevec, scrat2, msto, m2sto, norb, nact_sto, nact_orb, ierr)
+  subroutine solve_orthonormal_fock(onfock, tranx_in, eval_all, onevec, msto, m2sto, norb, nact_sto, nact_orb, ierr)
     integer(int32), intent(in)    :: msto, m2sto, norb, nact_sto, nact_orb
     integer(int32), intent(out)   :: ierr
     real(real64),   intent(inout) :: onfock(m2sto)
     real(real64),   intent(in)    :: tranx_in(msto, msto)
     real(real64),   intent(out)   :: eval_all(msto), onevec(msto, norb)
-    real(real64),   intent(inout) :: scrat2(msto, 9)
 
     real(real64),   allocatable :: a_full(:,:), work(:), pol_wt(:), eval_keep(:), vec_sto(:)
     integer(int32), allocatable :: idx_pol(:)
@@ -423,7 +422,7 @@ contains
         nact_orb = NORB - (MSTO - nact_sto)
       else
         nact_orb = 0
-        do iorb = 1, max(1, NORB - (MSTO - nact_sto))
+        do iorb = 1, NORB
           if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
         end do
       end if
@@ -434,11 +433,10 @@ contains
 
         if (.not. QFIRST .and. .not. QNWVEC) then
           do isp = 1, ISPIN
-            do iorb = 1, nact_orb
+            do iorb = 1, NORB
               occ(iorb, isp) = CDAMP * occ(iorb, isp) &
                              + (1.0d0 - CDAMP) * mol_ws%popul(IORBT + iorb, isp)
             end do
-            if (nact_orb < NORB) occ(nact_orb + 1 : NORB, isp) = 0.0d0
           end do
         end if
 
@@ -452,9 +450,13 @@ contains
         do isp = 1, ISPIN
           stovl = stovl_bak
           pkpot_bak(:, 1:2, isp) = pkpot(:, 1:2, isp)
-          ! Hydrogen exemption (thesis Eq. III-24): H 1s is valence-like, so the
-          ! energy-weighted projector is negligible; the unweighted pseudometric
-          ! would unphysically remove the bonding orbital -> M = S for H.
+          ! Hydrogen exemption (thesis Eq. III-24): unseeded H 1s is valence-like
+          ! and bonded to a heavy partner, where the unweighted pseudometric would
+          ! unphysically remove the bonding orbital -> M = S for unseeded H.
+          ! When QNWVEC is active, seeded H atoms receive homonuclear H-H PK Pauli
+          ! repulsion (for non-bonded parallel-spin H1..H2 pairs in polyatomics;
+          ! bloop.f90 skips heteronuclear H-X PK transfer so O-H / C-H / N-H bonds
+          ! remain exempt). Flagged for Ch. III adjudication.
           if (QPSMET .and. (nucz > 1.5d0 .or. QNWVEC)) then
             call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, &
                                          merge(0.42d0, 1.0d-3, logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))))
@@ -467,7 +469,11 @@ contains
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
             call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
           end if
-          xpot2(:, isp) = pkpot(:, 3, isp)
+          if (nucz > 1.5d0 .or. .not. QNWVEC) then
+            xpot2(:, isp) = pkpot(:, 3, isp)
+          else
+            xpot2(:, isp) = 0.0d0
+          end if
         end do
 
         !---------------------------------------------------------------
@@ -546,7 +552,7 @@ contains
           do isp = 1, ISPIN
             if (nucz > 1.5d0 .or. QNWVEC) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)
             call UTHU(MSTO, stfock(1,isp), tranx(1,1,isp), scrat1, onfock)
-            call solve_orthonormal_fock(onfock, tranx(1,1,isp), scrat1, onevec, scrat2, &
+            call solve_orthonormal_fock(onfock, tranx(1,1,isp), scrat1, onevec, &
                                         MSTO, M2STO, NORB, &
                                         merge(nact_sto, MSTO, QNWVEC), &
                                         merge(nact_orb, NORB, QNWVEC), ierr)
@@ -557,6 +563,13 @@ contains
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
+            if (.not. QNWVEC) then
+              nact_orb = 0
+              do iorb = 1, NORB
+                if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
+              end do
+              if (nact_orb <= 0) nact_orb = NORB
+            end if
 
             ! Fermi-Dirac atomic occupations: either explicit (SMEARW > 0) or
             ! automatic early-cycle annealing + HOMO-LUMO gap floor on unseeded atoms.
@@ -695,16 +708,12 @@ contains
           if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
             w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
           else
-            do iorb = 1, NORB
-              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
-                w_pk5(iorb) = eval(iorb, isp)
-              else
-                w_pk5(iorb) = 0.0d0
-              end if
-            end do
+            w_pk5(1:NORB) = eval(1:NORB, isp)
           end if
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
-          ! Hydrogen exemption: H emits no projector onto neighboring atoms.
+          ! Hydrogen exemption (thesis Eq. III-24): unseeded H emits no projector.
+          ! Seeded H (QNWVEC) emits pkpot(:,4:5) solely for homonuclear H-H Pauli
+          ! repulsion in polyatomics (bloop.f90 skips heteronuclear H-X PK transfer).
           if (nucz <= 1.5d0 .and. .not. QNWVEC) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
@@ -780,13 +789,7 @@ contains
           if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
             w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
           else
-            do iorb = 1, NORB
-              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
-                w_pk5(iorb) = eval(iorb, isp)
-              else
-                w_pk5(iorb) = 0.0d0
-              end if
-            end do
+            w_pk5(1:NORB) = eval(1:NORB, isp)
           end if
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
           if (nucz <= 1.5d0 .and. .not. QNWVEC) then
@@ -899,13 +902,7 @@ contains
               if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
                 w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
               else
-                do iorb = 1, NORB
-                  if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
-                    w_pk5(iorb) = eval(iorb, isp)
-                  else
-                    w_pk5(iorb) = 0.0d0
-                  end if
-                end do
+                w_pk5(1:NORB) = eval(1:NORB, isp)
               end if
               call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
               ! Hydrogen exemption: H emits no projector onto neighboring atoms.

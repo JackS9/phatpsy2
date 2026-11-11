@@ -220,4 +220,135 @@ class TestCPHFRelaxedGradients:
         assert not stretch_mode.is_imaginary
         assert stretch_mode.frequency_cm > 2000.0
 
+    def test_cphf_dzp_polarization_separation_and_gradient_parity(self, driver):
+        """
+        Polarized DZP basis relaxed-gradient parity test across N2, CO, and H2O
+        at displaced geometries (< 1e-5 Ha/Bohr agreement with central finite
+        differences of the converged SCF energy surface), and verification that
+        the active core+valence STO separation (nact_sto < m, nact_orb < norb)
+        is live in CPHFResponseSolver.
+        """
+        from phatpsy.builder import build_diatomic
+        from phatpsy.schema import ValenceOrbital
+
+        # 1. N2 (DZP, displaced R = 2.15 Bohr)
+        n1_val = [
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="N2"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="N2"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="N2"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        n2_val = [
+            ValenceOrbital(spin="down", occupation=1, orbital_type="sigma",     connect_to="N1"),
+            ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="N1"),
+            ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="N1"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        deck_n2 = build_diatomic(
+            "N", "N",
+            bond_length=2.15,
+            basis="DZP",
+            hybridization="sp",
+            spins=["up", "down"],
+            valence_configs=[n1_val, n2_val],
+            net_spin=0,
+            physical_net_spin=0,
+            units="bohr",
+        )
+        deck_n2.control.convergence = 1e-10
+        deck_n2.control.max_cycles = 200
+        st_n2 = driver.run_deck(deck_n2)
+        assert st_n2["converged"]
+
+        solver_n2 = CPHFResponseSolver(st_n2, deck_n2)
+        cache_n2 = solver_n2._prepare_response_data()
+        for a in (1, 2):
+            aa = cache_n2["atoms"][a]
+            # Verify active core+valence vs 3d polarization separation is live
+            assert aa["nact_sto"] == 10 and aa["m"] == 15
+            assert aa["nact_orb"] == 5 and aa["norb"] == 10
+            # Verify 3d polarization rows/cols of two-center zpot2 and cpot2 are zeroed
+            np.testing.assert_allclose(aa["zpot2"][10:, :], 0.0, atol=1e-14)
+            np.testing.assert_allclose(aa["cpot2"][10:, :], 0.0, atol=1e-14)
+
+        g_n2 = solver_n2.compute_relaxed_gradient()
+        fd_n2 = compute_scf_finite_difference_gradient(driver, deck_n2, step_size=1e-4)
+        np.testing.assert_allclose(g_n2, fd_n2, atol=1e-5)
+
+        # 2. CO (DZP, displaced R = 2.25 Bohr)
+        c_val = [
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="O2"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="O2"),
+            ValenceOrbital(spin="none", occupation=0, orbital_type="pi",        connect_to="O2"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        o_co_val = [
+            ValenceOrbital(spin="down", occupation=1, orbital_type="sigma",     connect_to="C1"),
+            ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="C1"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair", connect_to="C1"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        deck_co = build_diatomic(
+            "C", "O",
+            bond_length=2.25,
+            basis="DZP",
+            hybridization="sp",
+            spins=["up", "down"],
+            valence_configs=[c_val, o_co_val],
+            net_spin=0,
+            physical_net_spin=0,
+            units="bohr",
+        )
+        deck_co.control.convergence = 1e-10
+        deck_co.control.max_cycles = 200
+        st_co = driver.run_deck(deck_co)
+        assert st_co["converged"]
+
+        g_co = compute_polyatomic_relaxed_gradient(st_co, deck_co)
+        fd_co = compute_scf_finite_difference_gradient(driver, deck_co, step_size=1e-4)
+        np.testing.assert_allclose(g_co, fd_co, atol=1e-5)
+
+        # 3. H2O (DZP, displaced R_OH = 1.85 Bohr, theta = 104.5 deg)
+        # Round coordinates to 5 decimal places so deck.geometry matches the
+        # 5-decimal-place &ATOM XYZ= formatting in to_stdin_text() for FD steps of 1e-4.
+        R = 1.85
+        theta = 104.5 * np.pi / 180.0
+        hy = round(float(R * np.sin(theta / 2.0)), 5)
+        hz = round(float(R * np.cos(theta / 2.0)), 5)
+        o_val = [
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="H1"),
+            ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="H2"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+            ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+        ]
+        h1_val = [ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="O1")]
+        h2_val = [ValenceOrbital(spin="down", occupation=1, orbital_type="sigma", connect_to="O1")]
+        deck_h2o = build_molecule(
+            [("O", [0.0, 0.0, 0.0]), ("H", [0.0, hy, hz]), ("H", [0.0, -hy, hz])],
+            basis="DZP",
+            units="bohr",
+            spins=["up", "down", "down"],
+            hybridization=["sp3", "s", "s"],
+            valence_configs=[o_val, h1_val, h2_val],
+            net_spin=-1,
+            physical_net_spin=0,
+        )
+        deck_h2o.control.convergence = 1e-10
+        deck_h2o.control.max_cycles = 200
+        st_h2o = driver.run_deck(deck_h2o)
+        assert st_h2o["converged"]
+
+        solver_h2o = CPHFResponseSolver(st_h2o, deck_h2o)
+        cache_h2o = solver_h2o._prepare_response_data()
+        # Hydrogen DZP active separation: 1s (nact_sto=1) vs 2p polarization (m=4)
+        for a_h in (2, 3):
+            ah = cache_h2o["atoms"][a_h]
+            assert ah["nact_sto"] == 1 and ah["m"] == 4
+            assert ah["nact_orb"] == 1 and ah["norb"] == 4
+
+        g_h2o = solver_h2o.compute_relaxed_gradient()
+        fd_h2o = compute_scf_finite_difference_gradient(driver, deck_h2o, step_size=1e-4)
+        np.testing.assert_allclose(g_h2o, fd_h2o, atol=1e-5)
+
+
 

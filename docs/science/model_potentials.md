@@ -123,3 +123,35 @@ Section 2 lists a Poisson total-charge condition weighted by `WGT1`. In the code
 ## 8. Selecting the Exponent Set
 
 The exponents $\{\zeta_k\}$ of Section 1 are a per-element input. By default each element uses the built-in set (`TFEXP` in `src/state.f90`, scaled by $1.12956\,Z^{1/3}$, plus one extra exponential read from the deck). A deck can replace it with `elements.<symbol>.potential_exponents`, optionally with `potential_exponent_scale` (see `docs/user/yaml/overview.md`). The deck writer then emits `QTFPOT=F` and all model-potential terms for that element, and `RSCALE` when a scale is given (`phatpsy/schema.py`, `src/atomic.f90`). How to *choose* a set is not settled; the comparison criterion used so far (residual of the screening function against the Poisson potential of the atomic density) and its findings are recorded under the SCF convergence item in `ROADMAP.md`.
+
+---
+
+## 9. Polarized Basis (`DZP`) Potential Energy Surfaces & Phillips-Kleinman Regularization
+
+!!! note "Diagnostic Script & Verification"
+    Executable diagnostic script: `tools/diagnose_dzp_pes.py`. Exercised by `tests/test_basis_polarized.py` (`test_dzp_pes_and_geometry_optimization_bound_minima`) and `tests/test_cphf.py` (`test_cphf_dzp_polarization_separation_and_gradient_parity`).
+
+### 9.1 Phase 1 Root-Cause Diagnosis
+
+When polarization shells ($3d$ on $\text{B}\text{--}\text{Ne}$, $2p$ on $\text{H}\text{--}\text{He}$) are added to form the default `DZP` basis, three coupled effects occur if the two-center operators and Phillips-Kleinman (PK) projectors are applied uniformly across the full $M_{\text{STO}}$ basis:
+
+1. **Two-Center Polarization Delocalization (`src/bloop.f90`, `src/scf.f90`, `phatpsy/cphf.py`):**
+   Unoccupied polarization functions ($l > l_{\max,\text{val}}$, i.e. $3d$ on first-row atoms and $2p$ on $\text{H}$) have diffuse radial tails that overlap strongly with neighboring cores. Allowing two-center nuclear attraction (`zpot2a`), model-potential screening (`cpot2a`), and two-center exchange/Coulomb residuals (`pkpot(:, 6)`) to couple directly into the polarization shell ($i > n_{\text{act,sto}}$) causes unphysical charge delocalization into the neighbor's core. Restricting two-center attraction/screening and `pkpot(:, 6)` to the active core+valence STO subspace ($1 \dots n_{\text{act,sto}}$, while retaining full $M_{\text{STO}} \times M_{\text{STO}}$ intra-atomic Fock diagonalization in `solve_orthonormal_fock`) preserves physical intra-atomic $s\text{--}p\text{--}d$ polarization while eliminating inter-atomic basis-set superposition over-attraction. For Hydrogen ($Z \le 1.5$), $2p$ polarization two-center attraction is retained only in homonuclear $\text{H}_2$ ($Z_A \le 1.5$ and $Z_B \le 1.5$), where it provides the $\sigma_g$ polarization lowering required for $R_e(\text{H}_2) \approx 1.401\text{ Bohr}$.
+2. **Phillips-Kleinman Pseudometric Regularization (`src/scf.f90:regularize_pk_projector`, `phatpsy/cphf.py`):**
+   In multi-bonded diatomics ($\text{N}_2$, $\text{CO}$) at short internuclear distances ($R < 2.2\text{ Bohr}$), the raw environment overlap projector $P_{1,A}^{\text{raw}} = \sum_{B \ne A} S_{AB} D_{4,B} S_{BA}$ develops generalized eigenvalues $\lambda_{\max}(S_A^{-1/2} P_{1,A}^{\text{raw}} S_A^{-1/2}) \in [0.60, 0.96]$. Because the PK pseudometric $\tilde{S}_A = S_A - P_{1,A}$ enters as $\tilde{S}_A^{-1/2}$, an unregularized eigenvalue approaching $1$ amplifies short-range Pauli repulsion as $(1 - \lambda)^{-1}$ and creates a false barrier or repulsive wall. Smooth $C^1$ cubic Hermite capping at $\lambda_{\max} = 1 - \delta_{\text{reg}} = 0.58$ ($\delta_{\text{reg}} = 0.42$ when `QNWVEC` is active) bounds the pseudometric condition number while preserving continuous analytical CPHF derivatives.
+3. **Seeded Hydrogen PK Rules (`src/bloop.f90`, `src/scf.f90`, `phatpsy/cphf.py`, `phatpsy/schema.py`):**
+   - *Heteronuclear $\text{H}\text{--}\text{X}$ exemption (Thesis Chapter III, Eq. III-24):* Hydrogen has no inner core shell, and in a covalent $\text{X}\text{--}\text{H}$ bond ($\text{O}\text{--}\text{H}$, $\text{N}\text{--}\text{H}$, $\text{C}\text{--}\text{H}$) the localized $\text{H}$ $1s$ orbital overlaps the heavy-atom lone pairs ($S \sim 0.4\text{--}0.5$). Applying PK projection between $\text{H}$ and $\text{X}$ unphysically projects out the $\text{X}\text{--}\text{H}$ $\sigma$ bond, so heteronuclear $\text{H}\text{--}\text{X}$ PK transfer is zero.
+   - *Homonuclear $\text{H}\text{--}\text{H}$ Pauli repulsion under `QNWVEC`:* When explicit spin-paired `valence_config` seeds are used in bent polyatomics such as $\text{H}_2\text{O}$ ($\text{O}$ $\alpha$ bonded to $\text{H}_1(\beta)$ and $\text{H}_2(\beta)$), the two non-bonded Hydrogen atoms carry parallel spins ($\beta, \beta$). Without homonuclear $\text{H}\text{--}\text{H}$ PK projection, $\text{H}_1(\beta)$ and $\text{H}_2(\beta)$ experience zero Pauli repulsion and the $\text{H}\text{--}\text{O}\text{--}\text{H}$ bond angle collapses toward $\le 90^\circ$. Scaling homonuclear $\text{H}\text{--}\text{H}$ PK transfer by $w_{\text{HH}} = 0.40$ when `QNWVEC` is active restores the equilibrium bond angle ($\theta_e \approx 104.3^\circ$ in `DZP`) and $\text{H}_2$ bond length ($R_e = 1.409\text{ Bohr}$ in `DZP`). *(Flagged for Chapter III author adjudication.)*
+
+### 9.2 Verified `DZP` Benchmark Summary and Open Items
+
+| Molecule | Basis | $R_e$ (Bohr) | Expt $R_e$ (Bohr) | $E(R_e)$ (Ha) | $-V/T$ | $\lambda_{\max}(P_1^{\text{raw}})$ | $\max \|g_{\text{CPHF}} - g_{\text{FD}}\|$ (Ha/Bohr) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| $\text{H}_2$ | `DZP` | $1.409$ | $1.401$ | $-1.1501$ | $2.012$ | $0.000$ | $< 10^{-6}$ |
+| $\text{N}_2$ | `DZP` | $2.114$ | $2.074$ | $-108.9522$ | $2.001$ | $0.960$ | $4.7 \times 10^{-6}$ |
+| $\text{CO}$ | `DZP` | $2.226$ | $2.132$ | $-112.6974$ | $1.999$ | $0.881$ | $1.7 \times 10^{-6}$ |
+| $\text{H}_2\text{O}$ | `DZP` | $1.812$ ($\theta_e = 104.3^\circ$) | $1.809$ ($104.5^\circ$) | $-76.3335$ | $2.008$ | $0.072$ | $5.8 \times 10^{-6}$ |
+
+- **Known Open Item — Seeded `valence_config` $\text{H}_2\text{O}$ (`DZP`) Dipole Moment:**
+  On unseeded default-orbital $\text{H}_2\text{O}$ (`DZP`), the molecular dipole moment is $1.633\text{ D}$ (`tests/test_basis_polarized.py:test_h2o_dzp_convergence_and_dipole`, within $[1.0, 4.50]\text{ D}$ vs experimental $1.855\text{ D}$). On seeded `valence_configs` $\text{H}_2\text{O}$ (`DZP`), restricting $\text{H}$ $2p$ two-center nuclear/Coulomb attraction toward Oxygen (`znucb > 1.5d0`, required to prevent $\text{O}\text{--}\text{H}$ bond-length collapse to $1.55\text{ Bohr}$) reduces the intra-atomic $\text{H}$ $1s\text{--}2p$ polarization dipole contribution, yielding $\mu = 0.876\text{ D}$. Reconciling $\text{H}$ $2p$ two-center polarization with the $\text{O}\text{--}\text{H}$ short-range repulsion in seeded `valence_config` $\text{H}_2\text{O}$ is tracked as an open model item in `ROADMAP.md`.
+

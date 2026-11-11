@@ -363,8 +363,7 @@ contains
           if (.not. QRSTRT) then
             call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
             call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                        merge(occ(1:NORB,isp) * eval(1:NORB,isp), &
-                              merge(eval(1:NORB,isp), 0.0d0, sum(occ(1:NORB,1:ISPIN), dim=2) > 1.0d-6), &
+                        merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
                               logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
             if (znuc <= 1.5d0 .and. .not. QNWVEC) then
               pkpot(:,4,isp) = 0.0d0
@@ -513,10 +512,9 @@ contains
               do isp = 1, ISPIN
                 call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
                 call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                            merge(occ(1:NORB,isp) * eval(1:NORB,isp), &
-                                  merge(eval(1:NORB,isp), 0.0d0, sum(occ(1:NORB,1:ISPIN), dim=2) > 1.0d-6), &
+                            merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
                                   logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
-                if (znuc <= 1.5d0 .and. .not. QNWVEC) then
+                if (znuc <= 1.5d0) then
                   pkpot(:, 4, isp) = 0.0d0
                   pkpot(:, 5, isp) = 0.0d0
                 else

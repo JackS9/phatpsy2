@@ -951,6 +951,14 @@ class CPHFResponseSolver:
             return dC_bar @ M_mhalf + C_bar @ dM_mhalf
 
         def _pk_pair_weight(aa_rec, ab_rec) -> float:
+            # Mirror src/bloop.f90:294-312 PK projector transfer weights:
+            # 1) Heteronuclear H-X pairs (one Z <= 1.5, one Z > 1.5) are exempt from
+            #    PK projection (Thesis Eq. III-24) so H 1s is not projected out of the
+            #    X-H bonding space and does not force a radial node into X's valence shell.
+            # 2) Homonuclear H-H pairs receive a 0.40 PK transfer weight when QNWVEC is
+            #    active (and 0.0 when unseeded) to supply Pauli orthogonalization between
+            #    non-bonded parallel-spin H atoms (e.g. H1(beta)..H2(beta) in H2O) without
+            #    over-projecting the diffuse 1s (zeta=1.0) valence tails.
             if (aa_rec["znuc"] <= 1.5) != (ab_rec["znuc"] <= 1.5):
                 return 0.0
             if aa_rec["znuc"] <= 1.5 and ab_rec["znuc"] <= 1.5:
@@ -962,17 +970,18 @@ class CPHFResponseSolver:
 
         for a, aa in atoms.items():
             m, m2, norb = aa["m"], aa["m2"], aa["nact_orb"]
-            n_sel = m
             S_A, ontran = aa["stovl"], aa["ontran"]
             w_s, v_s = np.linalg.eigh(S_A)
             S_mhalf = (v_s / np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             S_half = (v_s * np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             H0_A = _unpack_packed(_phatpsy_core.state.get_atom_elem_sthmat(a, m2).ravel(), m)
-            has_pk = qpsmet and (aa["znuc"] > 1.5 or qnwvec) and (
-                float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
-            )
+            has_pk = qpsmet and (aa["znuc"] > 1.5 or qnwvec)
             for s in range(self.ispin):
-                X2_A = _unpack_packed(aa["pkpot"][:, 2, s], m)
+                X2_A = (
+                    _unpack_packed(aa["pkpot"][:, 2, s], m)
+                    if (aa["znuc"] > 1.5 or not qnwvec)
+                    else np.zeros((m, m), dtype=np.float64)
+                )
                 if has_pk:
                     # Reconstruct raw environment projectors P1_A, P2_A from neighbor D4_B, D5_B
                     P1_A = np.zeros((m, m), dtype=np.float64)
@@ -1025,16 +1034,13 @@ class CPHFResponseSolver:
                 S_tilde = S_A - P1_reg
                 w_st, v_st = np.linalg.eigh(S_tilde)
                 St_mhalf = (v_st / np.sqrt(np.maximum(w_st, 1e-12))) @ v_st.T
+                # Note: solve_orthonormal_fock in src/scf.f90:45 diagonalizes the full
+                # m x m orthonormal Fock matrix F_on (allowing intra-atomic hybrid/3d
+                # polarization mixing); the active core+valence STO separation (1..nact_sto)
+                # is enforced on two-center zpot2a/cpot2a (lines 658-663) and pkpot(:,6)
+                # (lines 747-750, 856-859), not by block-diagonalizing F_on.
                 F_on = St_mhalf.T @ (F_A - P2_reg) @ St_mhalf
-                if 0 < n_sel < m:
-                    eval_1, evec_1 = np.linalg.eigh(F_on[:n_sel, :n_sel])
-                    eval_2, evec_2 = np.linalg.eigh(F_on[n_sel:, n_sel:])
-                    eval_t = np.concatenate([eval_1, eval_2])
-                    evec_t = np.zeros((m, m), dtype=np.float64)
-                    evec_t[:n_sel, :n_sel] = evec_1
-                    evec_t[n_sel:, n_sel:] = evec_2
-                else:
-                    eval_t, evec_t = np.linalg.eigh(F_on)
+                eval_t, evec_t = np.linalg.eigh(F_on)
                 C_tilde = St_mhalf @ evec_t
 
                 occ_s = aa["occ"][:norb, s]
@@ -1103,7 +1109,6 @@ class CPHFResponseSolver:
                     "H0_A": H0_A,
                     "has_pk": has_pk,
                     "norb": norb,
-                    "n_sel": n_sel,
                 }
 
         slot_lookup = {slot: idx for idx, slot in enumerate(occ_slots)}
@@ -1114,7 +1119,7 @@ class CPHFResponseSolver:
             dC_act_map = {}
             for (a, s), pd in pk_data.items():
                 S_A = pd["S_A"]
-                m, norb, n_sel = S_A.shape[0], pd["norb"], pd["n_sel"]
+                m, norb = S_A.shape[0], pd["norb"]
                 if pd["has_pk"]:
                     dP1_raw = dP1_raw_dict[(a, s)]
                     dP2_r = dP2_raw_dict[(a, s)]
@@ -1129,7 +1134,7 @@ class CPHFResponseSolver:
                 for p in range(m):
                     W[p, p] = 0.5 * float(Ct[:, p].T @ dP1_r @ Ct[:, p])
                     for q in range(m):
-                        if (p < n_sel) == (q < n_sel) and abs(ev[p] - ev[q]) > 1e-4:
+                        if abs(ev[p] - ev[q]) > 1e-4:
                             W[q, p] = float(Ct[:, q].T @ (dF - dP2_r + ev[p] * dP1_r) @ Ct[:, p]) / (
                                 ev[p] - ev[q]
                             )

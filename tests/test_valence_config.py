@@ -944,5 +944,90 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     assert "RMAX=5.00000" in stdin_coni
 
 
+def test_co_dative_pi_fractional_occupations_and_dz_parity():
+    """
+    Dedicated verification of the CO terminal sp dative-pi fractional occupation
+    sharing in build_atom_orbitals_from_valence_config (phatpsy/hybrids.py:1298-1337):
+    1. Group 14 acceptor (C, 4 valence e-) places its outward sigma lone-pair spin
+       opposite its sigma_in/pi_y bonding spin ([0.0, 1.0] vs [1.0, 0.0]), and shares
+       [1.0, 0.0] on both pi_x and pi_y (conserving 4.0 valence electrons).
+    2. Group 16 donor (O, 6 valence e-) shares 0.5 electron from its dative pi_x
+       donor across pi_x and pi_y ([0.5, 1.0] each), with [0.0, 1.0] on sigma_in
+       and [1.0, 1.0] on its outward sigma lone pair (conserving 6.0 valence electrons),
+       matching build_atom_orbitals(hybridization='sp') in both DZ and DZP.
+    3. Verified DZ CO SCF convergence, total energy, and virial ratio are unchanged
+       between valence_config and hybridization='sp' seeding.
+    """
+    from phatpsy.builder import build_diatomic
+    from phatpsy.driver import PhatpsyDriver
+    from phatpsy.schema import ValenceOrbital
+
+    c_val = [
+        ValenceOrbital(spin="up",   occupation=1, orbital_type="sigma",     connect_to="O2"),
+        ValenceOrbital(spin="up",   occupation=1, orbital_type="pi",        connect_to="O2"),
+        ValenceOrbital(spin="none", occupation=0, orbital_type="pi",        connect_to="O2"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+    ]
+    o_val = [
+        ValenceOrbital(spin="down", occupation=1, orbital_type="sigma",     connect_to="C1"),
+        ValenceOrbital(spin="down", occupation=1, orbital_type="pi",        connect_to="C1"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair", connect_to="C1"),
+        ValenceOrbital(spin="none", occupation=2, orbital_type="lone_pair"),
+    ]
+
+    for basis_name in ("DZ", "DZP"):
+        deck_vc = build_diatomic(
+            "C", "O",
+            bond_length=2.132,
+            basis=basis_name,
+            hybridization="sp",
+            spins=["up", "down"],
+            valence_configs=[c_val, o_val],
+            net_spin=0,
+            physical_net_spin=0,
+            units="bohr",
+        )
+        deck_hyb = build_diatomic(
+            "C", "O",
+            bond_length=2.132,
+            basis=basis_name,
+            hybridization="sp",
+            spins=["up", "down"],
+            net_spin=0,
+            units="bohr",
+            seed_hybrids=True,
+        )
+
+        c_orbs_vc = deck_vc.geometry[0].starting_orbitals[1:5]
+        o_orbs_vc = deck_vc.geometry[1].starting_orbitals[1:5]
+
+        # Total valence electron count conserved on C (4.0) and O (6.0)
+        assert sum(sum(o.occno) for o in c_orbs_vc) == pytest.approx(4.0)
+        assert sum(sum(o.occno) for o in o_orbs_vc) == pytest.approx(6.0)
+
+        # C valence occupations: three [1.0, 0.0] (sigma_in, pi_x, pi_y) and one [0.0, 1.0] (sigma_out LP)
+        c_occs = sorted([list(o.occno) for o in c_orbs_vc])
+        assert c_occs == [[0.0, 1.0], [1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]
+
+        # O valence occupations: one [0.0, 1.0] (sigma_in), two [0.5, 1.0] (pi_x, pi_y), one [1.0, 1.0] (sigma_out LP)
+        o_occs = sorted([list(o.occno) for o in o_orbs_vc])
+        assert o_occs == [[0.0, 1.0], [0.5, 1.0], [0.5, 1.0], [1.0, 1.0]]
+
+        # Matches build_atom_orbitals(hybridization="sp") occupation multiset on both atoms
+        c_orbs_hyb = deck_hyb.geometry[0].starting_orbitals[1:5]
+        o_orbs_hyb = deck_hyb.geometry[1].starting_orbitals[1:5]
+        assert sorted([list(o.occno) for o in c_orbs_hyb]) == c_occs
+        assert sorted([list(o.occno) for o in o_orbs_hyb]) == o_occs
+
+        if basis_name == "DZ":
+            driver = PhatpsyDriver(quiet=True)
+            res_vc = driver.run_deck(deck_vc)
+            res_hyb = driver.run_deck(deck_hyb)
+            assert res_vc.converged and res_hyb.converged
+            assert float(res_vc.total_energy) == pytest.approx(float(res_hyb.total_energy), abs=1e-6)
+            assert float(res_vc.virial_ratio) == pytest.approx(float(res_hyb.virial_ratio), abs=1e-5)
+
+
+
 
 
