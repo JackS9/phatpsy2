@@ -505,12 +505,19 @@ def evaluate_chemisorption_energy(
     excess_e = float(decomp.energy_excess) if decomp else 0.0
     embed_e = float(decomp.energy_embedding) if decomp else 0.0
 
-    # Adsorbate charge transfer
+    # Adsorbate charge transfer (from EWMO Löwdin populations when available)
     net_q = 0.0
     net_s = 0.0
     for a in adsorbate_atoms:
         atom_st = res_slab_ads.get_embedded_atom(a.id)
         if atom_st:
+            if atom_st.orbitals:
+                pop_a = sum(float(o.get("population_alpha", 0.0)) for o in atom_st.orbitals)
+                pop_b = sum(float(o.get("population_beta", 0.0)) for o in atom_st.orbitals)
+                if not (np.isnan(pop_a) or np.isnan(pop_b)) and (pop_a + pop_b) > 0.0:
+                    net_q += float(atom_st.nuclear_charge) - (pop_a + pop_b)
+                    net_s += pop_a - pop_b
+                    continue
             net_q += float(atom_st.net_charge)
             net_s += float(atom_st.net_spin)
 

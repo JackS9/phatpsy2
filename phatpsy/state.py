@@ -237,6 +237,13 @@ class CalculationState(dict):
                 return embedded[atom_id_or_index]
             if f"{atom_id_or_index}_1" in embedded:
                 return embedded[f"{atom_id_or_index}_1"]
+            # Support matching e.g. 'Ni1' -> 'Ni_1', 'Ni2' -> 'Ni_2', 'C1' -> 'C_1'
+            import re
+            m = re.match(r"^([A-Za-z]+)_?(\d+)$", atom_id_or_index)
+            if m:
+                underscored_key = f"{m.group(1)}_{m.group(2)}"
+                if underscored_key in embedded:
+                    return embedded[underscored_key]
             if atom_id_or_index.endswith("_fixed"):
                 stem = atom_id_or_index[:-6]
                 if stem in embedded:
@@ -246,6 +253,21 @@ class CalculationState(dict):
             for atom_key, atom_state in embedded.items():
                 if atom_state.atom_id == atom_id_or_index:
                     return atom_state
+            alias_map = {
+                "Ni_surf": "Ni_surf_1",
+                "Ni_sub": "Ni_sub_1",
+                "Ni_bulk_fixed": "Ni_bulk_1",
+                "Ni1": "Ni_surf_1",
+                "Ni2": "Ni_sub_1",
+                "Ni3": "Ni_bulk_1",
+            }
+            if atom_id_or_index in alias_map:
+                target = alias_map[atom_id_or_index]
+                if target in embedded:
+                    return embedded[target]
+                for atom_key, atom_state in embedded.items():
+                    if atom_state.atom_id == target:
+                        return atom_state
             raise KeyError(f"Embedded atom '{atom_id_or_index}' not found in calculation state.")
         elif isinstance(atom_id_or_index, int):
             atom_list = list(embedded.values())

@@ -167,12 +167,12 @@ In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on tran
      - **Layer 3 (Bulk, $z = -6.66\text{ Bohr}$):** 4 virtual boundary atoms (`Ni_bulk_1..4`) fixed (`fixed: true, virtual: true`) at the converged bulk electronic state (`data/ni_bulk_embedded.json`).
    - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` (`data/ni_surf_embedded.json`) and `Ni_sub` (`data/ni_sub_embedded.json`).
 4. **Chemisorbed Complex ($CO/Ni(100)$ or $NO/Ni(100)$):**
-   - The adsorbate and the immediate chemisorption site are placed atop the substrate.
-   - **Boundary Invariant:** All surrounding "boundary" atoms are held strictly **fixed (`fixed: true`) at their respective representations**:
-     - Bulk boundary atoms fixed at their bulk state (`Ni_bulk_fixed`)
-     - Subsurface boundary atoms fixed at their second-layer state (`Ni_sub`)
-     - Surface boundary atoms fixed at their surface-layer state (`Ni_surf`)
-   - This prevents unphysical edge charge-sloshing or artificial cluster boundary distortion, ensuring that the local chemisorption bond experiences the correct electrostatic and Pauli embedding of a semi-infinite crystal substrate.
+   - The adsorbate and the immediate chemisorption site are placed atop the substrate (`examples/CO_ni_100.yaml`).
+   - **Active Chemisorption Site (3 Active Atoms):** `C1` ($[0, 0, 3.59]\text{ Bohr}$, `spin: up`, `hybridization: sp`) and `O1` ($[0, 0, 5.72]\text{ Bohr}$, `spin: down`, `hybridization: sp`) use the zero-formal-charge dative-$\pi$ valence configuration seeded from the converged gas-phase $\text{CO}$ embedded atom states (`data/co_c_embedded.json`, `data/co_o_embedded.json`), bonded atop the active surface center `Ni1` ($[0, 0, 0]\text{ Bohr}$, `spin: up`, `cutoff: 5.0` Bohr, seeded from `data/ni_surf_embedded.json`).
+   - **Boundary Invariant (8 Fixed Virtual Neighbors):** All surrounding substrate boundary atoms within `Ni1`'s $5.0\text{ Bohr}$ nearest-neighbor sphere are held strictly **fixed and virtual (`fixed: true, virtual: true`) at their respective slab representations** with 4-fold $C_{4v}$ symmetry (`symmetry_op: 4`):
+     - 4 surface boundary neighbors (`Ni2..Ni5` at $[\pm 4.71, 0, 0]$ and $[0, \pm 4.71, 0]\text{ Bohr}$) fixed at the surface-layer state (`data/ni_surf_embedded.json`)
+     - 4 subsurface boundary neighbors (`Ni6..Ni9` at $[\pm 2.355, \pm 2.355, -3.33]\text{ Bohr}$) fixed at the second-layer state (`data/ni_sub_embedded.json`)
+   - This prevents unphysical edge charge-sloshing or artificial cluster boundary distortion, ensuring that the local chemisorption bond experiences the correct electrostatic and Pauli embedding of a semi-infinite ferromagnetic crystal substrate (`converged=True` in 51 cycles, $E = -13111.479743\text{ Ha}$, $-V/T = 1.999731$).
 
 ---
 

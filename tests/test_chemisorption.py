@@ -40,7 +40,6 @@ def no_ni100_deck(repo_root):
 @pytest.fixture
 def co_ni100_deck(repo_root):
     deck = CalculationDeck.from_yaml(repo_root / "examples" / "CO_ni_100.yaml")
-    deck.control.max_cycles = 10
     return deck
 
 
@@ -178,3 +177,27 @@ def test_evaluate_no_ni100_benchmark():
     assert bench["adsorption_energy_kcal_mol"] == -23.06
     assert 0.2 <= bench["metal_scls_ev"] <= 0.6
     assert abs(bench["vibrational_frequency_cm"] - 1621.0) < 5.0
+
+
+def test_co_ni100_chemisorption_and_c4v_dband(co_ni100_deck):
+    """
+    Test full SCF convergence, virial invariant, C4v d-band projection, and
+    chemisorption energetics for CO on ferromagnetic Ni(100) seeded from embedded
+    CO and Ni(100) slab states.
+    """
+    driver = PhatpsyDriver(quiet=True)
+    res = driver.run_deck(co_ni100_deck)
+    assert res.converged
+    assert abs(res.virial_ratio - 2.0) <= 0.05
+
+    c4v = project_c4v_dband(res, atom_id="Ni1")
+    assert c4v.total_d_population > 17.0
+    assert c4v.crystal_field_splitting_ev > 0.1
+    assert c4v.sigma_donation_index > 0.0
+    assert c4v.pi_backdonation_index > 0.0
+
+    ads_co = evaluate_chemisorption_energy(res, driver=driver, site_name="top")
+    assert ads_co.converged
+    assert -32.0 <= ads_co.energy_ads_kcal_mol <= -28.0
+    assert abs(ads_co.adsorbate_net_charge) > 0.01
+

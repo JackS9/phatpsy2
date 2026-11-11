@@ -84,22 +84,14 @@ def evaluate_co_benchmark(
     """
     Evaluates CO polar benchmark against NIST CCCBDB:
     R_expt = 2.132 Bohr (1.1283 Angstrom), omega_e = 2169.81 cm^-1, mu = 0.112 Debye.
+    Uses the zero-formal-charge dative-pi valence configuration (examples/CO.yaml).
     """
     d = driver or PhatpsyDriver(quiet=True)
-    ctrl = control or ControlConfig()
+    repo_root = Path(__file__).resolve().parent.parent
+    deck = CalculationDeck.from_yaml(repo_root / "examples" / "CO.yaml")
+    if control is not None:
+        deck.control = control
     r_expt = 2.132
-
-    deck = build_diatomic(
-        "C",
-        "O",
-        r_expt,
-        basis="DZ",
-        hybridization="sp",
-        spins=["up", "down"],
-        net_spin=0,
-        units="bohr",
-    )
-    deck.control = ctrl
     res = d.run_deck(deck)
 
     eom = compute_eom(deck, driver=d, quiet=True)
@@ -366,8 +358,8 @@ def evaluate_ni100_slab_benchmark(
         deck.control = control
 
     res = d.run_deck(deck)
-    surf_atom = res.get_embedded_atom("Ni_surf")
-    sub_atom = res.get_embedded_atom("Ni_sub")
+    surf_atom = res.get_embedded_atom("Ni1")
+    sub_atom = res.get_embedded_atom("Ni2")
 
     return {
         "system": "Ni100_Slab",

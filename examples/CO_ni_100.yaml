@@ -1,8 +1,8 @@
-title: '... CO on Ni(100), R(CO)=2.13, R(NiC)=3.59...'
-net_spin: 1
+title: '... CO on Ni(100), R(CO)=2.13, R(NiC)=3.59 ...'
+net_spin: 9
 control:
   spin_unrestricted: true
-  max_cycles: 40
+  max_cycles: 100
   convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
@@ -20,6 +20,7 @@ geometry:
   id: C1
   spin: up
   hybridization: sp
+  embedded_state: data/co_c_embedded.json
   valence_config:
   - spin: up
     occupation: 1
@@ -44,6 +45,7 @@ geometry:
   id: O1
   spin: down
   hybridization: sp
+  embedded_state: data/co_o_embedded.json
   valence_config:
   - spin: down
     occupation: 1
@@ -67,13 +69,18 @@ geometry:
   - 0.0
   id: Ni1
   spin: up
+  cutoff: 5.0
+  embedded_state: data/ni_surf_embedded.json
 - element: Ni
   xyz:
   - 4.71
   - 0.0
   - 0.0
   id: Ni2
-  spin: down
+  fixed: true
+  virtual: true
+  spin: up
+  embedded_state: data/ni_surf_embedded.json
 - element: Ni
   xyz:
   - 0.0
@@ -84,6 +91,7 @@ geometry:
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
+  virtual: true
   spin: up
 - element: Ni
   xyz:
@@ -95,7 +103,8 @@ geometry:
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
-  spin: down
+  virtual: true
+  spin: up
 - element: Ni
   xyz:
   - 0.0
@@ -106,48 +115,54 @@ geometry:
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
+  virtual: true
   spin: up
 - element: Ni
   xyz:
-  - -2.72
-  - -2.72
-  - -2.72
+  - -2.355
+  - -2.355
+  - -3.33
   id: Ni6
   fixed: true
+  virtual: true
   spin: up
+  embedded_state: data/ni_sub_embedded.json
 - element: Ni
   xyz:
-  - 2.72
-  - -2.72
-  - -2.72
+  - 2.355
+  - -2.355
+  - -3.33
   id: Ni7
   equivalent_to: Ni6
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
-  spin: down
+  virtual: true
+  spin: up
 - element: Ni
   xyz:
-  - 2.72
-  - 2.72
-  - -2.72
+  - 2.355
+  - 2.355
+  - -3.33
   id: Ni8
   equivalent_to: Ni6
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
+  virtual: true
   spin: up
 - element: Ni
   xyz:
-  - -2.72
-  - 2.72
-  - -2.72
+  - -2.355
+  - 2.355
+  - -3.33
   id: Ni9
   equivalent_to: Ni6
   symmetry_op: 4
   symmetry_axis: 1
   fixed: true
-  spin: down
+  virtual: true
+  spin: up
 elements:
   C:
     symbol: C

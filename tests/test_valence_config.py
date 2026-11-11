@@ -910,6 +910,39 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     assert "MDIFAT=3" in stdin_slab
     assert "RMAX=5.00000" in stdin_slab
 
+    # 7. CO dative-pi donor construction and CO/Ni(100) chemisorption deck
+    deck_co = CalculationDeck.from_yaml(repo_root / "examples" / "CO.yaml")
+    deck_co.validate()
+    apply_hybrid_seeds(deck_co)
+    c1_co, o1_co = deck_co.geometry[0], deck_co.geometry[1]
+    assert c1_co.charge == 0.0 and o1_co.charge == 0.0
+    # Verify O1's dative-pi lone_pair(connect_to='C1') builds an orthogonal ml=+1 pi orbital
+    # rather than a duplicate ml=0 sigma hybrid
+    o1_orbs = o1_co.starting_orbitals[1:]  # 4 valence orbitals
+    o1_mls = [{c[1] for c in orb.coefficients} for orb in o1_orbs]
+    assert {0} in o1_mls
+    assert {-1} in o1_mls
+    assert {1} in o1_mls
+
+    deck_coni = CalculationDeck.from_yaml(repo_root / "examples" / "CO_ni_100.yaml")
+    deck_coni.validate()
+    assert len(deck_coni.geometry) == 11
+    assert deck_coni.net_spin == 9
+    coni_by_id = {at.id: at for at in deck_coni.geometry}
+    assert coni_by_id["C1"].virtual is False and coni_by_id["C1"].fixed is False
+    assert coni_by_id["O1"].virtual is False and coni_by_id["O1"].fixed is False
+    assert coni_by_id["Ni1"].virtual is False and coni_by_id["Ni1"].fixed is False
+    assert coni_by_id["Ni1"].cutoff == 5.0
+    assert coni_by_id["C1"].embedded_state is not None
+    assert coni_by_id["O1"].embedded_state is not None
+    assert coni_by_id["Ni1"].embedded_state is not None
+    for s_id in ("Ni2", "Ni3", "Ni4", "Ni5", "Ni6", "Ni7", "Ni8", "Ni9"):
+        assert coni_by_id[s_id].fixed is True
+        assert coni_by_id[s_id].virtual is True
+    stdin_coni = deck_coni.to_stdin_text()
+    assert "MDIFAT=3" in stdin_coni
+    assert "RMAX=5.00000" in stdin_coni
+
 
 
 

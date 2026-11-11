@@ -1049,11 +1049,35 @@ def build_atom_orbitals_from_valence_config(
     has_d = (spec.has_d_orbitals if spec is not None else False) or is_tm_d
     dim = 9 if has_d else 4
 
-    # 1. Identify directed sigma-hybrid orbitals (sigma with connect_to, plus dative lone_pair with connect_to)
+    # 1. Distinguish dative pi lone_pair donors from dative sigma lone_pair donors
+    sigma_targets = {orb.connect_to for orb in entries if orb.orbital_type == "sigma" and orb.connect_to}
+    n_explicit_pi = sum(1 for orb in entries if orb.orbital_type == "pi")
+    pi_deficit = max(0, (spec.n_pi - n_explicit_pi)) if spec is not None else 0
+    dative_pi_indices: set[int] = set()
+    my_id = getattr(atom, "id", None)
+    for idx_e, orb in enumerate(entries):
+        if orb.orbital_type == "lone_pair" and orb.connect_to:
+            is_dative_pi = orb.connect_to in sigma_targets
+            if not is_dative_pi and atoms_by_id and orb.connect_to in atoms_by_id:
+                partner = atoms_by_id[orb.connect_to]
+                p_vc = getattr(partner, "valence_config", None) or []
+                if any(
+                    getattr(po, "occupation", None) == 0
+                    and getattr(po, "orbital_type", None) == "pi"
+                    and (not my_id or getattr(po, "connect_to", None) == my_id)
+                    for po in p_vc
+                ):
+                    is_dative_pi = True
+            if not is_dative_pi and pi_deficit > len(dative_pi_indices):
+                is_dative_pi = True
+            if is_dative_pi:
+                dative_pi_indices.add(idx_e)
+
+    # Identify directed sigma-hybrid orbitals (sigma with connect_to, plus dative sigma lone_pair with connect_to)
     directed_sigma_indices: List[int] = []
     directed_sigma_dirs: List[np.ndarray] = []
     for idx_e, orb in enumerate(entries):
-        if orb.orbital_type in ("sigma", "lone_pair") and orb.connect_to:
+        if (orb.orbital_type == "sigma" or (orb.orbital_type == "lone_pair" and idx_e not in dative_pi_indices)) and orb.connect_to:
             u = _resolve_dir(orb.connect_to)
             if u is not None:
                 directed_sigma_indices.append(idx_e)
@@ -1082,7 +1106,7 @@ def build_atom_orbitals_from_valence_config(
     if not directed_sigma_dirs:
         sigma_entry_indices = [
             idx_e for idx_e, orb in enumerate(entries)
-            if orb.orbital_type == "sigma" or (orb.orbital_type == "lone_pair" and orb.connect_to)
+            if orb.orbital_type == "sigma" or (orb.orbital_type == "lone_pair" and orb.connect_to and idx_e not in dative_pi_indices)
         ]
         if spec is not None and spec.canonical_sigma_dirs:
             n_take = min(len(sigma_entry_indices), len(spec.canonical_sigma_dirs))
@@ -1144,7 +1168,10 @@ def build_atom_orbitals_from_valence_config(
             sigma_basis = []
 
         # 3. Resolve 3D directions for pi orbitals and orthonormalize against sigma_basis
-        pi_indices = [idx_e for idx_e, orb in enumerate(entries) if orb.orbital_type == "pi"]
+        pi_indices = [
+            idx_e for idx_e, orb in enumerate(entries)
+            if orb.orbital_type == "pi" or idx_e in dative_pi_indices
+        ]
         pi_vecs: List[np.ndarray] = []
         raw_pi_dirs: List[np.ndarray] = []
         default_mol_normal = _plane_normal(directed_sigma_dirs) if len(directed_sigma_dirs) >= 2 else None

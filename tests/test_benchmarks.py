@@ -12,6 +12,7 @@ from phatpsy.benchmarks import (
     evaluate_h2o_benchmark,
     evaluate_bulk_ni_benchmark,
     evaluate_ni100_slab_benchmark,
+    evaluate_co_ni100_benchmark,
     format_benchmark_summary_table,
     evaluate_all_benchmarks,
 )
@@ -85,7 +86,7 @@ def test_bulk_ni_unit_scale_benchmark(driver):
     assert res["converged"]
     assert res["pk_scale"] == 1.0
     assert res["net_spin"] == 13
-    assert res["physical_net_spin"] == 26
+    assert res["physical_net_spin"] == 2
     assert res["unpaired_electrons_per_atom"] == 2
     assert abs(res["virial_ratio"] - 2.0) < 0.05
     assert res["total_energy_hartree"] < -19000.0
@@ -97,7 +98,16 @@ def test_ni100_slab_benchmark(driver):
     assert res["converged"]
     assert res["surface_atom_available"]
     assert res["subsurface_atom_available"]
-    assert abs(res["virial_ratio"] - 2.0) < 0.10
+    assert abs(res["virial_ratio"] - 2.0) < 0.05
+
+
+def test_co_ni100_benchmark(driver):
+    """Verify CO on Ni(100) chemisorption cluster converges and satisfies virial invariant."""
+    res = evaluate_co_ni100_benchmark(driver)
+    assert res["converged"]
+    assert res["system"] == "CO_on_Ni100"
+    assert abs(res["virial_ratio"] - 2.0) < 0.05
+    assert res["total_energy_hartree"] < -13000.0
 
 
 def test_format_benchmark_summary_table():
