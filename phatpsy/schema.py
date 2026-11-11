@@ -1848,7 +1848,9 @@ class CalculationDeck:
                 if ed.atomic_number == 1 and (
                     p_atom.valence_config
                     or p_atom.hybridization
-                    or any(a.valence_config or a.hybridization for a in self.geometry)
+                    or p_atom.starting_orbitals
+                    or (len(unique_elems) == 1 and ctrl.spin_unrestricted)
+                    or any(a.valence_config or a.hybridization or a.starting_orbitals for a in self.geometry)
                 ):
                     flags.append("QNWVEC=T")
                 if group_idx > 0 and has_custom_orbs:

@@ -426,7 +426,7 @@ contains
       !   populated orbitals across 1..NORB (and recomputed after solve_orthonormal_fock),
       !   while CDAMP updates all 1..NORB slots from EWMO populations (mol_ws%popul) so
       !   unseeded SZ/DZ/DZP calculations retain exact historical convergence and CPHF parity.
-      if (QNWVEC) then
+      if (QNWVEC .or. (NELEM == 1 .and. nucz <= 1.5d0)) then
         nact_orb = NORB - (MSTO - nact_sto)
       else
         nact_orb = 0
@@ -439,7 +439,7 @@ contains
 
       if (.not. QVIRTL) then
 
-        if (.not. QFIRST .and. .not. QNWVEC) then
+        if (.not. QFIRST .and. .not. QNWVEC .and. .not. (NELEM == 1 .and. nucz <= 1.5d0)) then
           do isp = 1, ISPIN
             do iorb = 1, NORB
               occ(iorb, isp) = CDAMP * occ(iorb, isp) &
@@ -565,8 +565,8 @@ contains
             call UTHU(MSTO, stfock(1,isp), tranx(1,1,isp), scrat1, onfock)
             call solve_orthonormal_fock(onfock, tranx(1,1,isp), scrat1, onevec, &
                                         MSTO, M2STO, NORB, &
-                                        merge(nact_sto, MSTO, QNWVEC), &
-                                        merge(nact_orb, NORB, QNWVEC), ierr)
+                                        merge(nact_sto, MSTO, QNWVEC .or. (NELEM == 1 .and. nucz <= 1.5d0)), &
+                                        merge(nact_orb, NORB, QNWVEC .or. (NELEM == 1 .and. nucz <= 1.5d0)), ierr)
             if (ierr < 0) then
               call BOMB(17)
             else if (ierr > 0) then
@@ -577,7 +577,7 @@ contains
             ! For unseeded atoms (.not. QNWVEC), recompute nact_orb from the updated
             ! occupations (after CDAMP blending) before applying automatic atomic smearing
             ! so trailing unoccupied polarization orbitals remain excluded from smearing.
-            if (.not. QNWVEC) then
+            if (.not. QNWVEC .and. .not. (NELEM == 1 .and. nucz <= 1.5d0)) then
               nact_orb = 0
               do iorb = 1, NORB
                 if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
@@ -664,7 +664,7 @@ contains
                     stovl  = stovl_bak
                     ontran = ontran_bak
                   end if
-                else
+                else if (NELEM > 1) then
                   stevec(:, 1:NORB, isp) = 0.0d0
                 end if
               end if
@@ -732,9 +732,10 @@ contains
           end if
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
           ! PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III):
-          ! Unseeded H emits no projector. Seeded H (QNWVEC) emits pkpot(:,4:5) solely for
-          ! homonuclear H-H Pauli repulsion in polyatomics (bloop.f90 skips heteronuclear H-X PK transfer).
-          if (nucz <= 1.5d0 .and. .not. QNWVEC) then
+          ! Unseeded H (and minimal-basis homonuclear H2 where MSTO=1) emits no projector.
+          ! Seeded H (QNWVEC) emits pkpot(:,4:5) solely for homonuclear H-H Pauli repulsion
+          ! in polyatomics and polarized basis sets (bloop.f90 skips heteronuclear H-X PK transfer).
+          if (nucz <= 1.5d0 .and. (.not. QNWVEC .or. (NELEM == 1 .and. MSTO == 1))) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
           else

@@ -376,4 +376,44 @@ class TestPolarizedCalculations:
         for e_dzp, e_dz in zip(pes_h2o_dzp.energies, pes_h2o_dz.energies):
             assert e_dzp < e_dz
 
+    def test_h2_seeded_and_unseeded_electron_conservation_and_gradient_parity(self, driver):
+        """
+        Regression test for homonuclear H2 (ncore=0, NELEM=1) across SZ, DZ, and DZP
+        with both seed_hybrids=False and seed_hybrids=True:
+        - Must retain all 2 electrons (non-zero kinetic energy T > 0.95 Ha, no stevec=0 wipeout).
+        - DZP must variationally lower total energy below SZ/DZ via 2p_z dipolar polarization.
+        - Coupled CPHF relaxed gradient must match finite-difference dE/dR to < 1e-6 Ha/Bohr.
+        """
+        from phatpsy.cphf import compute_polyatomic_relaxed_gradient
+
+        r0 = 1.401
+        dr = 1e-4
+        energies = {}
+        for basis in ("SZ", "DZ", "DZP"):
+            for seeded in (False, True):
+                deck = build_diatomic("H", "H", bond_length=r0, basis=basis, seed_hybrids=seeded)
+                state = driver.run_deck(deck)
+                assert state.converged
+                assert state.kinetic_energy > 0.95
+                assert 1.95 <= state.virial_ratio <= 2.10
+                energies[(basis, seeded)] = state.total_energy
+
+                g_rel = compute_polyatomic_relaxed_gradient(state, deck=deck)
+                ep = driver.run_deck(
+                    build_diatomic("H", "H", bond_length=r0 + dr, basis=basis, seed_hybrids=seeded)
+                ).total_energy
+                em = driver.run_deck(
+                    build_diatomic("H", "H", bond_length=r0 - dr, basis=basis, seed_hybrids=seeded)
+                ).total_energy
+                dE_dR = (ep - em) / (2.0 * dr)
+                g_fd = np.array([[0.0, 0.0, dE_dR], [0.0, 0.0, -dE_dR]])
+                assert np.max(np.abs(g_rel - g_fd)) < 1e-6
+
+            # Seeded and unseeded H2 must produce identical SCF energies
+            assert energies[(basis, False)] == pytest.approx(energies[(basis, True)], abs=1e-7)
+
+        # DZP polarization must variationally lower energy relative to DZ/SZ
+        assert energies[("DZP", True)] < energies[("DZ", True)] - 0.05
+
+
 

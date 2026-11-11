@@ -375,6 +375,8 @@ def compute_polyatomic_analytical_gradient(
     grad = np.zeros((n_atoms, 3), dtype=np.float64)
 
     # 1. Nuclear repulsion gradient (pairwise over all atom pairs)
+    if deck is not None and hasattr(deck, "resolve_coordinates"):
+        deck.resolve_coordinates()
     charges = calc_state["atom_charges"][0, :]
     g_nuc = compute_nuclear_repulsion_gradient(
         deck.geometry if deck is not None else [None] * n_atoms, charges=charges

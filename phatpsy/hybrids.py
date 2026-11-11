@@ -1370,6 +1370,7 @@ def apply_hybrid_seeds(
     """
     from phatpsy.spin import build_connectivity_graph
 
+    deck.resolve_coordinates()
     elems = deck.resolve_elements()
     xyz = [np.asarray(a.xyz, dtype=float) for a in deck.geometry]
     n_atoms = len(xyz)

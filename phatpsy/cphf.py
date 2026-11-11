@@ -207,6 +207,8 @@ class CPHFResponseSolver:
     def __init__(self, calc_state: Any, deck: Optional[Any] = None):
         self.calc_state = calc_state
         self.deck = deck
+        if self.deck is not None and hasattr(self.deck, "resolve_coordinates"):
+            self.deck.resolve_coordinates()
 
         # Extract dimensions and state tensors
         self.coord = calc_state["atom_coordinates"]
@@ -596,9 +598,12 @@ class CPHFResponseSolver:
                 if (
                     getattr(g, "hybridization", None) is not None
                     or getattr(g, "valence_config", None) is not None
+                    or getattr(g, "starting_orbitals", None) is not None
                     or bool(getattr(g, "use_new_vectors", False))
                 ):
                     qnwvec = True
+        if not qnwvec and self.ispin == 2 and all(aa["znuc"] <= 1.5 for aa in atoms.values()):
+            qnwvec = True
         if not qnwvec:
             # Fallback check on stored energy-weighted projector D5_A (occ*eval vs eval)
             for aa in atoms.values():
@@ -922,9 +927,12 @@ class CPHFResponseSolver:
                 if (
                     getattr(g, "hybridization", None) is not None
                     or getattr(g, "valence_config", None) is not None
+                    or getattr(g, "starting_orbitals", None) is not None
                     or bool(getattr(g, "use_new_vectors", False))
                 ):
                     qnwvec = True
+        if not qnwvec and self.ispin == 2 and all(aa["znuc"] <= 1.5 for aa in atoms.values()):
+            qnwvec = True
         if not qnwvec:
             # Fallback check on stored energy-weighted projector D5_A (occ*eval vs eval)
             for aa in atoms.values():
