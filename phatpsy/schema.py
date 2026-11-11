@@ -186,6 +186,7 @@ class ControlConfig:
     use_dispersion: bool = False
     dispersion_model: str = "d3bj"
     default_basis: Optional[str] = None
+    cutoff: Optional[float] = None
     separate_atoms_first_cycle: bool = True
     debug: bool = False
     trace: bool = False
@@ -204,6 +205,8 @@ class ControlConfig:
             del d["extra_namelist"]
         if self.default_basis is None:
             del d["default_basis"]
+        if self.cutoff is None:
+            del d["cutoff"]
         if not include_retired:
             for k in RETIRED_YAML_CONTROL_PARAMS:
                 d.pop(k, None)
@@ -219,7 +222,7 @@ class ControlConfig:
             "use_diis", "use_global_fermi", "fermi_temperature",
             "use_dynamic_exponents", "exchange_kernel", "exchange_alpha",
             "correlation_kernel", "use_dispersion", "dispersion_model",
-            "default_basis", "separate_atoms_first_cycle", "debug", "trace"
+            "default_basis", "cutoff", "separate_atoms_first_cycle", "debug", "trace"
         }
         kwargs = {k: v for k, v in data.items() if k in valid_keys}
         extra = {k: v for k, v in data.items() if k not in valid_keys}
@@ -541,6 +544,7 @@ class AtomConfig:
     spin_flip: bool = False  # Backward compatibility fallback
     spin: Optional[str] = None  # "up", "down", or None
     basis: Optional[str] = None  # Atom-specific basis override (e.g. 'ADF-TZ2P')
+    cutoff: Optional[float] = None  # Atom-specific cutoff radius RMAX in Bohr (limits virtual-atom interactions)
     hybridization: Optional[str] = None  # Named hybridization type override (e.g. 'sp3', 'sp2', 'dsp2', 'd2sp3')
     valence_config: Optional[List[ValenceOrbital]] = None  # Explicit orbital-level valence configuration
     embedded_state: Optional[Any] = None
@@ -567,6 +571,21 @@ class AtomConfig:
 
         if self.hybridization is not None:
             self.hybridization = str(self.hybridization).strip().lower()
+
+        # Resolve embedded_state if passed as file path (str/Path) or dict
+        if self.embedded_state is not None:
+            if isinstance(self.embedded_state, (str, Path)):
+                from phatpsy.state import EmbeddedAtomState
+                object.__setattr__(self, "_embedded_state_path", str(self.embedded_state))
+                p = Path(self.embedded_state)
+                if not p.is_file():
+                    repo_root = Path(__file__).resolve().parent.parent
+                    if (repo_root / p).is_file():
+                        p = repo_root / p
+                self.embedded_state = EmbeddedAtomState.load(p)
+            elif isinstance(self.embedded_state, dict):
+                from phatpsy.state import EmbeddedAtomState
+                self.embedded_state = EmbeddedAtomState.from_dict(self.embedded_state)
 
         # 2. Validate valence_config if present (Checks 1-7)
         if self.valence_config is not None:
@@ -843,9 +862,11 @@ class AtomConfig:
 
     @property
     def net_orbital_spin(self) -> Optional[float]:
-        """Returns sum(alpha_occ) - sum(beta_occ) across valence_config or starting orbitals, if defined."""
+        """Returns sum(alpha_occ) - sum(beta_occ) across valence_config, embedded_state, or starting orbitals, if defined."""
         if self.valence_config is not None:
             return float(valence_net_spin(self.valence_config))
+        if self.embedded_state is not None and hasattr(self.embedded_state, "net_spin"):
+            return float(self.embedded_state.net_spin)
         if not self.starting_orbitals:
             return None
         tot_alpha = sum(orb.occno[0] for orb in self.starting_orbitals if len(orb.occno) > 0)
@@ -891,6 +912,8 @@ class AtomConfig:
             res["spin"] = "down"
         if self.basis:
             res["basis"] = self.basis
+        if self.cutoff is not None:
+            res["cutoff"] = float(self.cutoff)
         if self.hybridization:
             res["hybridization"] = self.hybridization
         if self.valence_config is not None:
@@ -899,7 +922,10 @@ class AtomConfig:
                 for o in self.valence_config
             ]
         if self.embedded_state:
-            if hasattr(self.embedded_state, "to_dict"):
+            emb_path = getattr(self, "_embedded_state_path", None)
+            if emb_path:
+                res["embedded_state"] = emb_path
+            elif hasattr(self.embedded_state, "to_dict"):
                 res["embedded_state"] = self.embedded_state.to_dict()
             elif isinstance(self.embedded_state, dict):
                 res["embedded_state"] = self.embedded_state
@@ -970,6 +996,7 @@ class AtomConfig:
             spin_flip=spin_flip_val,
             spin=spin_val,
             basis=data.get("basis"),
+            cutoff=float(data["cutoff"]) if data.get("cutoff") is not None else None,
             hybridization=data.get("hybridization"),
             valence_config=val_cfg,
             embedded_state=emb,
@@ -1501,7 +1528,12 @@ class CalculationDeck:
                     nvterm=lib_elem.nvterm,
                     default_orbitals=orbs,
                 )
-            elif embedded_atom and hasattr(embedded_atom.embedded_state, "basis_functions") and embedded_atom.embedded_state.basis_functions:
+            elif (
+                embedded_atom
+                and hasattr(embedded_atom.embedded_state, "basis_functions")
+                and embedded_atom.embedded_state.basis_functions
+                and not any(a.valence_config is not None for a in key_to_atoms[ekey])
+            ):
                 funcs = embedded_atom.embedded_state.to_basis_functions()
                 orbs = embedded_atom.embedded_state.to_initial_orbitals()
                 z = embedded_atom.embedded_state.atomic_number or lib_elem.atomic_number
@@ -1516,7 +1548,11 @@ class CalculationDeck:
                     default_orbitals=orbs,
                 )
             else:
-                if embedded_atom and hasattr(embedded_atom.embedded_state, "to_initial_orbitals"):
+                if (
+                    embedded_atom
+                    and hasattr(embedded_atom.embedded_state, "to_initial_orbitals")
+                    and not any(a.valence_config is not None for a in key_to_atoms[ekey])
+                ):
                     orbs = embedded_atom.embedded_state.to_initial_orbitals()
                     resolved[ekey] = ElementData(
                         symbol=sym,
@@ -1795,6 +1831,9 @@ class CalculationDeck:
                     flags.append("QFIXED=T")
                 if p_atom.virtual:
                     flags.append("QVIRTL=T")
+                eff_cutoff = p_atom.cutoff if p_atom.cutoff is not None else self.control.cutoff
+                if eff_cutoff is not None and not p_atom.virtual:
+                    flags.append(f"RMAX={float(eff_cutoff):.5f}")
                 has_custom_orbs = bool(p_atom.embedded_state or p_atom.starting_orbitals or p_atom.valence_config)
                 # QFLIP is never combined with custom starting orbitals: the engine skips the
                 # &ATORB cards for a flipped atom, and custom orbitals already carry their spin.
@@ -1803,6 +1842,13 @@ class CalculationDeck:
                     flags.append("QFLIP=T")
                 if group_idx > 0 and has_custom_orbs:
                     flags.append("QDFVEC=T")
+                if p_atom.embedded_state:
+                    emb_obj = p_atom.embedded_state
+                    mp = getattr(emb_obj, "model_potential", None) if not isinstance(emb_obj, dict) else emb_obj.get("model_potential")
+                    if isinstance(mp, dict) and mp.get("vcoef"):
+                        vcoef_vals = [float(v) for v in mp["vcoef"]]
+                        flags.append("QNWPOT=T")
+                        flags.append("VCOEF0=" + ",".join(f"{v:.5f}" for v in vcoef_vals))
                 flag_str = (", " + ", ".join(flags)) if flags else ""
 
                 if p_atom.symmetry is not None and not p_atom.equivalent_to:
@@ -1885,6 +1931,9 @@ class CalculationDeck:
                         s_flags.append("QFIXED=T")
                     if s_atom.virtual:
                         s_flags.append("QVIRTL=T")
+                    s_cutoff = s_atom.cutoff if s_atom.cutoff is not None else eff_cutoff
+                    if s_cutoff is not None and not s_atom.virtual:
+                        s_flags.append(f"RMAX={float(s_cutoff):.5f}")
 
                     # QFLIP is determined by comparing intrinsic spin with reference atom
                     if s_atom.spin is not None and p_atom.spin is not None:

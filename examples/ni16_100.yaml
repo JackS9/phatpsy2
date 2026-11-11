@@ -1,8 +1,9 @@
-title: '... Ni14(100), R(Ni-Ni)=4.71'
-net_spin: -6
+title: 'Ni(100) 3-Layer Ferromagnetic Surface Slab (2 Active: Surface + Subsurface, Fixed Bulk)'
+net_spin: 16
+physical_net_spin: 4
 control:
   spin_unrestricted: true
-  max_cycles: 10
+  max_cycles: 70
   convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
@@ -12,147 +13,208 @@ control:
   debug: false
   trace: false
 geometry:
+# --- Layer 1: Surface (z = 0.00 Bohr) — 1 Active + 5 Virtual Equivalent Copies ---
 - element: Ni
   xyz:
   - 0.0
   - 0.0
   - 0.0
-  id: Ni1
+  id: Ni_surf_1
+  cutoff: 5.0
   spin: up
+  valence_config: &ni_valence
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
+  - spin: none
+    occupation: 0
+    orbital_type: sigma
 - element: Ni
   xyz:
   - 4.71
   - 0.0
   - 0.0
-  id: Ni2
-  spin: down
+  id: Ni_surf_2
+  equivalent_to: Ni_surf_1
+  virtual: true
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 0.0
   - 4.71
   - 0.0
-  id: Ni3
-  equivalent_to: Ni2
+  id: Ni_surf_3
+  equivalent_to: Ni_surf_1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - -4.71
   - 0.0
   - 0.0
-  id: Ni4
-  equivalent_to: Ni2
+  id: Ni_surf_4
+  equivalent_to: Ni_surf_1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  virtual: true
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
   - 0.0
   - -4.71
   - 0.0
-  id: Ni5
-  equivalent_to: Ni2
+  id: Ni_surf_5
+  equivalent_to: Ni_surf_1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 4.71
+  - -4.71
   - -4.71
   - 0.0
-  id: Ni6
+  id: Ni_surf_6
+  equivalent_to: Ni_surf_1
   virtual: true
-  spin: down
-- element: Ni
-  xyz:
-  - -2.72
-  - -2.72
-  - -2.72
-  id: Ni7
   spin: up
+  valence_config: *ni_valence
+
+# --- Layer 2: Subsurface (z = -3.33 Bohr) — 1 Active + 5 Virtual Equivalent Copies ---
 - element: Ni
   xyz:
-  - 2.72
-  - -2.72
-  - -2.72
-  id: Ni8
-  equivalent_to: Ni7
-  symmetry_op: 4
-  symmetry_axis: 1
-  spin: down
-- element: Ni
-  xyz:
-  - 2.72
-  - 2.72
-  - -2.72
-  id: Ni9
-  equivalent_to: Ni7
-  symmetry_op: 4
-  symmetry_axis: 1
+  - -2.355
+  - -2.355
+  - -3.33
+  id: Ni_sub_1
+  cutoff: 5.0
   spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
-  - -2.72
-  - 2.72
-  - -2.72
-  id: Ni10
-  equivalent_to: Ni7
+  - 2.355
+  - -2.355
+  - -3.33
+  id: Ni_sub_2
+  equivalent_to: Ni_sub_1
   symmetry_op: 4
   symmetry_axis: 1
-  spin: down
+  virtual: true
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 7.43
-  - -2.72
-  - -2.72
-  id: Ni11
+  - 2.355
+  - 2.355
+  - -3.33
+  id: Ni_sub_3
+  equivalent_to: Ni_sub_1
+  symmetry_op: 4
+  symmetry_axis: 1
   virtual: true
-  spin: down
+  spin: up
+  valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 2.72
-  - -7.43
-  - -2.72
-  id: Ni12
+  - -2.355
+  - 2.355
+  - -3.33
+  id: Ni_sub_4
+  equivalent_to: Ni_sub_1
+  symmetry_op: 4
+  symmetry_axis: 1
   virtual: true
-  spin: down
+  spin: up
+  valence_config: *ni_valence
+- element: Ni
+  xyz:
+  - -7.065
+  - -2.355
+  - -3.33
+  id: Ni_sub_5
+  equivalent_to: Ni_sub_1
+  virtual: true
+  spin: up
+  valence_config: *ni_valence
+- element: Ni
+  xyz:
+  - -2.355
+  - -7.065
+  - -3.33
+  id: Ni_sub_6
+  equivalent_to: Ni_sub_1
+  virtual: true
+  spin: up
+  valence_config: *ni_valence
+
+# --- Layer 3: Bulk (z = -6.66 Bohr) — 4 Fixed + Virtual Bulk Atoms (from Bulk Ni13) ---
 - element: Ni
   xyz:
   - 0.0
   - 0.0
   - -6.66
-  id: Ni13
+  id: Ni_bulk_1
   fixed: true
   virtual: true
-  spin: down
+  spin: up
+  embedded_state: data/ni_bulk_embedded.json
 - element: Ni
   xyz:
-  - 4.71
+  - -4.71
   - 0.0
   - -6.66
-  id: Ni14
+  id: Ni_bulk_2
+  equivalent_to: Ni_bulk_1
   fixed: true
   virtual: true
-  spin: down
+  spin: up
 - element: Ni
   xyz:
   - 0.0
   - -4.71
   - -6.66
-  id: Ni15
+  id: Ni_bulk_3
+  equivalent_to: Ni_bulk_1
   fixed: true
   virtual: true
-  spin: down
+  spin: up
 - element: Ni
   xyz:
-  - 4.71
+  - -4.71
   - -4.71
   - -6.66
-  id: Ni16
+  id: Ni_bulk_4
+  equivalent_to: Ni_bulk_1
   fixed: true
   virtual: true
-  spin: down
+  spin: up
 elements:
   Ni:
     symbol: Ni

@@ -288,32 +288,46 @@ contains
                 end do
               end do
 
-              do isp = 1, ISPIN
-                do iorba = 1, NORB
-                  popsum = 0.0d0
-                  do iorbb = 1, NORBB
-                    ediff  = evalb(iorbb, isp) - evala(iorba, isp)
-                    esum   = 0.5d0 * (evala(iorba, isp) + evalb(iorbb, isp))
-                    if (THETA > 1.0d-12) then
-                      fermia = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evala(iorba, isp) - esum) / THETA))))
-                      fermib = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evalb(iorbb, isp) - esum) / THETA))))
-                    else
-                      fermia = merge(1.0d0, 0.0d0, evala(iorba, isp) <= esum)
-                      fermib = merge(1.0d0, 0.0d0, evalb(iorbb, isp) <= esum)
+              if (.not. qvirtb) then
+                do isp = 1, ISPIN
+                  do iorba = 1, NORB
+                    if ((QNWVEC .or. (znucb > 18.0d0 .and. QGRDFT)) .and. sum(occa(iorba, 1:ISPIN)) <= 1.0d-6) cycle
+                    popsum = 0.0d0
+                    do iorbb = 1, NORBB
+                      if ((QNWVEC .or. (znucb > 18.0d0 .and. QGRDFT)) .and. sum(occb(iorbb, 1:ISPIN)) <= 1.0d-6) cycle
+                      ediff  = evalb(iorbb, isp) - evala(iorba, isp)
+                      esum   = 0.5d0 * (evala(iorba, isp) + evalb(iorbb, isp))
+                      if (THETA > 1.0d-12) then
+                        fermia = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evala(iorba, isp) - esum) / THETA))))
+                        fermib = 1.0d0 / (1.0d0 + exp(max(-60.0d0, min(60.0d0, (evalb(iorbb, isp) - esum) / THETA))))
+                      else
+                        fermia = merge(1.0d0, 0.0d0, evala(iorba, isp) <= esum)
+                        fermib = merge(1.0d0, 0.0d0, evalb(iorbb, isp) <= esum)
+                      end if
+                      block
+                        real(real64) :: occa0, occb0
+                        if ((QNWVEC .or. (znucb > 18.0d0 .and. QGRDFT)) .and. CDAMP < 1.0d0 - 1.0d-6) then
+                          occa0 = 0.5d0 * anint(2.0d0 * occa(iorba, isp))
+                          occb0 = 0.5d0 * anint(2.0d0 * occb(iorbb, isp))
+                        else
+                          occa0 = occa(iorba, isp)
+                          occb0 = occb(iorbb, isp)
+                        end if
+                        ct    = (occa0 + occb0) * fermia - occa0
+                        if (ct > 0.0d0) then
+                          ct = min(ct, occb0, occmx - occa0)
+                        else if (ct < 0.0d0) then
+                          ct = -min(-ct, occa0, occmx - occb0)
+                        end if
+                      end block
+                      popsum = popsum + ct * block_ab(iorba, iorbb, isp)**2
+                    end do
+                    if (.not. (isnan(popsum))) then
+                      mol_ws%popul(IORBT + iorba, isp) = mol_ws%popul(IORBT + iorba, isp) + popsum
                     end if
-                    ct     = (occa(iorba, isp) + occb(iorbb, isp)) * fermia - occa(iorba, isp)
-                    if (ct > 0.0d0) then
-                      ct = min(ct, occb(iorbb, isp), occmx - occa(iorba, isp))
-                    else if (ct < 0.0d0) then
-                      ct = -min(-ct, occa(iorba, isp), occmx - occb(iorbb, isp))
-                    end if
-                    popsum = popsum + ct * block_ab(iorba, iorbb, isp)**2
                   end do
-                  if (.not. (isnan(popsum))) then
-                    mol_ws%popul(IORBT + iorba, isp) = mol_ws%popul(IORBT + iorba, isp) + popsum
-                  end if
                 end do
-              end do
+              end if
             end if
           end if
         end if

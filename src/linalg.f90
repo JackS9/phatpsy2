@@ -497,7 +497,9 @@ contains
     jmax = 0
 
     do i = 1, nvec
-      sii = ZERO
+      sii  = ZERO
+      smax = -ONE
+      jmax = 0
       if (iorder(i) == 0) then
         do k = 1, nbas
           kk = (k * (k - 1)) / 2
@@ -512,6 +514,7 @@ contains
         end do
         sii = sii * sii
         jmax = i
+        smax = sii
         if (sii >= HALF) then
           iorder(i) = i
           cycle
@@ -519,7 +522,6 @@ contains
       end if
 
       qnword = .true.
-      smax = sii
       remain = ONE - sii
       found_half = .false.
       do j = 1, nvec
@@ -543,11 +545,10 @@ contains
           found_half = .true.
           exit
         end if
-        if (sij >= smax) then
+        if (sij > smax) then
           smax = sij
           jmax = j
         end if
-        if (remain < smax) exit
       end do
       if (.not. found_half) then
         if (jmax >= 1 .and. jmax <= nvec) then

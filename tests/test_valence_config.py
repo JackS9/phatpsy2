@@ -853,14 +853,18 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
     # 5. Bulk Ni13 embedded cluster: all 13 Ni atoms have 2 unpaired spin-up electrons
     # ferromagnetically coupled to their equivalent neighbors (Ni2..Ni13 equivalent_to Ni1)
     from pathlib import Path
+    import numpy as np
     repo_root = Path(__file__).resolve().parent.parent
     deck_ni13 = CalculationDeck.from_yaml(repo_root / "examples" / "ni13.yaml")
     deck_ni13.validate()
     assert len(deck_ni13.geometry) == 13
     assert deck_ni13.net_spin == 13
-    assert deck_ni13.physical_net_spin == 26
+    assert deck_ni13.physical_net_spin == 2
     assert deck_ni13.geometry[0].id == "Ni1"
     assert deck_ni13.geometry[0].equivalent_to is None
+    assert deck_ni13.geometry[0].virtual is False
+    assert deck_ni13.geometry[0].cutoff == 5.0
+    ni1_xyz = np.array(deck_ni13.geometry[0].xyz, dtype=float)
     for at in deck_ni13.geometry:
         assert at.spin == "up"
         assert at.net_orbital_spin == 2
@@ -869,10 +873,43 @@ def test_valence_config_hybrid_seeding_mixed_spin_and_dative():
         assert sum(1 for o in at.valence_config if o.occupation == 1 and o.spin == "up") == 2
     for at in deck_ni13.geometry[1:]:
         assert at.equivalent_to == "Ni1"
+        assert at.virtual is True
+        dist = float(np.linalg.norm(np.array(at.xyz, dtype=float) - ni1_xyz))
+        assert abs(dist - 4.71) < 1e-2
     stdin_ni13 = deck_ni13.to_stdin_text()
     assert "MDIFAT=1" in stdin_ni13
     assert "NEQAT=12" in stdin_ni13
+    assert "RMAX=5.00000" in stdin_ni13
     assert "QFLIP=T" not in stdin_ni13
+
+    # 6. Clean Ni(100) 3-layer surface slab: 2 active atoms (Ni_surf_1, Ni_sub_1) with
+    # cutoff=5.0 Bohr, 10 virtual equivalent neighbors, and 4 fixed bulk atoms from ni_bulk_embedded.json
+    deck_slab = CalculationDeck.from_yaml(repo_root / "examples" / "ni_100_slab.yaml")
+    deck_slab.validate()
+    assert len(deck_slab.geometry) == 16
+    assert deck_slab.net_spin == 16
+    assert deck_slab.physical_net_spin == 4
+    atoms_by_id = {at.id: at for at in deck_slab.geometry}
+    surf1 = atoms_by_id["Ni_surf_1"]
+    sub1 = atoms_by_id["Ni_sub_1"]
+    assert surf1.virtual is False and surf1.fixed is False and surf1.cutoff == 5.0
+    assert sub1.virtual is False and sub1.fixed is False and sub1.cutoff == 5.0
+    surf1_xyz = np.array(surf1.xyz, dtype=float)
+    sub1_xyz = np.array(sub1.xyz, dtype=float)
+    surf1_nns = [
+        at.id for at in deck_slab.geometry
+        if at.id != "Ni_surf_1" and float(np.linalg.norm(np.array(at.xyz, dtype=float) - surf1_xyz)) <= 5.0
+    ]
+    sub1_nns = [
+        at.id for at in deck_slab.geometry
+        if at.id != "Ni_sub_1" and float(np.linalg.norm(np.array(at.xyz, dtype=float) - sub1_xyz)) <= 5.0
+    ]
+    assert len(surf1_nns) == 8
+    assert len(sub1_nns) == 12
+    stdin_slab = deck_slab.to_stdin_text()
+    assert "MDIFAT=3" in stdin_slab
+    assert "RMAX=5.00000" in stdin_slab
+
 
 
 

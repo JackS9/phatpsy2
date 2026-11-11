@@ -1,9 +1,9 @@
 title: '... Ni13, R(Ni-Ni)=4.71'
 net_spin: 13
-physical_net_spin: 26
+physical_net_spin: 2
 control:
   spin_unrestricted: true
-  max_cycles: 20
+  max_cycles: 40
   convergence: 1.0e-06
   use_global_fermi: false
   fermi_temperature: null
@@ -19,6 +19,7 @@ geometry:
   - 0.0
   - 0.0
   id: Ni1
+  cutoff: 5.0
   spin: up
   valence_config: &ni_valence
   - spin: up
@@ -55,6 +56,7 @@ geometry:
   - 0.0
   id: Ni2
   equivalent_to: Ni1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
@@ -66,6 +68,7 @@ geometry:
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
@@ -77,6 +80,7 @@ geometry:
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
@@ -88,92 +92,101 @@ geometry:
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 2.72
-  - 2.72
-  - 2.72
+  - 2.355
+  - 2.355
+  - 3.33
   id: Ni6
   equivalent_to: Ni1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - -2.72
-  - 2.72
-  - 2.72
+  - -2.355
+  - 2.355
+  - 3.33
   id: Ni7
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - -2.72
-  - -2.72
-  - 2.72
+  - -2.355
+  - -2.355
+  - 3.33
   id: Ni8
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 2.72
-  - -2.72
-  - 2.72
+  - 2.355
+  - -2.355
+  - 3.33
   id: Ni9
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 2.72
-  - -2.72
-  - -2.72
+  - 2.355
+  - -2.355
+  - -3.33
   id: Ni10
   equivalent_to: Ni1
   symmetry_op: -1
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - 2.72
-  - 2.72
-  - -2.72
+  - 2.355
+  - 2.355
+  - -3.33
   id: Ni11
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - -2.72
-  - 2.72
-  - -2.72
+  - -2.355
+  - 2.355
+  - -3.33
   id: Ni12
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 - element: Ni
   xyz:
-  - -2.72
-  - -2.72
-  - -2.72
+  - -2.355
+  - -2.355
+  - -3.33
   id: Ni13
   equivalent_to: Ni1
   symmetry_op: 4
   symmetry_axis: 1
+  virtual: true
   spin: up
   valence_config: *ni_valence
 elements:

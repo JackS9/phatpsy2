@@ -331,21 +331,23 @@ contains
         ! element (including inherited or spin-flipped atoms): mark QNWVEC=.true.
         ! so QSEPAT on Cycle 1 evaluates their Fock/model-potential matrices
         ! without diagonalizing the spherical free atom.
-        do iorb = 1, NORB
-          l_min_hyb = 999
-          l_max_hyb = -999
-          do isto = 1, NSTO
-            do mli = -l(isto), l(isto)
-              mi = m0(isto) + mli
-              if (abs(stevec(mi, iorb, 1)) > 1.0d-6 .or. &
-                  (QOPEN .and. abs(stevec(mi, iorb, 2)) > 1.0d-6)) then
-                l_min_hyb = min(l_min_hyb, l(isto))
-                l_max_hyb = max(l_max_hyb, l(isto))
-              end if
+        if (.not. QFIXED .and. .not. QVIRTL) then
+          do iorb = 1, NORB
+            l_min_hyb = 999
+            l_max_hyb = -999
+            do isto = 1, NSTO
+              do mli = -l(isto), l(isto)
+                mi = m0(isto) + mli
+                if (abs(stevec(mi, iorb, 1)) > 1.0d-6 .or. &
+                    (QOPEN .and. abs(stevec(mi, iorb, 2)) > 1.0d-6)) then
+                  l_min_hyb = min(l_min_hyb, l(isto))
+                  l_max_hyb = max(l_max_hyb, l(isto))
+                end if
+              end do
             end do
+            if (l_min_hyb < l_max_hyb) QNWVEC = .true.
           end do
-          if (l_min_hyb < l_max_hyb) QNWVEC = .true.
-        end do
+        end if
 
         if (.not. (QFLIP .and. .not. QRSTRT)) then
           write(IW, 16000) latom
@@ -362,7 +364,8 @@ contains
             call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
             pkpot(:,4,isp) = PKSCAL * pkpot(:,4,isp)
             call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                        merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), logical(QNWVEC)), MSTO, M2STO, NORB)
+                        merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
+                              logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
             pkpot(:,5,isp) = PKSCAL * pkpot(:,5,isp)
             pkpot(:,6,isp) = 0.0d0
           end if
@@ -457,11 +460,9 @@ contains
       ! Loop over symmetry-equivalent atoms (IEQAT = 1..NEQAT)
       !-----------------------------------------------------------------
       if (neqat > 0) then
-        if (QRSTRT .and. QNWVEC) then
-          stevec_bak = stevec
-          eval_bak   = eval
-          occ_bak    = occ
-        end if
+        stevec_bak = stevec
+        eval_bak   = eval
+        occ_bak    = occ
         do ieqat = 1, neqat
           IATOM = IATOM + 1
           if (IATOM > NATOM) call BOMB(8)
@@ -484,7 +485,7 @@ contains
           if (QDEBUG) write(IUDUMP, nml=ATOM)
 
           if (.not. (QRSTRT .and. .not. QNWVEC)) then
-            if (QRSTRT) then
+            if (QRSTRT .or. (isym == 0 .and. .not. QFLIP)) then
               stevec = stevec_bak
               eval   = eval_bak
               occ    = occ_bak
@@ -502,11 +503,12 @@ contains
               call FLIP(gamma,  1, 2, gamma,  2, 2, NORB)
               call FLIP(pkpot,  1, ISPIN, pkpot, ISPIN, ISPIN, 6 * M2STO)
             end if
-            if (QNWVEC .and. .not. QRSTRT .and. isym /= 0) then
+            if ((QNWVEC .or. (znuc > 18.0d0 .and. QGRDFT)) .and. .not. QRSTRT) then
               do isp = 1, ISPIN
                 call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
                 call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                            merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), logical(QNWVEC)), MSTO, M2STO, NORB)
+                            merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
+                                  logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
                 if (znuc <= 1.5d0) then
                   pkpot(:, 4, isp) = 0.0d0
                   pkpot(:, 5, isp) = 0.0d0

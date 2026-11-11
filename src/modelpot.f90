@@ -458,8 +458,7 @@ contains
 
         do j = 1, msto
           do i = 1, msto
-            b_vp(i, j) = b_vp(i, j) * sqrt(min(1.0d0, 0.999d0 / max(lam_p(i), tol)) * &
-                                           min(1.0d0, 0.999d0 / max(lam_p(j), tol)))
+            b_vp(i, j) = b_vp(i, j) * sqrt(s_modes(i) * s_modes(j))
           end do
         end do
 

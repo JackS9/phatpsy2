@@ -235,6 +235,14 @@ class CalculationState(dict):
         if isinstance(atom_id_or_index, str):
             if atom_id_or_index in embedded:
                 return embedded[atom_id_or_index]
+            if f"{atom_id_or_index}_1" in embedded:
+                return embedded[f"{atom_id_or_index}_1"]
+            if atom_id_or_index.endswith("_fixed"):
+                stem = atom_id_or_index[:-6]
+                if stem in embedded:
+                    return embedded[stem]
+                if f"{stem}_1" in embedded:
+                    return embedded[f"{stem}_1"]
             for atom_key, atom_state in embedded.items():
                 if atom_state.atom_id == atom_id_or_index:
                     return atom_state
@@ -584,59 +592,69 @@ def extract_calculation_state(
             bf_to_radial_idx[local_bf_idx] = matched_idx
 
         # Extract localized embedded orbitals for this atom
-        # Determine how many localized atomic orbitals (NORB) belong to atom i
+        # Determine how many localized atomic orbitals (NORB) belong to atom i.
+        # Note: in Fortran, evalx/occx/evecx/popul only contain columns for
+        # non-virtual atoms (.not. QVIRTL); virtual atoms do not advance current_orb_offset.
         atom_orbitals: List[Dict[str, Any]] = []
         atom_norb = 0
-        if len(atom_bf_indices) > 0 and current_orb_offset < norbt:
-            # Count contiguous columns in evecx localized on this atom's basis functions
-            for col_idx in range(current_orb_offset, norbt):
-                if np.any(np.abs(evecx[atom_bf_indices, col_idx, :]) > 1e-10):
-                    atom_norb += 1
+        if not is_virtual:
+            if len(atom_bf_indices) > 0 and current_orb_offset < norbt:
+                # Count contiguous columns in evecx localized on this atom's basis functions
+                for col_idx in range(current_orb_offset, norbt):
+                    if np.any(np.abs(evecx[atom_bf_indices, col_idx, :]) > 1e-10):
+                        atom_norb += 1
+                    else:
+                        break
+            if atom_norb == 0:
+                if atom_idx < len(deck_atoms) and deck_elems:
+                    d_atom = deck_atoms[atom_idx]
+                    ed = deck_elems.get(deck.get_atom_element_key(d_atom))
+                    atom_norb = len(ed.default_orbitals) if (ed is not None and ed.default_orbitals) else n_bfs
                 else:
+                    atom_norb = min(n_bfs, max(0, norbt - current_orb_offset))
+
+            for local_orb_idx in range(atom_norb):
+                global_orb_idx = current_orb_offset + local_orb_idx
+                if global_orb_idx >= norbt:
                     break
-        if atom_norb == 0:
-            if atom_idx < len(deck_atoms) and deck_elems:
-                d_atom = deck_atoms[atom_idx]
-                ed = deck_elems.get(deck.get_atom_element_key(d_atom))
-                atom_norb = len(ed.default_orbitals) if (ed is not None and ed.default_orbitals) else n_bfs
-            else:
-                atom_norb = min(n_bfs, max(0, norbt - current_orb_offset))
 
-        for local_orb_idx in range(atom_norb):
-            global_orb_idx = current_orb_offset + local_orb_idx
-            if global_orb_idx >= norbt:
-                break
+                e_alpha = float(evalx[global_orb_idx, 0])
+                e_beta = float(evalx[global_orb_idx, 1]) if ispin > 1 else e_alpha
+                occ_alpha = float(occx[global_orb_idx, 0])
+                occ_beta = float(occx[global_orb_idx, 1]) if ispin > 1 else occ_alpha
+                pop_alpha = float(popul[global_orb_idx, 0])
+                pop_beta = float(popul[global_orb_idx, 1]) if ispin > 1 else pop_alpha
 
-            e_alpha = float(evalx[global_orb_idx, 0])
-            e_beta = float(evalx[global_orb_idx, 1]) if ispin > 1 else e_alpha
-            occ_alpha = float(occx[global_orb_idx, 0])
-            occ_beta = float(occx[global_orb_idx, 1]) if ispin > 1 else occ_alpha
-            pop_alpha = float(popul[global_orb_idx, 0])
-            pop_beta = float(popul[global_orb_idx, 1]) if ispin > 1 else pop_alpha
+                # Expansion coefficients over this atom's radial STOs
+                coef_list: List[Tuple[int, int, float, float]] = []
+                for local_bf_idx, global_bf_idx in enumerate(atom_bf_indices):
+                    c_alpha = float(evecx[global_bf_idx, global_orb_idx, 0])
+                    c_beta = float(evecx[global_bf_idx, global_orb_idx, 1]) if ispin > 1 else c_alpha
 
-            # Expansion coefficients over this atom's radial STOs
-            coef_list: List[Tuple[int, int, float, float]] = []
-            for local_bf_idx, global_bf_idx in enumerate(atom_bf_indices):
-                c_alpha = float(evecx[global_bf_idx, global_orb_idx, 0])
-                c_beta = float(evecx[global_bf_idx, global_orb_idx, 1]) if ispin > 1 else c_alpha
+                    if abs(c_alpha) > 1e-6 or abs(c_beta) > 1e-6:
+                        isto = bf_to_radial_idx[local_bf_idx]
+                        ml_val = int(mlx[global_bf_idx])
+                        coef_list.append((isto, ml_val, round(c_alpha, 6), round(c_beta, 6)))
 
-                if abs(c_alpha) > 1e-6 or abs(c_beta) > 1e-6:
-                    isto = bf_to_radial_idx[local_bf_idx]
-                    ml_val = int(mlx[global_bf_idx])
-                    coef_list.append((isto, ml_val, round(c_alpha, 6), round(c_beta, 6)))
+                atom_orbitals.append({
+                    "orbital_index": local_orb_idx + 1,
+                    "energy_alpha": e_alpha,
+                    "energy_beta": e_beta,
+                    "occ_alpha": occ_alpha,
+                    "occ_beta": occ_beta,
+                    "population_alpha": pop_alpha,
+                    "population_beta": pop_beta,
+                    "coefficients": coef_list,
+                })
 
-            atom_orbitals.append({
-                "orbital_index": local_orb_idx + 1,
-                "energy_alpha": e_alpha,
-                "energy_beta": e_beta,
-                "occ_alpha": occ_alpha,
-                "occ_beta": occ_beta,
-                "population_alpha": pop_alpha,
-                "population_beta": pop_beta,
-                "coefficients": coef_list,
-            })
-
-        current_orb_offset += atom_norb
+            current_orb_offset += atom_norb
+        elif atom_idx < len(deck_atoms):
+            import copy
+            d_atom = deck_atoms[atom_idx]
+            if getattr(d_atom, "equivalent_to", None) and d_atom.equivalent_to in embedded_atoms:
+                atom_orbitals = copy.deepcopy(embedded_atoms[d_atom.equivalent_to].orbitals)
+            elif getattr(d_atom, "embedded_state", None) is not None and hasattr(d_atom.embedded_state, "orbitals"):
+                atom_orbitals = copy.deepcopy(d_atom.embedded_state.orbitals)
 
         # Retrieve model potential if available
         try:

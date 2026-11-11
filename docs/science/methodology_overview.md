@@ -158,14 +158,14 @@ In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on tran
 1. **Isolated Molecule ($NO$ / $CO$):**
    - Solved as a gas-phase diatomic to establish the isolated electronic structure, bond length ($R_e$), harmonic vibrational frequency ($\omega_e$), dipole moment ($\mu$), and reference energy ($E_{\text{molecule}}$).
 2. **Embedded Bulk Metal Atom ($Ni_{\text{bulk}}$):**
-   - Modeled via a high-coordination cluster (12-coordinated FCC $Ni_{13}$) or periodic supercell with theoretical $\text{PKSCAL}=1.0$.
-   - Yields the bulk reference total energy per atom ($-1502.5650\text{ Ha/atom}$; cf. the experimental Ni cohesive energy $\approx 4.44\text{ eV/atom}$) and the self-consistent electronic state of an embedded bulk atom (`Ni_bulk_fixed`).
+   - Modeled via a high-coordination ferromagnetic FCC cluster (12-coordinated $Ni_{13}$, `examples/ni13.yaml`, `cutoff: 5.0` Bohr) with theoretical $\text{PKSCAL}=1.0$.
+   - Yields the bulk reference state (`data/ni_bulk_embedded.json`) of an embedded bulk Nickel atom (`Ni1`, 2 unpaired spin-up electrons ferromagnetically coupled to its 12 virtual equivalent nearest neighbors at $R_{\text{NN}} = 4.71\text{ Bohr}$).
 3. **Clean Embedded Surface Slab ($Ni(100)$):**
-   - Modeled via a 3-layer embedded slab (`examples/ni_100_slab.yaml`) to capture surface relaxation:
-     - **Layer 1 (Surface):** `Ni_surf` active centers ($Z=8$ coordination) undergoing coordination reduction and electronic relaxation.
-     - **Layer 2 (Subsurface):** `Ni_sub` active centers mediating screening between the vacuum surface and the interior bulk.
-     - **Layer 3 (Bulk):** `Ni_bulk_fixed` boundary atoms fixed at the bulk electronic state.
-   - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` and `Ni_sub`.
+   - Modeled via a 3-layer ferromagnetic embedded slab (`examples/ni_100_slab.yaml`) with 2 active centers (`cutoff: 5.0` Bohr) to capture surface relaxation and surface-to-subsurface charge equilibration:
+     - **Layer 1 (Surface, $z = 0.00\text{ Bohr}$):** 1 active representative center (`Ni_surf_1`, 8 nearest neighbors: 4 surface + 4 subsurface) surrounded by 6 virtual equivalent surface copies (`Ni_surf_2..7`).
+     - **Layer 2 (Subsurface, $z = -3.33\text{ Bohr}$):** 1 active representative center (`Ni_sub_1`, 12 nearest neighbors: 4 surface + 4 subsurface + 4 bulk) surrounded by 4 virtual equivalent subsurface copies (`Ni_sub_2..5`), developing an equal-and-opposite mirror charge to the surface layer.
+     - **Layer 3 (Bulk, $z = -6.66\text{ Bohr}$):** 4 virtual boundary atoms (`Ni_bulk_1..4`) fixed (`fixed: true, virtual: true`) at the converged bulk electronic state (`data/ni_bulk_embedded.json`).
+   - Converged states produce transferable, reusable `EmbeddedAtomState` instances for `Ni_surf` (`data/ni_surf_embedded.json`) and `Ni_sub` (`data/ni_sub_embedded.json`).
 4. **Chemisorbed Complex ($CO/Ni(100)$ or $NO/Ni(100)$):**
    - The adsorbate and the immediate chemisorption site are placed atop the substrate.
    - **Boundary Invariant:** All surrounding "boundary" atoms are held strictly **fixed (`fixed: true`) at their respective representations**:

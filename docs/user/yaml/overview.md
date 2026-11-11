@@ -1,4 +1,4 @@
-1# YAML Input Format
+# YAML Input Format
 
 PHATPSY 2.0 uses structured YAML (or JSON) calculation decks to define chemical systems, basis sets, and numerical control parameters. This replaces legacy FORTRAN 66 fixed-format punch cards and Namelist inputs with modern, validated schemas.
 
@@ -97,6 +97,7 @@ The `geometry:` key contains a list of atomic specifications. Each entry defines
 
 * **`fixed`** (`bool`, default `false`): If `true`, freezes this atom in two senses: (1) its position is excluded from geometry optimizations, MD, and PES scans; (2) its electronic state is frozen during SCF — the atom emits `QFIXED=T`, so its orbitals, eigenvalues, and model potential are computed once and never iterated (`qdone = QFIXED` in `src/scf.f90`). Ideal for anchoring bottom layers of a crystal slab or freezing buffer atoms.
 * **`virtual`** (`bool`, default `false`): If `true`, marks this center as a ghost/virtual projector site (carries model potential projectors without contributing nuclear charges or electrons).
+* **`cutoff`** (`float`, optional): Two-center interaction cutoff radius (`RMAX`, in **Bohrs**) for an active atom. Neighbors beyond $R_{AB} > \text{cutoff}$ are excluded from the two-center (`BLOOP`) loop (e.g., `cutoff: 5.0` restricts an active FCC Nickel center with $R_{\text{NN}} = 4.71\text{ Bohr}$ and $R_{\text{NNN}} = 6.66\text{ Bohr}$ strictly to its first-nearest-neighbor shell). Can also be set globally in the `control:` block via `control.cutoff`. See the [generated YAML key reference](reference.md) for defaults.
 
 ### Symmetry Relations
 

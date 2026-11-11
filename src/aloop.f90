@@ -46,7 +46,11 @@ contains
           korbta = korbta + 1
           mol_ws%evalx(korbta, isp) = evala(iorba, isp)
           mol_ws%occx(korbta, isp)  = occa(iorba, isp)
-          mol_ws%popul(korbta, isp) = occa(iorba, isp)
+          if ((QNWVEC .or. (mol_ws%charge(1, IATOM + 1) > 18.0d0 .and. QGRDFT)) .and. CDAMP < 1.0d0 - 1.0d-6) then
+            mol_ws%popul(korbta, isp) = 0.5d0 * anint(2.0d0 * occa(iorba, isp))
+          else
+            mol_ws%popul(korbta, isp) = occa(iorba, isp)
+          end if
           kstota = JSTOT
           do jstoa = 1, MSTO
             kstota = kstota + 1
