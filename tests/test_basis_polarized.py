@@ -168,11 +168,14 @@ class TestPolarizedCalculations:
         # 1. Virial theorem: |-V/T - 2.0| <= 0.05
         assert abs(state_dzp.virial_ratio - 2.0) <= 0.05
 
-        # 2. Total energy stability
+        # 2. Total energy stability and variational lowering vs DZ
         assert -82.0 <= state_dzp.total_energy <= -70.0
+        assert state_dzp.total_energy < state_dz.total_energy
 
-        # 3. Dipole stability and physical range
+        # 3. Dipole stability, reduction vs DZ, and physical range
+        mu_dz = eom_dz.dipole.magnitude_debye
         mu_dzp = eom_dzp.dipole.magnitude_debye
+        assert mu_dzp < mu_dz
         assert 1.0 <= mu_dzp <= 4.50
 
     def test_co_dzp_convergence_and_dipole(self, driver):
@@ -181,7 +184,7 @@ class TestPolarizedCalculations:
         - DZP converges cleanly.
         - Virial ratio satisfies |-V/T - 2.0| <= 0.05.
         - Total energy in physical range [-115, -110] Hartree.
-        - Dipole moment reduced from >3.5 D in DZ to <2.0 D in DZP (~0.03 D vs 0.112 D expt).
+        - Dipole moment reduced from >3.8 D in DZ to <2.0 D in DZP (~0.03 D vs 0.112 D expt).
         """
         deck_dz = build_diatomic(
             "C", "O", bond_length=2.132, basis="DZ",

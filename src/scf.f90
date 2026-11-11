@@ -418,6 +418,14 @@ contains
         if (l(isto) <= l_max_val) nact_sto = nact_sto + 2 * l(isto) + 1
       end do
       if (nact_sto <= 0) nact_sto = MSTO
+      ! Active core+valence orbital count nact_orb:
+      ! - When QNWVEC is active, nact_orb = NORB - (MSTO - nact_sto) excludes the
+      !   trailing unoccupied polarization orbitals (e.g. five 3d on C/N/O, three 2p on H)
+      !   from solve_orthonormal_fock polarization-weight sorting and MAXOVL/orthonormalization.
+      ! - When QNWVEC is false (unseeded default orbitals), nact_orb is determined from the
+      !   populated orbitals across 1..NORB (and recomputed after solve_orthonormal_fock),
+      !   while CDAMP updates all 1..NORB slots from EWMO populations (mol_ws%popul) so
+      !   unseeded SZ/DZ/DZP calculations retain exact historical convergence and CPHF parity.
       if (QNWVEC) then
         nact_orb = NORB - (MSTO - nact_sto)
       else
@@ -450,13 +458,12 @@ contains
         do isp = 1, ISPIN
           stovl = stovl_bak
           pkpot_bak(:, 1:2, isp) = pkpot(:, 1:2, isp)
-          ! Hydrogen exemption (thesis Eq. III-24): unseeded H 1s is valence-like
-          ! and bonded to a heavy partner, where the unweighted pseudometric would
-          ! unphysically remove the bonding orbital -> M = S for unseeded H.
-          ! When QNWVEC is active, seeded H atoms receive homonuclear H-H PK Pauli
-          ! repulsion (for non-bonded parallel-spin H1..H2 pairs in polyatomics;
-          ! bloop.f90 skips heteronuclear H-X PK transfer so O-H / C-H / N-H bonds
-          ! remain exempt). Flagged for Ch. III adjudication.
+          ! PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III):
+          ! Unseeded H 1s is valence-like with no inner core shell and bonded to a heavy partner,
+          ! where the unweighted pseudometric would unphysically remove the bonding orbital -> M = S
+          ! for unseeded H. When QNWVEC is active, seeded H atoms receive homonuclear H-H PK Pauli
+          ! repulsion (for non-bonded parallel-spin H1..H2 pairs in polyatomics; src/bloop.f90 skips
+          ! heteronuclear H-X PK transfer so O-H / C-H / N-H bonds remain exempt). Flagged for Ch. III adjudication.
           if (QPSMET .and. (nucz > 1.5d0 .or. QNWVEC)) then
             call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, &
                                          merge(0.42d0, 1.0d-3, logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))))
@@ -469,6 +476,10 @@ contains
             call TRISQ(MSTO, stovl, ontran, projec(1,1,isp))
             call run_lowdin(stovl, tranx(1,1,isp), scrat1, MSTO, MSTO, 1, qindef)
           end if
+          ! Two-center exchange/Coulomb-fit residual xpot2 = pkpot(:,3,isp):
+          ! Zeroed for seeded H (QNWVEC .and. nucz <= 1.5) because Hydrogen has no core shell
+          ! and src/bloop.f90 skips nv=3 transfer for H pairs under QNWVEC. Mirrored in
+          ! phatpsy/cphf.py (_build_pk_coupled_response: X2_A zeroed when qnwvec and znuc <= 1.5).
           if (nucz > 1.5d0 .or. .not. QNWVEC) then
             xpot2(:, isp) = pkpot(:, 3, isp)
           else
@@ -563,6 +574,9 @@ contains
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
+            ! For unseeded atoms (.not. QNWVEC), recompute nact_orb from the updated
+            ! occupations (after CDAMP blending) before applying automatic atomic smearing
+            ! so trailing unoccupied polarization orbitals remain excluded from smearing.
             if (.not. QNWVEC) then
               nact_orb = 0
               do iorb = 1, NORB
@@ -705,15 +719,21 @@ contains
           end do
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
+          ! Energy-weighted PK projector pkpot(:,5,isp):
+          ! - Seeded orbitals (QNWVEC) or grid-fitted heavy atoms (nucz > 18 .and. QGRDFT)
+          !   weight by occ * eval so unoccupied virtual polarization slots do not contribute.
+          ! - Unseeded default orbitals (.not. QNWVEC) preserve the canonical eval(1:NORB,isp)
+          !   weight across all NORB stored orbitals, maintaining exact SZ/DZ parity and CPHF
+          !   response consistency (phatpsy/cphf.py).
           if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
             w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
           else
             w_pk5(1:NORB) = eval(1:NORB, isp)
           end if
           call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
-          ! Hydrogen exemption (thesis Eq. III-24): unseeded H emits no projector.
-          ! Seeded H (QNWVEC) emits pkpot(:,4:5) solely for homonuclear H-H Pauli
-          ! repulsion in polyatomics (bloop.f90 skips heteronuclear H-X PK transfer).
+          ! PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III):
+          ! Unseeded H emits no projector. Seeded H (QNWVEC) emits pkpot(:,4:5) solely for
+          ! homonuclear H-H Pauli repulsion in polyatomics (bloop.f90 skips heteronuclear H-X PK transfer).
           if (nucz <= 1.5d0 .and. .not. QNWVEC) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
@@ -786,6 +806,8 @@ contains
         end if
         do isp = 1, ISPIN
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
+          ! Energy-weighted PK projector pkpot(:,5,isp): occ*eval for QNWVEC or heavy QGRDFT,
+          ! plain eval(1:NORB,isp) for unseeded default orbitals (preserving SZ/DZ/CPHF parity).
           if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
             w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
           else
@@ -899,13 +921,16 @@ contains
                 end do
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
+              ! Energy-weighted PK projector pkpot(:,5,isp): occ*eval for QNWVEC or heavy QGRDFT,
+              ! plain eval(1:NORB,isp) for unseeded default orbitals (preserving SZ/DZ/CPHF parity).
               if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
                 w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
               else
                 w_pk5(1:NORB) = eval(1:NORB, isp)
               end if
               call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
-              ! Hydrogen exemption: H emits no projector onto neighboring atoms.
+              ! PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III):
+              ! Unseeded H emits no projector; seeded H (QNWVEC) emits pkpot(:,4:5) for homonuclear H-H pairs.
               if (nucz <= 1.5d0 .and. .not. QNWVEC) then
                 pkpot(:, 4, isp) = 0.0d0
                 pkpot(:, 5, isp) = 0.0d0

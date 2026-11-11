@@ -362,9 +362,19 @@ contains
           end if
           if (.not. QRSTRT) then
             call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
+            ! Energy-weighted PK projector pkpot(:,5,isp):
+            ! - Seeded orbitals (QNWVEC) or grid-fitted heavy atoms (znuc > 18 .and. QGRDFT)
+            !   weight by occ * eval so unoccupied virtual polarization slots do not contribute.
+            ! - Unseeded default orbitals (.not. QNWVEC) preserve the canonical eval(1:NORB,isp)
+            !   weight across all NORB stored orbitals, maintaining exact SZ/DZ parity and CPHF
+            !   response consistency (phatpsy/cphf.py).
             call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
                         merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
                               logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
+            ! PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III):
+            ! Unseeded H (Z <= 1.5, .not. QNWVEC) has no inner core shell and emits no PK projector;
+            ! seeded H (QNWVEC) emits pkpot(:,4:5) solely for homonuclear H-H Pauli repulsion in
+            ! polyatomics (src/bloop.f90 skips heteronuclear H-X PK transfer). Flagged for Ch. III adjudication.
             if (znuc <= 1.5d0 .and. .not. QNWVEC) then
               pkpot(:,4,isp) = 0.0d0
               pkpot(:,5,isp) = 0.0d0
@@ -509,12 +519,17 @@ contains
               call FLIP(pkpot,  1, ISPIN, pkpot, ISPIN, ISPIN, 6 * M2STO)
             end if
             if ((QNWVEC .or. (znuc > 18.0d0 .and. QGRDFT)) .and. .not. QRSTRT) then
+              ! Symmetry-equivalent atom initialization (ieqat = 1..neqat):
+              ! Recompute pkpot(:,4:5,isp) from the symmetry-rotated / spin-flipped stevec
+              ! using the same (znuc <= 1.5d0 .and. .not. QNWVEC) Hydrogen exemption rule
+              ! as the primary atom above so equivalent seeded H atoms (e.g. H2 in C2v H2O)
+              ! also emit pkpot(:,4:5) for homonuclear H-H Pauli repulsion.
               do isp = 1, ISPIN
                 call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
                 call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
                             merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
                                   logical(QNWVEC) .or. (znuc > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
-                if (znuc <= 1.5d0) then
+                if (znuc <= 1.5d0 .and. .not. QNWVEC) then
                   pkpot(:, 4, isp) = 0.0d0
                   pkpot(:, 5, isp) = 0.0d0
                 else

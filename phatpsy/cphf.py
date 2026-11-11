@@ -951,14 +951,16 @@ class CPHFResponseSolver:
             return dC_bar @ M_mhalf + C_bar @ dM_mhalf
 
         def _pk_pair_weight(aa_rec, ab_rec) -> float:
-            # Mirror src/bloop.f90:294-312 PK projector transfer weights:
+            # Mirror src/bloop.f90:run_bloop (lines 288-315) PK projector transfer weights:
             # 1) Heteronuclear H-X pairs (one Z <= 1.5, one Z > 1.5) are exempt from
-            #    PK projection (Thesis Eq. III-24) so H 1s is not projected out of the
+            #    PK projection — PHATPSY 2.0 implementation rule, motivated by the PK
+            #    construction in Thesis Ch. III — so H 1s is not projected out of the
             #    X-H bonding space and does not force a radial node into X's valence shell.
-            # 2) Homonuclear H-H pairs receive a 0.40 PK transfer weight when QNWVEC is
-            #    active (and 0.0 when unseeded) to supply Pauli orthogonalization between
-            #    non-bonded parallel-spin H atoms (e.g. H1(beta)..H2(beta) in H2O) without
-            #    over-projecting the diffuse 1s (zeta=1.0) valence tails.
+            # 2) Homonuclear H-H pairs receive an empirically calibrated w_HH = 0.40 PK
+            #    transfer weight when QNWVEC is active (and 0.0 when unseeded) to supply
+            #    Pauli orthogonalization between non-bonded parallel-spin H atoms
+            #    (e.g. H1(beta)..H2(beta) in H2O) without over-projecting the diffuse
+            #    1s (zeta=1.0) valence tails.
             if (aa_rec["znuc"] <= 1.5) != (ab_rec["znuc"] <= 1.5):
                 return 0.0
             if aa_rec["znuc"] <= 1.5 and ab_rec["znuc"] <= 1.5:
@@ -975,8 +977,16 @@ class CPHFResponseSolver:
             S_mhalf = (v_s / np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             S_half = (v_s * np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             H0_A = _unpack_packed(_phatpsy_core.state.get_atom_elem_sthmat(a, m2).ravel(), m)
-            has_pk = qpsmet and (aa["znuc"] > 1.5 or qnwvec)
+            has_pk = (
+                qpsmet
+                and (aa["znuc"] > 1.5 or qnwvec)
+                and float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
+            )
             for s in range(self.ispin):
+                # Mirror src/scf.f90:run_scf_element (lines 482-486): when QNWVEC is active
+                # and znuc <= 1.5 (seeded Hydrogen), the two-center exchange residual
+                # xpot2(:, isp) = pkpot(:, 3, isp) is zeroed because Hydrogen has no inner
+                # core shell and bloop skips nv=3 for H pairs.
                 X2_A = (
                     _unpack_packed(aa["pkpot"][:, 2, s], m)
                     if (aa["znuc"] > 1.5 or not qnwvec)
@@ -1034,11 +1044,12 @@ class CPHFResponseSolver:
                 S_tilde = S_A - P1_reg
                 w_st, v_st = np.linalg.eigh(S_tilde)
                 St_mhalf = (v_st / np.sqrt(np.maximum(w_st, 1e-12))) @ v_st.T
-                # Note: solve_orthonormal_fock in src/scf.f90:45 diagonalizes the full
-                # m x m orthonormal Fock matrix F_on (allowing intra-atomic hybrid/3d
+                # Note: solve_orthonormal_fock in src/scf.f90 (lines 18-83) diagonalizes the
+                # full m x m orthonormal Fock matrix F_on (allowing intra-atomic hybrid/3d
                 # polarization mixing); the active core+valence STO separation (1..nact_sto)
-                # is enforced on two-center zpot2a/cpot2a (lines 658-663) and pkpot(:,6)
-                # (lines 747-750, 856-859), not by block-diagonalizing F_on.
+                # is enforced on two-center zpot2a/cpot2a in src/bloop.f90:run_bloop (lines 318-333)
+                # and on pkpot(:,6) in src/scf.f90:run_scf_element (lines 749-759, 825-835, 946-956),
+                # not by block-diagonalizing F_on.
                 F_on = St_mhalf.T @ (F_A - P2_reg) @ St_mhalf
                 eval_t, evec_t = np.linalg.eigh(F_on)
                 C_tilde = St_mhalf @ evec_t

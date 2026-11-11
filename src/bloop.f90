@@ -285,7 +285,8 @@ contains
 
                 do isp = 1, ISPIN
                   do nv = 1, 3
-                    ! Heteronuclear H-X PK exemption (Thesis Eq. III-24):
+                    ! Heteronuclear H-X PK exemption — PHATPSY 2.0 implementation rule
+                    ! (motivated by the PK construction in Thesis Ch. III):
                     ! Hydrogen 1s is a valence orbital with no inner core shell; projecting
                     ! H 1s onto a bonded heavy atom X (or X onto H) would unphysically remove
                     ! the X-H bonding orbital and force a radial node into X's valence shell.
@@ -299,14 +300,14 @@ contains
                     else
                       call CTSC(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
                     end if
-                    ! Homonuclear H-H Pauli attenuation (0.40):
+                    ! Homonuclear H-H Pauli attenuation (w_HH = 0.40, empirically calibrated):
                     ! Unlike heavy atoms where pkpot(:,4:5) contains a tightly localized
                     ! inner core shell alongside valence hybrids, Hydrogen has only a single
                     ! diffuse 1s valence shell (zeta = 1.0). Applying the full unit PK
                     ! projector between non-bonded parallel-spin H atoms (e.g. H1(beta)..H2(beta)
                     ! in H2O at R_HH ~ 2.87 Bohr, S_HH ~ 0.25) over-projects the O-H bonding
-                    ! tails; scaling the H-H PK transfer by 0.40 balances non-bonded H..H
-                    ! Pauli repulsion without distorting the equilibrium X-H bond length.
+                    ! tails; scaling the H-H PK transfer by w_HH = 0.40 is empirically calibrated
+                    ! to balance non-bonded H..H Pauli repulsion in H2O and H2.
                     if (nv <= 2 .and. znuca <= 1.5d0 .and. znucb <= 1.5d0) then
                       pkpota(:, nv, isp) = pkpota(:, nv, isp) + 0.40d0 * fractn * scrat1(1:M2STO)
                     else

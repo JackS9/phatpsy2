@@ -955,11 +955,13 @@ def test_co_dative_pi_fractional_occupations_and_dz_parity():
        donor across pi_x and pi_y ([0.5, 1.0] each), with [0.0, 1.0] on sigma_in
        and [1.0, 1.0] on its outward sigma lone pair (conserving 6.0 valence electrons),
        matching build_atom_orbitals(hybridization='sp') in both DZ and DZP.
-    3. Verified DZ CO SCF convergence, total energy, and virial ratio are unchanged
+    3. Verified both DZ and DZP CO SCF convergence, total energy (< 1e-8 Ha),
+       virial ratio (< 1e-6), and EOM dipole moment (< 1e-6 D) are identical
        between valence_config and hybridization='sp' seeding.
     """
     from phatpsy.builder import build_diatomic
     from phatpsy.driver import PhatpsyDriver
+    from phatpsy.eom import compute_eom
     from phatpsy.schema import ValenceOrbital
 
     c_val = [
@@ -1019,13 +1021,17 @@ def test_co_dative_pi_fractional_occupations_and_dz_parity():
         assert sorted([list(o.occno) for o in c_orbs_hyb]) == c_occs
         assert sorted([list(o.occno) for o in o_orbs_hyb]) == o_occs
 
-        if basis_name == "DZ":
-            driver = PhatpsyDriver(quiet=True)
-            res_vc = driver.run_deck(deck_vc)
-            res_hyb = driver.run_deck(deck_hyb)
-            assert res_vc.converged and res_hyb.converged
-            assert float(res_vc.total_energy) == pytest.approx(float(res_hyb.total_energy), abs=1e-6)
-            assert float(res_vc.virial_ratio) == pytest.approx(float(res_hyb.virial_ratio), abs=1e-5)
+        driver = PhatpsyDriver(quiet=True)
+        res_vc = driver.run_deck(deck_vc)
+        res_hyb = driver.run_deck(deck_hyb)
+        eom_vc = compute_eom(deck_vc, driver=driver, state=res_vc)
+        eom_hyb = compute_eom(deck_hyb, driver=driver, state=res_hyb)
+        assert res_vc.converged and res_hyb.converged
+        assert float(res_vc.total_energy) == pytest.approx(float(res_hyb.total_energy), abs=1e-8)
+        assert float(res_vc.virial_ratio) == pytest.approx(float(res_hyb.virial_ratio), abs=1e-6)
+        assert float(eom_vc.dipole.magnitude_debye) == pytest.approx(
+            float(eom_hyb.dipole.magnitude_debye), abs=1e-6
+        )
 
 
 

@@ -5,7 +5,7 @@
 module twocenter
   use iso_fortran_env, only: real64, int32
   use state,           only: EXPMIN, FACT, BINOM, &
-                             HALF, ROOTPI, ALPHA_ANG, BETA_ANG
+                             HALF, ROOTPI, ALPHA_ANG, BETA_ANG, NCGC
   use elliptical,      only: absum, anmbnm, ogen
   use angular,         only: dcoef, cgcoef, gendc, ndxmax
   use symmetry,        only: rotsab
@@ -567,7 +567,7 @@ contains
     use modelpot, only: genbc, genfac
     use angular,  only: gencgc
     integer(int32) :: i, tc_lmax, tc_llmx, tc_llmxp1, tc_llmxp2, tc_l3mx, tc_nylm, tc_ncgc
-    integer(int32) :: ndxdim, mxfact, nfact, nbinom, tc_nnmx, tc_nnmxm1
+    integer(int32) :: ndxdim, mxfact, nfact, nbinom, tc_nnmx, tc_nnmxm1, ncgc_bak
     logical(kind=1), parameter :: qrealy = .true.
 
     if (tc_tables_ready) return
@@ -602,8 +602,11 @@ contains
     call genfac(tc_fact, size(tc_fact))
     nbinom = tc_index_arr(tc_nnmx)
     call genbc(tc_binom, nbinom, tc_nnmxm1, tc_index_arr)
+    ncgc_bak = NCGC
+    NCGC     = tc_ncgc
     call gencgc(tc_cgc, tc_ncgc, tc_scrat, tc_llmxp2, &
                 tc_ylmnrm, tc_nylm, tc_fact, nfact, qrealy)
+    NCGC     = ncgc_bak
 
     call genfac(FACT, size(FACT))
     call genbc(BINOM, 91, 13, tc_index_arr)
@@ -661,7 +664,7 @@ contains
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
     real(real64)   :: alpha_val, beta_val, alpha_bak, beta_bak
-    integer(int32) :: lmax_val
+    integer(int32) :: lmax_val, ncgc_bak
 
     call ensure_tables_initialized()
     alpha_val = 0.0d0
@@ -670,8 +673,10 @@ contains
     if (present(beta))  beta_val  = beta
     alpha_bak = ALPHA_ANG
     beta_bak  = BETA_ANG
+    ncgc_bak  = NCGC
     ALPHA_ANG = alpha_val
     BETA_ANG  = beta_val
+    NCGC      = size(tc_cgc)
     lmax_val = max(2 * maxval(l), maxval(abs(lv)))
     lmax_val = min(8, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
@@ -683,6 +688,7 @@ contains
     deallocate(a, b, omegai, omegaj, scrplm)
     ALPHA_ANG = alpha_bak
     BETA_ANG  = beta_bak
+    NCGC      = ncgc_bak
   end subroutine compute_genvab
 
   subroutine compute_d_genvab(d_stvab, m2sto, nvtrm, n, l, eta, nsto, rab, lv, mv, vexp, anorm, qrealy, alpha, beta)
@@ -699,7 +705,7 @@ contains
 
     real(real64), allocatable :: a(:), b(:), omegai(:,:), omegaj(:,:), scrplm(:)
     real(real64)   :: alpha_val, beta_val, alpha_bak, beta_bak
-    integer(int32) :: lmax_val
+    integer(int32) :: lmax_val, ncgc_bak
 
     call ensure_tables_initialized()
     alpha_val = 0.0d0
@@ -708,8 +714,10 @@ contains
     if (present(beta))  beta_val  = beta
     alpha_bak = ALPHA_ANG
     beta_bak  = BETA_ANG
+    ncgc_bak  = NCGC
     ALPHA_ANG = alpha_val
     BETA_ANG  = beta_val
+    NCGC      = size(tc_cgc)
     lmax_val = max(2 * maxval(l), maxval(abs(lv)))
     lmax_val = min(8, max(lmax_val, 2))
     call gendc(tc_d, lmax_val, beta_val)
@@ -721,6 +729,7 @@ contains
     deallocate(a, b, omegai, omegaj, scrplm)
     ALPHA_ANG = alpha_bak
     BETA_ANG  = beta_bak
+    NCGC      = ncgc_bak
   end subroutine compute_d_genvab
 
   subroutine compute_rotsab(stovlp, llmxp1, nstoa, mstoa, la, nstob, mstob, lb, ovrlap, alpha, beta)

@@ -1843,7 +1843,8 @@ class CalculationDeck:
                 # When explicit bonding seeds (valence_config or hybridization) are active
                 # in the molecule, mark Hydrogen atoms with QNWVEC=T so non-bonded parallel-spin
                 # H-H pairs (e.g. H1(beta)..H2(beta) in H2O) receive Phillips-Kleinman Pauli
-                # orthogonalization, while heteronuclear H-X pairs remain exempt (Thesis Eq. III-24).
+                # orthogonalization, while heteronuclear H-X pairs remain exempt per the
+                # PHATPSY 2.0 implementation rule (motivated by the PK construction in Thesis Ch. III).
                 if ed.atomic_number == 1 and (
                     p_atom.valence_config
                     or p_atom.hybridization
