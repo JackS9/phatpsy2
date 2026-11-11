@@ -75,7 +75,7 @@ def test_all_53_clementi_elements_structure(table_name, is_dz):
 
 
 def test_nitrogen_dz_numerical_accuracy():
-    """Verifies Nitrogen DZ against published Clementi table & examples/NDZ.stdin."""
+    """Verifies Nitrogen DZ against published Clementi table."""
     n_dz = get_clementi_basis("N", "DZ")
     assert n_dz.nsto == 6
     assert len(n_dz.default_orbitals) == 5
@@ -103,7 +103,7 @@ def test_nitrogen_dz_numerical_accuracy():
 
 
 def test_nitrogen_sz_numerical_accuracy():
-    """Verifies Nitrogen SZ against published Clementi table & examples/n2.stdin."""
+    """Verifies Nitrogen SZ against published Clementi table."""
     n_sz = get_clementi_basis("N", "SZ")
     assert n_sz.nsto == 3
     assert len(n_sz.default_orbitals) == 5
@@ -114,13 +114,13 @@ def test_nitrogen_sz_numerical_accuracy():
 
 
 def test_silver_dz_numerical_accuracy():
-    """Verifies Silver DZ (Z=47) against examples/ag13dz.stdin."""
+    """Verifies Silver DZ (Z=47) against published Clementi table."""
     ag_dz = get_clementi_basis("Ag", "DZ")
     assert ag_dz.nsto == 20
     assert ag_dz.atomic_number == 47
     assert len(ag_dz.default_orbitals) == 24  # 5 S + 3*3 P + 5*2 D = 24 orbitals
 
-    # Verify first 1s exponent matches ag13dz.stdin
+    # Verify first 1s exponent matches Clementi Ag DZ table
     assert np.isclose(ag_dz.functions[0].zeta, 48.223, atol=1e-3)
     assert np.isclose(ag_dz.default_orbitals[0].eigval[0], -914.01686, atol=1e-1)
 

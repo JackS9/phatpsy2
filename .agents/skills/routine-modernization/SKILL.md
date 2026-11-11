@@ -52,4 +52,4 @@ Use this skill whenever converting a remaining legacy fixed-form Fortran routine
    ```
 3. **Verify Physical Invariants:**
    - Check total energy convergence and ensure virial ratio $-V/T \approx 2.00$ remains satisfied.
-   - Confirm zero regression on reference decks (`examples/n2.stdin`, `examples/CO.stdin`, `examples/ag13dz.stdin`).
+   - Confirm zero regression on reference decks (`examples/n2.yaml`, `examples/CO.yaml`, `examples/ag13.yaml`).

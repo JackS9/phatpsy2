@@ -8,7 +8,184 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILD_BIN = REPO_ROOT / "build" / "bin"
-EXAMPLE_N2 = REPO_ROOT / "examples" / "n2.stdin"
+
+N2_STDIN_TEXT = """
+ &CTLINP
+  QDEBUG=F,
+  QTRACE=F,
+  QRSTRT=F, QSEPAT=T,
+  QC2FIT=T, QX2FIT=T, VDAMP=0.5, VACCEL=1.0,
+  QPSMET=T, PKE=0.0, PKSCAL=0.00,
+  QEWMO=F, CDAMP=0.5, CACCEL=1.0,
+  NELEM=1, NATOM=2, NORBT=10, 
+  QOPEN=T,
+  CONVRG=1D-4, MXCYCL=100, TIMEND=360.0D0,
+ &END
+ &BASDIM
+  MSTO=5,NSTO=3,
+  NORB=5,
+  NVTERM=5,
+ &END
+ &ELEM
+  LATOM='N',
+  DESCR='CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN:',
+  NUCZ=7,
+  MDIFAT=1,
+  QMNBAS=T,
+ &END
+  1  0   6.6651
+  2  0   1.9237
+  2  1   1.9170
+  0  0   0.15
+ &ATOM XYZ=0.0,0.0,1.034, NEQAT=1 &END
+ &ATORB EIGVAL=-15.6704,-15.5790 &END
+ &ATORB EIGVAL=-01.1606,-0.7270 &END
+ &ATORB EIGVAL=-0.5691,0.1912, OCCNO=1.0,0.0 &END
+ &ATORB &END
+ &ATORB &END
+ &ATOM IXYZ=001, ISYM=-1, QFLIP=T &END
+"""
+
+AG13DZ_STDIN_TEXT = """... Ag13, R(Ag-Ag)=5.46  (DZ Basis)
+
+ &CTLINP
+   QRSTRT=F,
+   QCMPTD=F,
+   QOPEN=T,
+   QEWMO=F,
+   QMNPRT=T,
+   NELEM=1,NATOM=13,
+   NORBT=24,
+   MXNSTO=20,MXMSTO=48,MXNORB=24,
+   NMAX=5,LMAX=2,
+   MXCYCL=20,
+   CONVRG=1.D-4,
+   CDAMP=0.5,CACCEL=1.0,
+   VDAMP=0.5,VACCEL=1.0,
+   PKSCAL=1.0,
+   PKE=0.0,
+   WGTC=0.1,WGT2=10.0,
+   TIMEND=9999.0,
+ &END
+ &BASDIM
+   NVTERM=5,
+   MSTO=48,NSTO=20,
+   NORB=24,
+ &END
+ &ELEM
+   LATOM='Ag',DESCR='Clementi DZ-Basis for neutral Silver:',
+   NUCZ=47,
+   MDIFAT=1,
+ &END
+  1  0  48.223
+  1  0  33.484
+  2  0  21.921
+  2  0  21.015
+  2  1  30.724
+  2  1  20.019
+  3  0  14.814
+  3  0  10.125
+  3  1  11.128
+  3  1   8.952
+  3  2  16.290
+  3  2   9.223
+  4  0   5.861
+  4  0   3.981
+  4  1   5.689
+  4  1   3.576
+  4  2   4.989
+  4  2   2.584
+  5  0   2.288
+  5  0   1.265
+  0  0   0.90      0.00
+ &ATOM NEQAT=12,XYZ=0.0,0.0,0.0 &END
+ &ATORB EIGVAL=2*-914.0,NCOEF=4 &END
+  1  0  0.86
+  2  0  0.15
+  3  0 -0.22
+  4  0  0.21
+ &ATORB EIGVAL=2*-135.1,NCOEF=4 &END
+  1  0  0.02
+  2  0  0.49
+  3  0  0.71
+  4  0 -1.88
+ &ATORB EIGVAL=2*-125.4,NCOEF=2 &END
+  5 -1  0.13
+  6 -1  0.87
+ &ATORB EIGVAL=2*-125.4,NCOEF=0 &END
+ &ATORB EIGVAL=2*-125.4,NCOEF=0 &END
+ &ATORB EIGVAL=2*-26.11,NCOEF=6 &END
+  1  0 -0.01
+  2  0 -0.22
+  3  0 -2.15
+  4  0  2.88
+  7  0 -0.06
+  8  0 -1.14
+ &ATORB EIGVAL=2*-22.14,NCOEF=4 &END
+  5 -1 -0.03
+  6 -1 -0.47
+  9 -1  0.60
+ 10 -1  0.52
+ &ATORB EIGVAL=2*-22.14,NCOEF=0 &END
+ &ATORB EIGVAL=2*-22.14,NCOEF=0 &END
+ &ATORB EIGVAL=2*-14.87,NCOEF=2 &END
+ 11 -2  0.25
+ 12 -2  0.78
+ &ATORB EIGVAL=2*-14.87,NCOEF=0 &END
+ &ATORB EIGVAL=2*-14.87,NCOEF=0 &END
+ &ATORB EIGVAL=2*-14.87,NCOEF=0 &END
+ &ATORB EIGVAL=2*-14.87,NCOEF=0 &END
+ &ATORB EIGVAL=2*-4.18,NCOEF=8 &END
+  1  0  0.00
+  2  0 -0.09
+  3  0 -0.93
+  4  0  1.25
+  7  0  0.03
+  8  0 -0.72
+ 13  0  0.78
+ 14  0  0.42
+ &ATORB EIGVAL=2*-2.84,NCOEF=6 &END
+  5 -1  0.01
+  6 -1  0.19
+  9 -1 -0.24
+ 10 -1 -0.34
+ 15 -1  0.71
+ 16 -1  0.48
+ &ATORB EIGVAL=2*-2.84,NCOEF=0 &END
+ &ATORB EIGVAL=2*-2.84,NCOEF=0 &END
+ &ATORB EIGVAL= 2*-0.70,NCOEF=4,OCCNO=2*1.0 &END
+ 11 -2 -0.09
+ 12 -2 -0.25
+ 17 -2  0.58
+ 18 -2  0.58
+ &ATORB EIGVAL= 2*-0.70,NCOEF=0,OCCNO=2*1.0 &END
+ &ATORB EIGVAL= 2*-0.70,NCOEF=0,OCCNO=2*1.0 &END
+ &ATORB EIGVAL= 2*-0.70,NCOEF=0,OCCNO=2*1.0 &END
+ &ATORB EIGVAL= 2*-0.70,NCOEF=0,OCCNO=1.0,0.0 &END
+ &ATORB EIGVAL=2*-0.26,NCOEF=10,OCCNO=1.0,1.0 &END
+  1  0  0.00
+  2  0  0.02
+  3  0  0.17
+  4  0 -0.24
+  7  0 -0.02
+  8  0  0.20
+ 13  0 -0.27
+ 14  0 -0.02
+ 19  0  0.55
+ 20  0  0.58
+ &ATOM XYZ= 5.46, 0.00, 0.00, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T &END
+ &ATOM XYZ= 3.15, 3.15, 3.15, QVIRTL=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM=-1,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+ &ATOM ISYM= 4,IXYZ=001, QVIRTL=T,QFLIP=T &END
+"""
 
 
 def parse_phatpsy_stdout(stdout_text: str) -> dict:
@@ -93,12 +270,14 @@ def run_executable(exe_path: Path, stdin_path: Path, work_dir: Path) -> str:
 
 @pytest.fixture(scope="module")
 def baseline_n2_results(tmp_path_factory):
-    """Runs unmodified legacy FORTRAN 66 executable on examples/n2.stdin."""
+    """Runs unmodified legacy FORTRAN 66 executable on inline N2 namelist deck."""
     legacy_exe = BUILD_BIN / "phatpsy_legacy"
     if not legacy_exe.exists():
         pytest.skip("Legacy executable not built yet.")
     work_dir = tmp_path_factory.mktemp("legacy_n2")
-    stdout = run_executable(legacy_exe, EXAMPLE_N2, work_dir)
+    n2_stdin = work_dir / "n2.stdin"
+    n2_stdin.write_text(N2_STDIN_TEXT)
+    stdout = run_executable(legacy_exe, n2_stdin, work_dir)
     return parse_phatpsy_stdout(stdout)
 
 
@@ -108,8 +287,11 @@ def test_modernized_cli_matches_legacy_n2(tmp_path, baseline_n2_results):
     modern_exe = BUILD_BIN / "phatpsy"
     assert modern_exe.exists(), "Modernized executable bin/phatpsy not found."
 
+    n2_stdin = tmp_path / "n2.stdin"
+    n2_stdin.write_text(N2_STDIN_TEXT)
+
     # 1. Default run (QGRDFT=T): verify convex screening mixture on N2
-    default_stdout = run_executable(modern_exe, EXAMPLE_N2, tmp_path / "modern_n2_default")
+    default_stdout = run_executable(modern_exe, n2_stdin, tmp_path / "modern_n2_default")
     default_parsed = parse_phatpsy_stdout(default_stdout)
     assert default_parsed["model_potential_coefs"], "Expected model potential coefficients in default run."
     assert default_parsed["model_potential_coefs"][0] == pytest.approx(7.0, abs=1e-4)
@@ -119,7 +301,7 @@ def test_modernized_cli_matches_legacy_n2(tmp_path, baseline_n2_results):
     # 2. Legacy fit comparison (QGRDFT=F): matches legacy FORTRAN 66 cycle-by-cycle
     legacy_fit_stdin = tmp_path / "n2_legacy_fit.stdin"
     legacy_fit_stdin.write_text(
-        EXAMPLE_N2.read_text().replace("&CTLINP", "&CTLINP QGRDFT=F,")
+        N2_STDIN_TEXT.replace("&CTLINP", "&CTLINP QGRDFT=F,")
     )
     modern_stdout = run_executable(modern_exe, legacy_fit_stdin, tmp_path / "modern_n2")
     modern = parse_phatpsy_stdout(modern_stdout)
@@ -175,12 +357,14 @@ def test_modernized_cli_matches_legacy_n2(tmp_path, baseline_n2_results):
 
 @pytest.fixture(scope="module")
 def baseline_ag13dz_results(tmp_path_factory):
-    """Runs unmodified legacy FORTRAN 66 executable on examples/ag13dz.stdin."""
+    """Runs unmodified legacy FORTRAN 66 executable on inline Ag13 DZ namelist deck."""
     legacy_exe = BUILD_BIN / "phatpsy_legacy"
     if not legacy_exe.exists():
         pytest.skip("Legacy executable not built yet.")
     work_dir = tmp_path_factory.mktemp("legacy_ag13dz")
-    stdout = run_executable(legacy_exe, REPO_ROOT / "examples" / "ag13dz.stdin", work_dir)
+    ag13_stdin = work_dir / "ag13dz.stdin"
+    ag13_stdin.write_text(AG13DZ_STDIN_TEXT)
+    stdout = run_executable(legacy_exe, ag13_stdin, work_dir)
     return parse_phatpsy_stdout(stdout)
 
 
@@ -189,8 +373,10 @@ def test_modernized_cli_matches_legacy_ag13dz(tmp_path, baseline_ag13dz_results)
     modern_exe = BUILD_BIN / "phatpsy"
     assert modern_exe.exists(), "Modernized executable bin/phatpsy not found."
 
+    ag13_stdin = tmp_path / "ag13dz.stdin"
+    ag13_stdin.write_text(AG13DZ_STDIN_TEXT)
     modern_stdout = run_executable(
-        modern_exe, REPO_ROOT / "examples" / "ag13dz.stdin", tmp_path / "modern_ag13dz"
+        modern_exe, ag13_stdin, tmp_path / "modern_ag13dz"
     )
     modern = parse_phatpsy_stdout(modern_stdout)
 

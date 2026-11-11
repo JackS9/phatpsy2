@@ -13,7 +13,7 @@ from phatpsy.state import CalculationState, EmbeddedAtomState
 from phatpsy.schema import CalculationDeck, AtomConfig, ControlConfig
 from phatpsy.builder import build_molecule
 
-EXAMPLE_N2 = Path(__file__).parent.parent / "examples" / "n2.stdin"
+EXAMPLE_N2 = Path(__file__).parent.parent / "examples" / "n2.yaml"
 
 
 def test_calculation_state_extraction_and_parity():
@@ -33,21 +33,21 @@ def test_calculation_state_extraction_and_parity():
     assert state.virial_ratio == state["virial_ratio"]
 
     # Physical invariant: Virial ratio (-V/T) ~ 2.0
-    assert abs(state.virial_ratio - 2.012) < 0.05
-    assert abs(state.total_energy - (-109.5656)) < 1e-2
+    assert abs(state.virial_ratio - 2.0) < 0.05
+    assert abs(state.total_energy - (-109.5112)) < 1e-2
 
-    # Dimensions
-    assert state.norbt == 10
-    assert state.mstot == 10
+    # Dimensions (DZP default basis for N2: 10 orbitals, 15 STOs per N atom)
+    assert state.norbt == 20
+    assert state.mstot == 30
     assert state.ispin == 2
-    assert state.eigenvalues.shape == (10, 2)
-    assert state.mo_coefficients.shape == (10, 10, 2)
+    assert state.eigenvalues.shape == (20, 2)
+    assert state.mo_coefficients.shape == (30, 20, 2)
     assert state.atom_charges.shape == (3, 2)
     assert state.atom_coordinates.shape == (3, 2)
 
     # Coordinates in Bohrs
-    np.testing.assert_allclose(state.atom_coordinates[:, 0], [0.0, 0.0, 1.034], atol=1e-5)
-    np.testing.assert_allclose(state.atom_coordinates[:, 1], [0.0, 0.0, -1.034], atol=1e-5)
+    np.testing.assert_allclose(state.atom_coordinates[:, 0], [0.0, 0.0, 1.0372], atol=1e-5)
+    np.testing.assert_allclose(state.atom_coordinates[:, 1], [0.0, 0.0, -1.0372], atol=1e-5)
 
 
 def test_embedded_atom_state_extraction():
@@ -71,26 +71,26 @@ def test_embedded_atom_state_extraction():
     assert abs(atom1.electronic_charge - 7.0) < 1e-3
     assert abs(atom1.net_charge) < 1e-3
 
-    # Localized spin polarization: alpha ~ 4.208, beta ~ 2.792, net ~ 1.416
-    assert abs(atom1.net_spin - 1.4159) < 0.05
-    assert abs(atom1.alpha_spin - 4.208) < 0.05
-    assert abs(atom1.beta_spin - 2.792) < 0.05
+    # Localized spin polarization on N1 (3 unpaired spin-up valence orbitals + 1 lone pair)
+    assert abs(atom1.net_spin - 3.0) < 0.05
+    assert abs(atom1.alpha_spin - 5.0) < 0.05
+    assert abs(atom1.beta_spin - 2.0) < 0.05
 
     # Partner atom 2 has opposite spin polarization
-    assert abs(atom2.net_spin - (-1.4159)) < 0.05
+    assert abs(atom2.net_spin - (-3.0)) < 0.05
 
-    # Orbitals and basis functions
-    assert len(atom1.basis_functions) == 3  # 1s, 2s, 2p
-    assert len(atom1.orbitals) == 5  # 5 orbitals for N SZ
+    # Orbitals and basis functions (DZP default basis for N: 7 STO shells, 10 orbitals)
+    assert len(atom1.basis_functions) == 7
+    assert len(atom1.orbitals) == 10
 
     orb1 = atom1.orbitals[0]
     assert orb1["orbital_index"] == 1
-    assert abs(orb1["energy_alpha"] - (-15.490)) < 0.05
+    assert abs(orb1["energy_alpha"] - (-15.7125)) < 0.05
     assert len(orb1["coefficients"]) > 0
 
     # Initial orbitals conversion
     init_orbs = atom1.to_initial_orbitals()
-    assert len(init_orbs) == 5
+    assert len(init_orbs) == 10
     assert len(init_orbs[0].eigval) == 2
     assert len(init_orbs[0].coefficients) > 0
 
@@ -160,7 +160,7 @@ def test_embedded_atom_save_and_load(tmp_path):
     loaded_json = EmbeddedAtomState.load(atom_json)
     assert loaded_json.atomic_number == 7
     assert abs(loaded_json.net_spin - n1.net_spin) < 1e-6
-    assert len(loaded_json.orbitals) == 5
+    assert len(loaded_json.orbitals) == len(n1.orbitals)
 
     # Save to NPZ
     atom_npz = tmp_path / "n1_embedded.npz"
@@ -170,7 +170,7 @@ def test_embedded_atom_save_and_load(tmp_path):
     loaded_npz = EmbeddedAtomState.load(atom_npz)
     assert loaded_npz.atomic_number == 7
     assert abs(loaded_npz.net_spin - n1.net_spin) < 1e-6
-    assert len(loaded_npz.basis_functions) == 3
+    assert len(loaded_npz.basis_functions) == len(n1.basis_functions)
 
 
 def test_warm_restart_on_modified_geometry():

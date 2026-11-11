@@ -65,13 +65,13 @@ cd ..
 ### Command-Line Interface (CLI)
 ```bash
 # View interactive 3D model in your browser
-phatpsy view examples/CO_ni_100.stdin
+phatpsy view examples/CO_ni_100.yaml
 
 # View with automatic alternating-spin assignment
 phatpsy view -s examples/n2.yaml
 
-# Convert between formats (legacy .stdin to modern YAML)
-phatpsy convert examples/CO.stdin -o examples/CO.yaml
+# Convert between formats (YAML to JSON or legacy .stdin to YAML)
+phatpsy convert examples/CO.yaml -o CO.json
 
 # Inspect available basis sets for an element
 phatpsy elements C
@@ -83,7 +83,7 @@ from phatpsy import PhatpsyDriver, CalculationDeck, build_molecule
 
 # Build a molecule directly from coordinates
 deck = build_molecule(
-    geometry="examples/CO.stdin",
+    geometry="examples/CO.yaml",
     basis="DZ",
     spins=["up", "up"],
     net_spin=2,
@@ -143,7 +143,7 @@ phatpsy2/
 │   ├── io.py                   # Legacy punch-card namelist parser and JSON exporter
 │   └── cli.py                  # Multi-command CLI tool
 ├── notebooks/                  # Interactive Jupyter notebooks and tutorials
-├── examples/                   # Sample calculation decks (.stdin, .yaml)
+├── examples/                   # Sample calculation decks (.yaml)
 ├── tests/                      # Automated test suite
 └── PhD_Thesis/                 # Theoretical foundation and original documentation
 ```

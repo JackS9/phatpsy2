@@ -34,7 +34,7 @@ from phatpsy.optimize import (
 )
 from phatpsy.cli import main as cli_main
 
-EXAMPLE_N2 = Path(__file__).parent.parent / "examples" / "n2.stdin"
+EXAMPLE_N2 = Path(__file__).parent.parent / "examples" / "n2.yaml"
 
 
 # ============================================================================
@@ -239,7 +239,9 @@ def test_zmatrix_triatomic_ref_index_zero():
 
 def test_scan_1d_n2_rigid_stretch(tmp_path):
     """Verify automated 1D PES scan on N2 molecule with virial ratio and min tracking."""
-    deck = parse_stdin_to_deck(EXAMPLE_N2)
+    deck = CalculationDeck.from_yaml(EXAMPLE_N2)
+    deck.control.pk_scale = 0.0
+    deck.control.convergence = 1e-4
 
     # 3 points around potential minimum (1.40 Bohr)
     points = [1.30, 1.40, 1.50]
@@ -281,7 +283,8 @@ def test_scan_1d_n2_rigid_stretch(tmp_path):
 
 def test_scan_2d_grid(tmp_path):
     """Verify automated 2D grid PES scan and contour plotting."""
-    deck = parse_stdin_to_deck(EXAMPLE_N2)
+    deck = CalculationDeck.from_yaml(EXAMPLE_N2)
+    deck.control.convergence = 1e-4
 
     # Scan 2x2 grid
     vals1 = [2.00, 2.0744]
@@ -320,7 +323,8 @@ def test_scan_2d_grid(tmp_path):
 
 def test_optimize_geometry_stretched_n2(tmp_path):
     """Verify BFGS ground-state geometry relaxation on stretched N2."""
-    deck = parse_stdin_to_deck(EXAMPLE_N2)
+    deck = CalculationDeck.from_yaml(EXAMPLE_N2)
+    deck.control.convergence = 1e-4
 
     # Create stretched deck at R = 2.18 Bohr (equilibrium is 2.0744 Bohr)
     stretched_deck = modify_deck_geometry(deck, "bond", (0, 1), 2.18)
@@ -343,7 +347,7 @@ def test_optimize_geometry_stretched_n2(tmp_path):
     assert len(opt.trajectory) >= 2
     for step in opt.trajectory:
         assert isinstance(step, OptimizationStep)
-        assert abs(step.virial_ratio - 2.012) < 0.05
+        assert abs(step.virial_ratio - 2.0) < 0.05
 
     # JSON export
     traj_path = tmp_path / "opt_traj.json"
@@ -363,7 +367,7 @@ def test_optimize_geometry_stretched_n2(tmp_path):
 
 def test_optimize_geometry_all_fixed():
     """Verify that optimizer immediately finishes when all atoms are fixed."""
-    deck = parse_stdin_to_deck(EXAMPLE_N2)
+    deck = CalculationDeck.from_yaml(EXAMPLE_N2)
     for a in deck.atoms:
         a.fixed = True
 

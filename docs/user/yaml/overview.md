@@ -229,7 +229,7 @@ Calculation decks are validated on load by `phatpsy.schema.CalculationDeck`:
 You can convert legacy `.stdin` punch-card files to modern YAML using `phatpsy convert`:
 
 ```bash
-python -m phatpsy convert examples/n2.stdin -o n2.yaml
+python -m phatpsy convert legacy_deck.stdin -o deck.yaml
 ```
 
 You can also convert between YAML and JSON:

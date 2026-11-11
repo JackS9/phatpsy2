@@ -13,12 +13,40 @@ from phatpsy import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE_N2 = REPO_ROOT / "examples" / "n2.stdin"
-EXAMPLE_AG13DZ = REPO_ROOT / "examples" / "ag13dz.stdin"
+EXAMPLE_N2 = REPO_ROOT / "examples" / "n2.yaml"
+
+N2_STDIN_FIXTURE = """
+ &CTLINP
+  QDEBUG=F, QTRACE=F, QRSTRT=F, QSEPAT=T,
+  QC2FIT=T, QX2FIT=T, VDAMP=0.5, VACCEL=1.0,
+  QPSMET=T, PKE=0.0, PKSCAL=0.00,
+  QEWMO=F, CDAMP=0.5, CACCEL=1.0,
+  NELEM=1, NATOM=2, NORBT=10, QOPEN=T,
+  CONVRG=1D-4, MXCYCL=100, TIMEND=360.0D0,
+ &END
+ &BASDIM MSTO=5, NSTO=3, NORB=5, NVTERM=5 &END
+ &ELEM
+  LATOM='N', DESCR='CLEMENTI SZ-BASIS FOR NEUTRAL NITROGEN:',
+  NUCZ=7, MDIFAT=1, QMNBAS=T,
+ &END
+  1  0   6.6651
+  2  0   1.9237
+  2  1   1.9170
+  0  0   0.15
+ &ATOM XYZ=0.0,0.0,1.034, NEQAT=1 &END
+ &ATORB EIGVAL=-15.6704,-15.5790 &END
+ &ATORB EIGVAL=-01.1606,-0.7270 &END
+ &ATORB EIGVAL=-0.5691,0.1912, OCCNO=1.0,0.0 &END
+ &ATORB &END
+ &ATORB &END
+ &ATOM IXYZ=001, ISYM=-1, QFLIP=T &END
+"""
 
 
-def test_io_parse_n2_stdin():
-    data = parse_stdin_file(EXAMPLE_N2)
+def test_io_parse_n2_stdin(tmp_path):
+    stdin_file = tmp_path / "n2.stdin"
+    stdin_file.write_text(N2_STDIN_FIXTURE)
+    data = parse_stdin_file(stdin_file)
     assert data["ctlinp"]["NATOM"] == 2
     assert data["ctlinp"]["NELEM"] == 1
     assert data["ctlinp"]["NORBT"] == 10
@@ -101,9 +129,9 @@ def test_driver_run_file_and_json_export(tmp_path):
 
     assert loaded["converged"] is True
     assert loaded["cycles"] > 0
-    assert abs(loaded["total_energy"] - (-109.5656)) < 1e-2
-    assert len(loaded["eigenvalues"]) == 10
-    assert len(loaded["mo_coefficients"]) == 10
+    assert abs(loaded["total_energy"] - (-109.5112)) < 1e-2
+    assert len(loaded["eigenvalues"]) == 20
+    assert len(loaded["mo_coefficients"]) == 30
 
 
 def test_basis_library_lookup():
@@ -157,9 +185,11 @@ def test_calculation_deck_yaml_and_json_roundtrip(tmp_path):
     assert loaded_json.geometry[1].xyz == [0.0, 0.0, -1.0]
 
 
-def test_stdin_to_deck_conversion():
+def test_stdin_to_deck_conversion(tmp_path):
     from phatpsy.io import parse_stdin_to_deck
-    deck = parse_stdin_to_deck(EXAMPLE_N2)
+    stdin_file = tmp_path / "n2.stdin"
+    stdin_file.write_text(N2_STDIN_FIXTURE)
+    deck = parse_stdin_to_deck(stdin_file)
     assert len(deck.geometry) == 2
     assert "N" in deck.elements
     assert deck.control.spin_unrestricted is True
@@ -203,8 +233,10 @@ geometry:
 
 def test_cli_convert_command(tmp_path):
     from phatpsy.cli import main
+    stdin_file = tmp_path / "n2.stdin"
+    stdin_file.write_text(N2_STDIN_FIXTURE)
     out_yaml = tmp_path / "n2_conv.yaml"
-    ret = main(["convert", str(EXAMPLE_N2), "-o", str(out_yaml)])
+    ret = main(["convert", str(stdin_file), "-o", str(out_yaml)])
     assert ret == 0
     assert out_yaml.exists()
     assert "LATOM='N'" not in out_yaml.read_text()

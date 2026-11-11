@@ -279,8 +279,79 @@ def test_driver_run_symmetry_scf():
 
 def test_parse_stdin_starting_orbitals_and_yaml_roundtrip(tmp_path):
     from phatpsy import parse_stdin_to_deck
-    stdin_path = Path("examples/CO_ni_100.stdin")
-    assert stdin_path.exists()
+    stdin_path = tmp_path / "co_ni.stdin"
+    stdin_path.write_text(
+        """... CO on Ni(100), R(CO)=2.13, R(NiC)=3.59...
+ &CTLINP QOPEN=T, NELEM=3, NATOM=3, NORBT=25 /
+ &BASDIM MSTO=5, NSTO=3, NORB=5, NVTERM=5 /
+ &ELEM LATOM='C', DESCR='Clementi SZ-Basis for Neutral Carbon:', NUCZ=6, QMNBAS=T, MDIFAT=1 /
+  1  0   5.67
+  2  0   1.61
+  2  1   1.57
+ -1  0   1.938
+ &ATOM XYZ=0.0,0.0,3.59 /
+ &ATORB EIGVAL=2*-11.3 /
+ &ATORB EIGVAL=2*-0.68,OCCNO=1.0,1.0 /
+ &ATORB EIGVAL=2*-0.40,OCCNO=1.0,0.0 /
+ &ATORB OCCNO=0.0,0.0 /
+ &ATORB OCCNO=1.0,0.0 /
+ &BASDIM MSTO=5, NSTO=3, NORB=5, NVTERM=5 /
+ &ELEM LATOM='O', DESCR='Clementi SZ-Basis for Neutral Oxygen:', NUCZ=8, QMNBAS=T /
+  1  0   7.66
+  2  0   2.25
+  2  1   2.23
+ -1  0   1.938
+ &ATOM XYZ=0.0,0.0,5.72 /
+ &ATORB EIGVAL=2*-20.6 /
+ &ATORB EIGVAL=2*-1.15 /
+ &ATORB EIGVAL=2*-0.50,OCCNO=0.0,1.0 /
+ &ATORB OCCNO=1.0,1.0 /
+ &ATORB OCCNO=0.0,1.0 /
+ &BASDIM MSTO=15, NSTO=7, NORB=15, NVTERM=7 /
+ &ELEM LATOM='Ni', DESCR='Clementi SZ-Basis for neutral Nickel:', NUCZ=28, QMNBAS=T, MDIFAT=1 /
+  1  0  27.347
+  2  0  10.1098
+  2  1  12.0478
+  3  0   4.98602
+  3  1   4.69403
+  3  2   4.17688
+  4  0   1.42748
+ -1 -1   1.938
+ -1  0   1.938
+ -1  1   1.938
+ &ATOM XYZ=0.0,0.0,0.0 /
+ &atorb ncoef=15, eigval=-305.5847, -305.5845, occno=1.0, 1.0 /
+  1  0  -.998911   .998913
+  2  0  -.003354   .003348
+  3 -1   .000000   .000000
+  3  0   .000000   .000000
+  3  1   .000000   .000000
+  4  0   .000563  -.000564
+  5 -1   .000000   .000000
+  5  0   .000000   .000000
+  5  1   .000000   .000000
+  6 -2   .000000   .000000
+  6 -1   .000000   .000000
+  6  0   .000000   .000000
+  6  1   .000000   .000000
+  6  2   .000000   .000000
+  7  0  -.000055   .000055
+ &atorb eigval=2*-37.3, occno=1.0, 1.0 /
+ &atorb eigval=2*-32.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-32.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-32.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-4.3, occno=1.0, 1.0 /
+ &atorb eigval=2*-2.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-2.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-2.7, occno=1.0, 1.0 /
+ &atorb eigval=2*-0.5, occno=1.0, 1.0 /
+ &atorb eigval=2*-0.5, occno=1.0, 1.0 /
+ &atorb eigval=2*-0.5, occno=1.0, 1.0 /
+ &atorb eigval=2*-0.5, occno=1.0, 1.0 /
+ &atorb eigval=2*-0.5, occno=0.0, 0.0 /
+ &atorb eigval=2*-0.2, occno=1.0, 1.0 /
+"""
+    )
 
     deck = parse_stdin_to_deck(stdin_path)
     # Check that primary atoms have their starting orbitals parsed
