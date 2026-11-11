@@ -1295,6 +1295,46 @@ def build_atom_orbitals_from_valence_config(
 
         ordered = [(assigned_vecs[idx_e], _valence_orbital_occno(entries[idx_e])) for idx_e in range(len(entries))]
 
+        # Terminal sp dative-pi triple bond (e.g. CO, CN-, isocyanides):
+        # Match build_atom_orbitals(hybridization="sp") so that:
+        # 1. Group 14 acceptor (4 valence e-, empty dative pi_x acceptor orbital) places its
+        #    outward sigma lone-pair spin opposite its sigma_in/pi_y bonding spin ([0,1] vs [1,0]),
+        #    and shares half an electron per pi orbital from the Group 16 donor ([1,0] on both
+        #    pi_x and pi_y, conserving 4.0 total valence electrons on C).
+        # 2. Group 16 donor (6 valence e-, doubly occupied dative pi_x donor in dative_pi_indices)
+        #    shares 0.5 electron from its dative pi_x lone pair across pi_x and pi_y ([0.5, 1.0]
+        #    or [1.0, 0.5]), conserving 6.0 total valence electrons on O and breaking the closed
+        #    4-electron minority-spin shell that otherwise suppresses sp sigma hybridization.
+        if (
+            not has_d
+            and hyb_label == "sp"
+            and len(directed_sigma_indices) == 1
+            and len(pi_indices) == 2
+        ):
+            total_val_e = sum(sum(occ) for _, occ in ordered)
+            sigma_idx = directed_sigma_indices[0]
+            sigma_occ = ordered[sigma_idx][1]
+            # Group 14 acceptor: 4 valence electrons, 1 empty pi orbital with connect_to
+            has_empty_dative_pi = any(
+                entries[p_i].occupation == 0 and entries[p_i].connect_to
+                for p_i in pi_indices
+            )
+            if abs(total_val_e - 4.0) < 1e-6 and has_empty_dative_pi and rem_indices:
+                bond_occ = [1.0, 0.0] if sigma_occ[0] >= sigma_occ[1] else [0.0, 1.0]
+                lp_occ = [0.0, 1.0] if bond_occ[0] >= bond_occ[1] else [1.0, 0.0]
+                ordered[rem_indices[0]] = (ordered[rem_indices[0]][0], lp_occ)
+                ordered[sigma_idx] = (ordered[sigma_idx][0], list(bond_occ))
+                for p_i in pi_indices:
+                    ordered[p_i] = (ordered[p_i][0], list(bond_occ))
+            # Group 16 donor: 6 valence electrons, 1 doubly-occupied dative pi donor in dative_pi_indices
+            elif abs(total_val_e - 6.0) < 1e-6 and len(dative_pi_indices) == 1 and rem_indices:
+                bond_occ = [1.0, 0.0] if sigma_occ[0] >= sigma_occ[1] else [0.0, 1.0]
+                pi_occ = [0.5, 1.0] if bond_occ[0] < bond_occ[1] else [1.0, 0.5]
+                ordered[rem_indices[0]] = (ordered[rem_indices[0]][0], [1.0, 1.0])
+                ordered[sigma_idx] = (ordered[sigma_idx][0], list(bond_occ))
+                for p_i in pi_indices:
+                    ordered[p_i] = (ordered[p_i][0], list(pi_occ))
+
     if has_d and vs.d_indices:
         slots = sorted([vs.s_index, *vs.p_indices, *vs.d_indices])
     else:

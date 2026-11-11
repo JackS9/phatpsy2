@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any, Union, Sequence
 import copy
 import json
+import math
 import numpy as np
 
 from phatpsy.schema import CalculationDeck, AtomConfig

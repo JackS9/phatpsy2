@@ -10,6 +10,7 @@ import math
 import numpy as np
 
 from phatpsy.schema import AtomConfig, CalculationDeck, ControlConfig
+from phatpsy.driver import PhatpsyDriver
 from phatpsy.io import parse_stdin_to_deck
 from phatpsy.coords import (
     BondCoordinate,
@@ -342,6 +343,10 @@ def test_optimize_geometry_stretched_n2(tmp_path):
     # Energy must decrease during optimization
     assert opt.energy_change < 0.0
     assert opt.final_energy < opt.initial_energy
+
+    # Re-evaluating opt.optimized_deck must reproduce opt.final_energy via warm-restarted orbitals
+    re_eval = PhatpsyDriver().run_deck(opt.optimized_deck)
+    assert abs(re_eval.total_energy - opt.final_energy) < 1e-6
 
     # Trajectory tracking
     assert len(opt.trajectory) >= 2

@@ -1840,6 +1840,12 @@ class CalculationDeck:
                 if (group_idx > 0 and p_atom.is_spin_down and not has_custom_orbs
                         and p_atom.spin != primary_groups[0]["primary"].spin):
                     flags.append("QFLIP=T")
+                if ed.atomic_number == 1 and (
+                    p_atom.valence_config
+                    or p_atom.hybridization
+                    or any(a.valence_config or a.hybridization for a in self.geometry)
+                ):
+                    flags.append("QNWVEC=T")
                 if group_idx > 0 and has_custom_orbs:
                     flags.append("QDFVEC=T")
                 if p_atom.embedded_state:

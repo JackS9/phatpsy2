@@ -336,7 +336,7 @@ contains
     real(real64),   intent(inout) :: pkpot_b(m2sto)
     real(real64),   intent(in), optional :: delta_in
 
-    real(real64) :: delta, max_lam, tol
+    real(real64) :: delta, max_lam, tol, cap, w_cap, t_cap
     real(real64), allocatable :: s_mat(:,:), s_half(:,:), s_mhalf(:,:)
     real(real64), allocatable :: p_mat(:,:), b_mat(:,:)
     real(real64), allocatable :: p_lowdin(:,:), b_lowdin(:,:)
@@ -412,17 +412,34 @@ contains
     deallocate(work)
     if (info /= 0) goto 999
 
-    ! 5. Check if any eigenvalue exceeds physical bound (1 - delta)
+    ! 5. Check if any eigenvalue exceeds smooth regularization onset (cap - w_cap)
+    cap     = 1.0d0 - delta
+    if (delta >= 0.05d0) then
+      w_cap = min(0.04d0, 0.5d0 * delta)
+    else
+      w_cap = 0.0d0
+    end if
     max_lam = maxval(lam_p)
-    needs_reg = (max_lam > (1.0d0 - delta))
+    needs_reg = (max_lam > (cap - w_cap))
 
     if (needs_reg) then
-      ! Calculate mode scaling factors s_k <= 1.0
+      ! Calculate mode scaling factors s_k <= 1.0 (C^1-smooth when w_cap > 0)
       do k = 1, msto
-        if (lam_p(k) > (1.0d0 - delta)) then
-          s_modes(k) = (1.0d0 - delta) / lam_p(k)
+        if (w_cap > 0.0d0) then
+          if (lam_p(k) >= (cap + w_cap)) then
+            s_modes(k) = cap / lam_p(k)
+          else if (lam_p(k) > (cap - w_cap)) then
+            t_cap = (lam_p(k) - (cap - w_cap)) / (2.0d0 * w_cap)
+            s_modes(k) = (lam_p(k) - w_cap * t_cap * t_cap) / lam_p(k)
+          else
+            s_modes(k) = 1.0d0
+          end if
         else
-          s_modes(k) = 1.0d0
+          if (lam_p(k) > cap) then
+            s_modes(k) = cap / lam_p(k)
+          else
+            s_modes(k) = 1.0d0
+          end if
         end if
       end do
 

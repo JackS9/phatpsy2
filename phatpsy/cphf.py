@@ -262,33 +262,52 @@ class CPHFResponseSolver:
         anorm_arr = np.array([f[3] for f in unique_funcs], dtype=np.float64)
         return n_arr, l_arr, eta_arr, anorm_arr
 
+    def _get_atom_nact(self, a: int) -> Tuple[int, int]:
+        """
+        Returns (nact_sto, nact_orb) for atom a matching src/scf.f90 and src/bloop.f90:
+        core + valence STO count (l <= l_max_val) and active orbital count
+        norb_a - (m - nact_sto).
+        """
+        idx_a = self.atom_basis_indices[a]
+        m = len(idx_a)
+        k_start, k_end = self.atom_orb_slices[a]
+        norb_a = k_end - k_start
+        znuc = int(round(float(self.charges[a - 1])))
+        if znuc <= 2:
+            l_max_val = 0
+        elif znuc <= 20:
+            l_max_val = 1
+        elif znuc <= 56:
+            l_max_val = 2
+        else:
+            l_max_val = 3
+        _, la, _, _ = self._extract_radial(a)
+        nact_sto = int(sum(2 * int(l_val) + 1 for l_val in la if int(l_val) <= l_max_val))
+        if nact_sto <= 0 or nact_sto > m:
+            nact_sto = m
+        nact_orb = norb_a - (m - nact_sto)
+        if nact_orb <= 0 or nact_orb > norb_a:
+            nact_orb = norb_a
+        return nact_sto, nact_orb
+
     def _get_atom_full_orbitals(self, a: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns the full (m, m, ispin) canonical orbital coefficients C_full,
         (m, ispin) occupations occ_full, and (m, ispin) eigenvalues eval_full
-        for atom a. When m > norb_a (e.g. DZ / DZP / TZP basis sets), completes
-        the basis with the m - norb_a virtual eigenvectors of the atomic Fock
-        matrix in the S-orthogonal complement of the norb_a stored orbitals.
+        for atom a. When m > nact_orb (e.g. DZ / DZP / TZP basis sets), completes
+        the basis with the m - nact_orb virtual eigenvectors of the atomic Fock
+        matrix in the S-orthogonal complement of the nact_orb active orbitals.
         """
         idx_a = self.atom_basis_indices[a]
         m = len(idx_a)
         m2 = (m * (m + 1)) // 2
         k_start, k_end = self.atom_orb_slices[a]
-        norb_a = k_end - k_start
 
         C_stored = self.evecx[idx_a, k_start:k_end, :].copy()
         occ_stored = self.occx[k_start:k_end, :].copy()
         eval_stored = self.evalx[k_start:k_end, :].copy()
 
-        # Active core/valence orbitals are those populated in at least one spin
-        # channel; trailing unoccupied polarization orbitals (e.g. 3d/4f in DZP/TZP/TZ2P)
-        # have zero occupation and zero model-potential fit weight, so they belong to
-        # the canonical virtual complement orthogonal to the active subspace.
-        active_indices = [i for i in range(norb_a) if np.sum(occ_stored[i, :]) > 1e-6]
-        if active_indices and active_indices == list(range(len(active_indices))):
-            n_act = len(active_indices)
-        else:
-            n_act = norb_a
+        _, n_act = self._get_atom_nact(a)
 
         if m <= n_act:
             return C_stored, occ_stored, eval_stored
@@ -324,7 +343,11 @@ class CPHFResponseSolver:
             fc_s = _unpack_packed(fc_pack[:, s], m)
             fx_s = _unpack_packed(fx_pack[:, s], m)
             xpot2_s = _unpack_packed(pkpot[:, 2, s], m)
-            pk2_s = _unpack_packed(pkpot[:, 1, s], m) if znuc > 1.5 else 0.0
+            pk2_s = (
+                _unpack_packed(pkpot[:, 1, s], m)
+                if (znuc > 1.5 or float(np.max(np.abs(pkpot[:, 1, s]))) > 1e-12)
+                else 0.0
+            )
             F_ao = sthmat + fc_s + fx_s + zpot2 + cpot2 + xpot2_s - pk2_s
             onfock = s_inv_sqrt.T @ F_ao @ s_inv_sqrt
 
@@ -354,11 +377,9 @@ class CPHFResponseSolver:
             mstoa = len(idx_a)
             if mstoa <= 1:
                 continue
-            k_start, k_end = self.atom_orb_slices[a]
-            norb_a = k_end - k_start
+            k_start, _ = self.atom_orb_slices[a]
             _, occ_full, eval_full = self._get_atom_full_orbitals(a)
-            active_indices = [i for i in range(norb_a) if np.sum(occ_full[i, :]) > 1e-6]
-            n_act = len(active_indices) if (active_indices and active_indices == list(range(len(active_indices)))) else norb_a
+            _, n_act = self._get_atom_nact(a)
 
             for s in range(self.ispin):
                 occ_s = occ_full[:, s]
@@ -514,10 +535,13 @@ class CPHFResponseSolver:
                 and np.all(w_check >= -1e-6)
                 and abs(float(np.sum(w_check)) - 1.0) < 1e-5
             )
+            nact_sto, nact_orb = self._get_atom_nact(a)
             atoms[a] = {
                 "m": m,
                 "m2": m2,
                 "norb": norb_a,
+                "nact_sto": nact_sto,
+                "nact_orb": nact_orb,
                 "k_start": k_start,
                 "idx": idx_a,
                 "znuc": znuc,
@@ -558,6 +582,37 @@ class CPHFResponseSolver:
                 "G_pinv": G_pinv,
                 "P_null": P_null,
             }
+
+        qpsmet = True
+        pkscal = 1.0
+        qnwvec = False
+        if self.deck is not None:
+            if getattr(self.deck, "control", None) is not None:
+                qpsmet = bool(getattr(self.deck.control, "use_pseudometric", True))
+                pkscal = float(getattr(self.deck.control, "pk_scale", 1.0))
+            if getattr(self.deck, "valence_configs", None):
+                qnwvec = True
+            for g in getattr(self.deck, "geometry", []) or []:
+                if (
+                    getattr(g, "hybridization", None) is not None
+                    or getattr(g, "valence_config", None) is not None
+                    or bool(getattr(g, "use_new_vectors", False))
+                ):
+                    qnwvec = True
+        if not qnwvec:
+            # Fallback check on stored energy-weighted projector D5_A (occ*eval vs eval)
+            for aa in atoms.values():
+                if aa["znuc"] > 1.5 and aa["norb"] > 0:
+                    for s in range(self.ispin):
+                        occ_s = aa["occ"][: aa["norb"], s]
+                        if np.any((occ_s < 0.99) & (occ_s > -0.01)):
+                            C_sub = aa["C"][:, : aa["norb"], s]
+                            ev_s = aa["eval"][: aa["norb"], s]
+                            D5_stor = _unpack_packed(aa["pkpot"][:, 4, s], aa["m"])
+                            err_t = np.max(np.abs(D5_stor - pkscal * (C_sub * (occ_s * ev_s)) @ C_sub.T))
+                            err_f = np.max(np.abs(D5_stor - pkscal * (C_sub * ev_s) @ C_sub.T))
+                            if err_t < err_f:
+                                qnwvec = True
 
         # Pairwise two-center integrals and explicit coordinate gradients
         pair_data: Dict[Tuple[int, int], Dict[str, Any]] = {}
@@ -600,6 +655,12 @@ class CPHFResponseSolver:
                     [_unpack_packed(dv_dra_pack[k, :, nv], aa["m"]) for nv in range(ab["nt"])]
                     for k in range(3)
                 ])
+                if qnwvec and ab["znuc"] > 1.5 and aa["nact_sto"] < aa["m"]:
+                    nsto_es = aa["nact_sto"]
+                    v_ab[:, nsto_es:, :] = 0.0
+                    v_ab[:, :, nsto_es:] = 0.0
+                    dv_dra[:, :, nsto_es:, :] = 0.0
+                    dv_dra[:, :, :, nsto_es:] = 0.0
                 pair_data[(a, b)] = {
                     "S_ab": s_ab,
                     "dS_dra": ds_dra,
@@ -619,11 +680,12 @@ class CPHFResponseSolver:
                     dcpot2_explicit_dcoord[a][a - 1, k] += dc
                     dcpot2_explicit_dcoord[a][b - 1, k] -= dc
 
-                    for s in range(self.ispin):
-                        V6_B = _unpack_packed(ab["pkpot"][:, 5, s], ab["m"])
-                        dx = ds_dra[k] @ V6_B @ s_ab.T + s_ab @ V6_B @ ds_dra[k].T
-                        dxpot2_explicit_dcoord[a][a - 1, k, s] += dx
-                        dxpot2_explicit_dcoord[a][b - 1, k, s] -= dx
+                    if not (qnwvec and (aa["znuc"] <= 1.5 or ab["znuc"] <= 1.5)):
+                        for s in range(self.ispin):
+                            V6_B = _unpack_packed(ab["pkpot"][:, 5, s], ab["m"])
+                            dx = ds_dra[k] @ V6_B @ s_ab.T + s_ab @ V6_B @ ds_dra[k].T
+                            dxpot2_explicit_dcoord[a][a - 1, k, s] += dx
+                            dxpot2_explicit_dcoord[a][b - 1, k, s] -= dx
 
         # Analytical fixed-C model-potential screening response (dvcoef_A / dR)_C
         dvcoef_explicit_dcoord: Dict[int, np.ndarray] = {}
@@ -678,13 +740,18 @@ class CPHFResponseSolver:
                         pd = pair_data[(a, b)]
                         dvc_b = dvcoef_explicit_dcoord[b][atom_k, cart]
                         imp_dc += sum(dvc_b[nv] * pd["V_ab"][nv] for nv in range(ab["nt"]))
-                        dvpot_b = sum(
-                            dvc_b[nv] * ab["stpot_mats"][nv] for nv in range(ab["nt"])
-                        )
-                        dV6_b_fixedC = -ab["ontran"].T @ dvpot_b @ ab["ontran"]
-                        dx_b = pd["S_ab"] @ dV6_b_fixedC @ pd["S_ab"].T
-                        for s in range(self.ispin):
-                            imp_dx[s] += dx_b
+                        if not (qnwvec and (aa["znuc"] <= 1.5 or ab["znuc"] <= 1.5)):
+                            dvpot_b = sum(
+                                dvc_b[nv] * ab["stpot_mats"][nv] for nv in range(ab["nt"])
+                            )
+                            if qnwvec and ab["nact_sto"] < ab["m"]:
+                                dvpot_b = dvpot_b.copy()
+                                dvpot_b[ab["nact_sto"] :, :] = 0.0
+                                dvpot_b[:, ab["nact_sto"] :] = 0.0
+                            dV6_b_fixedC = -ab["ontran"].T @ dvpot_b @ ab["ontran"]
+                            dx_b = pd["S_ab"] @ dV6_b_fixedC @ pd["S_ab"].T
+                            for s in range(self.ispin):
+                                imp_dx[s] += dx_b
                     for s in range(self.ispin):
                         dF_fixedC_dcoord[a][atom_k, cart, s] = (
                             base_dc
@@ -782,10 +849,15 @@ class CPHFResponseSolver:
                 dvcoef[1:] = dc_sub
 
             dV6 = np.zeros((self.ispin, m, m), dtype=np.float64)
-            dvpot = sum(dvcoef[nv] * aa["stpot_mats"][nv] for nv in range(nt))
-            for s in range(self.ispin):
-                donfock = dfx[s] + dfc[s] - dvpot
-                dV6[s] = aa["ontran"].T @ donfock @ aa["ontran"]
+            if not (qnwvec and aa["znuc"] <= 1.5):
+                dvpot = sum(dvcoef[nv] * aa["stpot_mats"][nv] for nv in range(nt))
+                for s in range(self.ispin):
+                    donfock = dfx[s] + dfc[s] - dvpot
+                    if qnwvec and aa["nact_sto"] < m:
+                        donfock = donfock.copy()
+                        donfock[aa["nact_sto"] :, :] = 0.0
+                        donfock[:, aa["nact_sto"] :] = 0.0
+                    dV6[s] = aa["ontran"].T @ donfock @ aa["ontran"]
 
             rot_effects.append({
                 "a": a,
@@ -801,7 +873,7 @@ class CPHFResponseSolver:
             })
 
         has_any_pk = any(
-            aa["znuc"] > 1.5 and float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
+            (aa["znuc"] > 1.5 or qnwvec) and float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
             for aa in atoms.values()
         )
         pk_response = None
@@ -878,17 +950,25 @@ class CPHFResponseSolver:
             dM_mhalf = -M_mhalf @ dM_half @ M_mhalf
             return dC_bar @ M_mhalf + C_bar @ dM_mhalf
 
+        def _pk_pair_weight(aa_rec, ab_rec) -> float:
+            if (aa_rec["znuc"] <= 1.5) != (ab_rec["znuc"] <= 1.5):
+                return 0.0
+            if aa_rec["znuc"] <= 1.5 and ab_rec["znuc"] <= 1.5:
+                return 0.40 if qnwvec else 0.0
+            return 1.0
+
         pk_data: Dict[Tuple[int, int], Dict[str, Any]] = {}
         occ_slots: List[Tuple[int, int, int]] = []
 
         for a, aa in atoms.items():
-            m, m2, norb = aa["m"], aa["m2"], aa["norb"]
+            m, m2, norb = aa["m"], aa["m2"], aa["nact_orb"]
+            n_sel = m
             S_A, ontran = aa["stovl"], aa["ontran"]
             w_s, v_s = np.linalg.eigh(S_A)
             S_mhalf = (v_s / np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             S_half = (v_s * np.sqrt(np.maximum(w_s, 1e-12))) @ v_s.T
             H0_A = _unpack_packed(_phatpsy_core.state.get_atom_elem_sthmat(a, m2).ravel(), m)
-            has_pk = qpsmet and (aa["znuc"] > 1.5) and (
+            has_pk = qpsmet and (aa["znuc"] > 1.5 or qnwvec) and (
                 float(np.max(np.abs(aa["pkpot"][:, 0:2, :]))) > 1e-12
             )
             for s in range(self.ispin):
@@ -899,11 +979,14 @@ class CPHFResponseSolver:
                     P2_A = np.zeros((m, m), dtype=np.float64)
                     for b, ab in atoms.items():
                         if b != a and (a, b) in pair_data:
+                            w_ab = _pk_pair_weight(aa, ab)
+                            if w_ab <= 0.0:
+                                continue
                             S_ab = pair_data[(a, b)]["S_ab"]
                             D4_B = _unpack_packed(ab["pkpot"][:, 3, s], ab["m"])
                             D5_B = _unpack_packed(ab["pkpot"][:, 4, s], ab["m"])
-                            P1_A += S_ab @ D4_B @ S_ab.T
-                            P2_A += S_ab @ D5_B @ S_ab.T
+                            P1_A += w_ab * (S_ab @ D4_B @ S_ab.T)
+                            P2_A += w_ab * (S_ab @ D5_B @ S_ab.T)
                 else:
                     P1_A = np.zeros((m, m), dtype=np.float64)
                     P2_A = np.zeros((m, m), dtype=np.float64)
@@ -911,8 +994,18 @@ class CPHFResponseSolver:
                 P1_low = S_mhalf @ P1_A @ S_mhalf
                 lam_p, v_p = np.linalg.eigh(P1_low)
                 cap = 1.0 - reg_delta
-                g_lam = np.minimum(lam_p, cap)
-                gp_lam = np.where(lam_p <= cap, 1.0, 0.0)
+                if reg_delta >= 0.05:
+                    w_cap = min(0.04, 0.5 * reg_delta)
+                    t_cap = np.clip((lam_p - (cap - w_cap)) / (2.0 * w_cap), 0.0, 1.0)
+                    g_lam = np.where(
+                        lam_p <= cap - w_cap,
+                        lam_p,
+                        np.where(lam_p >= cap + w_cap, cap, lam_p - w_cap * (t_cap ** 2)),
+                    )
+                    gp_lam = 1.0 - t_cap
+                else:
+                    g_lam = np.minimum(lam_p, cap)
+                    gp_lam = np.where(lam_p <= cap, 1.0, 0.0)
                 D_reg = np.zeros((m, m), dtype=np.float64)
                 for i in range(m):
                     for j in range(m):
@@ -932,7 +1025,16 @@ class CPHFResponseSolver:
                 S_tilde = S_A - P1_reg
                 w_st, v_st = np.linalg.eigh(S_tilde)
                 St_mhalf = (v_st / np.sqrt(np.maximum(w_st, 1e-12))) @ v_st.T
-                eval_t, evec_t = np.linalg.eigh(St_mhalf.T @ (F_A - P2_reg) @ St_mhalf)
+                F_on = St_mhalf.T @ (F_A - P2_reg) @ St_mhalf
+                if 0 < n_sel < m:
+                    eval_1, evec_1 = np.linalg.eigh(F_on[:n_sel, :n_sel])
+                    eval_2, evec_2 = np.linalg.eigh(F_on[n_sel:, n_sel:])
+                    eval_t = np.concatenate([eval_1, eval_2])
+                    evec_t = np.zeros((m, m), dtype=np.float64)
+                    evec_t[:n_sel, :n_sel] = evec_1
+                    evec_t[n_sel:, n_sel:] = evec_2
+                else:
+                    eval_t, evec_t = np.linalg.eigh(F_on)
                 C_tilde = St_mhalf @ evec_t
 
                 occ_s = aa["occ"][:norb, s]
@@ -1001,6 +1103,7 @@ class CPHFResponseSolver:
                     "H0_A": H0_A,
                     "has_pk": has_pk,
                     "norb": norb,
+                    "n_sel": n_sel,
                 }
 
         slot_lookup = {slot: idx for idx, slot in enumerate(occ_slots)}
@@ -1011,7 +1114,7 @@ class CPHFResponseSolver:
             dC_act_map = {}
             for (a, s), pd in pk_data.items():
                 S_A = pd["S_A"]
-                m, norb = S_A.shape[0], pd["norb"]
+                m, norb, n_sel = S_A.shape[0], pd["norb"], pd["n_sel"]
                 if pd["has_pk"]:
                     dP1_raw = dP1_raw_dict[(a, s)]
                     dP2_r = dP2_raw_dict[(a, s)]
@@ -1026,7 +1129,7 @@ class CPHFResponseSolver:
                 for p in range(m):
                     W[p, p] = 0.5 * float(Ct[:, p].T @ dP1_r @ Ct[:, p])
                     for q in range(m):
-                        if abs(ev[p] - ev[q]) > 1e-4:
+                        if (p < n_sel) == (q < n_sel) and abs(ev[p] - ev[q]) > 1e-4:
                             W[q, p] = float(Ct[:, q].T @ (dF - dP2_r + ev[p] * dP1_r) @ Ct[:, p]) / (
                                 ev[p] - ev[q]
                             )
@@ -1085,11 +1188,12 @@ class CPHFResponseSolver:
             ab = atoms[b]
             c_p, c_q = ab["C"][:, p_r, s_rot], ab["C"][:, q_r, s_rot]
             occ_p, occ_q = ab["occ"][p_r, s_rot], ab["occ"][q_r, s_rot]
+            nact_b = ab["nact_orb"]
             ev_p = ab["eval"][p_r, s_rot]
-            ev_q = ab["eval"][q_r, s_rot] if q_r < ab["norb"] else 0.0
-            w_p = (occ_p if qnwvec else 1.0) * ev_p if p_r < ab["norb"] else 0.0
-            w_q = (occ_q if qnwvec else 1.0) * ev_q if q_r < ab["norb"] else 0.0
-            emit_pk = qpsmet and (ab["znuc"] > 1.5)
+            ev_q = ab["eval"][q_r, s_rot] if q_r < nact_b else 0.0
+            w_p = (occ_p if qnwvec else (1.0 if np.sum(ab["occ"][p_r, :]) > 1e-6 else 0.0)) * ev_p if p_r < nact_b else 0.0
+            w_q = (occ_q if qnwvec else (1.0 if np.sum(ab["occ"][q_r, :]) > 1e-6 else 0.0)) * ev_q if q_r < nact_b else 0.0
+            emit_pk = qpsmet and (ab["znuc"] > 1.5 or qnwvec)
             dD4_b = pkscal * eff["dP_spin"][:, :, s_rot] if emit_pk else np.zeros((ab["m"], ab["m"]))
             dD5_b = (
                 pkscal * (w_p - w_q) * (np.outer(c_p, c_q) + np.outer(c_q, c_p))
@@ -1106,27 +1210,31 @@ class CPHFResponseSolver:
                     pd_ab = pair_data[(a, b)]
                     S_ab = pd_ab["S_ab"]
                     dcpot2_ab = sum(eff["dvcoef"][nv] * pd_ab["V_ab"][nv] for nv in range(ab["nt"]))
+                    inc_x2 = not (qnwvec and (atoms[a]["znuc"] <= 1.5 or ab["znuc"] <= 1.5))
                     for s in range(self.ispin):
-                        dF_dict[(a, s)] = dcpot2_ab + S_ab @ eff["dV6"][s] @ S_ab.T
-                    if emit_pk:
-                        dP1_dict[(a, s_rot)] = S_ab @ dD4_b @ S_ab.T
-                        dP2_dict[(a, s_rot)] = S_ab @ dD5_b @ S_ab.T
+                        dF_dict[(a, s)] = dcpot2_ab + (S_ab @ eff["dV6"][s] @ S_ab.T if inc_x2 else 0.0)
+                    w_ab = _pk_pair_weight(atoms[a], ab)
+                    if emit_pk and w_ab > 0.0:
+                        dP1_dict[(a, s_rot)] = w_ab * (S_ab @ dD4_b @ S_ab.T)
+                        dP2_dict[(a, s_rot)] = w_ab * (S_ab @ dD5_b @ S_ab.T)
             M_UU[:, j_r], M_eU[:, j_r] = _scf_step_response(dF_dict, dP1_dict, dP2_dict)
 
         for k_e, (b, s_rot, i_orb) in enumerate(occ_slots):
             ab = atoms[b]
-            if not (qpsmet and ab["znuc"] > 1.5):
+            if not (qpsmet and (ab["znuc"] > 1.5 or qnwvec)):
                 continue
             c_i = ab["C"][:, i_orb, s_rot]
-            w_i = ab["occ"][i_orb, s_rot] if qnwvec else 1.0
+            w_i = ab["occ"][i_orb, s_rot] if qnwvec else (1.0 if np.sum(ab["occ"][i_orb, :]) > 1e-6 else 0.0)
             dD5_b = pkscal * w_i * np.outer(c_i, c_i)
             dF_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
             dP1_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
             dP2_dict = {(a, s): np.zeros((atoms[a]["m"], atoms[a]["m"])) for (a, s) in pk_data}
             for a in atoms:
                 if a != b and (a, b) in pair_data:
-                    S_ab = pair_data[(a, b)]["S_ab"]
-                    dP2_dict[(a, s_rot)] = S_ab @ dD5_b @ S_ab.T
+                    w_ab = _pk_pair_weight(atoms[a], ab)
+                    if w_ab > 0.0:
+                        S_ab = pair_data[(a, b)]["S_ab"]
+                        dP2_dict[(a, s_rot)] = w_ab * (S_ab @ dD5_b @ S_ab.T)
             M_Ue[:, k_e], M_ee[:, k_e] = _scf_step_response(dF_dict, dP1_dict, dP2_dict)
 
         inv_I_Mee = np.linalg.inv(np.eye(n_e) - M_ee) if n_e > 0 else np.zeros((0, 0))
@@ -1160,6 +1268,9 @@ class CPHFResponseSolver:
                 for a in atoms:
                     for b in atoms:
                         if a != b and (a, b) in pair_data:
+                            w_ab = _pk_pair_weight(atoms[a], atoms[b])
+                            if w_ab <= 0.0:
+                                continue
                             pd_ab = pair_data[(a, b)]
                             S_ab, dS_dra = pd_ab["S_ab"], pd_ab["dS_dra"][cart]
                             sign = (1.0 if atom_k == a - 1 else 0.0) - (
@@ -1171,8 +1282,8 @@ class CPHFResponseSolver:
                                 for s in range(self.ispin):
                                     D4_B = _unpack_packed(ab["pkpot"][:, 3, s], ab["m"])
                                     D5_B = _unpack_packed(ab["pkpot"][:, 4, s], ab["m"])
-                                    dP1_exp[(a, s)] += dS @ D4_B @ S_ab.T + S_ab @ D4_B @ dS.T
-                                    dP2_exp[(a, s)] += dS @ D5_B @ S_ab.T + S_ab @ D5_B @ dS.T
+                                    dP1_exp[(a, s)] += w_ab * (dS @ D4_B @ S_ab.T + S_ab @ D4_B @ dS.T)
+                                    dP2_exp[(a, s)] += w_ab * (dS @ D5_B @ S_ab.T + S_ab @ D5_B @ dS.T)
                 dU_exp, de_exp = _scf_step_response(dF_exp, dP1_exp, dP2_exp)
                 de_fixedU = inv_I_Mee @ de_exp
                 if n_u > 0:

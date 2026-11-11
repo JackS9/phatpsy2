@@ -266,27 +266,55 @@ contains
             ! and Fermi-Dirac Charge Transfer
             !-------------------------------------------------------------
             if (.not. ((QSEPAT .and. QFIRST) .or. (fractn == 0.0d0))) then
-              do isp = 1, ISPIN
-                do nv = 1, 3
-                  if (.not. qtrans_ab) then
-                    call CSCT(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
-                  else
-                    call CTSC(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
-                  end if
-                  pkpota(:, nv, isp) = pkpota(:, nv, isp) + fractn * scrat1(1:M2STO)
+              block
+                integer(int32) :: l_max_val_a, nact_stoa, ishell, nsto_es
+                if (NUCZA <= 2) then
+                  l_max_val_a = 0
+                else if (NUCZA <= 20) then
+                  l_max_val_a = 1
+                else if (NUCZA <= 56) then
+                  l_max_val_a = 2
+                else
+                  l_max_val_a = 3
+                end if
+                nact_stoa = 0
+                do ishell = 1, NSTO
+                  if (la(ishell) <= l_max_val_a) nact_stoa = nact_stoa + 2 * la(ishell) + 1
                 end do
-              end do
+                if (nact_stoa <= 0) nact_stoa = MSTO
 
-              do istoa = 1, MSTO
-                indxi = mol_ws%index_arr(istoa)
-                do jstoa = 1, istoa
-                  ijstoa = indxi + jstoa
-                  zpotij = -znucb * stvab(ijstoa, 1)
-                  zpot2a(ijstoa) = zpot2a(ijstoa) + fractn * zpotij
-                  cpotij = dot_product(vcoefb(1:NVTRMB), stvab(ijstoa, 1:NVTRMB))
-                  cpot2a(ijstoa) = cpot2a(ijstoa) + fractn * cpotij
+                do isp = 1, ISPIN
+                  do nv = 1, 3
+                    if (nv <= 2 .and. (znuca <= 1.5d0 .neqv. znucb <= 1.5d0)) cycle
+                    if (nv == 3 .and. QNWVEC .and. (znuca <= 1.5d0 .or. znucb <= 1.5d0)) cycle
+                    if (.not. qtrans_ab) then
+                      call CSCT(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
+                    else
+                      call CTSC(stovlp, pkpotb(1, nv+3, isp), scrat3, scrat1, MSTOB, MSTO)
+                    end if
+                    if (nv <= 2 .and. znuca <= 1.5d0 .and. znucb <= 1.5d0) then
+                      scrat1(1:M2STO) = 0.40d0 * scrat1(1:M2STO)
+                    end if
+                    pkpota(:, nv, isp) = pkpota(:, nv, isp) + fractn * scrat1(1:M2STO)
+                  end do
                 end do
-              end do
+
+                ! With seeded orbitals (QNWVEC), restrict two-center nuclear/model-potential
+                ! electrostatic attraction (zpot2a, cpot2a) to the active core+valence STO
+                ! subspace (1..nact_stoa) so virtual polarization shells (3d on C/N/O, 2p on H)
+                ! do not collapse onto Neighbor B's core cusp.
+                nsto_es = merge(nact_stoa, MSTO, QNWVEC .and. znucb > 1.5d0)
+                do istoa = 1, nsto_es
+                  indxi = mol_ws%index_arr(istoa)
+                  do jstoa = 1, istoa
+                    ijstoa = indxi + jstoa
+                    zpotij = -znucb * stvab(ijstoa, 1)
+                    zpot2a(ijstoa) = zpot2a(ijstoa) + fractn * zpotij
+                    cpotij = dot_product(vcoefb(1:NVTRMB), stvab(ijstoa, 1:NVTRMB))
+                    cpot2a(ijstoa) = cpot2a(ijstoa) + fractn * cpotij
+                  end do
+                end do
+              end block
 
               if (.not. qvirtb) then
                 do isp = 1, ISPIN

@@ -289,8 +289,12 @@ def optimize_geometry(
 
     # Final optimized deck
     final_atoms = unpack_free_coords(x, atoms)
-    optimized_deck = copy.deepcopy(current_deck)
-    optimized_deck.atoms = final_atoms
+    if warm_restart and state_current is not None and state_current.converged:
+        new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in final_atoms]
+        optimized_deck = state_current.create_restart_deck(new_geometry=new_geom)
+    else:
+        optimized_deck = copy.deepcopy(current_deck)
+        optimized_deck.atoms = final_atoms
 
     return OptimizationResult(
         converged=converged,

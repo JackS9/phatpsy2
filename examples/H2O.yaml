@@ -43,9 +43,3 @@ elements:
   H:
     symbol: H
     atomic_number: 1
-    basis: THAKKAR
-    description: Thakkar-Koga (1999/2000) RHF STO basis for H (Z=1)
-    functions:
-    - n: 1
-      l: 0
-      zeta: 1.0

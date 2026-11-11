@@ -15,15 +15,18 @@ module scf
 
 contains
 
-  subroutine solve_orthonormal_fock(onfock, eval_all, onevec, scrat2, msto, m2sto, norb, ierr)
-    integer(int32), intent(in)    :: msto, m2sto, norb
+  subroutine solve_orthonormal_fock(onfock, tranx_in, eval_all, onevec, scrat2, msto, m2sto, norb, nact_sto, nact_orb, ierr)
+    integer(int32), intent(in)    :: msto, m2sto, norb, nact_sto, nact_orb
     integer(int32), intent(out)   :: ierr
     real(real64),   intent(inout) :: onfock(m2sto)
+    real(real64),   intent(in)    :: tranx_in(msto, msto)
     real(real64),   intent(out)   :: eval_all(msto), onevec(msto, norb)
     real(real64),   intent(inout) :: scrat2(msto, 9)
 
-    real(real64),   allocatable :: a_full(:,:), work(:)
-    integer(int32)              :: i, j, k, lwork
+    real(real64),   allocatable :: a_full(:,:), work(:), pol_wt(:), eval_keep(:), vec_sto(:)
+    integer(int32), allocatable :: idx_pol(:)
+    integer(int32)              :: i, j, k, lwork, npol_orb, nrem, itmp
+    real(real64)                :: rtmp
 
     allocate(a_full(msto, msto))
     lwork = max(1, 3 * msto)
@@ -40,12 +43,43 @@ contains
     end do
 
     call DSYEV('V', 'U', msto, a_full, msto, eval_all, work, lwork, ierr)
-
-    if (ierr == 0) then
-      onevec(:, 1:norb) = a_full(:, 1:norb)
-    else
-      ! Fallback to DSPEV if needed
+    if (ierr /= 0) then
       call DSPEV('V', 'U', msto, onfock, eval_all, a_full, msto, work, ierr)
+    end if
+
+    if (nact_orb > 0 .and. nact_orb < norb .and. nact_sto < msto) then
+      onevec(:, 1:nact_orb) = a_full(:, 1:nact_orb)
+      npol_orb = norb - nact_orb
+      nrem     = msto - nact_orb
+      allocate(pol_wt(nrem), idx_pol(nrem), eval_keep(norb), vec_sto(msto))
+      eval_keep(1:nact_orb) = eval_all(1:nact_orb)
+      do j = 1, nrem
+        vec_sto    = matmul(tranx_in, a_full(:, nact_orb + j))
+        pol_wt(j)  = sum(vec_sto(nact_sto + 1:msto)**2)
+        idx_pol(j) = nact_orb + j
+      end do
+      ! Select the npol_orb virtual eigenvectors with largest polarization-shell character
+      do i = 1, npol_orb
+        do j = i + 1, nrem
+          if (pol_wt(j) > pol_wt(i)) then
+            rtmp       = pol_wt(i);  pol_wt(i)  = pol_wt(j);  pol_wt(j)  = rtmp
+            itmp       = idx_pol(i); idx_pol(i) = idx_pol(j); idx_pol(j) = itmp
+          end if
+        end do
+      end do
+      ! Sort the selected npol_orb indices in ascending eigenvalue order
+      do i = 1, npol_orb
+        do j = i + 1, npol_orb
+          if (idx_pol(j) < idx_pol(i)) then
+            itmp       = idx_pol(i); idx_pol(i) = idx_pol(j); idx_pol(j) = itmp
+          end if
+        end do
+        onevec(:, nact_orb + i)  = a_full(:, idx_pol(i))
+        eval_keep(nact_orb + i)  = eval_all(idx_pol(i))
+      end do
+      eval_all(1:norb) = eval_keep(1:norb)
+      deallocate(pol_wt, idx_pol, eval_keep, vec_sto)
+    else
       onevec(:, 1:norb) = a_full(:, 1:norb)
     end if
 
@@ -303,10 +337,11 @@ contains
 
     real(real64), parameter :: ESCALE = 1.55d0
     character(len=2) :: latom
-    integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb, nact_orb
-    integer(int32)   :: nv, niter, ij, iterm1, ierr, ieqat, isym, ixyz, matom
+    integer(int32)   :: jdifat, nucz, iunitx, neqat, isp, iorb, jorb, ijorb, nact_orb, nact_sto
+    integer(int32)   :: nv, niter, ij, iterm1, ierr, ieqat, isym, ixyz, matom, isto, l_max_val
     real(real64)     :: x, y, z, toten, zzrep, rmAx, tke, te, endiff, oldte
     real(real64)     :: oldiff, tcoul0, zzrep0, w_eff
+    real(real64), allocatable :: w_pk5(:)
     logical(kind=1)  :: qx2inc, qnrmlz, qtrunc, qindef, qdivrg, qdone, qnword, qdummy
 
     real(real64), external :: AVERAG
@@ -323,7 +358,7 @@ contains
                  scrat1, scrat2, tranx, vfit2, vcoef, pkpot,          &
                  stovl_bak, ontran_bak, stevec_bak, eval_bak, occ_bak,&
                  pkpot_bak, aofock_bak, gamma_bak, vcoef_bak,         &
-                 stevec_prim, pkpot_prim, vcoef_prim)
+                 stevec_prim, pkpot_prim, vcoef_prim, w_pk5)
     end if
 
     allocate(n(NSTO), l(NSTO), eta(NSTO), anorm(NSTO))
@@ -335,7 +370,7 @@ contains
     allocate(stcoul(M2STO, ISPIN), stexch(M2STO, ISPIN))
     allocate(onfock(M2STO), onevec(MSTO, NORB))
     allocate(stevec(MSTO, NORB, ISPIN), oldvec(MSTO, NORB, ISPIN))
-    allocate(eval(NORB, ISPIN), occ(NORB, ISPIN), aofock(N2ORB, ISPIN))
+    allocate(eval(NORB, ISPIN), occ(NORB, ISPIN), aofock(N2ORB, ISPIN), w_pk5(NORB))
     allocate(gamma(NORB, ISPIN), projec(MSTO, MSTO, ISPIN), iorder(NORB, ISPIN))
     allocate(scrat1(MSTO, MSTO, 2), scrat2(MSTO, 9), tranx(MSTO, MSTO, ISPIN))
     allocate(vfit2(NVTERM), vcoef(NVTERM), pkpot(M2STO, 6, ISPIN))
@@ -367,13 +402,43 @@ contains
       endiff = -toten
       if (QATOM) zzrep = 0.0d0
 
+      ! Determine the core+valence STO subspace (1..nact_sto) excluding purely
+      ! virtual polarization shells (l > l_max_val), and corresponding active
+      ! core+valence orbital count nact_orb = NORB - (MSTO - nact_sto).
+      if (nucz <= 2) then
+        l_max_val = 0
+      else if (nucz <= 20) then
+        l_max_val = 1
+      else if (nucz <= 56) then
+        l_max_val = 2
+      else
+        l_max_val = 3
+      end if
+      nact_sto = 0
+      do isto = 1, NSTO
+        if (l(isto) <= l_max_val) nact_sto = nact_sto + 2 * l(isto) + 1
+      end do
+      if (nact_sto <= 0) nact_sto = MSTO
+      if (QNWVEC) then
+        nact_orb = NORB - (MSTO - nact_sto)
+      else
+        nact_orb = 0
+        do iorb = 1, max(1, NORB - (MSTO - nact_sto))
+          if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
+        end do
+      end if
+      if (nact_orb <= 0 .or. nact_orb > NORB) nact_orb = NORB - (MSTO - nact_sto)
+      if (nact_orb <= 0 .or. nact_orb > NORB) nact_orb = NORB
+
       if (.not. QVIRTL) then
+
         if (.not. QFIRST .and. .not. QNWVEC) then
           do isp = 1, ISPIN
-            do iorb = 1, NORB
+            do iorb = 1, nact_orb
               occ(iorb, isp) = CDAMP * occ(iorb, isp) &
                              + (1.0d0 - CDAMP) * mol_ws%popul(IORBT + iorb, isp)
             end do
+            if (nact_orb < NORB) occ(nact_orb + 1 : NORB, isp) = 0.0d0
           end do
         end if
 
@@ -390,7 +455,7 @@ contains
           ! Hydrogen exemption (thesis Eq. III-24): H 1s is valence-like, so the
           ! energy-weighted projector is negligible; the unweighted pseudometric
           ! would unphysically remove the bonding orbital -> M = S for H.
-          if (QPSMET .and. nucz > 1.5d0) then
+          if (QPSMET .and. (nucz > 1.5d0 .or. QNWVEC)) then
             call regularize_pk_projector(stovl_bak, pkpot(1,1,isp), pkpot(1,2,isp), MSTO, M2STO, &
                                          merge(0.42d0, 1.0d-3, logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))))
             stovl = stovl_bak - pkpot(:, 1, isp)
@@ -479,10 +544,12 @@ contains
           end if
 
           do isp = 1, ISPIN
-            if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)  ! H exempt: no PK projection
+            if (nucz > 1.5d0 .or. QNWVEC) stfock(:, isp) = stfock(:, isp) - pkpot(:, 2, isp)
             call UTHU(MSTO, stfock(1,isp), tranx(1,1,isp), scrat1, onfock)
-            call solve_orthonormal_fock(onfock, scrat1, onevec, scrat2, &
-                                        MSTO, M2STO, NORB, ierr)
+            call solve_orthonormal_fock(onfock, tranx(1,1,isp), scrat1, onevec, scrat2, &
+                                        MSTO, M2STO, NORB, &
+                                        merge(nact_sto, MSTO, QNWVEC), &
+                                        merge(nact_orb, NORB, QNWVEC), ierr)
             if (ierr < 0) then
               call BOMB(17)
             else if (ierr > 0) then
@@ -490,13 +557,6 @@ contains
             end if
 
             eval(1:NORB, isp) = scrat1(1:NORB, 1, 1)
-            ! Identify active core+valence orbital subspace (1..nact_orb)
-            ! excluding trailing purely virtual polarization slots (occ == 0 in both spins).
-            nact_orb = 0
-            do iorb = 1, NORB
-              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) nact_orb = iorb
-            end do
-            if (nact_orb <= 0) nact_orb = NORB
 
             ! Fermi-Dirac atomic occupations: either explicit (SMEARW > 0) or
             ! automatic early-cycle annealing + HOMO-LUMO gap floor on unseeded atoms.
@@ -519,7 +579,7 @@ contains
                        NORB, MSTO, NORB, stevec(1,1,isp), MSTO, NORB)
 
             if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
-              if (QPSMET .and. .not. qtrunc .and. nucz > 1.5d0) then
+              if (QPSMET .and. .not. qtrunc .and. (nucz > 1.5d0 .or. QNWVEC)) then
                 call DMPATB(projec(1,1,isp), MSTO, MSTO, MSTO, MSTO,           &
                             stevec(1,1,isp), MSTO, NORB, MSTO, NORB,           &
                             onevec, MSTO, NORB)
@@ -543,11 +603,14 @@ contains
                 end if
               end if
 
-              if (QPSMET .and. .not. qtrunc .and. nucz > 1.5d0) then
+              if (QPSMET .and. .not. qtrunc .and. (nucz > 1.5d0 .or. QNWVEC)) then
                 onevec(:, 1:NORB) = stevec(:, 1:NORB, isp)
                 call orthonormalize_projected_orbitals(onevec, stevec(1,1,isp), &
                                                        stovl_bak, occ(1,isp),   &
-                                                       MSTO, M2STO, NORB, qindef)
+                                                       MSTO, M2STO, nact_orb, qindef)
+                if (nact_orb < NORB) then
+                  stevec(:, nact_orb + 1:NORB, isp) = onevec(:, nact_orb + 1:NORB)
+                end if
                 stovl  = stovl_bak
                 ontran = ontran_bak
               end if
@@ -558,7 +621,7 @@ contains
                 call NORMLZ(stevec(1,1,isp), NORB, stovl, MSTO, M2STO)
               end if
 
-              if (nucz > 1.5d0) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)  ! H exempt: no PK projection
+              if (nucz > 1.5d0 .or. QNWVEC) stfock(:, isp) = stfock(:, isp) + pkpot(:, 2, isp)
             else
               if (QPSMET .and. .not. qtrunc) then
                 if (nucz > 1.5d0) then
@@ -568,8 +631,9 @@ contains
                   call CTSC(onevec, stovl, scrat1, stovl, MSTO, NORB)
                   call run_lowdin(stovl, ontran, scrat1, NORB, NORB, 2, qindef)
                   if (.not. qindef) then
-                    call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran, NORB,   &
-                               NORB, NORB, NORB, stevec(1,1,isp), MSTO, NORB)
+                    call DMPAB(onevec, MSTO, NORB, MSTO, NORB, ontran,         &
+                               NORB, NORB, NORB, NORB, stevec(1,1,isp),        &
+                               MSTO, NORB)
                     stovl  = stovl_bak
                     ontran = ontran_bak
                   end if
@@ -628,11 +692,20 @@ contains
           end do
 
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                      merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
-                            logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
+          if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
+            w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
+          else
+            do iorb = 1, NORB
+              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
+                w_pk5(iorb) = eval(iorb, isp)
+              else
+                w_pk5(iorb) = 0.0d0
+              end if
+            end do
+          end if
+          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
           ! Hydrogen exemption: H emits no projector onto neighboring atoms.
-          if (nucz <= 1.5d0) then
+          if (nucz <= 1.5d0 .and. .not. QNWVEC) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
           else
@@ -653,6 +726,16 @@ contains
                          - dot_product(vcoef(1:NVTERM), stpot(ij, 1:NVTERM))
             end if
           end do
+          if (QNWVEC .and. nucz <= 1.5d0) then
+            onfock(1:M2STO) = 0.0d0
+          else if (QNWVEC .and. nact_sto < MSTO) then
+            do iorb = nact_sto + 1, MSTO
+              ijorb = mol_ws%index_arr(iorb)
+              do jorb = 1, iorb
+                onfock(ijorb + jorb) = 0.0d0
+              end do
+            end do
+          end if
           call UTHU(MSTO, onfock, ontran, scrat1, pkpot(1,6,isp))
         end do
 
@@ -694,10 +777,19 @@ contains
         end if
         do isp = 1, ISPIN
           call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                      merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
-                            logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
-          if (nucz <= 1.5d0) then
+          if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
+            w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
+          else
+            do iorb = 1, NORB
+              if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
+                w_pk5(iorb) = eval(iorb, isp)
+              else
+                w_pk5(iorb) = 0.0d0
+              end if
+            end do
+          end if
+          call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
+          if (nucz <= 1.5d0 .and. .not. QNWVEC) then
             pkpot(:, 4, isp) = 0.0d0
             pkpot(:, 5, isp) = 0.0d0
           else
@@ -715,6 +807,16 @@ contains
                          - dot_product(vcoef(1:NVTERM), stpot(ij, 1:NVTERM))
             end if
           end do
+          if (QNWVEC .and. nucz <= 1.5d0) then
+            onfock(1:M2STO) = 0.0d0
+          else if (QNWVEC .and. nact_sto < MSTO) then
+            do iorb = nact_sto + 1, MSTO
+              ijorb = mol_ws%index_arr(iorb)
+              do jorb = 1, iorb
+                onfock(ijorb + jorb) = 0.0d0
+              end do
+            end do
+          end if
           call UTHU(MSTO, onfock, ontran, scrat1, pkpot(1,6,isp))
         end do
       end if
@@ -794,11 +896,20 @@ contains
                 end do
               end do
               call DENMAT(pkpot(1,4,isp), stevec(1,1,isp), occ(1,isp), MSTO, M2STO, NORB)
-              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), &
-                          merge(occ(1:NORB,isp) * eval(1:NORB,isp), eval(1:NORB,isp), &
-                                logical(QNWVEC) .or. (nucz > 18.0d0 .and. logical(QGRDFT))), MSTO, M2STO, NORB)
+              if (QNWVEC .or. (nucz > 18.0d0 .and. QGRDFT)) then
+                w_pk5(1:NORB) = occ(1:NORB, isp) * eval(1:NORB, isp)
+              else
+                do iorb = 1, NORB
+                  if (sum(occ(iorb, 1:ISPIN)) > 1.0d-6) then
+                    w_pk5(iorb) = eval(iorb, isp)
+                  else
+                    w_pk5(iorb) = 0.0d0
+                  end if
+                end do
+              end if
+              call DENMAT(pkpot(1,5,isp), stevec(1,1,isp), w_pk5, MSTO, M2STO, NORB)
               ! Hydrogen exemption: H emits no projector onto neighboring atoms.
-              if (nucz <= 1.5d0) then
+              if (nucz <= 1.5d0 .and. .not. QNWVEC) then
                 pkpot(:, 4, isp) = 0.0d0
                 pkpot(:, 5, isp) = 0.0d0
               else
@@ -819,6 +930,16 @@ contains
                              - dot_product(vcoef(1:NVTERM), stpot(ij, 1:NVTERM))
                 end if
               end do
+              if (QNWVEC .and. nucz <= 1.5d0) then
+                onfock(1:M2STO) = 0.0d0
+              else if (QNWVEC .and. nact_sto < MSTO) then
+                do iorb = nact_sto + 1, MSTO
+                  ijorb = mol_ws%index_arr(iorb)
+                  do jorb = 1, iorb
+                    onfock(ijorb + jorb) = 0.0d0
+                  end do
+                end do
+              end if
               call UTHU(MSTO, onfock, ontran, scrat1, pkpot(1,6,isp))
             end do
           end if
@@ -876,7 +997,7 @@ contains
                  scrat1, scrat2, tranx, vfit2, vcoef, pkpot,          &
                  stovl_bak, ontran_bak, stevec_bak, eval_bak, occ_bak,&
                  pkpot_bak, aofock_bak, gamma_bak, vcoef_bak,         &
-                 stevec_prim, pkpot_prim, vcoef_prim)
+                 stevec_prim, pkpot_prim, vcoef_prim, w_pk5)
     end if
 
 1000 format(///' ',a2,i2,/' ____')
