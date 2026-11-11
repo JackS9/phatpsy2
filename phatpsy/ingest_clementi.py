@@ -21,7 +21,7 @@ import pypdf
 
 logger = logging.getLogger(__name__)
 
-PDF_PATH = Path(__file__).resolve().parent.parent / "1-s2.0-S0092640X74800161-main.pdf"
+PDF_PATH = Path(__file__).resolve().parent.parent / "data" / "1-s2.0-S0092640X74800161-main.pdf"
 OUTPUT_PATH = Path(__file__).resolve().parent / "data" / "clementi_sto.json"
 
 PERIODIC_TABLE = [

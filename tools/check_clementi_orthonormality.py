@@ -14,7 +14,7 @@ STO overlap (normalized STOs of the same l):
   R(r) = N r^(n-1) exp(-zeta r),  N = (2 zeta)^(n+1/2) / sqrt((2n)!)
   S_ij = N_i N_j (n_i + n_j)! / (zeta_i + zeta_j)^(n_i + n_j + 1)
 
-Usage: python3 check_clementi_orthonormality.py [path/to/clementi_sto.json]
+Usage: python3 tools/check_clementi_orthonormality.py [path/to/clementi_sto.json]
 Exit code 0 if every block passes at TOL, 1 otherwise.
 """
 import json

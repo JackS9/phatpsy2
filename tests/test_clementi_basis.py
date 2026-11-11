@@ -159,7 +159,7 @@ def test_element_basis_selector_clementi_and_thakkar():
 
 def test_clementi_all_elements_orthonormality_and_variational_energy():
     """Verifies that all 53 Clementi elements (SZ and DZ, Z=2..54) pass orthonormality and variational ordering."""
-    from check_clementi_orthonormality import check_entry, TOL
+    from tools.check_clementi_orthonormality import check_entry, TOL
     with open(CLEMENTI_JSON, "r", encoding="utf-8") as f:
         data = json.load(f)
 

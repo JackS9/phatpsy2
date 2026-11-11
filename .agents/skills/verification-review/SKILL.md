@@ -42,7 +42,7 @@ driver, check the invariants from
    full-coverage basis tests and the standalone checker —
    ```bash
    PYTHONPATH=. .venv/bin/pytest tests/test_clementi_basis.py -v
-   python3 check_clementi_orthonormality.py
+   python3 tools/check_clementi_orthonormality.py
    ```
    Orthonormality must hold for **all** elements and both SZ and DZ
    sets (no spot-checking known-good elements), stored energies must
