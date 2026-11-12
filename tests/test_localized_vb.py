@@ -67,3 +67,26 @@ def test_closed_shell_determinant_matches_pyscf_rhf():
     s, h = determinant_pair(C, C, C, C, ints)
     assert h / s == pytest.approx(mf.e_tot, abs=1e-10)
 
+
+
+def test_cas_analytic_orbital_gradient_matches_finite_differences():
+    """Analytic gradient of the one-center CAS energy (mirror-symmetric N2 and general
+    CO parametrizations) against central finite differences."""
+    import sys
+    sys.path.insert(0, "tools")
+    from localized_vb_scan import NELEC, build_model, initial_orbitals
+    from phatpsy.localized_vb import atom_basis
+
+    for a, b, R in (("N", "N", 2.0744), ("C", "O", 2.132)):
+        ints = diatomic_ao_integrals(atom_basis((0, 0, 0), a, "DZ"), atom_basis((0, 0, R), b, "DZ"),
+                                     float(NELEC[a]), float(NELEC[b]))
+        m = build_model(ints, a, b, a == b)
+        m.method = "cas"
+        x = m.pack(initial_orbitals(m)) + 0.05 * np.random.default_rng(1).standard_normal(m.nparam)
+        e, g = m.energy_and_grad(x)
+        assert e == pytest.approx(m.energy(x), abs=1e-10)
+        for i in range(0, x.size, max(1, x.size // 6)):
+            xp, xm = x.copy(), x.copy()
+            xp[i] += 1e-5
+            xm[i] -= 1e-5
+            assert g[i] == pytest.approx((m.energy(xp) - m.energy(xm)) / 2e-5, abs=1e-7)

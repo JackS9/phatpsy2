@@ -273,6 +273,83 @@ def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOInteg
     return float(e)
 
 
+def orthonormal_mo_guess(Xi: np.ndarray, Xa: np.ndarray, S: np.ndarray) -> np.ndarray:
+    """Orthonormal [inactive | active | virtual] MO matrix spanning the same inactive and
+    active subspaces as the one-center orbitals (used to seed delocalized CASSCF so that
+    its energy is guaranteed not to exceed the localized one)."""
+    n = S.shape[0]
+    Ci = _sym_orth_cols(Xi, S) if Xi.shape[1] else Xi
+    Ya = Xa - Ci @ (Ci.T @ S @ Xa) if Ci.shape[1] else Xa
+    Ca = _sym_orth_cols(Ya, S)
+    occ = np.hstack([Ci, Ca])
+    P = np.eye(n) - occ @ occ.T @ S
+    w, v = np.linalg.eigh(P.T @ S @ P)
+    Cv = P @ v[:, w > 1e-8]
+    Cv = _sym_orth_cols(Cv, S)
+    return np.hstack([occ, Cv])
+
+
+def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
+                            nelec_act: Optional[Tuple[int, int]] = None):
+    """CI-in-active-span energy and its analytic gradient with respect to the raw
+    (nonorthogonal, unnormalized) inactive and active orbital coefficients.
+
+    Construction:
+        D_c = X_i (X_i^T S X_i)^-1 X_i^T                  inactive projector density
+        Y   = (1 - D_c S) X_a ,  C_a = Y (Y^T S Y)^-1/2   active orbitals
+        E   = sum D_c (h + F_c) + sum_pq (C_a^T F_c C_a)_pq g_pq + 1/2 sum (pq|rs) G_pqrs + V_nn
+    with F_c = h + 2J(D_c) - K(D_c) and (g, G) the FCI 1-/2-RDMs (Hellmann-Feynman: the
+    CI vector is variational, so RDMs are held fixed).  E depends only on span(X_i) and
+    span(X_i, X_a), which gives the projected gradients below.
+    Returns (E, dE/dX_i, dE/dX_a).
+    """
+    from pyscf import ao2mo, fci
+
+    S, h = ints.S, ints.h
+    n = ints.nao
+    Jm, Km = ints.jk_matrices()
+    J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
+    K = lambda g: (Km @ g.ravel()).reshape(g.shape)
+    I = np.eye(n)
+
+    if Xi.shape[1]:
+        Ni = np.linalg.inv(Xi.T @ S @ Xi)
+        Dc = Xi @ Ni @ Xi.T
+    else:
+        Ni = np.zeros((0, 0))
+        Dc = np.zeros((n, n))
+    Fc = h + 2 * J(Dc) - K(Dc)
+    e_core = float(np.sum(Dc * (h + Fc)))
+
+    Y = Xa - Dc @ S @ Xa
+    w, v = np.linalg.eigh(Y.T @ S @ Y)
+    T = v @ np.diag(w ** -0.5) @ v.T
+    Ca = Y @ T
+    nact = Ca.shape[1]
+    if nelec_act is None:
+        nelec_act = (nact // 2, nact - nact // 2)
+    h1 = Ca.T @ Fc @ Ca
+    eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
+    e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+    dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+
+    # dE/dC_a (unconstrained, RDMs fixed)
+    t = np.einsum("mnls,nq->mqls", ints.eri, Ca, optimize=True)
+    t = np.einsum("mqls,lr->mqrs", t, Ca, optimize=True)
+    t = np.einsum("mqrs,st->mqrt", t, Ca, optimize=True)
+    Q = np.einsum("mqrt,pqrt->mp", t, dm2, optimize=True)
+    G_Ca = 2 * Fc @ Ca @ dm1 + 2 * Q
+    # through Loewdin (span-only dependence) and the inactive projection
+    G_Y = (I - S @ Ca @ Ca.T) @ G_Ca @ T
+    G_Xa = (I - S @ Dc) @ G_Y
+    # dE/dD_c: explicit core terms + active energy through F_c + dependence of Y on D_c
+    Pa = Ca @ dm1 @ Ca.T
+    A = 2 * Fc + 2 * J(Pa) - K(Pa)
+    A -= 0.5 * (S @ Xa @ G_Y.T + G_Y @ Xa.T @ S)
+    G_Xi = 2 * (I - S @ Dc) @ A @ Xi @ Ni if Xi.shape[1] else np.zeros_like(Xi)
+    return float(e), G_Xi, G_Xa
+
+
 def structure_ci_energy(inactive, pairs, ints: AOIntegrals) -> Tuple[float, np.ndarray]:
     """Variational mixing of the 2^n covalent determinant products is NOT used; instead
     this returns the lowest eigenvalue over the space spanned by the PP determinants
@@ -377,8 +454,49 @@ class LocalizedVBModel:
     def pack(self, orbs) -> np.ndarray:
         return np.concatenate([orbs[i][self.masks[i]] for i in self.free])
 
+    def energy_and_grad(self, x: np.ndarray) -> Tuple[float, np.ndarray]:
+        """Analytic gradient (method 'cas' only)."""
+        if self.method != "cas":
+            raise NotImplementedError("analytic gradient implemented for method='cas'")
+        orbs = self.orbitals(x)
+        inactive_idx = [i for i, s in enumerate(self.specs) if s.role == "inactive"]
+        npair = 1 + max([s.pair for s in self.specs] + [-1])
+        a_idx = [next(i for i, s in enumerate(self.specs) if s.role == "pair-a" and s.pair == k) for k in range(npair)]
+        b_idx = [next(i for i, s in enumerate(self.specs) if s.role == "pair-b" and s.pair == k) for k in range(npair)]
+        act_idx = a_idx + b_idx
+        Xi = np.array([orbs[i] for i in inactive_idx]).T if inactive_idx else np.zeros((self.ints.nao, 0))
+        Xa = np.array([orbs[i] for i in act_idx]).T
+        e, Gi, Ga = cas_energy_and_gradient(Xi, Xa, self.ints)
+        gorb = {}
+        for c, i in enumerate(inactive_idx):
+            gorb[i] = Gi[:, c]
+        for c, i in enumerate(act_idx):
+            gorb[i] = Ga[:, c]
+        if self.mirror:
+            nA = int(np.sum(self.ints.atom_of == 0))
+            for i, j in self.partner.items():
+                g = np.zeros(self.ints.nao)
+                g[:nA] = self.parity * gorb[i][nA:]
+                gorb[j] = gorb[j] + g
+        grad = np.concatenate([gorb[i][self.masks[i]] for i in self.free])
+        return e, grad
 
-def optimize(model: LocalizedVBModel, x0: np.ndarray, maxiter: int = 400, gtol: float = 1e-6, verbose=False):
+
+def optimize(model: LocalizedVBModel, x0: np.ndarray, maxiter: int = 400, gtol: float = 1e-6, verbose=False,
+             analytic: Optional[bool] = None):
+    """BFGS over one-center orbital parameters.  Uses the analytic gradient for
+    method='cas' (unless analytic=False), central finite differences otherwise."""
+    from scipy.optimize import minimize
+
+    if analytic is None:
+        analytic = model.method == "cas"
+    if analytic:
+        return minimize(model.energy_and_grad, x0, jac=True, method="BFGS",
+                        options={"maxiter": maxiter, "gtol": gtol, "disp": verbose})
+    return _optimize_fd(model, x0, maxiter, gtol, verbose)
+
+
+def _optimize_fd(model: LocalizedVBModel, x0: np.ndarray, maxiter: int = 400, gtol: float = 1e-6, verbose=False):
     from scipy.optimize import minimize
 
     def f(x):

@@ -16,7 +16,8 @@ import time
 import numpy as np
 
 from phatpsy.localized_vb import (AOIntegrals, LocalizedVBModel, OrbitalSpec, atom_basis,
-                                  diatomic_ao_integrals, optimize, pyscf_mean_field, symmetry_mask)
+                                  diatomic_ao_integrals, optimize, orthonormal_mo_guess,
+                                  pyscf_mean_field, symmetry_mask)
 
 HEV = 27.211386245988
 VALENCE = {  # element -> (n_inactive_sigma, unpaired sigma?, unpaired pi_x?, unpaired pi_y?) for PP bonding
@@ -115,7 +116,15 @@ def run_point(el_a, el_b, basis, R, x0=None, methods=("pp", "covalent", "cas")):
         nact = 2 * len(VALENCE[el_a]["pairs"])
         mc = mcscf.CASSCF(rhf, nact, nact)
         mc.conv_tol = 1e-9
-        mc.kernel()
+        # Seed CASSCF with the localized inactive/active spans so that it cannot land on a
+        # different active space (e.g. a pi lone pair for HF) than the localized VB.
+        model = build_model(ints, el_a, el_b, mirror)
+        orbs = model.orbitals(out["x"][methods[-1]])
+        ina = [o for o, s in zip(orbs, model.specs) if s.role == "inactive"]
+        inactive, pairs = model.split(orbs)
+        Xa = np.array([a for a, _ in pairs] + [b for _, b in pairs]).T
+        guess = orthonormal_mo_guess(inactive, Xa, ints.S)
+        mc.kernel(mo_coeff=guess)
     out["E"]["rhf"] = float(rhf.e_tot)
     out["E"]["casscf"] = float(mc.e_tot)
     return out
