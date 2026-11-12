@@ -31,11 +31,10 @@ coordinates (Neumann 1878; Ruedenberg, J. Chem. Phys. 19, 1459 (1951)):
 The sign convention s_M is fixed by the self-test ``neumann_selftest``, which compares
 the truncated series against 1/|r1 - r2| directly.
 
-STO conventions (radial normalization, real-harmonic ordering m = 0, +1(x), -1(y), ...)
-follow :func:`phatpsy.volumetric.evaluate_real_sto`, except for a Condon-Shortley phase
-(-1)^|m| that matches the Fortran core (see :meth:`ProlateGrid.evaluate`).  PHATPSY
-``basis_info`` MO coefficients can therefore be used directly.  All quantities are in
-atomic units.
+STO conventions (radial normalization, real-harmonic ordering m = 0, +1(x), -1(y), ...,
+Condon-Shortley phase (-1)^|m|) are those of :func:`phatpsy.volumetric.evaluate_real_sto`,
+which match the Fortran core, so PHATPSY ``basis_info`` MO coefficients can be used
+directly.  All quantities are in atomic units.
 """
 from __future__ import annotations
 
@@ -269,17 +268,13 @@ class ProlateGrid:
     # Basis function evaluation
     # ------------------------------------------------------------------
     def evaluate(self, f: STO) -> np.ndarray:
-        """Real STO on the grid in the Fortran-core sign convention.
+        """Real STO on the grid in the Fortran-core (Condon-Shortley) convention.
 
-        The Fortran two-center kernels (``gensab``/``rotsab``) -- and therefore the SCF
-        MO coefficients -- use real harmonics carrying the Condon-Shortley phase
-        (-1)^|m| relative to ``evaluate_real_sto`` (p_x, p_y, d_xz, d_yz flip sign;
-        s, p_z, d_z2, d_xy, d_x2-y2 do not).  Verified against
-        ``compute_diatomic_overlap_matrix_and_gradient`` for generic off-axis
+        ``evaluate_real_sto`` already applies the phase (-1)^|m| used by the Fortran
+        two-center kernels; checked against ``gensab``/``rotsab`` for generic off-axis
         O(DZP)--O(DZP) and O(DZP)--H(DZP) pairs (tests/test_two_center_integrals.py).
         """
-        sign = -1.0 if (abs(f.m) % 2) == 1 else 1.0
-        return sign * evaluate_real_sto(self.X, self.Y, self.Z, f.center, f.n, f.l, f.m, f.zeta, f.norm())
+        return evaluate_real_sto(self.X, self.Y, self.Z, f.center, f.n, f.l, f.m, f.zeta, f.norm())
 
     def kinetic_applied(self, f: STO) -> np.ndarray:
         """(T f)(r) = -1/2 nabla^2 f, using
