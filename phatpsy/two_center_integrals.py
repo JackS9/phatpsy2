@@ -341,6 +341,35 @@ class ProlateGrid:
                     total += c * np.dot(wx, f1 * (Q * A + P * B))
         return float(total)
 
+    def coulomb_matrix(self, densities: np.ndarray, lmax: int = 30, mmax: int = 4, chunk: int = 32) -> np.ndarray:
+        """Batched Coulomb integrals G[p, q] = (rho_p | rho_q) for a stack of densities
+        (shape (n, *grid.shape)).  Same Neumann algorithm as :meth:`coulomb`, vectorized
+        over densities."""
+        mmax = min(mmax, lmax, self.n_phi // 2 - 1)
+        Peta, Pxi, Qxi = self._neumann_tables(lmax, mmax)
+        n = densities.shape[0]
+        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
+        fs = np.zeros_like(fc)
+        for s in range(0, n, chunk):
+            for k in range(s, min(n, s + chunk)):
+                c, si = self._project(densities[k], Peta, lmax, mmax)
+                fc[:, :, k] = c
+                fs[:, :, k] = si
+        G = np.zeros((n, n))
+        wx = self.w_xi
+        CcT, CrT = self.Ccum.T, self.Crev.T
+        for L in range(lmax + 1):
+            for M in range(min(L, mmax) + 1):
+                P, Q = Pxi[L, M], Qxi[L, M]
+                c = self._coef(L, M)
+                for F in (fc[L, M], fs[L, M]):
+                    if not np.any(F):
+                        continue
+                    A = (F * P) @ CcT          # (n, nxi): int_1^xi f P
+                    B = (F * Q) @ CrT          # int_xi^inf f Q
+                    G += c * (F * wx) @ (Q * A + P * B).T
+        return 0.5 * (G + G.T)
+
     def neumann_selftest(self, lmax: int = 60, n_pairs: int = 8, seed: int = 0) -> float:
         """Max relative error of the truncated Neumann series vs 1/|r1-r2| at random
         pairs of points with well-separated xi values."""
@@ -388,19 +417,16 @@ def one_electron_matrices(grid: ProlateGrid, basis: Sequence[STO], z_a: float, z
 
 
 def eri_tensor(grid: ProlateGrid, orbitals: np.ndarray, lmax: int = 30, mmax: int = 4) -> np.ndarray:
-    """Full (pq|rs) tensor (chemists' notation) for a small set of orbitals given as
-    grid values, shape (n, *grid.shape).  Intended for 2-4 orbitals."""
+    """Full (pq|rs) tensor (chemists' notation) for a set of functions given as grid
+    values, shape (n, *grid.shape).  Uses the batched Neumann solver over the n(n+1)/2
+    pair densities."""
     n = orbitals.shape[0]
     pairs = [(p, q) for p in range(n) for q in range(p + 1)]
-    dens = {pq: orbitals[pq[0]] * orbitals[pq[1]] for pq in pairs}
+    dens = np.array([orbitals[p] * orbitals[q] for p, q in pairs])
+    G = grid.coulomb_matrix(dens, lmax=lmax, mmax=mmax)
     eri = np.zeros((n, n, n, n))
-    for i, pq in enumerate(pairs):
-        for rs in pairs[: i + 1]:
-            v = grid.coulomb(dens[pq], dens[rs], lmax=lmax, mmax=mmax)
-            p, q = pq
-            r, s = rs
-            for a, b in ((p, q), (q, p)):
-                for c, d in ((r, s), (s, r)):
-                    eri[a, b, c, d] = v
-                    eri[c, d, a, b] = v
+    for i, (p, q) in enumerate(pairs):
+        for j, (r, s) in enumerate(pairs):
+            v = G[i, j]
+            eri[p, q, r, s] = eri[q, p, r, s] = eri[p, q, s, r] = eri[q, p, s, r] = v
     return eri
