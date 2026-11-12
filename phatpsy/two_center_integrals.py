@@ -99,13 +99,42 @@ def _assoc_legendre_table(x: np.ndarray, lmax: int, mmax: int, outer: bool) -> n
     out = np.zeros((lmax + 1, mmax + 1, x.size))
     fac = np.abs(1.0 - x * x) if not outer else (x * x - 1.0)
     fac = np.sqrt(np.maximum(fac, 0.0))
-    for L in range(lmax + 1):
-        c = np.zeros(L + 1)
-        c[L] = 1.0
-        for M in range(min(L, mmax) + 1):
-            d = npleg.legder(c, M) if M > 0 else c
-            out[L, M] = npleg.legval(x, d) * fac ** M
+    pmm = np.ones_like(x)
+    for M in range(min(lmax, mmax) + 1):
+        if M > 0:
+            pmm = pmm * ((2 * M - 1) * fac)
+        out[M, M] = pmm
+        if M + 1 <= lmax:
+            pm1 = (2 * M + 1) * x * pmm
+            out[M + 1, M] = pm1
+            pm2 = pmm
+            for L in range(M + 2, lmax + 1):
+                pL = ((2 * L - 1) * x * pm1 - (L + M - 1) * pm2) / (L - M)
+                out[L, M] = pL
+                pm2, pm1 = pm1, pL
     return out
+
+
+def _miller_q0(x: np.ndarray, q0_x: np.ndarray, lmax: int, n_extra: int) -> np.ndarray:
+    ntop = lmax + n_extra
+    qp1 = np.zeros_like(x)
+    qc = np.full_like(x, 1e-250)
+    vals = np.zeros((lmax + 1, x.size))
+    for n in range(ntop, 0, -1):
+        qm1 = ((2 * n + 1) * x * qc - (n + 1) * qp1) / n
+        if n - 1 <= lmax:
+            vals[n - 1] = qm1
+        if n <= lmax:
+            vals[n] = qc
+        qp1, qc = qc, qm1
+        if (n & 15) == 0:
+            big = np.abs(qc) > 1e200
+            if np.any(big):
+                s = np.where(big, 1e-200, 1.0)
+                qc = qc * s
+                qp1 = qp1 * s
+                vals = vals * s
+    return vals * (q0_x / vals[0])
 
 
 def _legendre_q_table(xi: np.ndarray, lmax: int, mmax: int) -> np.ndarray:
@@ -135,34 +164,17 @@ def _legendre_q_table(xi: np.ndarray, lmax: int, mmax: int) -> np.ndarray:
                 Q[L + 1, 0, near] = qn
                 qm1, qc = qc, qn
     # --- Miller downward recurrence ---
-    far = ~near
+    mid = (~near) & (xi < 1.25)
+    if np.any(mid):
+        Q[:, 0, mid] = _miller_q0(xi[mid], q0[mid], lmax, 360)
+    far = xi >= 1.25
     if np.any(far):
-        x = xi[far]
-        ntop = lmax + 400
-        qp1 = np.zeros_like(x)
-        qc = np.full_like(x, 1e-280)
-        vals = np.zeros((lmax + 1, x.size))
-        for n in range(ntop, 0, -1):
-            # Q_{n-1} = [(2n+1) x Q_n - (n+1) Q_{n+1}] / n
-            qm1 = ((2 * n + 1) * x * qc - (n + 1) * qp1) / n
-            if n - 1 <= lmax:
-                vals[n - 1] = qm1
-            if n <= lmax:
-                vals[n] = qc
-            qp1, qc = qc, qm1
-            big = np.abs(qc) > 1e250
-            if np.any(big):
-                s = np.where(big, 1e-250, 1.0)
-                qc = qc * s
-                qp1 = qp1 * s
-                vals = vals * s
-        vals = vals * (q0[far] / vals[0])
-        Q[:, 0, far] = vals
+        Q[:, 0, far] = _miller_q0(xi[far], q0[far], lmax, 100)
     # --- M recurrence ---
-    root = np.sqrt(xi * xi - 1.0)
+    inv_root = 1.0 / np.sqrt(xi * xi - 1.0)
     for M in range(mmax):
         for L in range(M + 1, lmax + 1):
-            Q[L, M + 1] = ((L - M) * xi * Q[L, M] - (L + M) * Q[L - 1, M]) / root
+            Q[L, M + 1] = ((L - M) * xi * Q[L, M] - (L + M) * Q[L - 1, M]) * inv_root
     return Q
 
 
@@ -326,6 +338,25 @@ class ProlateGrid:
         fs = np.einsum("ijm,lmj,j->lmi", gs, Peta, we)
         return fc, fs
 
+    def _project_batch(self, densities: np.ndarray, Peta: np.ndarray, lmax: int, mmax: int, chunk: int = 32):
+        """Batched _project over a stack of densities (n, nxi, neta, nphi) -> (fc, fs) of shape (L, M, n, nxi)."""
+        n = densities.shape[0]
+        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
+        fs = np.zeros_like(fc)
+        h3 = (0.5 * self.R) ** 3
+        jac = (self._XI ** 2 - self._ETA ** 2) * h3
+        cosmT = (np.cos(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :]).T
+        sinmT = (np.sin(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :]).T
+        Peta_w = Peta * self.w_eta[None, None, :]
+        for s in range(0, n, chunk):
+            sl = slice(s, min(n, s + chunk))
+            g = densities[sl] * jac[None]                    # (c, nxi, neta, nphi)
+            gc = g @ cosmT                                   # (c, nxi, neta, M)
+            gs = g @ sinmT
+            fc[:, :, sl] = np.einsum("cijm,lmj->lmci", gc, Peta_w)
+            fs[:, :, sl] = np.einsum("cijm,lmj->lmci", gs, Peta_w)
+        return fc, fs
+
     def coulomb(self, rho1: np.ndarray, rho2: np.ndarray, lmax: int = 30, mmax: int = 4) -> float:
         """(rho1 | rho2) = int int rho1(1) rho2(2) / r12 via the Neumann expansion."""
         mmax = min(mmax, lmax, self.n_phi // 2 - 1)
@@ -346,20 +377,18 @@ class ProlateGrid:
                     total += c * np.dot(wx, f1 * (Q * A + P * B))
         return float(total)
 
-    def coulomb_matrix(self, densities: np.ndarray, lmax: int = 30, mmax: int = 4, chunk: int = 32) -> np.ndarray:
+    def coulomb_matrix(self, densities: np.ndarray, lmax: int = 30, mmax: int = 4, chunk: int = 32,
+                       proj: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> np.ndarray:
         """Batched Coulomb integrals G[p, q] = (rho_p | rho_q) for a stack of densities
         (shape (n, *grid.shape)).  Same Neumann algorithm as :meth:`coulomb`, vectorized
         over densities."""
         mmax = min(mmax, lmax, self.n_phi // 2 - 1)
         Peta, Pxi, Qxi = self._neumann_tables(lmax, mmax)
-        n = densities.shape[0]
-        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
-        fs = np.zeros_like(fc)
-        for s in range(0, n, chunk):
-            for k in range(s, min(n, s + chunk)):
-                c, si = self._project(densities[k], Peta, lmax, mmax)
-                fc[:, :, k] = c
-                fs[:, :, k] = si
+        if proj is None:
+            fc, fs = self._project_batch(densities, Peta, lmax, mmax, chunk=chunk)
+        else:
+            fc, fs = proj
+        n = fc.shape[2]
         G = np.zeros((n, n))
         wx = self.w_xi
         CcT, CrT = self.Ccum.T, self.Crev.T
@@ -387,7 +416,7 @@ class ProlateGrid:
         return xi, eta, phi
 
     def potentials_at(self, densities: np.ndarray, points: np.ndarray, lmax: int = 24, mmax: int = 4,
-                      chunk: int = 4096) -> np.ndarray:
+                      chunk: int = 4096, proj: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> np.ndarray:
         """Electrostatic potentials V_k(r) = int rho_k(r') / |r - r'| dr' of densities given on
         this grid, evaluated at arbitrary lab points, from the same Neumann expansion used
         by :meth:`coulomb` (exact up to the angular truncation and xi quadrature):
@@ -398,17 +427,16 @@ class ProlateGrid:
         Cumulative integrals to an arbitrary xi use the panel Lagrange interpolant of the
         integrand (spectral within each panel).  Returns array (n_densities, n_points).
         """
-        dens = np.asarray(densities)
-        if dens.ndim == 3:
-            dens = dens[None]
-        n = dens.shape[0]
         mmax = min(mmax, lmax, self.n_phi // 2 - 1)
         Peta, Pxi, Qxi = self._neumann_tables(lmax, mmax)
-        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
-        fs = np.zeros_like(fc)
-        for k in range(n):
-            c, s = self._project(dens[k], Peta, lmax, mmax)
-            fc[:, :, k], fs[:, :, k] = c, s
+        if proj is None:
+            dens = np.asarray(densities)
+            if dens.ndim == 3:
+                dens = dens[None]
+            fc, fs = self._project_batch(dens, Peta, lmax, mmax)
+        else:
+            fc, fs = proj
+        n = fc.shape[2]
         pts = np.asarray(points, dtype=float).reshape(-1, 3)
         npts = pts.shape[0]
         V = np.zeros((n, npts))

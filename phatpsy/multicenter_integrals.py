@@ -88,78 +88,129 @@ class _Frame:
         self.pairs: List[Tuple[int, int]] = []
 
 
-def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=12000):
+def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=4096):
     """G[s, t] for densities s in src (given by projections) and t in tgt."""
     g = src.grid
     fc, fs = proj                                   # (L, M, n_s, nxi)
     n_s = fc.shape[2]
     n_t = len(tgt.pairs)
-    G = np.zeros((n_s, n_t))
     _, Pxi, Qxi = g._neumann_tables(lmax, mmax)
     npan = len(g.breaks) - 1
     order = g.panel_order
     nxi = g.xi.size
     pw = np.array([0.5 * (g.breaks[q + 1] - g.breaks[q]) * g._gl_w for q in range(npan)])
+
+    modes_L, modes_M, modes_sin, modes_c, F_list = [], [], [], [], []
+    for L in range(lmax + 1):
+        for M in range(min(L, mmax) + 1):
+            c = g._coef(L, M)
+            for is_sin, Fsrc in ((0, fc[L, M]), (1, fs[L, M])):
+                if not np.any(Fsrc):
+                    continue
+                modes_L.append(L)
+                modes_M.append(M)
+                modes_sin.append(is_sin)
+                modes_c.append(c)
+                F_list.append(Fsrc)
+    if not F_list:
+        return np.zeros((n_s, n_t))
+    modes_L = np.array(modes_L)
+    modes_M = np.array(modes_M)
+    modes_sin = np.array(modes_sin)
+    modes_c = np.array(modes_c)
+    F_all = np.stack(F_list, axis=0)                # (K, n_s, nxi)
+    K = len(modes_L)
+
     tg = tgt.grid
     X, Y, Z, W8 = tg.X.ravel(), tg.Y.ravel(), tg.Z.ravel(), tg.weights.ravel()
     keep = W8 != 0.0
     X, Y, Z, W8 = X[keep], Y[keep], Z[keep], W8[keep]
+    pts_all = np.stack([X, Y, Z], axis=1)
+    xi_all, eta_all, phi_all = g.frame_coordinates(pts_all)
+    u_all = xi_all - 1.0
+    kp_all = np.searchsorted(g.breaks, u_all, side="right") - 1
+    beyond_all = u_all >= g.breaks[-1]
+    kp_all = np.where(beyond_all, npan, np.clip(kp_all, 0, npan - 1))
+
+    perm = np.argsort(kp_all, kind="stable")
+    pts_all = pts_all[perm]
+    W8 = W8[perm]
+    xi_all = xi_all[perm]
+    eta_all = eta_all[perm]
+    phi_all = phi_all[perm]
+    u_all = u_all[perm]
+    kp_all = kp_all[perm]
+    edges = np.searchsorted(kp_all, np.arange(npan + 2))
+
     pa = np.array([p[0] for p in tgt.pairs])
     pb = np.array([p[1] for p in tgt.pairs])
-    for s0 in range(0, X.size, chunk):
-        sl = slice(s0, s0 + chunk)
-        pts = np.stack([X[sl], Y[sl], Z[sl]], axis=1)
-        chi, idx = chi_fn(pts)                      # (n_bf_t, np), map global -> row
-        rho = chi[[idx[m] for m in pa]] * chi[[idx[n] for n in pb]] * W8[sl][None, :]   # (n_t, np)
-        xi, eta, phi = g.frame_coordinates(pts)
-        u = xi - 1.0
-        kp = np.searchsorted(g.breaks, u, side="right") - 1
-        beyond = u >= g.breaks[-1]
-        kp = np.where(beyond, npan, np.clip(kp, 0, npan - 1))
-        kin = np.clip(kp, 0, npan - 1)
-        a = g.breaks[kin]
-        hh = 0.5 * (g.breaks[kin + 1] - a)
-        tt = np.clip((u - a) / hh - 1.0, -1.0, 1.0)
-        Pk = npleg.legvander(tt, order)
-        IP = np.zeros((tt.size, order))
-        IP[:, 0] = tt + 1.0
-        for k in range(1, order):
-            IP[:, k] = (Pk[:, k + 1] - Pk[:, k - 1]) / (2 * k + 1)
-        Wa = hh[:, None] * (IP @ g._lag_inv)
-        Wb = pw[kin] - Wa
-        Wa[beyond] = 0.0
-        Wb[beyond] = 0.0
-        Pp = _assoc_legendre_table(xi, lmax, mmax, outer=True)
-        Qp = _legendre_q_table(xi, lmax, mmax)
-        Pe = _assoc_legendre_table(eta, lmax, mmax, outer=False)
-        members = [np.where(kp == q)[0] for q in range(npan + 1)]
-        for L in range(lmax + 1):
-            for M in range(min(L, mmax) + 1):
-                c = g._coef(L, M)
-                for Fsrc, trig in ((fc[L, M], np.cos(M * phi)), (fs[L, M], np.sin(M * phi))):
-                    if not np.any(Fsrc):
-                        continue
-                    ang = Pe[L, M] * trig
-                    XA = rho * (Qp[L, M] * ang)[None, :]    # multiplies A(xi_p)
-                    XB = rho * (Pp[L, M] * ang)[None, :]    # multiplies B(xi_p)
-                    TA = np.stack([XA[:, m].sum(axis=1) for m in members], axis=1)  # (n_t, npan+1)
-                    TB = np.stack([XB[:, m].sum(axis=1) for m in members], axis=1)
-                    SA = np.cumsum(TA[:, ::-1], axis=1)[:, ::-1]                    # sum_{k >= q}
-                    SA = SA[:, 1:]                                                   # sum_{k > q}, q = 0..npan-1
-                    SB = np.concatenate([np.zeros((n_t, 1)), np.cumsum(TB[:, :npan], axis=1)[:, :-1]], axis=1)
-                    KA = (SA[:, :, None] * pw[None]).reshape(n_t, nxi)
-                    KB = (SB[:, :, None] * pw[None]).reshape(n_t, nxi)
-                    KA = KA.reshape(n_t, npan, order)
-                    KB = KB.reshape(n_t, npan, order)
-                    for q in range(npan):
-                        m = members[q]
-                        if m.size:
-                            KA[:, q, :] += XA[:, m] @ Wa[m]
-                            KB[:, q, :] += XB[:, m] @ Wb[m]
-                    FP = Fsrc * Pxi[L, M]
-                    FQ = Fsrc * Qxi[L, M]
-                    G += c * (FP @ KA.reshape(n_t, nxi).T + FQ @ KB.reshape(n_t, nxi).T)
-    return G
+
+    TA = np.zeros((K, n_t, npan + 1))
+    TB = np.zeros((K, n_t, npan + 1))
+    KA = np.zeros((K, npan, n_t, order))
+    KB = np.zeros((K, npan, n_t, order))
+
+    m_vals = np.arange(mmax + 1)
+    for q in range(npan + 1):
+        s_q, e_q = int(edges[q]), int(edges[q + 1])
+        if s_q == e_q:
+            continue
+        for s0 in range(s_q, e_q, chunk):
+            s1 = min(s0 + chunk, e_q)
+            sl = slice(s0, s1)
+            pts = pts_all[sl]
+            chi, idx = chi_fn(pts)                  # (n_bf_t, np), map global -> row
+            pa_idx = [idx[m] for m in pa]
+            pb_idx = [idx[n] for n in pb]
+            rho = chi[pa_idx] * chi[pb_idx] * W8[sl][None, :]   # (n_t, m)
+
+            xi = xi_all[sl]
+            eta = eta_all[sl]
+            phi = phi_all[sl]
+            Pp = _assoc_legendre_table(xi, lmax, mmax, outer=True)
+            Qp = _legendre_q_table(xi, lmax, mmax)
+            Pe = _assoc_legendre_table(eta, lmax, mmax, outer=False)
+
+            m_phi = m_vals[:, None] * phi[None, :]
+            trig_table = np.stack([np.cos(m_phi), np.sin(m_phi)], axis=0)
+            ang = Pe[modes_L, modes_M] * trig_table[modes_sin, modes_M]
+            PhiA = Qp[modes_L, modes_M] * ang
+            PhiB = Pp[modes_L, modes_M] * ang
+
+            TA[:, :, q] += PhiA @ rho.T
+            TB[:, :, q] += PhiB @ rho.T
+
+            if q < npan:
+                u = u_all[sl]
+                a = g.breaks[q]
+                hh = 0.5 * (g.breaks[q + 1] - a)
+                tt = np.clip((u - a) / hh - 1.0, -1.0, 1.0)
+                Pk = npleg.legvander(tt, order)
+                IP = np.zeros((tt.size, order))
+                IP[:, 0] = tt + 1.0
+                for k in range(1, order):
+                    IP[:, k] = (Pk[:, k + 1] - Pk[:, k - 1]) / (2 * k + 1)
+                Wa = hh * (IP @ g._lag_inv)
+                Wb = pw[q][None, :] - Wa
+                Ra = np.transpose(rho[:, :, None] * Wa[None, :, :], (1, 0, 2)).reshape(-1, n_t * order)
+                Rb = np.transpose(rho[:, :, None] * Wb[None, :, :], (1, 0, 2)).reshape(-1, n_t * order)
+                KA[:, q] += (PhiA @ Ra).reshape(K, n_t, order)
+                KB[:, q] += (PhiB @ Rb).reshape(K, n_t, order)
+
+    SA = np.cumsum(TA[:, :, ::-1], axis=2)[:, :, ::-1][:, :, 1:]
+    SB = np.concatenate([np.zeros((K, n_t, 1)), np.cumsum(TB[:, :, :npan], axis=2)[:, :, :-1]], axis=2)
+
+    KA += np.transpose(SA, (0, 2, 1))[:, :, :, None] * pw[None, :, None, :]
+    KB += np.transpose(SB, (0, 2, 1))[:, :, :, None] * pw[None, :, None, :]
+
+    KA_xi = np.transpose(KA, (0, 1, 3, 2)).reshape(K * nxi, n_t)
+    KB_xi = np.transpose(KB, (0, 1, 3, 2)).reshape(K * nxi, n_t)
+
+    Pxi_m = Pxi[modes_L, modes_M]
+    Qxi_m = Qxi[modes_L, modes_M]
+    FP = (F_all * (modes_c[:, None, None] * Pxi_m[:, None, :])).transpose(1, 0, 2).reshape(n_s, K * nxi)
+    FQ = (F_all * (modes_c[:, None, None] * Qxi_m[:, None, :])).transpose(1, 0, 2).reshape(n_s, K * nxi)
+    return FP @ KA_xi + FQ @ KB_xi
 
 
 def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[STO]]],
@@ -227,20 +278,17 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
         dens = np.array(dens)
         mm = min(mmax, lmax, g.n_phi // 2 - 1)
         Peta, _, _ = g._neumann_tables(lmax, mm)
-        fc = np.zeros((lmax + 1, mm + 1, len(dens), g.xi.size)); fs = np.zeros_like(fc)
-        for k in range(len(dens)):
-            fc[:, :, k], fs[:, :, k] = g._project(dens[k], Peta, lmax, mm)
-        proj[key] = (fc, fs)
+        proj[key] = g._project_batch(dens, Peta, lmax, mm)
         # nuclei that are not foci of this frame: potential of each pair density at R_C
         others = [c for c in range(natom) if c not in (fr.i, fr.j)]
         if others:
-            Vc = g.potentials_at(dens, coords[others], lmax=lmax, mmax=mm)
+            Vc = g.potentials_at(dens, coords[others], lmax=lmax, mmax=mm, proj=proj[key])
             for k, (m, n) in enumerate(fr.pairs):
                 v = -float(np.dot(charges[others], Vc[k]))
                 V[m, n] += v
                 if m != n:
                     V[n, m] += v
-        G[(key, key)] = g.coulomb_matrix(dens, lmax=lmax, mmax=mm)
+        G[(key, key)] = g.coulomb_matrix(dens, lmax=lmax, mmax=mm, proj=proj[key])
         del dens, chi, tchi
         if verbose:
             print(f"  frame {key}: {len(fr.pairs)} pair densities ({time.time()-t0:.0f}s)", flush=True)
