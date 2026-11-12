@@ -124,6 +124,121 @@ def pair_energies_from_orbitals(
 # PHATPSY state helpers
 # ---------------------------------------------------------------------------
 
+def occupied_spin_orbitals(state, occ_threshold: float = 1e-6):
+    """All localized spin-orbitals with non-zero occupation in a PHATPSY state.
+
+    Returns a list of dicts {atom, spin, occ, basis (STO list), coef}.
+    """
+    b = state["basis_info"]
+    X = np.asarray(state["atom_coordinates"])
+    mstot = int(state["mstot"])
+    C = np.asarray(state["mo_coefficients"])[:mstot]
+    occ = np.asarray(state["occupations"])
+    iat = np.asarray(b["iatomx"])[:mstot]
+    out = []
+    for atom in sorted(set(int(i) for i in iat if i >= 1)):
+        idx = np.where(iat == atom)[0]
+        basis = [
+            STO(tuple(X[:, atom - 1]), int(b["nx"][i]), int(b["lx"][i]), int(b["mlx"][i]),
+                float(b["etax"][i]), float(b["anormx"][i]))
+            for i in idx
+        ]
+        for s in range(C.shape[2]):
+            for k in range(C.shape[1]):
+                if occ[k, s] <= occ_threshold:
+                    continue
+                if np.max(np.abs(C[idx, k, s])) < 1e-12 or np.max(np.abs(np.delete(C[:, k, s], idx))) > 1e-8:
+                    continue
+                out.append(dict(atom=atom, spin=s, occ=float(occ[k, s]), basis=basis, coef=C[idx, k, s].copy()))
+    if int(state["ispin"]) == 1:  # restricted: each spatial orbital holds both spins
+        out += [dict(so, spin=1) for so in out]
+    return out
+
+
+def determinant_energy(grid: ProlateGrid, spin_orbitals, z_a: float, z_b: float, lmax: int = 30) -> Dict[str, float]:
+    """Exact (nonrelativistic, bare-nucleus) energy of the single Slater determinant built
+    from the given localized spin-orbitals of a diatomic.
+
+    Orbitals of each spin are Loewdin-orthonormalized (this leaves the determinant
+    unchanged), then
+        E = sum_i <i|T - Z_A/r_A - Z_B/r_B|i> + 1/2 (rho|rho) - 1/2 sum_s sum_ij (ij|ij) + V_nn.
+    The result is a variational upper bound on the exact energy.  Fractional
+    occupations are rejected (a determinant needs integer occupations).
+    """
+    for so in spin_orbitals:
+        if abs(so["occ"] - 1.0) > 1e-6:
+            raise ValueError(f"fractional occupation {so['occ']} on atom {so['atom']} spin {so['spin']}")
+    vnuc = -(z_a / grid.r_a + z_b / grid.r_b)
+    w = grid.weights
+    e1 = 0.0
+    ekin = 0.0
+    rho = np.zeros(grid.shape)
+    ex = 0.0
+    n_e = 0
+    for s in sorted(set(so["spin"] for so in spin_orbitals)):
+        sel = [so for so in spin_orbitals if so["spin"] == s]
+        phi, tphi = [], []
+        for so in sel:
+            chi = np.array([grid.evaluate(f) for f in so["basis"]])
+            tch = np.array([grid.kinetic_applied(f) for f in so["basis"]])
+            phi.append(np.tensordot(so["coef"], chi, axes=(0, 0)))
+            tphi.append(np.tensordot(so["coef"], tch, axes=(0, 0)))
+        phi, tphi = np.array(phi), np.array(tphi)
+        S = np.einsum("pijk,qijk,ijk->pq", phi, phi, w)
+        evals, evecs = np.linalg.eigh(S)
+        Xo = evecs @ np.diag(evals ** -0.5) @ evecs.T
+        phi = np.tensordot(Xo, phi, axes=(0, 0))
+        tphi = np.tensordot(Xo, tphi, axes=(0, 0))
+        n = phi.shape[0]
+        n_e += n
+        ekin += float(np.einsum("pijk,pijk,ijk->", phi, tphi, w))
+        e1 += float(np.einsum("pijk,pijk,ijk->", phi, phi, w * vnuc))
+        rho += np.sum(phi * phi, axis=0)
+        for i in range(n):
+            for j in range(i + 1):
+                kij = grid.coulomb(phi[i] * phi[j], phi[i] * phi[j], lmax=lmax)
+                ex += kij if i == j else 2.0 * kij
+    ecoul = 0.5 * grid.coulomb(rho, rho, lmax=lmax)
+    vnn = z_a * z_b / grid.R
+    etot = ekin + e1 + ecoul - 0.5 * ex + vnn
+    return dict(E=etot, T=ekin, V_ne=e1, J=ecoul, K=-0.5 * ex, V_nn=vnn,
+                N=float(grid.integrate(rho)), n_spin_orbitals=n_e, virial=-(etot - ekin) / ekin)
+
+
+def interatomic_decomposition(grid: ProlateGrid, spin_orbitals, z_a: float, z_b: float, lmax: int = 30) -> Dict[str, float]:
+    """Split the exact single-determinant energy of a diatomic built from localized
+    orbitals into
+        E_intra(A) + E_intra(B)        each atom's own determinant with its own nucleus
+        E_elst                         exact classical interaction: cross nuclear attraction
+                                       + (rho_A|rho_B) + Z_A Z_B / R
+        E_HP = E_intra + E_elst        Hartree product of atomic determinants
+        E_pauli = E_det - E_HP         interatomic exchange + orthogonalization (the role
+                                       PHATPSY assigns to Phillips-Kleinman projection)
+    """
+    atoms = sorted(set(so["atom"] for so in spin_orbitals))
+    zs = {atoms[0]: z_a, atoms[1]: z_b}
+    full = determinant_energy(grid, spin_orbitals, z_a, z_b, lmax=lmax)
+    intra, rho = {}, {}
+    for at in atoms:
+        sel = [so for so in spin_orbitals if so["atom"] == at]
+        za, zb = (zs[at], 0.0) if at == atoms[0] else (0.0, zs[at])
+        intra[at] = determinant_energy(grid, sel, za, zb, lmax=lmax)["E"]
+        r = np.zeros(grid.shape)
+        for so in sel:
+            chi = np.array([grid.evaluate(f) for f in so["basis"]])
+            phi = np.tensordot(so["coef"], chi, axes=(0, 0))
+            phi /= np.sqrt(grid.integrate(phi * phi))
+            r += phi * phi
+        rho[at] = r
+    a, b = atoms
+    e_cross_nuc = grid.integrate(rho[a] * (-z_b / grid.r_b)) + grid.integrate(rho[b] * (-z_a / grid.r_a))
+    e_ab = grid.coulomb(rho[a], rho[b], lmax=lmax)
+    e_elst = e_cross_nuc + e_ab + z_a * z_b / grid.R
+    e_hp = intra[a] + intra[b] + e_elst
+    return dict(E_det=full["E"], E_HP=e_hp, E_intra_A=intra[a], E_intra_B=intra[b],
+                E_elst=e_elst, E_pauli=full["E"] - e_hp)
+
+
 def localized_occupied_orbitals(state) -> Dict[int, Tuple[list, np.ndarray, int]]:
     """For each atom (1-based), return (basis STO list, coefficient vector, spin channel)
     of its most-occupied localized orbital in the converged PHATPSY state."""

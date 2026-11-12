@@ -66,3 +66,26 @@ def test_gate_g0_classic_valence_bond_minima():
     assert e == pytest.approx(-1.147937, abs=2e-5)
     assert e < _bare(1.4304, 1.194).E_HL  # ionic structures lower the energy
 
+
+
+@pytest.mark.parametrize("R", [1.4, 2.5])
+def test_determinant_energy_opposite_and_same_spin_closed_forms(R):
+    """determinant_energy reproduces the Hartree product (opposite spins: no exchange)
+    and the triplet energy (same spins: exchange + Loewdin orthogonalization) built
+    from the Sugiura closed-form integrals."""
+    from phatpsy.vb_correction import determinant_energy, interatomic_decomposition
+
+    A, B = (0.0, 0.0, 0.0), (0.0, 0.0, R)
+    g = ProlateGrid(A, B, zeta_min=1.0)
+    ref = _sugiura(R)
+    S = ref["S"]
+    haa, hab = 0.5 + ref["Vaa"], ref["Tab"] + ref["Vab"]
+    e_hp = 2 * haa + ref["J"] + 1 / R
+    e_t = (2 * haa - 2 * S * hab + ref["J"] - ref["K"]) / (1 - S * S) + 1 / R
+    so = lambda c, spin: dict(atom=1 if c == A else 2, spin=spin, occ=1.0,
+                              basis=[STO(c, 1, 0, 0, 1.0)], coef=np.array([1.0]))
+    assert determinant_energy(g, [so(A, 0), so(B, 1)], 1.0, 1.0)["E"] == pytest.approx(e_hp, abs=1e-10)
+    assert determinant_energy(g, [so(A, 0), so(B, 0)], 1.0, 1.0)["E"] == pytest.approx(e_t, abs=1e-10)
+    dec = interatomic_decomposition(g, [so(A, 0), so(B, 0)], 1.0, 1.0)
+    assert dec["E_HP"] == pytest.approx(e_hp, abs=1e-10)
+    assert dec["E_pauli"] == pytest.approx(e_t - e_hp, abs=1e-10)
