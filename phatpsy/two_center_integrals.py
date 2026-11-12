@@ -234,6 +234,11 @@ class ProlateGrid:
             off += k
         self.Ccum = Ccum
         self.Crev = Crev
+        # Panel data for cumulative integrals to arbitrary xi (potentials_at)
+        self.breaks = breaks
+        self.panel_order = panel_order
+        self._gl_t, self._gl_w = t, w
+        self._lag_inv = np.linalg.inv(npleg.legvander(t, panel_order - 1))
 
         # --- eta, phi ---
         self.eta, self.w_eta = npleg.leggauss(n_eta)
@@ -369,6 +374,85 @@ class ProlateGrid:
                     B = (F * Q) @ CrT          # int_xi^inf f Q
                     G += c * (F * wx) @ (Q * A + P * B).T
         return 0.5 * (G + G.T)
+
+    def frame_coordinates(self, points: np.ndarray):
+        """(xi, eta, phi) of lab-frame points (shape (npts, 3)) in this grid's frame."""
+        p = np.asarray(points, dtype=float).reshape(-1, 3)
+        ra = np.linalg.norm(p - self.A, axis=1)
+        rb = np.linalg.norm(p - self.B, axis=1)
+        xi = np.maximum((ra + rb) / self.R, 1.0 + 1e-14)
+        eta = np.clip((ra - rb) / self.R, -1.0, 1.0)
+        local = (p - self.mid) @ self.rot
+        phi = np.arctan2(local[:, 1], local[:, 0])
+        return xi, eta, phi
+
+    def potentials_at(self, densities: np.ndarray, points: np.ndarray, lmax: int = 24, mmax: int = 4,
+                      chunk: int = 4096) -> np.ndarray:
+        """Electrostatic potentials V_k(r) = int rho_k(r') / |r - r'| dr' of densities given on
+        this grid, evaluated at arbitrary lab points, from the same Neumann expansion used
+        by :meth:`coulomb` (exact up to the angular truncation and xi quadrature):
+
+            V(r) = sum_LMT c_LM [Q_L^M(xi) A_LMT(xi) + P_L^M(xi) B_LMT(xi)] P_L^M(eta) T_M(phi),
+            A = int_1^xi f P dxi',   B = int_xi^inf f Q dxi'.
+
+        Cumulative integrals to an arbitrary xi use the panel Lagrange interpolant of the
+        integrand (spectral within each panel).  Returns array (n_densities, n_points).
+        """
+        dens = np.asarray(densities)
+        if dens.ndim == 3:
+            dens = dens[None]
+        n = dens.shape[0]
+        mmax = min(mmax, lmax, self.n_phi // 2 - 1)
+        Peta, Pxi, Qxi = self._neumann_tables(lmax, mmax)
+        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
+        fs = np.zeros_like(fc)
+        for k in range(n):
+            c, s = self._project(dens[k], Peta, lmax, mmax)
+            fc[:, :, k], fs[:, :, k] = c, s
+        pts = np.asarray(points, dtype=float).reshape(-1, 3)
+        npts = pts.shape[0]
+        V = np.zeros((n, npts))
+        npan = len(self.breaks) - 1
+        order = self.panel_order
+        pw = np.array([0.5 * (self.breaks[i + 1] - self.breaks[i]) * self._gl_w for i in range(npan)])  # (npan, order)
+        for s0 in range(0, npts, chunk):
+            p = pts[s0:s0 + chunk]
+            xi, eta, phi = self.frame_coordinates(p)
+            u = xi - 1.0
+            beyond = u >= self.breaks[-1]
+            kp = np.clip(np.searchsorted(self.breaks, u, side="right") - 1, 0, npan - 1)
+            a = self.breaks[kp]
+            hh = 0.5 * (self.breaks[kp + 1] - a)
+            tt = np.clip((u - a) / hh - 1.0, -1.0, 1.0)
+            Pk = npleg.legvander(tt, order)
+            IP = np.zeros((tt.size, order))
+            IP[:, 0] = tt + 1.0
+            for k in range(1, order):
+                IP[:, k] = (Pk[:, k + 1] - Pk[:, k - 1]) / (2 * k + 1)
+            W = hh[:, None] * (IP @ self._lag_inv)                    # (np, order): int_{panel start}^{xi}
+            Wrest = pw[kp] - W                                         # int_{xi}^{panel end}
+            Pp = _assoc_legendre_table(xi, lmax, mmax, outer=True)
+            Qp = _legendre_q_table(xi, lmax, mmax)
+            Pe = _assoc_legendre_table(eta, lmax, mmax, outer=False)
+            for L in range(lmax + 1):
+                for M in range(min(L, mmax) + 1):
+                    c = self._coef(L, M)
+                    for F, trig in ((fc[L, M], np.cos(M * phi)), (fs[L, M], np.sin(M * phi))):
+                        if not np.any(F):
+                            continue
+                        FP = (F * Pxi[L, M]).reshape(n, npan, order)
+                        FQ = (F * Qxi[L, M]).reshape(n, npan, order)
+                        totP = np.einsum("npj,pj->np", FP, pw)
+                        totQ = np.einsum("npj,pj->np", FQ, pw)
+                        preP = np.concatenate([np.zeros((n, 1)), np.cumsum(totP, axis=1)[:, :-1]], axis=1)
+                        sufQ = np.concatenate([np.cumsum(totQ[:, ::-1], axis=1)[:, ::-1][:, 1:], np.zeros((n, 1))], axis=1)
+                        A = preP[:, kp] + np.einsum("nij,ij->ni", FP[:, kp, :], W)
+                        B = sufQ[:, kp] + np.einsum("nij,ij->ni", FQ[:, kp, :], Wrest)
+                        if np.any(beyond):
+                            A[:, beyond] = preP[:, -1:] + totP[:, -1:]
+                            B[:, beyond] = 0.0
+                        V[:, s0:s0 + chunk] += c * (Qp[L, M] * A + Pp[L, M] * B) * (Pe[L, M] * trig)
+        return V
 
     def neumann_selftest(self, lmax: int = 60, n_pairs: int = 8, seed: int = 0) -> float:
         """Max relative error of the truncated Neumann series vs 1/|r1-r2| at random
