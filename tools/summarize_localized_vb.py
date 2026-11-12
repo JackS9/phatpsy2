@@ -12,9 +12,9 @@ import numpy as np
 HEV = 27.211386245988
 AMU = 1822.888486
 MU = {"NN": 14.003074 / 2, "CO": 12.0 * 15.994915 / 27.994915, "LiH": 7.016003 * 1.007825 / 8.023828,
-      "FH": 18.998403 * 1.007825 / 20.006228}
+      "FH": 18.998403 * 1.007825 / 20.006228, "HH": 1.007825 / 2}
 EXPT = {"NN": (2.0744, 2358.6, 9.91), "CO": (2.1322, 2169.8, 11.23), "LiH": (3.0154, 1405.7, 2.52),
-        "FH": (1.7328, 4138.3, 6.12)}
+        "FH": (1.7328, 4138.3, 6.12), "HH": (1.4011, 4401.2, 4.748)}
 
 
 def parse(path):
@@ -39,12 +39,12 @@ def fit(R, E, mu):
     return r[k], np.sqrt(k2 / (mu * AMU)) * 219474.63, e[k]
 
 
-print(f"{'mol':4s} {'basis':5s} {'method':8s} {'R_e':>7s} {'w_e':>7s} {'D_e(eV)':>8s}")
+print(f"{'mol':4s} {'basis':8s} {'method':8s} {'R_e':>7s} {'w_e':>7s} {'D_e(eV)':>8s} {'E_min(Ha)':>12s}")
 for p in sys.argv[1:]:
     mol, basis, e_at, d = parse(p)
     for j, name in ((1, "locVB"), (2, "RHF"), (3, "CASSCF")):
         Re, we, emin = fit(d[:, 0], d[:, j], MU[mol])
-        print(f"{mol:4s} {basis:5s} {name:8s} {Re:7.4f} {we:7.0f} {(e_at - emin) * HEV:8.3f}")
+        print(f"{mol:4s} {basis:8s} {name:8s} {Re:7.4f} {we:7.0f} {(e_at - emin) * HEV:8.3f} {emin:12.6f}")
     x = EXPT[mol]
-    print(f"{mol:4s} {basis:5s} {'expt':8s} {x[0]:7.4f} {x[1]:7.0f} {x[2]:8.3f}")
+    print(f"{mol:4s} {basis:8s} {'expt':8s} {x[0]:7.4f} {x[1]:7.0f} {x[2]:8.3f}")
 
