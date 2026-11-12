@@ -207,6 +207,9 @@ $$\chi_{nlm}(\mathbf{r}) = N_n(\zeta) r^{n-1} e^{-\zeta r} S_{lm}(\theta, \phi)$
 $$N_n(\zeta) = \frac{(2\zeta)^{n + 1/2}}{\sqrt{(2n)!}}$$
 where $S_{lm}$ are real spherical harmonics with exact orthonormalization $\int S_{lm} S_{l'm'} d\Omega = \delta_{ll'} \delta_{mm'}$.
 
+!!! note "Phase convention"
+    The real harmonics carry the Condon-Shortley phase $(-1)^{|m|}$, matching the Fortran two-center kernels (`gensab`/`rotsab` in `src/twocenter.f90`) and hence the SCF MO coefficients. With $m = +1 \to x$ and $m = -1 \to y$, $p_x$, $p_y$, $d_{xz}$ and $d_{yz}$ are the negatives of their plain Cartesian forms, while $s$, $p_z$, $d_{z^2}$, $d_{x^2-y^2}$ and $d_{xy}$ are not. Grid evaluation (`phatpsy/volumetric.py`) and directed-hybrid seeding (`phatpsy/hybrids.py`) both use this convention; it is checked against the Fortran overlap kernel in `tests/test_sto_phase_convention.py`.
+
 ---
 
 ## 11. Equation-of-Motion (EOM) Polarizability & Spectroscopic Properties (Phase 6)
