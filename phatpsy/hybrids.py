@@ -567,7 +567,14 @@ def _plane_normal(dirs: Sequence[np.ndarray]) -> Optional[np.ndarray]:
 
 
 def _vec_to_coefficients(u: np.ndarray, vs: ValenceSpace) -> List[Tuple[int, int, float]]:
-    """Valence vector (s, px, py, pz, [dz2, dxz, dyz, dx2-y2, dxy]) -> engine coefficients (isto, ml, c)."""
+    """Valence vector (s, px, py, pz, [dz2, dxz, dyz, dx2-y2, dxy]) -> engine coefficients (isto, ml, c).
+
+    The Fortran core's real harmonics carry the Condon-Shortley phase (-1)^|ml|
+    (p_x, p_y, d_xz, d_yz are the negatives of the Cartesian forms), so Cartesian
+    components are multiplied by that phase; otherwise hybrids directed along x or y
+    would be seeded pointing away from their bonding partner.
+    """
+    cs = lambda ml: -1.0 if (abs(ml) % 2) == 1 else 1.0
     out: List[Tuple[int, int, float]] = []
     # s orbital
     for isto, c in vs.radial_s.items():
@@ -577,14 +584,14 @@ def _vec_to_coefficients(u: np.ndarray, vs: ValenceSpace) -> List[Tuple[int, int
     if vs.radial_p and len(u) > 1:
         for isto, c in vs.radial_p.items():
             for ml, axis in ML_TO_AXIS.items():
-                comp = u[1 + axis] * c
+                comp = cs(ml) * u[1 + axis] * c
                 if abs(comp) > 1e-12:
                     out.append((isto, ml, float(comp)))
     # d orbitals (indices 4..8)
     if vs.radial_d and len(u) > 4:
         for isto, c in vs.radial_d.items():
             for ml, comp_idx in ML_TO_D_COMP.items():
-                comp = u[4 + comp_idx] * c
+                comp = cs(ml) * u[4 + comp_idx] * c
                 if abs(comp) > 1e-12:
                     out.append((isto, ml, float(comp)))
     return out

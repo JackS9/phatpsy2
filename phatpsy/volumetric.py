@@ -328,6 +328,12 @@ def evaluate_real_sto(
     """
     Evaluates a real Slater-type orbital chi_nlm(r) on 3D coordinate grids (X, Y, Z).
     All dimensions and exponents in atomic units (Bohr).
+
+    Sign convention: matches the Fortran core (``gensab``/``rotsab`` two-center
+    kernels, and therefore the SCF MO coefficients), whose real harmonics carry the
+    Condon-Shortley phase (-1)^|m|.  With ml = +1 -> x, -1 -> y, the functions are
+    s, p_z, d_z2, d_x2-y2, d_xy with sign +1 and p_x, p_y, d_xz, d_yz with sign -1
+    relative to the plain Cartesian forms below (tests/test_sto_phase_convention.py).
     """
     xa, ya, za = atom_xyz
     dx = X - xa
@@ -373,7 +379,9 @@ def evaluate_real_sto(
         # Fallback for higher angular momentum
         s_lm = 1.0 / math.sqrt(4.0 * math.pi)
 
-    return r_rad * s_lm
+    # Condon-Shortley phase (-1)^|m| to match the Fortran core convention.
+    cs_phase = -1.0 if (abs(m) % 2) == 1 else 1.0
+    return cs_phase * r_rad * s_lm
 
 
 #-------------------------------------------------------------------------
