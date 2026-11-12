@@ -482,6 +482,72 @@ class LocalizedVBModel:
         return e, grad
 
 
+# ---------------------------------------------------------------------------
+# Masked (per-orbital AO-domain) models and a gauge-invariant locality measure
+# ---------------------------------------------------------------------------
+
+class MaskedVB:
+    """CI over the span of the active orbitals, with doubly occupied inactive orbitals;
+    every orbital has an explicit AO domain (``masks[k]``): strictly one-center (its own
+    atom's STOs), bond-local (own atom + bonded neighbours), or unrestricted.  Works with
+    :class:`AOIntegrals` and :class:`phatpsy.multicenter_integrals.MolecularAOIntegrals`.
+    """
+
+    def __init__(self, ints, roles: Sequence[str], masks: Sequence[np.ndarray], nelec_act: Tuple[int, int]):
+        self.ints, self.roles, self.nelec_act = ints, list(roles), nelec_act
+        self.masks = [np.asarray(m) for m in masks]
+        self.off = np.cumsum([0] + [len(m) for m in self.masks])
+
+    def orbitals(self, x: np.ndarray) -> List[np.ndarray]:
+        out = []
+        for k, m in enumerate(self.masks):
+            v = np.zeros(self.ints.nao)
+            v[m] = x[self.off[k]:self.off[k + 1]]
+            out.append(v)
+        return out
+
+    def pack(self, orbs) -> np.ndarray:
+        return np.concatenate([o[m] for o, m in zip(orbs, self.masks)])
+
+    def spaces(self, orbs):
+        n = self.ints.nao
+        Xi = np.array([o for o, r in zip(orbs, self.roles) if r == "inactive"]).T if "inactive" in self.roles \
+            else np.zeros((n, 0))
+        Xa = np.array([o for o, r in zip(orbs, self.roles) if r == "active"]).T
+        return Xi, Xa
+
+    def energy_and_grad(self, x: np.ndarray) -> Tuple[float, np.ndarray]:
+        Xi, Xa = self.spaces(self.orbitals(x))
+        e, Gi, Ga = cas_energy_and_gradient(Xi, Xa, self.ints, self.nelec_act)
+        gi, ga = iter(Gi.T), iter(Ga.T)
+        grads = [next(gi) if r == "inactive" else next(ga) for r in self.roles]
+        return e, np.concatenate([g[m] for g, m in zip(grads, self.masks)])
+
+    def optimize(self, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
+        from scipy.optimize import minimize
+        return minimize(self.energy_and_grad, x0, jac=True, method="BFGS",
+                        options={"maxiter": maxiter, "gtol": gtol})
+
+
+def own_atom_character(ints, W: np.ndarray, atom: int, k: int) -> np.ndarray:
+    """Gauge-invariant locality of a subspace.
+
+    For the subspace spanned by the columns of W (any basis), returns the k largest
+    squared principal cosines between span(W) and the span of ``atom``'s own STOs, i.e.
+    the own-atom character of the k most atom-like orbitals contained in the subspace
+    (1.0 = exactly representable by one-center orbitals on that atom).  Independent of
+    rotations within the subspace, so it is meaningful for CI/CASSCF spaces.
+    """
+    S = ints.S
+    w, v = np.linalg.eigh(W.T @ S @ W)
+    Wo = W @ v @ np.diag(w ** -0.5) @ v.T
+    idx = np.where(np.asarray(ints.atom_of) == atom)[0]
+    wa, va = np.linalg.eigh(S[np.ix_(idx, idx)])
+    M = (va @ np.diag(wa ** -0.5) @ va.T) @ S[idx, :] @ Wo
+    s = np.linalg.svd(M, compute_uv=False)
+    return np.sort(s ** 2)[::-1][:k]
+
+
 def optimize(model: LocalizedVBModel, x0: np.ndarray, maxiter: int = 400, gtol: float = 1e-6, verbose=False,
              analytic: Optional[bool] = None):
     """BFGS over one-center orbital parameters.  Uses the analytic gradient for

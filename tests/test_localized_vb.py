@@ -90,3 +90,52 @@ def test_cas_analytic_orbital_gradient_matches_finite_differences():
             xp[i] += 1e-5
             xm[i] -= 1e-5
             assert g[i] == pytest.approx((m.energy(xp) - m.energy(xm)) / 2e-5, abs=1e-7)
+
+
+def test_own_atom_character_closed_form_and_gauge_invariance(h2_ints):
+    """sigma_g = (a + b)/sqrt(2(1+S)) has own-atom character (1+S)/2 on either atom;
+    a one-center orbital has 1; the measure is invariant to rotations within a subspace."""
+    from phatpsy.localized_vb import own_atom_character
+
+    S = h2_ints.S[0, 1]
+    sg = np.array([[1.0], [1.0]])
+    assert own_atom_character(h2_ints, sg, 0, 1)[0] == pytest.approx((1 + S) / 2, abs=1e-12)
+    assert own_atom_character(h2_ints, np.array([[1.0], [0.0]]), 0, 1)[0] == pytest.approx(1.0, abs=1e-12)
+    W = np.eye(2)
+    U = np.array([[0.6, -0.8], [0.8, 0.6]])
+    assert np.allclose(own_atom_character(h2_ints, W, 0, 1), own_atom_character(h2_ints, W @ U, 0, 1))
+
+
+def test_masked_vb_unrestricted_domains_reproduce_casscf():
+    """With every orbital allowed on all atoms, the masked model is CASSCF; with
+    one-center domains it is variationally above it."""
+    from pyscf import mcscf
+    from phatpsy.localized_vb import MaskedVB, orthonormal_mo_guess
+
+    R = 2.0
+    A, B = (0.0, 0.0, 0.0), (0.0, 0.0, R)
+    ints = diatomic_ao_integrals(
+        [STO(A, 1, 0, 0, 2.7), STO(A, 2, 0, 0, 0.65), STO(A, 2, 1, 0, 0.65)],
+        [STO(B, 1, 0, 0, 2.7), STO(B, 2, 0, 0, 0.65), STO(B, 2, 1, 0, 0.65)], 3.0, 3.0)
+    roles = ["inactive", "inactive", "active", "active"]
+    onA, onB, every = np.arange(3), np.arange(3, 6), np.arange(6)
+    x_core = [np.eye(6)[0], np.eye(6)[3]]
+    act = [np.eye(6)[1] + 0.3 * np.eye(6)[2], np.eye(6)[4] - 0.3 * np.eye(6)[5]]
+    strict = MaskedVB(ints, roles, [onA, onB, onA, onB], (1, 1))
+    free = MaskedVB(ints, roles, [every] * 4, (1, 1))
+    rs = strict.optimize(strict.pack(x_core + act))
+    mf = pyscf_mean_field(ints, (3, 3), "RHF")
+    Xi, Xa = strict.spaces(strict.orbitals(rs.x))
+    mc = mcscf.CASSCF(mf, 2, 2)
+    mc.verbose = 0
+    mc.conv_tol = 1e-11
+    mc.conv_tol_grad = 1e-7
+    mc.kernel(mo_coeff=orthonormal_mo_guess(Xi, Xa, ints.S))
+    # At the CASSCF orbitals the unrestricted masked model reproduces E_CASSCF and is stationary
+    C = mc.mo_coeff
+    orbs = [C[:, 0], C[:, 1], C[:, 2], C[:, 3]]
+    e, g = free.energy_and_grad(free.pack(orbs))
+    assert e == pytest.approx(mc.e_tot, abs=1e-9)
+    assert np.max(np.abs(g)) < 1e-5
+    # Strict one-center domains are variationally above CASSCF
+    assert rs.fun >= mc.e_tot - 1e-9
