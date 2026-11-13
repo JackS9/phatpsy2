@@ -268,6 +268,11 @@ def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOInteg
         fock_core = h
         e_core = 0.0
     h1 = Ca.T @ fock_core @ Ca
+    if nelec_act == (nact, 0):
+        eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
+        I_a = np.eye(nact)
+        dm2 = np.einsum("pq,rs->pqrs", I_a, I_a) - np.einsum("ps,qr->pqrs", I_a, I_a)
+        return float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
     eri = ao2mo.incore.full(ao2mo.restore(8, ints.eri, ints.nao), Ca)
     e, _ = fci.direct_spin1.kernel(h1, eri, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
     return float(e)
@@ -329,9 +334,15 @@ def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
     if nelec_act is None:
         nelec_act = (nact // 2, nact - nact // 2)
     h1 = Ca.T @ Fc @ Ca
-    eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
-    e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
-    dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+    if nelec_act == (nact, 0):
+        eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
+        dm1 = np.eye(nact)
+        dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
+        e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+    else:
+        eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
+        e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+        dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
 
     # dE/dC_a (unconstrained, RDMs fixed)
     t = np.einsum("mnls,nq->mqls", ints.eri, Ca, optimize=True)
@@ -513,7 +524,8 @@ class MaskedVB:
         n = self.ints.nao
         Xi = np.array([o for o, r in zip(orbs, self.roles) if r == "inactive"]).T if "inactive" in self.roles \
             else np.zeros((n, 0))
-        Xa = np.array([o for o, r in zip(orbs, self.roles) if r == "active"]).T
+        Xa = np.array([o for o, r in zip(orbs, self.roles) if r == "active"]).T if "active" in self.roles \
+            else np.zeros((n, 0))
         return Xi, Xa
 
     def energy_and_grad(self, x: np.ndarray) -> Tuple[float, np.ndarray]:

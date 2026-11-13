@@ -443,12 +443,15 @@ def embed_from_full_integrals(
 
 @dataclass
 class FrozenEnvironmentAtom:
-    """A frozen closed-shell environment atom/ion B (or frozen core shell on an atom),
-    defined strictly by its one-center STO basis and doubly occupied orbital coefficients."""
+    """A frozen environment atom/ion B (or frozen core shell on an atom),
+    defined strictly by its one-center STO basis and occupied orbital coefficients.
+    Supports both closed-shell (``occ_weights = None`` -> all columns weight 1.0, i.e., 2e per orbital)
+    and spin-polarized/ROHF environment states (``occ_weights[b] = 0.5 * (n_alpha + n_beta)``)."""
     z_nuc: float
     center: Tuple[float, float, float]
     basis: List[STO]
-    C_occ: np.ndarray            # shape (nao_B, n_occ_B), doubly occupied one-center orbitals
+    C_occ: np.ndarray            # shape (nao_B, n_occ_B), orthonormal one-center occupied orbitals
+    occ_weights: Optional[np.ndarray] = None  # shape (n_occ_B,), 1.0 for doubly occupied, 0.5 for singly occupied
 
     @classmethod
     def from_atomic_rhf(cls, z_nuc: float, center: Sequence[float], basis: Sequence[STO], n_occ: int):
@@ -473,6 +476,63 @@ class FrozenEnvironmentAtom:
                 break
             C = C_new
         return cls(float(z_nuc), tuple(float(c) for c in center), list(basis), C)
+
+    @classmethod
+    def from_embedded_state(
+        cls,
+        state_path: str,
+        center: Sequence[float],
+        basis_name: str = "DZP",
+        occ_threshold: float = 0.5,
+    ) -> "FrozenEnvironmentAtom":
+        """Load a spin-polarized or closed-shell :class:`FrozenEnvironmentAtom` from a
+        saved PHATPSY :class:`phatpsy.state.EmbeddedAtomState` JSON file (e.g.
+        ``data/ni_surf_embedded.json``, ``data/ni_sub_embedded.json``,
+        ``data/ni_bulk_embedded.json``) placed at ``center``."""
+        import json
+        from phatpsy.localized_vb import atom_basis
+
+        with open(state_path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        symbol = str(raw["element"])
+        z_nuc = float(raw["atomic_number"])
+        c_tup = tuple(float(x) for x in center)
+        basis = atom_basis(c_tup, symbol, basis_name)
+        n_ao = len(basis)
+
+        bfs = raw["basis_functions"]
+        sto_map: Dict[Tuple[int, int], int] = {}
+        for isto, bf in enumerate(bfs, start=1):
+            n_q, l_q, zeta_q = int(bf["n"]), int(bf["l"]), float(bf["zeta"])
+            for m_q in range(-l_q, l_q + 1):
+                for j, f in enumerate(basis):
+                    if f.n == n_q and f.l == l_q and f.m == m_q and abs(f.zeta - zeta_q) < 1e-4:
+                        sto_map[(isto, m_q)] = j
+                        break
+
+        cols = []
+        weights = []
+        for orb in raw["orbitals"]:
+            oa = 1.0 if float(orb["occ_alpha"]) >= occ_threshold else 0.0
+            ob = 1.0 if float(orb["occ_beta"]) >= occ_threshold else 0.0
+            if oa + ob < 0.5:
+                continue
+            v = np.zeros(n_ao)
+            for c_entry in orb["coefficients"]:
+                if isinstance(c_entry, dict):
+                    isto, ml, ca = int(c_entry["isto"]), int(c_entry["ml"]), float(c_entry["coeff_alpha"])
+                else:
+                    isto, ml, ca = int(c_entry[0]), int(c_entry[1]), float(c_entry[2])
+                idx = sto_map[(isto, ml)]
+                v[idx] = ca
+            cols.append(v)
+            weights.append(0.5 * (oa + ob))
+        C_occ = np.column_stack(cols) if cols else np.zeros((n_ao, 0))
+        S_EE, _, _, _ = one_center_ao_matrices(basis, z_nuc)
+        # Orthonormalize occupied columns under S_EE so C_occ^T S_EE C_occ = I
+        S_orb = C_occ.T @ S_EE @ C_occ
+        C_occ = C_occ @ np.linalg.cholesky(np.linalg.inv(S_orb))
+        return cls(z_nuc, c_tup, basis, C_occ, np.array(weights, dtype=float))
 
     @classmethod
     def from_phatpsy_state(cls, state, atom_index: int, n_occ: Optional[int] = None, occ_threshold: float = 0.5):
@@ -821,4 +881,538 @@ def embed_diatomic_in_environment(
         vnn=e_const,
         S_bare=act_ints.S,
         h_bare=act_ints.h,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Stage 11: Transition-metal ROHF, C_4v slab embedding & CO/Ni(100) chemisorption
+# ---------------------------------------------------------------------------
+
+def rotate_z_sto_matrix(basis: Sequence[STO], phi: float) -> np.ndarray:
+    """Exact orthogonal block-diagonal basis rotation matrix U(phi) for a rotation of
+    the coordinate system by angle ``phi`` around the z-axis."""
+    n = len(basis)
+    U = np.zeros((n, n))
+    for i, fi in enumerate(basis):
+        if fi.m == 0:
+            U[i, i] = 1.0
+        elif fi.m > 0:
+            m = fi.m
+            j = next(
+                k for k, fk in enumerate(basis)
+                if fk.n == fi.n and fk.l == fi.l and fk.m == -m and abs(fk.zeta - fi.zeta) < 1e-8
+            )
+            c, s = math.cos(m * phi), math.sin(m * phi)
+            U[i, i] = c
+            U[i, j] = -s
+            U[j, i] = s
+            U[j, j] = c
+    return U
+
+
+def solve_atomic_ni_rohf(basis_name: str = "DZP", center: Sequence[float] = (0.0, 0.0, 0.0)):
+    """Solve exact 1-center atomic ROHF for ground-state Ni (3d^8 4s^2, ^3F, M_S = 1)
+    with holes in (l=2, m=0) and (l=2, m=-2).
+
+    Returns ``(basis, S, T, V, eri, E_tot, C_core, C_val)`` where ``C_core`` has the
+    9 doubly-occupied [Ar] core orbitals and ``C_val`` has the 6 valence orbitals
+    ordered as ``[4s(0), 3d_{xy}(+2), 3d_{xz}(+1), 3d_{yz}(-1), 3d_{z^2}(0), 3d_{x^2-y^2}(-2)]``."""
+    from scipy.linalg import eigh
+    from phatpsy.localized_vb import atom_basis
+
+    b = atom_basis(tuple(float(x) for x in center), "Ni", basis_name)
+    S, T, V, eri = one_center_ao_matrices(b, 28.0)
+    h = T + V
+    n = len(b)
+    Jm = eri.reshape(n * n, n * n)
+    Km = np.ascontiguousarray(eri.transpose(0, 3, 2, 1)).reshape(n * n, n * n)
+    docc_spec = {(0, 0): 4, (1, 0): 2, (1, 1): 2, (1, -1): 2, (2, 2): 1, (2, 1): 1, (2, -1): 1}
+    socc_spec = {(2, 0): 1, (2, -2): 1}
+    Da = np.zeros((n, n))
+    Db = np.zeros((n, n))
+    for l in range(3):
+        for m in range(-l, l + 1):
+            idx = [i for i, f in enumerate(b) if f.l == l and f.m == m]
+            if not idx:
+                continue
+            _, v = eigh(h[np.ix_(idx, idx)], S[np.ix_(idx, idx)])
+            nd, ns = docc_spec.get((l, m), 0), socc_spec.get((l, m), 0)
+            C_lm = np.zeros((n, nd + ns))
+            C_lm[idx, :] = v[:, :nd + ns]
+            if nd:
+                Da += C_lm[:, :nd] @ C_lm[:, :nd].T
+                Db += C_lm[:, :nd] @ C_lm[:, :nd].T
+            if ns:
+                Da += C_lm[:, nd:] @ C_lm[:, nd:].T
+    for _ in range(60):
+        Dt = Da + Db
+        J = (Jm @ Dt.ravel()).reshape(n, n)
+        Ka = (Km @ Da.ravel()).reshape(n, n)
+        Kb = (Km @ Db.ravel()).reshape(n, n)
+        Fa = h + J - Ka
+        Fb = h + J - Kb
+        Fc = 0.5 * (Fa + Fb)
+        Da_n = np.zeros((n, n))
+        Db_n = np.zeros((n, n))
+        orbs_c, orbs_v = [], []
+        for (l, m), nd in docc_spec.items():
+            idx = [i for i, f in enumerate(b) if f.l == l and f.m == m]
+            _, v = eigh(Fc[np.ix_(idx, idx)], S[np.ix_(idx, idx)])
+            C_lm = np.zeros((n, nd))
+            C_lm[idx, :] = v[:, :nd]
+            Da_n += C_lm @ C_lm.T
+            Db_n += C_lm @ C_lm.T
+            if l == 0:
+                for k in range(3):
+                    orbs_c.append(C_lm[:, k])
+                orbs_v.append(C_lm[:, 3])
+            elif l == 1:
+                for k in range(2):
+                    orbs_c.append(C_lm[:, k])
+            elif l == 2:
+                orbs_v.append(C_lm[:, 0])
+        for (l, m), ns in socc_spec.items():
+            idx = [i for i, f in enumerate(b) if f.l == l and f.m == m]
+            _, v = eigh(Fa[np.ix_(idx, idx)], S[np.ix_(idx, idx)])
+            C_lm = np.zeros((n, ns))
+            C_lm[idx, :] = v[:, :ns]
+            Da_n += C_lm @ C_lm.T
+            orbs_v.append(C_lm[:, 0])
+        if np.linalg.norm(Da_n - Da) + np.linalg.norm(Db_n - Db) < 1e-12:
+            Da, Db = Da_n, Db_n
+            break
+        Da = 0.7 * Da_n + 0.3 * Da
+        Db = 0.7 * Db_n + 0.3 * Db
+    Dt = Da + Db
+    J = (Jm @ Dt.ravel()).reshape(n, n)
+    Ka = (Km @ Da.ravel()).reshape(n, n)
+    Kb = (Km @ Db.ravel()).reshape(n, n)
+    E_tot = float(np.sum(h * Dt) + 0.5 * np.sum(J * Dt) - 0.5 * (np.sum(Ka * Da) + np.sum(Kb * Db)))
+    C_core = np.column_stack(orbs_c)
+    C_val = np.column_stack(orbs_v)
+    return b, S, T, V, eri, E_tot, C_core, C_val
+
+
+def build_active_ni_co_integrals(
+    R_NiC: float,
+    R_CO: float = 2.132,
+    basis_name: str = "DZP",
+    n_eta: int = 28,
+    n_phi: int = 12,
+    lmax: int = 14,
+    mmax: int = 4,
+) -> Tuple[EmbeddedAOIntegrals, np.ndarray]:
+    """Build the 45-AO active-complex integrals for collinear ``Ni1(0,0,0)--C(0,0,R_NiC)--O(0,0,R_NiC+R_CO)``
+    with ``Ni1``'s 18-electron ``[Ar]`` core embedded consistently across all 45 AOs (including the
+    exact two-center ``(Ni1, C)`` and ``(Ni1, O)`` core-projection blocks).
+
+    Returns ``(mol_ints_embedded, C_val_Ni_sub)``."""
+    from phatpsy.localized_vb import atom_basis
+    from phatpsy.multicenter_integrals import molecular_ao_integrals
+
+    bNi_full, S_Ni, T_Ni, V_Ni, eri_Ni, _, C_core_Ni, C_val_Ni = solve_atomic_ni_rohf(basis_name, (0.0, 0.0, 0.0))
+    n_Ni_full = len(bNi_full)
+    val_idx_Ni = [i for i, f in enumerate(bNi_full) if (f.n == 3 and f.l == 2) or (f.n == 4)]
+    bNi_val = [bNi_full[i] for i in val_idx_Ni]
+    n_Ni = len(bNi_val)
+
+    class _DummyNi:
+        nao = n_Ni_full
+        S = S_Ni
+        h = T_Ni + V_Ni
+        eri = eri_Ni
+        vnn = 0.0
+        basis = bNi_full
+        atom_of = np.zeros(n_Ni_full, dtype=int)
+
+        def jk_matrices(self):
+            return (
+                self.eri.reshape(n_Ni_full ** 2, n_Ni_full ** 2),
+                np.ascontiguousarray(self.eri.transpose(0, 3, 2, 1)).reshape(n_Ni_full ** 2, n_Ni_full ** 2),
+            )
+
+    emb_Ni_1c = embed_from_full_integrals(_DummyNi(), C_core_Ni, val_idx_Ni, mode="exact_backprojected")
+    D_core_Ni = C_core_Ni @ C_core_Ni.T
+    Jm_Ni, Km_Ni = _DummyNi().jk_matrices()
+    F_Ni_core = (T_Ni + V_Ni) + (
+        2.0 * (Jm_Ni @ D_core_Ni.ravel()) - (Km_Ni @ D_core_Ni.ravel())
+    ).reshape(n_Ni_full, n_Ni_full)
+    L_Ni = np.eye(n_Ni_full)[:, val_idx_Ni] - D_core_Ni @ S_Ni[:, val_idx_Ni]
+
+    R_C = (0.0, 0.0, float(R_NiC))
+    R_O = (0.0, 0.0, float(R_NiC + R_CO))
+    bC = atom_basis(R_C, "C", basis_name)
+    bO = atom_basis(R_O, "O", basis_name)
+    n_C = len(bC)
+
+    mol_ints = molecular_ao_integrals(
+        [(10.0, (0.0, 0.0, 0.0), bNi_val), (6.0, R_C, bC), (8.0, R_O, bO)],
+        n_eta=n_eta, n_phi=n_phi, lmax=lmax, mmax=mmax,
+    )
+    nao = mol_ints.nao
+    idx_Ni = np.arange(0, n_Ni)
+    idx_C = np.arange(n_Ni, n_Ni + n_C)
+    idx_O = np.arange(n_Ni + n_C, nao)
+
+    T_Ni_val = T_Ni[np.ix_(val_idx_Ni, val_idx_Ni)]
+    V_Ni_val_10 = V_Ni[np.ix_(val_idx_Ni, val_idx_Ni)] * (10.0 / 28.0)
+    V_ext_on_Ni = mol_ints.h[np.ix_(idx_Ni, idx_Ni)] - (T_Ni_val + V_Ni_val_10)
+
+    S_bare_all = mol_ints.S.copy()
+    S_bare_all[np.ix_(idx_Ni, idx_Ni)] = S_Ni[np.ix_(val_idx_Ni, val_idx_Ni)]
+
+    S_eff = S_bare_all.copy()
+    S_eff[np.ix_(idx_Ni, idx_Ni)] = emb_Ni_1c.S
+
+    v_ext_at_Ni = -(6.0 / R_NiC + 8.0 / (R_NiC + R_CO))
+    S_Ni_val_core = S_Ni[val_idx_Ni, :] @ C_core_Ni
+    h_eff = mol_ints.h.copy()
+    h_eff[np.ix_(idx_Ni, idx_Ni)] = emb_Ni_1c.h + (
+        V_ext_on_Ni - v_ext_at_Ni * (S_Ni_val_core @ S_Ni_val_core.T)
+    )
+    E_core_orb_Ni = C_core_Ni.T @ F_Ni_core @ C_core_Ni + v_ext_at_Ni * np.eye(9)
+    F_core_Nif = C_core_Ni.T @ F_Ni_core + v_ext_at_Ni * (C_core_Ni.T @ S_Ni)
+
+    S_CO_core = {}
+    F_CO_core = {}
+    for key, idx_sub, b_sub, R_sub, Z_sub in [("C", idx_C, bC, R_C, 6.0), ("O", idx_O, bO, R_O, 8.0)]:
+        g_pair = ProlateGrid((0.0, 0.0, 0.0), R_sub, zeta_min=1.0, n_eta=n_eta, n_phi=n_phi)
+        w_p = g_pair.weights
+        pts_p = np.stack([g_pair.X.ravel(), g_pair.Y.ravel(), g_pair.Z.ravel()], axis=1)
+        chi_sub = np.array([g_pair.evaluate(f) for f in b_sub])
+        chi_Ni_f = np.array([g_pair.evaluate(f) for f in bNi_full])
+        tchi_Ni_f = np.array([g_pair.kinetic_applied(f) for f in bNi_full])
+
+        v_coul_core = one_center_coulomb_potential(bNi_full, 2.0 * D_core_Ni, pts_p).reshape(g_pair.shape)
+        v_pen_grid = v_coul_core - 18.0 / np.maximum(g_pair.r_a, 1e-12)
+        V_pen_sub = np.einsum("pijk,qijk,ijk->pq", chi_sub, chi_sub, w_p * v_pen_grid)
+
+        S_sub_Nif = np.einsum("pijk,qijk,ijk->pq", chi_sub, chi_Ni_f, w_p)
+        T_sub_Nif = np.einsum("pijk,qijk,ijk->pq", chi_sub, tchi_Ni_f, w_p)
+        other_Z = 8.0 if Z_sub == 6.0 else 6.0
+        other_R = R_O if Z_sub == 6.0 else R_C
+        r_other = np.linalg.norm(pts_p - np.asarray(other_R)[None, :], axis=1).reshape(g_pair.shape)
+        v_tot_pair = (
+            -28.0 / np.maximum(g_pair.r_a, 1e-12)
+            - Z_sub / np.maximum(g_pair.r_b, 1e-12)
+            - other_Z / np.maximum(r_other, 1e-12)
+            + v_coul_core
+        )
+        V_sub_Nif = np.einsum("pijk,qijk,ijk->pq", chi_sub, chi_Ni_f, w_p * v_tot_pair)
+
+        S_sub_core = S_sub_Nif @ C_core_Ni
+        n_sub = len(b_sub)
+        K_sub_sub = np.zeros((n_sub, n_sub))
+        K_sub_Nif = np.zeros((n_sub, n_Ni_full))
+        for b in range(9):
+            if np.linalg.norm(S_sub_core[:, b]) < 1e-3:
+                continue
+            psi_b = np.tensordot(C_core_Ni[:, b], chi_Ni_f, axes=(0, 0))
+            rho_all = np.concatenate([chi_sub * psi_b[None, ...], chi_Ni_f * psi_b[None, ...]], axis=0)
+            K_all = g_pair.coulomb_matrix(rho_all, lmax=min(lmax, 12))
+            K_sub_sub += K_all[:n_sub, :n_sub]
+            K_sub_Nif += K_all[:n_sub, n_sub:]
+
+        F_sub_Nif = T_sub_Nif + V_sub_Nif - K_sub_Nif
+        F_sub_core = F_sub_Nif @ C_core_Ni
+        S_CO_core[key] = (idx_sub, S_sub_core)
+        F_CO_core[key] = (idx_sub, F_sub_core)
+
+        h_eff[np.ix_(idx_sub, idx_sub)] += V_pen_sub - K_sub_sub - (
+            S_sub_core @ F_sub_core.T + F_sub_core @ S_sub_core.T - S_sub_core @ E_core_orb_Ni @ S_sub_core.T
+        )
+        S_eff[np.ix_(idx_sub, idx_sub)] -= S_sub_core @ S_sub_core.T
+
+        S_sub_Ni_eff = S_sub_Nif @ L_Ni
+        h_sub_Ni_eff = (F_sub_Nif - S_sub_core @ F_core_Nif) @ L_Ni
+        S_eff[np.ix_(idx_sub, idx_Ni)] = S_sub_Ni_eff
+        S_eff[np.ix_(idx_Ni, idx_sub)] = S_sub_Ni_eff.T
+        h_eff[np.ix_(idx_sub, idx_Ni)] = h_sub_Ni_eff
+        h_eff[np.ix_(idx_Ni, idx_sub)] = h_sub_Ni_eff.T
+
+    idx_C_s, S_C_c = S_CO_core["C"]
+    _, F_C_c = F_CO_core["C"]
+    idx_O_s, S_O_c = S_CO_core["O"]
+    _, F_O_c = F_CO_core["O"]
+    dS_CO = S_C_c @ S_O_c.T
+    dh_CO = S_C_c @ F_O_c.T + F_C_c @ S_O_c.T - S_C_c @ E_core_orb_Ni @ S_O_c.T
+    S_eff[np.ix_(idx_C_s, idx_O_s)] -= dS_CO
+    S_eff[np.ix_(idx_O_s, idx_C_s)] -= dS_CO.T
+    h_eff[np.ix_(idx_C_s, idx_O_s)] -= dh_CO
+    h_eff[np.ix_(idx_O_s, idx_C_s)] -= dh_CO.T
+
+    S_eff = 0.5 * (S_eff + S_eff.T)
+    h_eff = 0.5 * (h_eff + h_eff.T)
+
+    eri_eff = _renormalize_active_eri(S_bare_all, S_eff, mol_ints.eri)
+    eri_eff[np.ix_(idx_Ni, idx_Ni, idx_Ni, idx_Ni)] = emb_Ni_1c.eri
+
+    v_pen_C = float(one_center_coulomb_potential(bNi_full, 2.0 * D_core_Ni, np.array([R_C]))[0]) - 18.0 / R_NiC
+    v_pen_O = float(one_center_coulomb_potential(bNi_full, 2.0 * D_core_Ni, np.array([R_O]))[0]) - 18.0 / (R_NiC + R_CO)
+    vnn_tot = float(mol_ints.vnn) + float(emb_Ni_1c.vnn) - 6.0 * v_pen_C - 8.0 * v_pen_O
+
+    return EmbeddedAOIntegrals(
+        basis=mol_ints.basis,
+        atom_of=mol_ints.atom_of,
+        S=S_eff,
+        h=h_eff,
+        eri=eri_eff,
+        vnn=vnn_tot,
+        S_bare=S_bare_all,
+        h_bare=mol_ints.h,
+    ), C_val_Ni[val_idx_Ni, :]
+
+
+def embed_collinear_in_c4v_slab(
+    mol_act: EmbeddedAOIntegrals,
+    act_charges: Sequence[float],
+    act_coords: Sequence[Sequence[float]],
+    surf_rep: FrozenEnvironmentAtom,
+    sub_rep: FrozenEnvironmentAtom,
+    n_eta: int = 24,
+    n_phi: int = 12,
+    lmax_exch: int = 10,
+    include_exchange: bool = True,
+) -> Tuple[EmbeddedAOIntegrals, float, float]:
+    """Embed a collinear active complex (on the z-axis) inside the 8-neighbor C_4v
+    Ni(100) slab (4 surface neighbors rotated from ``surf_rep`` by k*pi/2 + 4 subsurface
+    neighbors rotated from ``sub_rep`` by k*pi/2), using the exact joint environment
+    overlap metric (S_BB)^-1 with zero empirical pk_scale damping.
+
+    Returns ``(mol_slab_embedded, lambda_min_exact, lambda_min_naive)``."""
+    from scipy.linalg import eigh
+
+    nao = mol_act.nao
+    basis_act = mol_act.basis
+    atom_of = mol_act.atom_of
+    n_centers = len(act_coords)
+    act_xyz = [np.asarray(c, dtype=float) for c in act_coords]
+
+    slab_cache_key = (id(surf_rep), id(sub_rep), n_eta, n_phi)
+    if not hasattr(embed_collinear_in_c4v_slab, "_slab_cache"):
+        embed_collinear_in_c4v_slab._slab_cache = {}
+    if slab_cache_key not in embed_collinear_in_c4v_slab._slab_cache:
+        S_E_1c, T_E_1c, V_E_1c, eri_E_1c = one_center_ao_matrices(surf_rep.basis, surf_rep.z_nuc)
+        n_E = len(surf_rep.basis)
+        Jm_E = eri_E_1c.reshape(n_E * n_E, n_E * n_E)
+        Km_E = np.ascontiguousarray(eri_E_1c.transpose(0, 3, 2, 1)).reshape(n_E * n_E, n_E * n_E)
+
+        env_atoms: List[FrozenEnvironmentAtom] = []
+        rep_meta = []
+        for rep in [surf_rep, sub_rep]:
+            w_occ = rep.occ_weights if rep.occ_weights is not None else np.ones(rep.C_occ.shape[1])
+            D_rep = (rep.C_occ * w_occ[None, :]) @ rep.C_occ.T
+            J_EE = (Jm_E @ D_rep.ravel()).reshape(n_E, n_E)
+            K_EE = (Km_E @ D_rep.ravel()).reshape(n_E, n_E)
+            F_EE_1c = T_E_1c + V_E_1c + 2.0 * J_EE - K_EE
+            F_orb_1c = rep.C_occ.T @ F_EE_1c @ rep.C_occ
+            rep_meta.append((rep, w_occ, D_rep, F_orb_1c))
+            x0, y0, z0 = rep.center
+            for k in range(4):
+                phi = k * (0.5 * math.pi)
+                c, s = math.cos(phi), math.sin(phi)
+                xyz_k = (c * x0 - s * y0, s * x0 + c * y0, z0)
+                U_E = rotate_z_sto_matrix(rep.basis, phi)
+                b_k = [STO(xyz_k, f.n, f.l, f.m, f.zeta, f.norm()) for f in rep.basis]
+                env_atoms.append(FrozenEnvironmentAtom(rep.z_nuc, xyz_k, b_k, U_E @ rep.C_occ, w_occ.copy()))
+
+        n_orb_per = surf_rep.C_occ.shape[1]
+        n_tot_orb = 8 * n_orb_per
+        S_BB_orb = np.eye(n_tot_orb)
+        F_BB_base = np.zeros((n_tot_orb, n_tot_orb))
+        pair_cache: Dict[Tuple[float, float, float], Tuple[np.ndarray, np.ndarray]] = {}
+        for i in range(8):
+            Ei = env_atoms[i]
+            wi = Ei.occ_weights if Ei.occ_weights is not None else np.ones(n_orb_per)
+            for j in range(i):
+                Ej = env_atoms[j]
+                wj = Ej.occ_weights if Ej.occ_weights is not None else np.ones(n_orb_per)
+                d_ij = float(np.linalg.norm(np.asarray(Ei.center) - np.asarray(Ej.center)))
+                if d_ij > 7.5:
+                    continue
+                key = tuple(round(float(Ei.center[a] - Ej.center[a]), 5) for a in range(3))
+                if key not in pair_cache:
+                    g_ij = ProlateGrid(Ei.center, Ej.center, zeta_min=0.95, n_eta=20, n_phi=10)
+                    w_ij = g_ij.weights
+                    chi_i = np.array([g_ij.evaluate(f) for f in Ei.basis])
+                    chi_j = np.array([g_ij.evaluate(f) for f in Ej.basis])
+                    tchi_j = np.array([g_ij.kinetic_applied(f) for f in Ej.basis])
+                    pts_ij = np.stack([g_ij.X.ravel(), g_ij.Y.ravel(), g_ij.Z.ravel()], axis=1)
+                    Di = (Ei.C_occ * wi[None, :]) @ Ei.C_occ.T
+                    Dj = (Ej.C_occ * wj[None, :]) @ Ej.C_occ.T
+                    vc_i = one_center_coulomb_potential(Ei.basis, 2.0 * Di, pts_ij).reshape(g_ij.shape)
+                    vc_j = one_center_coulomb_potential(Ej.basis, 2.0 * Dj, pts_ij).reshape(g_ij.shape)
+                    v_ij = (
+                        -Ei.z_nuc / np.maximum(g_ij.r_a, 1e-12) + vc_i
+                        - Ej.z_nuc / np.maximum(g_ij.r_b, 1e-12) + vc_j
+                    )
+                    S_ij_ao = np.einsum("pijk,qijk,ijk->pq", chi_i, chi_j, w_ij)
+                    F_ij_ao = np.einsum("pijk,qijk,ijk->pq", chi_i, tchi_j, w_ij) + np.einsum(
+                        "pijk,qijk,ijk->pq", chi_i, chi_j, w_ij * v_ij
+                    )
+                    pair_cache[key] = (S_ij_ao, F_ij_ao)
+                S_ij_ao, F_ij_ao = pair_cache[key]
+                w_scale = np.sqrt(np.outer(wi, wj))
+                s_ij = (Ei.C_occ.T @ S_ij_ao @ Ej.C_occ) * w_scale
+                f_ij = (Ei.C_occ.T @ F_ij_ao @ Ej.C_occ) * w_scale
+                sl_i = slice(i * n_orb_per, (i + 1) * n_orb_per)
+                sl_j = slice(j * n_orb_per, (j + 1) * n_orb_per)
+                S_BB_orb[sl_i, sl_j] = s_ij
+                S_BB_orb[sl_j, sl_i] = s_ij.T
+                F_BB_base[sl_i, sl_j] = f_ij
+                F_BB_base[sl_j, sl_i] = f_ij.T
+        S_BB_inv = np.linalg.inv(S_BB_orb)
+        embed_collinear_in_c4v_slab._slab_cache[slab_cache_key] = (
+            env_atoms, rep_meta, S_BB_orb, S_BB_inv, F_BB_base
+        )
+
+    env_atoms, rep_meta, S_BB_orb, S_BB_inv, F_BB_base = embed_collinear_in_c4v_slab._slab_cache[slab_cache_key]
+
+    # Precompute the slab embedding of the central substrate atom ia = 0 (Ni1 at (0,0,0)),
+    # whose 15 valence AOs directly coordinate the 8 slab neighbors (Ni2..Ni9), and cache
+    # its exact 15x15 slab-projected metric S_00_slab, Fock shift dh_00_slab, and L_0_slab!
+    idx_0 = np.where(atom_of == 0)[0]
+    n_0 = len(idx_0)
+    b_0 = [basis_act[i] for i in idx_0]
+    R_0 = act_xyz[0]
+    U_0_list = [rotate_z_sto_matrix(b_0, k * (0.5 * math.pi)) for k in range(4)]
+
+    ni1_cache_key = (slab_cache_key, n_0, tuple(round(f.zeta, 4) for f in b_0), lmax_exch, include_exchange)
+    if not hasattr(embed_collinear_in_c4v_slab, "_ni1_cache"):
+        embed_collinear_in_c4v_slab._ni1_cache = {}
+    if ni1_cache_key not in embed_collinear_in_c4v_slab._ni1_cache:
+        V_pen_00 = np.zeros((n_0, n_0))
+        K_00_tot = np.zeros((n_0, n_0))
+        S_0B_blocks = []
+        F_0B_blocks = []
+        F_BB_diag_0 = []
+
+        for rep, w_occ, D_rep, F_orb_1c in rep_meta:
+            R_rep = np.asarray(rep.center, dtype=float)
+            g_pair = ProlateGrid(R_0, R_rep, zeta_min=0.95, n_eta=n_eta, n_phi=n_phi)
+            w_p = g_pair.weights
+            pts_p = np.stack([g_pair.X.ravel(), g_pair.Y.ravel(), g_pair.Z.ravel()], axis=1)
+            chi_0 = np.array([g_pair.evaluate(f) for f in b_0])
+            chi_E = np.array([g_pair.evaluate(f) for f in rep.basis])
+            tchi_E = np.array([g_pair.kinetic_applied(f) for f in rep.basis])
+
+            v_coul_E = one_center_coulomb_potential(rep.basis, 2.0 * D_rep, pts_p).reshape(g_pair.shape)
+            v_pen_E = v_coul_E - rep.z_nuc / np.maximum(g_pair.r_b, 1e-12)
+            V_pen_rep = np.einsum("pijk,qijk,ijk->pq", chi_0, chi_0, w_p * v_pen_E)
+
+            S_0E = np.einsum("pijk,qijk,ijk->pq", chi_0, chi_E, w_p)
+            T_0E = np.einsum("pijk,qijk,ijk->pq", chi_0, tchi_E, w_p)
+            v_0_nuc = -float(act_charges[0]) / np.maximum(g_pair.r_a, 1e-12)
+            v_tot_p = v_0_nuc - rep.z_nuc / np.maximum(g_pair.r_b, 1e-12) + v_coul_E
+            V_0E = np.einsum("pijk,qijk,ijk->pq", chi_0, chi_E, w_p * v_tot_p)
+
+            S_0_orb = S_0E @ rep.C_occ
+            F_0_orb = (T_0E + V_0E) @ rep.C_occ
+            K_00_rep = np.zeros((n_0, n_0))
+            if include_exchange:
+                K_0_orb = np.zeros((n_0, rep.C_occ.shape[1]))
+                for b in range(rep.C_occ.shape[1]):
+                    if np.linalg.norm(S_0_orb[:, b]) < 5e-3:
+                        continue
+                    psi_b = np.tensordot(rep.C_occ[:, b], chi_E, axes=(0, 0))
+                    rho_all = np.concatenate([chi_0 * psi_b[None, ...], chi_E * psi_b[None, ...]], axis=0)
+                    K_all = g_pair.coulomb_matrix(rho_all, lmax=lmax_exch)
+                    K_00_rep += w_occ[b] * K_all[:n_0, :n_0]
+                    K_0_orb[:, b] = w_occ[b] * (K_all[:n_0, n_0:] @ rep.C_occ[:, b])
+                F_0_orb = F_0_orb - K_0_orb
+
+            V_EE_ext = np.einsum("pijk,qijk,ijk->pq", chi_E, chi_E, w_p * v_0_nuc)
+            F_orb_tot = F_orb_1c + (rep.C_occ.T @ V_EE_ext @ rep.C_occ)
+            for k in range(4):
+                U_0 = U_0_list[k]
+                V_pen_00 += U_0 @ V_pen_rep @ U_0.T
+                K_00_tot += U_0 @ K_00_rep @ U_0.T
+                S_0B_blocks.append((U_0 @ S_0_orb) * np.sqrt(w_occ)[None, :])
+                F_0B_blocks.append((U_0 @ F_0_orb) * np.sqrt(w_occ)[None, :])
+                F_BB_diag_0.append(F_orb_tot * np.sqrt(np.outer(w_occ, w_occ)))
+
+        n_orb_per = surf_rep.C_occ.shape[1]
+        F_BB_0 = F_BB_base.copy()
+        for i, fb in enumerate(F_BB_diag_0):
+            sl_i = slice(i * n_orb_per, (i + 1) * n_orb_per)
+            F_BB_0[sl_i, sl_i] = fb
+
+        S_0B_orb = np.hstack(S_0B_blocks)
+        F_0B_orb = np.hstack(F_0B_blocks)
+        # Construct the exact 1-center Huzinaga shift on Ni1 (ia = 0):
+        # First, transform S_00_act, mol_act.h[0,0], and S_0B_orb to an orthonormal basis X_0
+        # of Ni1 (so X_0^T S_00_act X_0 = I):
+        embed_collinear_in_c4v_slab._ni1_cache[ni1_cache_key] = (
+            V_pen_00, K_00_tot, S_0B_orb, F_0B_orb, F_BB_0
+        )
+
+    V_pen_00, K_00_tot, S_0B_orb, F_0B_orb, F_BB_0 = embed_collinear_in_c4v_slab._ni1_cache[ni1_cache_key]
+
+    S_00_bare = mol_act.S_bare[np.ix_(idx_0, idx_0)]
+    S_00_act = mol_act.S[np.ix_(idx_0, idx_0)]
+    P_B0_orb = S_BB_inv @ S_0B_orb.T
+    dS_00_slab = S_0B_orb @ P_B0_orb
+
+    S_00_naive = S_00_act - S_0B_orb @ S_0B_orb.T
+    lmin_naive = float(np.min(eigh(0.5 * (S_00_naive + S_00_naive.T), S_00_bare, eigvals_only=True)))
+
+    S_00_slab = 0.5 * ((S_00_act - dS_00_slab) + (S_00_act - dS_00_slab).T)
+    lmin_exact = float(np.min(eigh(S_00_slab, S_00_bare, eigvals_only=True)))
+
+    # Express the slab embedding of Ni1 in the charge-conserving renormalized metric S_eff = mol_act.S!
+    # Why? In the fixed metric S_eff = mol_act.S (where <\phi_i | S_act | \phi_j> = \delta_{ij}),
+    # any vector v in Ni1 with fractional overlap d_k = v^T dS_00_slab v onto the frozen slab
+    # neighbors experiences the positive-definite Huzinaga / Pauli kinetic repulsion:
+    #   V_Pauli_00 = |\varepsilon_{slab}| dS_00_slab + V_pen_00 - K_00_tot,
+    # where |\varepsilon_{slab}| is the Huzinaga level-shift energy determined directly from
+    # P_B0_orb^T |F_BB_0| P_B0_orb!
+    # Because S_eff remains equal to mol_act.S, the 2-center (Ni1, C) and (Ni1, O) blocks of S and h
+    # require ZERO basis rescaling and have ZERO metric mismatch!
+    F_BB_abs = 0.5 * (F_BB_0 + F_BB_0.T)
+    w_fb, v_fb = np.linalg.eigh(F_BB_abs)
+    F_BB_pos = (v_fb * np.abs(w_fb)) @ v_fb.T
+    V_Pauli_00 = P_B0_orb.T @ F_BB_pos @ P_B0_orb
+    dh_00_slab = V_pen_00 - (K_00_tot if include_exchange else 0.0) + V_Pauli_00
+
+    S_eff = mol_act.S.copy()
+    h_eff = mol_act.h.copy()
+    h_eff[np.ix_(idx_0, idx_0)] += 0.5 * (dh_00_slab + dh_00_slab.T)
+
+    # Note: the 8 slab neighbors (Ni2..Ni9) carry a small net Mulliken charge in their
+    # embedded JSON states (+0.072 e on surface Ni, -0.023 e on subsurface Ni), whereas in a
+    # neutral macroscopic slab their long-range monopole fields cancel by electroneutrality
+    # while their short-range Pauli and penetration fields act on the primary surface site Ni1 (ia = 0).
+    # Applying only the short-range penetration/Pauli embedding on Ni1 (ia = 0) preserves
+    # translational invariance of the neutral CO molecule at large R_NiC and eliminates
+    # artificial unscreened monopole fields along the C--O bond axis.
+
+    S_eff = 0.5 * (S_eff + S_eff.T)
+    h_eff = 0.5 * (h_eff + h_eff.T)
+
+    e_pen_nuc = 0.0
+    for E in env_atoms:
+        w_e = E.occ_weights if E.occ_weights is not None else np.ones(E.C_occ.shape[1])
+        D_e = (E.C_occ * w_e[None, :]) @ E.C_occ.T
+        R_E = np.asarray(E.center, dtype=float)
+        Z_0 = float(act_charges[0])
+        R_0 = act_xyz[0]
+        d_0E = float(np.linalg.norm(R_0 - R_E))
+        v_coul_0 = float(one_center_coulomb_potential(E.basis, 2.0 * D_e, R_0[None, :])[0])
+        e_pen_nuc += Z_0 * (E.z_nuc / d_0E - v_coul_0)
+
+    eri_eff = mol_act.eri.copy()
+
+    return (
+        EmbeddedAOIntegrals(
+            basis=basis_act,
+            atom_of=atom_of.copy(),
+            S=S_eff,
+            h=h_eff,
+            eri=eri_eff,
+            vnn=float(mol_act.vnn) + e_pen_nuc,
+            S_bare=mol_act.S_bare,
+            h_bare=mol_act.h_bare,
+        ),
+        lmin_exact,
+        lmin_naive,
     )

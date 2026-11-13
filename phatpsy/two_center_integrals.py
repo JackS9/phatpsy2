@@ -338,23 +338,32 @@ class ProlateGrid:
         fs = np.einsum("ijm,lmj,j->lmi", gs, Peta, we)
         return fc, fs
 
-    def _project_batch(self, densities: np.ndarray, Peta: np.ndarray, lmax: int, mmax: int, chunk: int = 32):
+    def _project_batch(self, densities: np.ndarray, Peta: np.ndarray, lmax: int, mmax: int, chunk: int = 64):
         """Batched _project over a stack of densities (n, nxi, neta, nphi) -> (fc, fs) of shape (L, M, n, nxi)."""
-        n = densities.shape[0]
-        fc = np.zeros((lmax + 1, mmax + 1, n, self.xi.size))
+        n, nxi, neta, nphi = densities.shape
+        fc = np.zeros((lmax + 1, mmax + 1, n, nxi))
         fs = np.zeros_like(fc)
         h3 = (0.5 * self.R) ** 3
-        jac = (self._XI ** 2 - self._ETA ** 2) * h3
-        cosmT = (np.cos(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :]).T
-        sinmT = (np.sin(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :]).T
-        Peta_w = Peta * self.w_eta[None, None, :]
+        jac2d = (self.xi[:, None] ** 2 - self.eta[None, :] ** 2) * (h3 * self.w_eta[None, :])
+        csT = np.vstack([
+            np.cos(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :],
+            np.sin(np.outer(np.arange(mmax + 1), self.phi)) * self.w_phi[None, :],
+        ]).T
         for s in range(0, n, chunk):
             sl = slice(s, min(n, s + chunk))
-            g = densities[sl] * jac[None]                    # (c, nxi, neta, nphi)
-            gc = g @ cosmT                                   # (c, nxi, neta, M)
-            gs = g @ sinmT
-            fc[:, :, sl] = np.einsum("cijm,lmj->lmci", gc, Peta_w)
-            fs[:, :, sl] = np.einsum("cijm,lmj->lmci", gs, Peta_w)
+            c = sl.stop - sl.start
+            d_sl = densities[sl]
+            gcs = (d_sl.reshape(-1, nphi) @ csT).reshape(c, nxi, neta, 2, mmax + 1)
+            tol = (1e-13 * 2.0 * np.pi) * np.max(np.abs(d_sl), axis=3)[..., None, None]
+            gcs[np.abs(gcs) <= tol] = 0.0
+            gcs *= jac2d[None, :, :, None, None]
+            for M in range(mmax + 1):
+                P_M_T = np.ascontiguousarray(Peta[M:, M, :].T)
+                gc_M = gcs[:, :, :, 0, M].reshape(c * nxi, neta)
+                fc[M:, M, sl] = (gc_M @ P_M_T).reshape(c, nxi, -1).transpose(2, 0, 1)
+                if M > 0:
+                    gs_M = gcs[:, :, :, 1, M].reshape(c * nxi, neta)
+                    fs[M:, M, sl] = (gs_M @ P_M_T).reshape(c, nxi, -1).transpose(2, 0, 1)
         return fc, fs
 
     def coulomb(self, rho1: np.ndarray, rho2: np.ndarray, lmax: int = 30, mmax: int = 4) -> float:

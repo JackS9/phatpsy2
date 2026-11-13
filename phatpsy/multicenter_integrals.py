@@ -86,10 +86,116 @@ class _Frame:
     def __init__(self, i, j, grid: ProlateGrid):
         self.i, self.j, self.grid = i, j, grid
         self.pairs: List[Tuple[int, int]] = []
+        self.rho_meridian: Optional[np.ndarray] = None
+
+
+def _is_same_axis(g1: ProlateGrid, g2: ProlateGrid) -> bool:
+    if not np.allclose(g1.rot, g2.rot, atol=1e-12):
+        return False
+    return float(np.linalg.norm(np.cross(g2.mid - g1.mid, g1.rot[:, 2]))) < 1e-12
+
+
+def _cross_coulomb_collinear(src: _Frame, proj, tgt: _Frame, lmax: int, mmax: int) -> np.ndarray:
+    """Exact 2D meridian contraction for _cross_coulomb when src and tgt share the same bond axis."""
+    g = src.grid
+    tg = tgt.grid
+    fc, fs = proj
+    n_s = fc.shape[2]
+    n_t = len(tgt.pairs)
+    _, Pxi, Qxi = g._neumann_tables(lmax, mmax)
+    npan = len(g.breaks) - 1
+    order = g.panel_order
+    pw = np.array([0.5 * (g.breaks[q + 1] - g.breaks[q]) * g._gl_w for q in range(npan)])
+
+    X2, Y2, Z2 = tg.X[:, :, 0].ravel(), tg.Y[:, :, 0].ravel(), tg.Z[:, :, 0].ravel()
+    pts2 = np.stack([X2, Y2, Z2], axis=1)
+    xi_all, eta_all, _ = g.frame_coordinates(pts2)
+    u_all = xi_all - 1.0
+    kp_all = np.searchsorted(g.breaks, u_all, side="right") - 1
+    beyond_all = u_all >= g.breaks[-1]
+    kp_all = np.where(beyond_all, npan, np.clip(kp_all, 0, npan - 1))
+
+    perm = np.argsort(kp_all, kind="stable")
+    xi_all, eta_all, u_all, kp_all = xi_all[perm], eta_all[perm], u_all[perm], kp_all[perm]
+    edges = np.searchsorted(kp_all, np.arange(npan + 2))
+    rho_mer = tgt.rho_meridian[:, perm, :, :]  # (n_t, N2d, 2, mmax+1)
+
+    Pp_all = _assoc_legendre_table(xi_all, lmax, mmax, outer=True)
+    Qp_all = _legendre_q_table(xi_all, lmax, mmax)
+    Pe_all = _assoc_legendre_table(eta_all, lmax, mmax, outer=False)
+
+    N2d = xi_all.size
+    Wa_all = np.zeros((N2d, order))
+    Wb_all = np.zeros((N2d, order))
+    for q in range(npan):
+        s_q, e_q = int(edges[q]), int(edges[q + 1])
+        if s_q == e_q:
+            continue
+        sl = slice(s_q, e_q)
+        u = u_all[sl]
+        a = g.breaks[q]
+        hh = 0.5 * (g.breaks[q + 1] - a)
+        tt = np.clip((u - a) / hh - 1.0, -1.0, 1.0)
+        Pk = npleg.legvander(tt, order)
+        IP = np.zeros((tt.size, order))
+        IP[:, 0] = tt + 1.0
+        for k in range(1, order):
+            IP[:, k] = (Pk[:, k + 1] - Pk[:, k - 1]) / (2 * k + 1)
+        Wa_all[sl] = hh * (IP @ g._lag_inv)
+        Wb_all[sl] = pw[q][None, :] - Wa_all[sl]
+
+    G_out = np.zeros((n_s, n_t))
+    for M in range(mmax + 1):
+        L_vals = np.arange(M, lmax + 1)
+        K = L_vals.size
+        c_vals = np.array([g._coef(int(L), M) for L in L_vals])
+        Pxi_m = Pxi[L_vals, M]
+        Qxi_m = Qxi[L_vals, M]
+        ang = Pe_all[L_vals, M]
+        PhiA_all = Qp_all[L_vals, M] * ang
+        PhiB_all = Pp_all[L_vals, M] * ang
+
+        for is_sin, F_M in ((0, fc[:, M]), (1, fs[:, M])):
+            if not np.any(F_M):
+                continue
+            rho_M = rho_mer[:, :, is_sin, M]  # (n_t, N2d)
+            if not np.any(rho_M):
+                continue
+            F_sub = F_M[L_vals]  # (K, n_s, nxi)
+            FP_pan = (F_sub * (c_vals[:, None, None] * Pxi_m[:, None, :])).reshape(K, n_s, npan, order).transpose(1, 2, 0, 3)
+            FQ_pan = (F_sub * (c_vals[:, None, None] * Qxi_m[:, None, :])).reshape(K, n_s, npan, order).transpose(1, 2, 0, 3)
+            IP_src = np.sum(FP_pan * pw[None, :, None, :], axis=3)
+            IQ_src = np.sum(FQ_pan * pw[None, :, None, :], axis=3)
+            UA = np.zeros((n_s, npan + 1, K))
+            UA[:, 1:, :] = np.cumsum(IP_src, axis=1)
+            UB = np.zeros((n_s, npan + 1, K))
+            UB[:, :npan - 1, :] = np.cumsum(IQ_src[:, ::-1, :], axis=1)[:, ::-1, :][:, 1:, :]
+
+            V_M = np.zeros((n_s, N2d))
+            for q in range(npan + 1):
+                s_q, e_q = int(edges[q]), int(edges[q + 1])
+                if s_q == e_q:
+                    continue
+                sl = slice(s_q, e_q)
+                PhiA = PhiA_all[:, sl]
+                PhiB = PhiB_all[:, sl]
+                V_q = UA[:, q, :] @ PhiA + UB[:, q, :] @ PhiB
+                if q < npan:
+                    Wa = Wa_all[sl]
+                    Wb = Wb_all[sl]
+                    MA = (PhiA[:, None, :] * Wa.T[None, :, :]).reshape(K * order, -1)
+                    MB = (PhiB[:, None, :] * Wb.T[None, :, :]).reshape(K * order, -1)
+                    V_q += FP_pan[:, q].reshape(n_s, K * order) @ MA + FQ_pan[:, q].reshape(n_s, K * order) @ MB
+                V_M[:, sl] = V_q
+            G_out += V_M @ rho_M.T
+    return G_out
 
 
 def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=4096):
     """G[s, t] for densities s in src (given by projections) and t in tgt."""
+    if tgt.rho_meridian is not None and _is_same_axis(src.grid, tgt.grid):
+        return _cross_coulomb_collinear(src, proj, tgt, lmax, mmax)
+
     g = src.grid
     fc, fs = proj                                   # (L, M, n_s, nxi)
     n_s = fc.shape[2]
@@ -97,7 +203,6 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=409
     _, Pxi, Qxi = g._neumann_tables(lmax, mmax)
     npan = len(g.breaks) - 1
     order = g.panel_order
-    nxi = g.xi.size
     pw = np.array([0.5 * (g.breaks[q + 1] - g.breaks[q]) * g._gl_w for q in range(npan)])
 
     modes_L, modes_M, modes_sin, modes_c, F_list = [], [], [], [], []
@@ -120,6 +225,17 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=409
     modes_c = np.array(modes_c)
     F_all = np.stack(F_list, axis=0)                # (K, n_s, nxi)
     K = len(modes_L)
+
+    Pxi_m = Pxi[modes_L, modes_M]
+    Qxi_m = Qxi[modes_L, modes_M]
+    FP_pan = (F_all * (modes_c[:, None, None] * Pxi_m[:, None, :])).reshape(K, n_s, npan, order).transpose(1, 2, 0, 3)
+    FQ_pan = (F_all * (modes_c[:, None, None] * Qxi_m[:, None, :])).reshape(K, n_s, npan, order).transpose(1, 2, 0, 3)
+    IP_src = np.sum(FP_pan * pw[None, :, None, :], axis=3)
+    IQ_src = np.sum(FQ_pan * pw[None, :, None, :], axis=3)
+    UA = np.zeros((n_s, npan + 1, K))
+    UA[:, 1:, :] = np.cumsum(IP_src, axis=1)
+    UB = np.zeros((n_s, npan + 1, K))
+    UB[:, :npan - 1, :] = np.cumsum(IQ_src[:, ::-1, :], axis=1)[:, ::-1, :][:, 1:, :]
 
     tg = tgt.grid
     X, Y, Z, W8 = tg.X.ravel(), tg.Y.ravel(), tg.Z.ravel(), tg.weights.ravel()
@@ -144,17 +260,18 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=409
 
     pa = np.array([p[0] for p in tgt.pairs])
     pb = np.array([p[1] for p in tgt.pairs])
-
-    TA = np.zeros((K, n_t, npan + 1))
-    TB = np.zeros((K, n_t, npan + 1))
-    KA = np.zeros((K, npan, n_t, order))
-    KB = np.zeros((K, npan, n_t, order))
-
     m_vals = np.arange(mmax + 1)
+    G_out = np.zeros((n_s, n_t))
+
     for q in range(npan + 1):
         s_q, e_q = int(edges[q]), int(edges[q + 1])
         if s_q == e_q:
             continue
+        UA_q = UA[:, q, :]
+        UB_q = UB[:, q, :]
+        if q < npan:
+            FP_q = FP_pan[:, q, :, :].reshape(n_s, K * order)
+            FQ_q = FQ_pan[:, q, :, :].reshape(n_s, K * order)
         for s0 in range(s_q, e_q, chunk):
             s1 = min(s0 + chunk, e_q)
             sl = slice(s0, s1)
@@ -177,9 +294,7 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=409
             PhiA = Qp[modes_L, modes_M] * ang
             PhiB = Pp[modes_L, modes_M] * ang
 
-            TA[:, :, q] += PhiA @ rho.T
-            TB[:, :, q] += PhiB @ rho.T
-
+            V_pts = UA_q @ PhiA + UB_q @ PhiB
             if q < npan:
                 u = u_all[sl]
                 a = g.breaks[q]
@@ -192,25 +307,11 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=409
                     IP[:, k] = (Pk[:, k + 1] - Pk[:, k - 1]) / (2 * k + 1)
                 Wa = hh * (IP @ g._lag_inv)
                 Wb = pw[q][None, :] - Wa
-                Ra = np.transpose(rho[:, :, None] * Wa[None, :, :], (1, 0, 2)).reshape(-1, n_t * order)
-                Rb = np.transpose(rho[:, :, None] * Wb[None, :, :], (1, 0, 2)).reshape(-1, n_t * order)
-                KA[:, q] += (PhiA @ Ra).reshape(K, n_t, order)
-                KB[:, q] += (PhiB @ Rb).reshape(K, n_t, order)
-
-    SA = np.cumsum(TA[:, :, ::-1], axis=2)[:, :, ::-1][:, :, 1:]
-    SB = np.concatenate([np.zeros((K, n_t, 1)), np.cumsum(TB[:, :, :npan], axis=2)[:, :, :-1]], axis=2)
-
-    KA += np.transpose(SA, (0, 2, 1))[:, :, :, None] * pw[None, :, None, :]
-    KB += np.transpose(SB, (0, 2, 1))[:, :, :, None] * pw[None, :, None, :]
-
-    KA_xi = np.transpose(KA, (0, 1, 3, 2)).reshape(K * nxi, n_t)
-    KB_xi = np.transpose(KB, (0, 1, 3, 2)).reshape(K * nxi, n_t)
-
-    Pxi_m = Pxi[modes_L, modes_M]
-    Qxi_m = Qxi[modes_L, modes_M]
-    FP = (F_all * (modes_c[:, None, None] * Pxi_m[:, None, :])).transpose(1, 0, 2).reshape(n_s, K * nxi)
-    FQ = (F_all * (modes_c[:, None, None] * Qxi_m[:, None, :])).transpose(1, 0, 2).reshape(n_s, K * nxi)
-    return FP @ KA_xi + FQ @ KB_xi
+                MA = (PhiA[:, None, :] * Wa.T[None, :, :]).reshape(K * order, -1)
+                MB = (PhiB[:, None, :] * Wb.T[None, :, :]).reshape(K * order, -1)
+                V_pts += FP_q @ MA + FQ_q @ MB
+            G_out += V_pts @ rho.T
+    return G_out
 
 
 def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[STO]]],
@@ -279,6 +380,19 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
         mm = min(mmax, lmax, g.n_phi // 2 - 1)
         Peta, _, _ = g._neumann_tables(lmax, mm)
         proj[key] = g._project_batch(dens, Peta, lmax, mm)
+        if any(k2 != key and _is_same_axis(g, frames[k2].grid) for k2 in frames):
+            h3 = (0.5 * g.R) ** 3
+            jac2d = (g.xi[:, None] ** 2 - g.eta[None, :] ** 2) * (h3 * g.w_xi[:, None] * g.w_eta[None, :])
+            csT = np.vstack([
+                np.cos(np.outer(np.arange(mm + 1), g.phi)) * g.w_phi[None, :],
+                np.sin(np.outer(np.arange(mm + 1), g.phi)) * g.w_phi[None, :],
+            ]).T
+            n_p = dens.shape[0]
+            gcs = (dens.reshape(-1, g.n_phi) @ csT).reshape(n_p, g.xi.size, g.eta.size, 2, mm + 1)
+            tol = (1e-13 * 2.0 * np.pi) * np.max(np.abs(dens), axis=3)[..., None, None]
+            gcs[np.abs(gcs) <= tol] = 0.0
+            gcs *= jac2d[None, :, :, None, None]
+            fr.rho_meridian = gcs.reshape(n_p, g.xi.size * g.eta.size, 2, mm + 1)
         # nuclei that are not foci of this frame: potential of each pair density at R_C
         others = [c for c in range(natom) if c not in (fr.i, fr.j)]
         if others:
