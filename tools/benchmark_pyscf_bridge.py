@@ -57,6 +57,7 @@ class ParityComparisonRecord:
     delta_energy_percent: Optional[float] = None
     delta_dipole_debye: Optional[float] = None
     density_rmsd_au: Optional[float] = None
+    localized_vb: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert record to a serializable dictionary."""
@@ -80,6 +81,8 @@ class ParityComparisonRecord:
             d["delta_dipole_debye"] = round(float(self.delta_dipole_debye), 4)
         if self.density_rmsd_au is not None:
             d["density_rmsd_au"] = round(float(self.density_rmsd_au), 6)
+        if self.localized_vb is not None:
+            d["localized_vb"] = self.localized_vb
         return d
 
 
@@ -292,6 +295,7 @@ def run_system_parity(
     formula: str,
     driver: Optional[PhatpsyDriver] = None,
     basis_pyscf: str = "cc-pvdz",
+    include_localized_vb: bool = False,
 ) -> ParityComparisonRecord:
     """
     Runs both PHATPSY and PySCF on the same deck and calculates error metrics.
@@ -355,6 +359,35 @@ def run_system_parity(
         delta_dip = 0.0
         density_rmsd = 0.045
 
+    lvb_dict = None
+    if include_localized_vb and formula in ("N2", "CO", "H2O", "H2", "LIH", "HF"):
+        from phatpsy.schema import ControlConfig
+        from phatpsy.vb_driver import run_localized_vb
+
+        deck_lvb = copy.deepcopy(deck)
+        deck_lvb.control = ControlConfig.localized_vb(basis="DZ", domain_mode="bond_local", vb_wavefunction="cas")
+        deck_lvb.basis = "DZ"
+        deck_lvb.net_spin = 0
+        for atom in deck_lvb.geometry:
+            atom.spin = None
+            atom.spin_flip = False
+            atom.basis = "DZ"
+            atom.valence_config = None
+            atom.symmetry = None
+            atom.equivalent_to = None
+        if hasattr(deck_lvb, "elements"):
+            deck_lvb.elements.clear()
+        st_lvb = run_localized_vb(deck_lvb, quiet=True)
+        e_lvb = float(st_lvb["total_energy"])
+        e_hf_ref = rec_hf.get("total_energy", 0.0) if rec_hf else 0.0
+        lvb_dict = {
+            "basis": "DZ",
+            "total_energy": e_lvb,
+            "delta_vs_pyscf_rhf_hartree": round(e_lvb - float(e_hf_ref), 6),
+            "dipole_moment_debye": round(float(st_lvb.get("dipole_moment_debye", 0.0)), 4),
+            "converged": bool(st_lvb.get("converged", False)),
+        }
+
     return ParityComparisonRecord(
         system_name=deck.title,
         formula=formula,
@@ -367,12 +400,14 @@ def run_system_parity(
         delta_energy_percent=rel_e_pct,
         delta_dipole_debye=delta_dip,
         density_rmsd_au=density_rmsd,
+        localized_vb=lvb_dict,
     )
 
 
 def run_pyscf_parity_suite(
     repo_root: Optional[Union[str, Path]] = None,
     basis_pyscf: str = "cc-pvdz",
+    include_localized_vb: bool = False,
 ) -> ParitySuiteResult:
     """
     Executes the full automated multi-level computational parity suite across
@@ -395,7 +430,13 @@ def run_pyscf_parity_suite(
         yaml_path = root / yaml_rel
         if yaml_path.exists():
             deck = CalculationDeck.from_yaml(yaml_path)
-            rec = run_system_parity(deck, formula=formula, driver=driver, basis_pyscf=basis_pyscf)
+            rec = run_system_parity(
+                deck,
+                formula=formula,
+                driver=driver,
+                basis_pyscf=basis_pyscf,
+                include_localized_vb=include_localized_vb,
+            )
             records[name] = rec
             if rec.delta_energy_percent is not None:
                 rel_deviations.append(rec.delta_energy_percent)
@@ -451,6 +492,11 @@ def main():
         help="Path to write markdown summary report (default: data/validation_baselines/pyscf_parity_report.md)"
     )
     parser.add_argument(
+        "--localized-vb",
+        action="store_true",
+        help="Also evaluate exact-integral Localized VB for closed-shell benchmark molecules"
+    )
+    parser.add_argument(
         "--print-report",
         action="store_true",
         help="Print markdown report to stdout"
@@ -458,7 +504,7 @@ def main():
 
     args = parser.parse_args()
 
-    suite_res = run_pyscf_parity_suite(basis_pyscf=args.basis)
+    suite_res = run_pyscf_parity_suite(basis_pyscf=args.basis, include_localized_vb=args.localized_vb)
 
     if args.output:
         suite_res.save_json(args.output)

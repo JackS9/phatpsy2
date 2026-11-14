@@ -699,6 +699,82 @@ class HybridAssembler:
 
         return deck
 
+    def to_localized_vb_deck(
+        self,
+        title: str = "PHATPSY Assembled Localized VB Molecule",
+        basis: Union[str, Dict[str, str]] = "ADF-TZP",
+        domain_mode: str = "bond_local",
+        vb_wavefunction: str = "cas",
+        core_embedding: str = "unprojected_eri",
+        environment_embedding: str = "exact_joint_pk",
+        active_atoms: Optional[Sequence[Union[int, str]]] = None,
+    ) -> CalculationDeck:
+        """
+        Exports the assembled molecule as a closed-shell Localized VB CalculationDeck.
+
+        Automatically sets per-atom `active` flags and, when `domain_mode == "custom"`,
+        populates per-atom `orbital_domains` from the assembler bond graph.
+        """
+        from phatpsy.builder import build_molecule
+
+        atom_list = list(self.nodes.values())
+        geom_tuples = [
+            {
+                "element": node.element,
+                "id": node.id,
+                "xyz": node.position.tolist(),
+                "hybridization": node.hybridization,
+            }
+            for node in atom_list
+        ]
+        ctrl = ControlConfig.localized_vb(
+            basis=basis if isinstance(basis, str) else "ADF-TZP",
+            domain_mode=domain_mode,
+            vb_wavefunction=vb_wavefunction,
+            core_embedding=core_embedding,
+            environment_embedding=environment_embedding,
+        )
+        deck = build_molecule(
+            geometry=geom_tuples,
+            basis=basis,
+            title=title,
+            control=ctrl,
+            units="bohr",
+            spin_unrestricted=False,
+            spins=None,
+            net_spin=0,
+        )
+
+        id_to_idx = {node.id: idx for idx, node in enumerate(atom_list)}
+        active_set = None
+        if active_atoms is not None:
+            active_set = set()
+            for item in active_atoms:
+                if isinstance(item, int):
+                    active_set.add(item)
+                elif item in id_to_idx:
+                    active_set.add(id_to_idx[item])
+                else:
+                    raise ValueError(f"Unknown active atom identifier {item!r}")
+
+        for idx, (atom, node) in enumerate(zip(deck.geometry, atom_list)):
+            atom.spin = None
+            atom.spin_flip = False
+            atom.active = (idx in active_set) if active_set is not None else True
+            if domain_mode == "custom":
+                nbr_ids = [atom.id or node.id]
+                for a1, _, a2, _, _ in self.bonds:
+                    if a1 == node.id and a2 in id_to_idx:
+                        nb_id = deck.geometry[id_to_idx[a2]].id or a2
+                        if nb_id not in nbr_ids:
+                            nbr_ids.append(nb_id)
+                    elif a2 == node.id and a1 in id_to_idx:
+                        nb_id = deck.geometry[id_to_idx[a1]].id or a1
+                        if nb_id not in nbr_ids:
+                            nbr_ids.append(nb_id)
+                atom.orbital_domains = [nbr_ids]
+        return deck
+
     def to_xyz(self, comment: str = "PHATPSY Assembled Molecule") -> str:
         """Returns standard XYZ string format in Angstroms."""
         lines = [str(len(self.nodes)), comment]

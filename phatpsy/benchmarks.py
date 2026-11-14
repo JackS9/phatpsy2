@@ -17,7 +17,7 @@ Evaluates error vectors on:
 - Chemisorption binding energy (E_ads for CO on Ni(100))
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, Sequence
 import json
 import math
 from pathlib import Path
@@ -792,6 +792,239 @@ def format_benchmark_summary_table(summary: Dict[str, Any]) -> str:
     lines.append(f"**Composite $L_2$ Error Vector Norm Metric:** `||epsilon||_2 = {l2_res['l2_norm']:.4f}` (Threshold: `< {l2_res['threshold']:.2f}`, Status: `{status_str}`)")
 
     return "\n".join(lines)
+
+
+def evaluate_diatomic_localized_vb_benchmark(
+    formula: str = "H2",
+    basis: str = "DZ",
+    r_grid: Optional[Sequence[float]] = None,
+    domain_mode: str = "bond_local",
+    vb_wavefunction: str = "cas",
+    core_embedding: str = "unprojected_eri",
+) -> Dict[str, Any]:
+    """
+    Evaluate a diatomic potential energy curve (R_e, omega_e, D_e, virial) using
+    exact-integral Localized VB / MaskedVB with zero empirical pair parameters.
+    """
+    from phatpsy.md import get_atomic_mass_au
+    from phatpsy.vb_driver import run_localized_vb
+
+    grids = {
+        "H2": ("H", "H", [1.30, 1.42, 1.54]),
+        "LiH": ("Li", "H", [2.85, 3.05, 3.25]),
+        "HF": ("H", "F", [1.62, 1.75, 1.88]),
+        "N2": ("N", "N", [1.96, 2.08, 2.20]),
+        "CO": ("C", "O", [2.04, 2.15, 2.26]),
+    }
+    key = formula.strip().upper()
+    if key == "LIH":
+        key = "LiH"
+    if key not in grids:
+        raise ValueError(f"Unsupported diatomic formula {formula!r}; choose from {tuple(grids.keys())}.")
+    e1, e2, default_r = grids[key]
+    radii = [float(r) for r in (r_grid if r_grid is not None else default_r)]
+    if len(radii) < 3:
+        raise ValueError("r_grid must contain at least 3 bond lengths for quadratic fit.")
+
+    ctrl = ControlConfig.localized_vb(
+        basis=basis,
+        domain_mode=domain_mode,
+        vb_wavefunction=vb_wavefunction,
+        core_embedding=core_embedding,
+    )
+    energies = []
+    warm = None
+    for r in radii:
+        deck = build_diatomic(e1, e2, r, basis=basis, spins=["up", "down"], control=ctrl)
+        for a in deck.geometry:
+            a.spin = None
+            a.spin_flip = False
+        st = run_localized_vb(deck, quiet=True, warm_orbitals=warm)
+        energies.append(float(st["total_energy"]))
+        warm = st.get("localized_orbitals_embedded")
+
+    min_i = int(np.argmin(energies))
+    lo = max(0, min(min_i - 1, len(radii) - 3))
+    r_sub = np.asarray(radii[lo:lo + 3], dtype=float)
+    e_sub = np.asarray(energies[lo:lo + 3], dtype=float)
+    a2, a1, _ = np.polyfit(r_sub, e_sub, 2)
+    r_e = float(-a1 / (2.0 * a2)) if a2 > 1e-10 else float(radii[min_i])
+    k_au = max(float(2.0 * a2), 0.0)
+
+    deck_eq = build_diatomic(e1, e2, r_e, basis=basis, spins=["up", "down"], control=ctrl)
+    for a in deck_eq.geometry:
+        a.spin = None
+        a.spin_flip = False
+    st_eq = run_localized_vb(deck_eq, quiet=True, warm_orbitals=warm)
+
+    m1 = get_atomic_mass_au(e1)
+    m2 = get_atomic_mass_au(e2)
+    mu_au = (m1 * m2) / (m1 + m2)
+    omega_e_cm = float(math.sqrt(k_au / mu_au) * 219474.6313702) if k_au > 0.0 else 0.0
+
+    exp_all = load_experimental_benchmarks()
+    exp_ref = exp_all.get(key, {})
+    return {
+        "system": key,
+        "method": ctrl.method,
+        "basis": basis,
+        "domain_mode": domain_mode,
+        "vb_wavefunction": vb_wavefunction,
+        "core_embedding": core_embedding,
+        "r_e_bohr": float(r_e),
+        "harmonic_frequency_cm": omega_e_cm,
+        "total_energy_hartree": float(st_eq["total_energy"]),
+        "separated_atoms_energy_hartree": float(st_eq.get("separated_atoms_energy", 0.0)),
+        "binding_energy_ev": float(st_eq.get("binding_energy_ev", 0.0)),
+        "virial_ratio": float(st_eq.get("virial_ratio", 0.0)),
+        "dipole_moment_debye": float(st_eq.get("dipole_moment_debye", 0.0)),
+        "own_atom_character": st_eq.get("own_atom_character", {}),
+        "experimental": exp_ref,
+        "scan": {"r_bohr": radii, "energies_hartree": energies},
+    }
+
+
+def evaluate_h2o_localized_vb_benchmark(
+    basis: str = "DZ",
+    domain_mode: str = "bond_local",
+    r_oh_bohr: float = 1.809,
+    angles_deg: Sequence[float] = (98.0, 104.5, 111.0),
+) -> Dict[str, Any]:
+    """
+    Evaluate bent H2O with exact multi-center STO integrals and MaskedVB
+    (zero empirical H-H pair parameters).
+    """
+    from phatpsy.vb_driver import run_localized_vb
+
+    angles = [float(th) for th in angles_deg]
+    if len(angles) < 3:
+        raise ValueError("angles_deg must provide at least 3 angles for equilibrium fit.")
+
+    ctrl = ControlConfig.localized_vb(basis=basis, domain_mode=domain_mode, core_embedding="unprojected_eri")
+    energies = []
+    warm = None
+    for th in angles:
+        half = 0.5 * math.radians(th)
+        deck = build_molecule(
+            [
+                ("O", 0.0, 0.0, 0.0),
+                ("H", r_oh_bohr * math.sin(half), 0.0, r_oh_bohr * math.cos(half)),
+                ("H", -r_oh_bohr * math.sin(half), 0.0, r_oh_bohr * math.cos(half)),
+            ],
+            basis=basis,
+            control=ctrl,
+            spin_unrestricted=False,
+            spins=None,
+            net_spin=0,
+        )
+        st = run_localized_vb(deck, quiet=True, warm_orbitals=warm)
+        energies.append(float(st["total_energy"]))
+        warm = st.get("localized_orbitals_embedded")
+
+    min_i = int(np.argmin(energies))
+    lo = max(0, min(min_i - 1, len(angles) - 3))
+    a2, a1, _ = np.polyfit(np.asarray(angles[lo:lo + 3]), np.asarray(energies[lo:lo + 3]), 2)
+    theta_e = float(-a1 / (2.0 * a2)) if a2 > 1e-10 else float(angles[min_i])
+
+    half_eq = 0.5 * math.radians(theta_e)
+    deck_eq = build_molecule(
+        [
+            ("O", 0.0, 0.0, 0.0),
+            ("H", r_oh_bohr * math.sin(half_eq), 0.0, r_oh_bohr * math.cos(half_eq)),
+            ("H", -r_oh_bohr * math.sin(half_eq), 0.0, r_oh_bohr * math.cos(half_eq)),
+        ],
+        basis=basis,
+        control=ctrl,
+        spin_unrestricted=False,
+        spins=None,
+        net_spin=0,
+    )
+    st_eq = run_localized_vb(deck_eq, quiet=True, warm_orbitals=warm)
+    exp_ref = load_experimental_benchmarks().get("H2O", {})
+    return {
+        "system": "H2O",
+        "method": ctrl.method,
+        "basis": basis,
+        "domain_mode": domain_mode,
+        "empirical_w_hh": None,
+        "r_oh_bohr": float(r_oh_bohr),
+        "theta_e_deg": theta_e,
+        "total_energy_hartree": float(st_eq["total_energy"]),
+        "binding_energy_ev": float(st_eq.get("binding_energy_ev", 0.0)),
+        "dipole_moment_debye": float(st_eq.get("dipole_moment_debye", 0.0)),
+        "virial_ratio": float(st_eq.get("virial_ratio", 0.0)),
+        "own_atom_character": st_eq.get("own_atom_character", {}),
+        "experimental": exp_ref,
+        "scan": {"angles_deg": angles, "energies_hartree": energies},
+    }
+
+
+def evaluate_co_ni100_blyholder_benchmark(
+    d_ni_c_bohr: float = 3.59,
+    r_co_bohr: float = 2.132,
+    co_basis: str = "DZP",
+    include_subsurface: bool = True,
+) -> Dict[str, Any]:
+    """
+    Evaluate embedded CO/Ni(100) top-site chemisorption using the exact joint
+    environment overlap metric (S_BB)^-1 (pk_scale=1.0) and Blyholder regime
+    decomposition (R0 no-CT -> R1 +sigma -> R2 +sigma+pi).
+    """
+    from phatpsy.vb_driver import run_localized_vb
+
+    ctrl = ControlConfig.localized_vb(
+        basis="DZP",
+        domain_mode="blyholder",
+        core_embedding="unprojected_eri",
+        environment_embedding="exact_joint_pk",
+    )
+    geom = [
+        AtomConfig(id="Ni1", element="Ni", xyz=[0.0, 0.0, 0.0], basis="DZP", active=True),
+        AtomConfig(id="C2", element="C", xyz=[0.0, 0.0, float(d_ni_c_bohr)], basis=co_basis, active=True),
+        AtomConfig(id="O3", element="O", xyz=[0.0, 0.0, float(d_ni_c_bohr + r_co_bohr)], basis=co_basis, active=True),
+        AtomConfig(
+            id="Ni_surf",
+            element="Ni",
+            xyz=[4.709, 0.0, 0.0],
+            basis="DZP",
+            fixed=True,
+            active=False,
+            embedded_state="data/ni_surf_embedded.json",
+        ),
+    ]
+    if include_subsurface:
+        geom.append(
+            AtomConfig(
+                id="Ni_sub",
+                element="Ni",
+                xyz=[2.3545, 2.3545, -3.330],
+                basis="DZP",
+                fixed=True,
+                active=False,
+                embedded_state="data/ni_sub_embedded.json",
+            )
+        )
+    deck = CalculationDeck(title="CO/Ni(100) Blyholder Benchmark", control=ctrl, geometry=geom, net_spin=0)
+    st = run_localized_vb(deck, quiet=True, compare_regimes=True)
+    ed = st.get("embedding_diagnostics") or {}
+    bd = st.get("blyholder_decomposition") or {}
+    return {
+        "system": "CO/Ni(100)",
+        "method": ctrl.method,
+        "pk_scale": 1.0,
+        "d_ni_c_bohr": float(d_ni_c_bohr),
+        "r_co_bohr": float(r_co_bohr),
+        "lmin_S_eff_exact": float(ed.get("lmin_S_eff_exact", 0.0)),
+        "lmin_S_eff_naive": float(ed.get("lmin_S_eff_naive", 0.0)),
+        "e_r0_hartree": float(bd.get("e_r0_hartree", 0.0)),
+        "e_r1_hartree": float(bd.get("e_r1_hartree", 0.0)),
+        "e_r2_hartree": float(bd.get("e_r2_hartree", 0.0)),
+        "delta_e_sigma_ev": float(bd.get("delta_e_sigma_ev", 0.0)),
+        "delta_e_pi_ev": float(bd.get("delta_e_pi_ev", 0.0)),
+        "delta_e_ct_ev": float(bd.get("delta_e_ct_ev", 0.0)),
+        "pi_share": float(bd.get("pi_share", 0.0)),
+        "total_energy_hartree": float(st["total_energy"]),
+    }
 
 
 if __name__ == "__main__":

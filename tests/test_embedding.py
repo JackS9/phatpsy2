@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from phatpsy.embedding import (
     FrozenEnvironmentAtom,
@@ -54,18 +55,24 @@ def test_one_center_ao_matrices_match_prolate_grid():
     np.testing.assert_allclose(eri1, ints.eri[:n, :n, :n, :n], atol=1e-7)
 
 
-def test_exact_backprojected_embedding_isomorphic_to_full_frozen_core():
-    """Level E1 (exact_backprojected) must give the exact same energy and analytic orbital
-    gradient as running cas_energy_and_gradient on the full system with C_env frozen in Xi."""
+@pytest.fixture(scope="module")
+def lih_dzp_setup():
+    """Shared LiH (DZP) integrals and Li 1s^2 frozen-core orbital."""
     R = 3.015
     b_li = atom_basis((0.0, 0.0, -R / 2), "Li", "DZP")
     b_h = atom_basis((0.0, 0.0, R / 2), "H", "DZP")
     ints = diatomic_ao_integrals(b_li, b_h, 3.0, 1.0, n_eta=48, lmax=24)
 
-    # Freeze a Li 1s core orbital in C_env
     li_env = FrozenEnvironmentAtom.from_atomic_rhf(3.0, (0.0, 0.0, -R / 2), b_li, n_occ=1)
     C_env = np.zeros((ints.nao, 1))
     C_env[:len(b_li), 0] = li_env.C_occ[:, 0]
+    return b_li, b_h, ints, li_env, C_env
+
+
+def test_exact_backprojected_embedding_isomorphic_to_full_frozen_core(lih_dzp_setup):
+    """Level E1 (exact_backprojected) must give the exact same energy and analytic orbital
+    gradient as running cas_energy_and_gradient on the full system with C_env frozen in Xi."""
+    _, _, ints, _, C_env = lih_dzp_setup
 
     emb = embed_from_full_integrals(ints, C_env, mode="exact_backprojected")
 
@@ -82,18 +89,11 @@ def test_exact_backprojected_embedding_isomorphic_to_full_frozen_core():
     np.testing.assert_allclose(Ga_emb, Ga_full, atol=1e-11)
 
 
-def test_lih_eri_free_core_embedding_matches_all_electron_vb():
+def test_lih_eri_free_core_embedding_matches_all_electron_vb(lih_dzp_setup):
     """ERI-free core embedding on LiH (freezing atomic Li 1s^2 via embed_diatomic_in_environment
     or unprojected_eri) must prevent variational collapse onto the Li 1s core and reproduce
     the all-electron Localized VB binding energy within ~0.05 eV."""
-    R = 3.015
-    b_li = atom_basis((0.0, 0.0, -R / 2), "Li", "DZP")
-    b_h = atom_basis((0.0, 0.0, R / 2), "H", "DZP")
-    ints = diatomic_ao_integrals(b_li, b_h, 3.0, 1.0, n_eta=48, lmax=24)
-
-    li_env = FrozenEnvironmentAtom.from_atomic_rhf(3.0, (0.0, 0.0, -R / 2), b_li, n_occ=1)
-    C_env = np.zeros((ints.nao, 1))
-    C_env[:len(b_li), 0] = li_env.C_occ[:, 0]
+    b_li, b_h, ints, li_env, C_env = lih_dzp_setup
 
     idx_li = np.where(ints.atom_of == 0)[0]
     idx_h = np.where(ints.atom_of == 1)[0]
@@ -127,6 +127,7 @@ def test_lih_eri_free_core_embedding_matches_all_electron_vb():
     assert res_nopk.fun < res_e1.fun - 1.5          # variational collapse without PK projection
 
 
+@pytest.mark.slow
 def test_two_core_joint_pk_embedding_and_external_phatpsy_env():
     """Joint PK projector across multiple frozen cores (N2) and external PHATPSY state
     embedding (H2 + He) must keep S_eff positive semi-definite and reproduce full-integral

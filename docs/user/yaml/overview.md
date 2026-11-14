@@ -212,6 +212,17 @@ elements:
 !!! note "Which set to use"
     The default set is unchanged. How to choose an exponent set is not settled: in studies on first-row atoms the default fits the atomic screening function noticeably worse than a Z-scaled even-tempered set, but a better fit did not by itself make the SCF converge (see `ROADMAP.md`). Report the exponent set together with any result that uses a non-default one.
 
+### Localized VB & Active-Site Embedding (`method: localized_vb`)
+
+By default (`control.method: phatpsy_scf`), decks execute the historical single-center embedded-atom UHF SCF solver (`spin_unrestricted: true`). Setting `control.method: localized_vb` (or `masked_vb`, with `spin_unrestricted: false`) switches to the variational exact-integral Localized Valence Bond / MaskedVB engine with optional active-site frozen-environment embedding:
+
+* **`control.method` / `control.vb_wavefunction`:** Selects the variational VB wavefunction model over the active bonded orbital pairs.
+* **`control.domain_mode`:** Controls per-orbital AO localization masks (ranging from strict one-center hybrids to bond-local covalent pair domains, Blyholder $\sigma/\pi$ chemisorption regimes, fully delocalized MOs, or explicit per-atom `orbital_domains`).
+* **`control.core_embedding` & `control.environment_embedding`:** Configures active noble-gas core projection and how non-bonded spectator atoms embed the active region (either parameter-free joint $(S_{\mathcal{B}\mathcal{B}})^{-1}$ Huzinaga/PK projection or fitted spectator model potentials).
+* **Active vs. Spectator Partition (`geometry[*].active` & `geometry[*].orbital_domains`):** Atoms with `active: true` (default for non-`fixed`, non-`virtual` centers) form the exact-integral bonded region; atoms with `active: false` (or `fixed: true` spectators carrying an optional `embedded_state`) remain frozen as the environment.
+
+See the [YAML Schema Reference](reference.md) for all allowed values and defaults.
+
 ---
 
 ## Validation & Common Errors

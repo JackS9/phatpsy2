@@ -348,5 +348,27 @@ python -m phatpsy eom molecule.yaml --spacing 0.25 -o eom_results.json -p uvvis_
   * `--html <path>`: Path to save standalone 3D WebGL HTML visualizer.
   * `--view`: Open interactive 3D WebGL EOM player in default browser.
 
+---
+
+### 16. `phatpsy vb` (aliases `localized-vb`, `masked-vb`)
+
+Runs the variational exact-integral Localized VB / MaskedVB engine with optional joint $(S_{\mathcal{B}\mathcal{B}})^{-1}$ active-site embedding:
+
+```bash
+# Run bond-local MaskedVB on a YAML deck and export JSON
+phatpsy vb h2o_vb.yaml --domain bond_local -o h2o_vb.json
+
+# Run CO/Ni(100) slab embedding with Blyholder sigma/pi regime decomposition
+phatpsy vb co_ni100.yaml --domain blyholder --compare-regimes
+
+# Export localized VB orbital Gaussian Cube and assemble/build VB-ready YAML decks
+phatpsy cube h2o_vb.yaml --vb-orbital 1 -o h2o_vb1.cube
+phatpsy assemble -r O --hybridization sp3 --localized-vb -o h2o_assembled_vb.yaml
+phatpsy build h2.xyz --basis ADF-TZP --localized-vb -o h2_vb.yaml
+```
+
+See the [CLI Reference](reference.md) for all subcommand flags and allowed options.
+
+
 
 

@@ -35,7 +35,7 @@ jobs:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Build extension and run canonical test loop
-        run: bash make_build_test.sh
+        run: bash make_build_test.sh --runslow
 
       - name: Run PySCF Parity Bridge Suite
         run: |

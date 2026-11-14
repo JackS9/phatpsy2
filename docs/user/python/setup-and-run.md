@@ -284,3 +284,30 @@ print(f"Bulk Environment:   {decomp.energy_environment:.6f} Ha")
 print(f"Embedding Energy:   {decomp.energy_embedding:.6f} Ha")
 print(f"Excess Energy:      {decomp.energy_excess:.6f} Ha")
 ```
+
+---
+
+## Exact-Integral Localized VB & MaskedVB (`ControlConfig.localized_vb`)
+
+For variational two- and multi-center valence-bond calculations (relegating single-center fitted model potentials to non-bonded spectators), configure the deck with `ControlConfig.localized_vb(...)` and run via `run_localized_vb(deck)` or `PhatpsyDriver().run_deck(deck)`:
+
+```python
+from phatpsy import ControlConfig, PhatpsyDriver, build_diatomic, run_localized_vb
+
+ctrl = ControlConfig.localized_vb(
+    basis="ADF-TZP",
+    domain_mode="bond_local",
+    vb_wavefunction="cas",
+    core_embedding="unprojected_eri",
+)
+deck = build_diatomic("H", "H", bond_length=1.425, basis="ADF-TZP", control=ctrl, spin_unrestricted=False, net_spin=0)
+
+# Direct execution or automatic dispatch via PhatpsyDriver().run_deck(deck)
+state = run_localized_vb(deck, quiet=True, compare_regimes=True)
+print(f"Total Energy: {state['total_energy']:.6f} Ha | Binding: {state['binding_energy_ev']:.3f} eV")
+print(f"Virial (-V/T): {state['virial_ratio']:.4f} | Own-Atom Character: {state['own_atom_character']}")
+print(f"Regime Comparison (Ha): {state['regime_comparison']}")
+```
+
+See the [Python API Reference](reference.md) for all `localized_vb` and `MaskedVB` symbols.
+

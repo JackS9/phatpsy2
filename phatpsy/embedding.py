@@ -1188,7 +1188,16 @@ def embed_collinear_in_c4v_slab(
     n_centers = len(act_coords)
     act_xyz = [np.asarray(c, dtype=float) for c in act_coords]
 
-    slab_cache_key = (id(surf_rep), id(sub_rep), n_eta, n_phi)
+    def _rep_fingerprint(rep: FrozenEnvironmentAtom) -> tuple:
+        return (
+            float(rep.z_nuc),
+            tuple(round(float(x), 6) for x in rep.center),
+            tuple((f.n, f.l, f.m, round(float(f.zeta), 6)) for f in rep.basis),
+            round(float(np.sum(rep.C_occ ** 2)), 10),
+            round(float(np.sum(rep.occ_weights)), 10) if rep.occ_weights is not None else None,
+        )
+
+    slab_cache_key = (_rep_fingerprint(surf_rep), _rep_fingerprint(sub_rep), n_eta, n_phi)
     if not hasattr(embed_collinear_in_c4v_slab, "_slab_cache"):
         embed_collinear_in_c4v_slab._slab_cache = {}
     if slab_cache_key not in embed_collinear_in_c4v_slab._slab_cache:

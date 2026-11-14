@@ -45,6 +45,7 @@ def test_load_experimental_benchmarks():
     assert exp["systems"]["NO"]["spin_multiplicity"] == 2
 
 
+@pytest.mark.slow
 def test_n2_benchmark(driver):
     """Verify N2 benchmark evaluation against NIST CCCBDB."""
     res = evaluate_n2_benchmark(driver)
@@ -54,6 +55,7 @@ def test_n2_benchmark(driver):
     assert res["harmonic_frequency_cm"] > 1000.0
 
 
+@pytest.mark.slow
 def test_co_benchmark(driver):
     """Verify CO benchmark evaluation against NIST CCCBDB."""
     res = evaluate_co_benchmark(driver)
@@ -64,6 +66,7 @@ def test_co_benchmark(driver):
     assert res["harmonic_frequency_cm"] > 1000.0
 
 
+@pytest.mark.slow
 def test_no_benchmark(driver):
     """Verify NO doublet radical benchmark (R_e = 2.1747 Bohr, bond order = 2.5)."""
     res = evaluate_no_benchmark(driver)

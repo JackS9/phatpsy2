@@ -282,6 +282,7 @@ def test_scan_1d_n2_rigid_stretch(tmp_path):
 # 4. 2D Potential Energy Surface Scan
 # ============================================================================
 
+@pytest.mark.slow
 def test_scan_2d_grid(tmp_path):
     """Verify automated 2D grid PES scan and contour plotting."""
     deck = CalculationDeck.from_yaml(EXAMPLE_N2)

@@ -437,3 +437,8 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
                         eri[x, y, p, q] = v
     return MolecularAOIntegrals(basis, atom_of, charges, coords, S, T, V, eri)
 
+
+# Convenience alias matching multicenter naming in phase documentation
+multicenter_ao_integrals = molecular_ao_integrals
+
+

@@ -294,6 +294,7 @@ class TestPolarizedCalculations:
         assert diff_dip < 1.50
         assert diff_quad < 1.50
 
+    @pytest.mark.slow
     def test_dzp_pes_and_geometry_optimization_bound_minima(self, driver):
         """
         Regression test for Phase 2/3 DZP PES and BFGS geometry optimization:

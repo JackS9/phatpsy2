@@ -130,8 +130,14 @@ def test_docs_cli_flags():
     # Mapping of known subcommands to allowed options (including short and long)
     # Extracted from phatpsy.cli argument parsers
     subcommand_options = {
+        "vb": {
+            "-h", "--help", "-b", "--basis", "--method", "--wavefunction",
+            "--domain", "--core-embedding", "--environment-embedding",
+            "--compare-regimes", "-o", "--output", "--json-stdout",
+            "--cube", "--view", "-n", "--no-browser",
+        },
         "cube": {
-            "-h", "--help", "--mo", "--ao", "--density", "--spin-density",
+            "-h", "--help", "--mo", "--ao", "--vb-orbital", "--density", "--spin-density",
             "--deformation", "--esp", "--isovalue", "--spacing", "--padding",
             "-o", "--output", "--view", "-n", "--no-browser",
         },
@@ -156,7 +162,7 @@ def test_docs_cli_flags():
         },
         "build": {
             "-h", "--help", "-b", "--basis", "-u", "--units", "-t", "--title",
-            "-s", "--auto-spin", "-o", "--output",
+            "--spins", "--net-spin", "--localized-vb", "-s", "--auto-spin", "-o", "--output",
         },
         "scan": {
             "-h", "--help", "-b", "--bond", "-a", "--angle", "-c", "--coord",
@@ -209,13 +215,15 @@ def test_docs_cli_flags():
         },
         "assemble": {
             "-h", "--help", "-r", "--root", "--hybridization", "-c", "--cap",
-            "-o", "--output", "--interactive", "--view", "-n", "--no-browser",
+            "--localized-vb", "-o", "--output", "--interactive", "--view", "-n", "--no-browser",
         },
         "root": {
             "-h", "--help", "-o", "--output", "--json-stdout",
         },
     }
     # Register aliases
+    subcommand_options["localized-vb"] = subcommand_options["vb"]
+    subcommand_options["masked-vb"] = subcommand_options["vb"]
     subcommand_options["pes"] = subcommand_options["scan"]
     subcommand_options["optimize"] = subcommand_options["opt"]
     subcommand_options["freq"] = subcommand_options["vib"]

@@ -143,3 +143,26 @@ phatpsy assemble -r C --hybridization sp3 -o methane.yaml
 phatpsy assemble -r C --hybridization sp3 --interactive
 ```
 
+---
+
+## Exporting Localized VB & Embedded Active-Site Decks
+
+Once a hybrid molecule or surface cluster is assembled, export a closed-shell `CalculationDeck` configured for variational Localized VB (`to_localized_vb_deck`). You can pass `active_atoms` to keep the catalytic site (`active=True`) in the exact-integral VB manifold while freezing surrounding host atoms (`active=False`):
+
+```python
+from phatpsy import HybridAssembler, run_localized_vb
+
+asm = HybridAssembler(root="O", hybridization="sp3")
+asm.cap_all(element="H")
+
+# Export closed-shell bond-local MaskedVB deck (set domain_mode="custom" to export graph-derived orbital_domains)
+deck = asm.to_localized_vb_deck(
+    basis="DZP",
+    domain_mode="bond_local",
+    active_atoms=["O1", "H1", "H2"],
+)
+state = run_localized_vb(deck, quiet=True)
+print(f"H2O MaskedVB E = {state['total_energy']:.6f} Ha | theta domain character = {state['own_atom_character']}")
+```
+
+

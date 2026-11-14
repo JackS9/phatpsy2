@@ -82,6 +82,9 @@ from phatpsy.visualizer import (
     show_hybrid_orbitals,
     visualize_hybrid_orbitals,
     generate_hybrid_orbitals_visualization_data,
+    visualize_vb_orbitals,
+    show_vb_orbitals,
+    generate_vb_orbitals_visualization_data,
     HYBRID_GEOMETRY_PRESETS,
 )
 from phatpsy.volumetric import (
@@ -90,6 +93,7 @@ from phatpsy.volumetric import (
     compute_esp_grid,
     compute_deformation_density,
     compute_hybrid_orbital_grid,
+    compute_vb_orbital_grid,
 )
 from phatpsy.hybrids import (
     build_atom_orbitals,
@@ -220,6 +224,58 @@ from phatpsy.cphf import (
     compute_polyatomic_relaxed_gradient,
     CPHFResponseSolver,
 )
+from phatpsy.schema import (
+    VALID_METHODS,
+    VALID_VB_WAVEFUNCTIONS,
+    VALID_DOMAIN_MODES,
+    VALID_CORE_EMBEDDINGS,
+    VALID_ENVIRONMENT_EMBEDDINGS,
+)
+from phatpsy.localized_vb import (
+    AOIntegrals,
+    LocalizedVBModel,
+    MaskedVB,
+    OrbitalSpec,
+    diatomic_ao_integrals,
+    own_atom_character,
+    cas_energy,
+    cas_energy_and_gradient,
+    cas_rdm1_and_natural_orbitals,
+    optimize_masked_vb,
+)
+from phatpsy.multicenter_integrals import (
+    MolecularAOIntegrals,
+    molecular_ao_integrals,
+    multicenter_ao_integrals,
+)
+from phatpsy.embedding import (
+    EmbeddedAOIntegrals,
+    FrozenEnvironmentAtom,
+    embed_from_full_integrals,
+    embed_diatomic_in_environment,
+    embed_collinear_in_c4v_slab,
+    build_active_ni_co_integrals,
+)
+from phatpsy.two_center_integrals import (
+    STO,
+    ProlateGrid,
+)
+from phatpsy.vb_correction import (
+    PairEnergies,
+    two_orbital_energies,
+    pair_energies_from_orbitals,
+    determinant_energy,
+    interatomic_decomposition,
+)
+from phatpsy.vb_driver import (
+    LocalizedVBDriver,
+    run_localized_vb,
+)
+from phatpsy.benchmarks import (
+    evaluate_diatomic_localized_vb_benchmark,
+    evaluate_h2o_localized_vb_benchmark,
+    evaluate_co_ni100_blyholder_benchmark,
+)
 
 
 __all__ = [
@@ -292,9 +348,13 @@ __all__ = [
     "compute_esp_grid",
     "compute_deformation_density",
     "compute_hybrid_orbital_grid",
+    "compute_vb_orbital_grid",
     "show_hybrid_orbitals",
     "visualize_hybrid_orbitals",
     "generate_hybrid_orbitals_visualization_data",
+    "visualize_vb_orbitals",
+    "show_vb_orbitals",
+    "generate_vb_orbitals_visualization_data",
     "HYBRID_GEOMETRY_PRESETS",
     "build_atom_orbitals",
     "build_atom_orbitals_from_valence_config",
@@ -389,6 +449,42 @@ __all__ = [
     "compute_polyatomic_analytical_gradient",
     "compute_polyatomic_relaxed_gradient",
     "CPHFResponseSolver",
+    "VALID_METHODS",
+    "VALID_VB_WAVEFUNCTIONS",
+    "VALID_DOMAIN_MODES",
+    "VALID_CORE_EMBEDDINGS",
+    "VALID_ENVIRONMENT_EMBEDDINGS",
+    "AOIntegrals",
+    "LocalizedVBModel",
+    "MaskedVB",
+    "OrbitalSpec",
+    "diatomic_ao_integrals",
+    "own_atom_character",
+    "cas_energy",
+    "cas_energy_and_gradient",
+    "cas_rdm1_and_natural_orbitals",
+    "optimize_masked_vb",
+    "MolecularAOIntegrals",
+    "molecular_ao_integrals",
+    "multicenter_ao_integrals",
+    "EmbeddedAOIntegrals",
+    "FrozenEnvironmentAtom",
+    "embed_from_full_integrals",
+    "embed_diatomic_in_environment",
+    "embed_collinear_in_c4v_slab",
+    "build_active_ni_co_integrals",
+    "PairEnergies",
+    "two_orbital_energies",
+    "pair_energies_from_orbitals",
+    "determinant_energy",
+    "interatomic_decomposition",
+    "STO",
+    "ProlateGrid",
+    "LocalizedVBDriver",
+    "run_localized_vb",
+    "evaluate_diatomic_localized_vb_benchmark",
+    "evaluate_h2o_localized_vb_benchmark",
+    "evaluate_co_ni100_blyholder_benchmark",
 ]
 
 

@@ -44,6 +44,18 @@ class PhatpsyDriver:
         Run PHATPSY calculation directly from a CalculationDeck object.
         """
         is_quiet = self.quiet if quiet is None else quiet
+        method = getattr(getattr(deck, "control", None), "method", "phatpsy_scf")
+        if method in ("localized_vb", "masked_vb"):
+            from phatpsy.vb_driver import run_localized_vb
+            res = run_localized_vb(deck, quiet=is_quiet)
+            if getattr(deck.control, "use_dispersion", False):
+                from phatpsy.dispersion import compute_dispersion_energy
+                kernel = getattr(deck.control, "exchange_kernel", "hf") or "hf"
+                fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
+                e_disp = compute_dispersion_energy(deck.geometry, functional=fn)
+                res["dispersion_energy"] = e_disp
+                res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
+            return res
         stdin_text = deck.to_stdin_text()
         saved_stdin_fd = os.dup(0)
         r_pipe, w_pipe = os.pipe()
@@ -302,7 +314,7 @@ class PhatpsyDriver:
             res["total_energy"] = float(res.get("total_energy", 0.0)) + e_disp
         return res
 
-    def gradient(self, deck, method: str = "analytical", quiet: Optional[bool] = None) -> np.ndarray:
+    def gradient(self, deck, method: str = "analytical", quiet: Optional[bool] = None, finite_diff_step: float = 1e-3) -> np.ndarray:
         """
         Computes the Cartesian nuclear gradient matrix (dE / dX_A) of shape (N_atoms, 3)
         in Hartree / Bohr.
@@ -318,6 +330,20 @@ class PhatpsyDriver:
                                  (including full self-consistent wave function response).
           - "empirical": NIST-calibrated pairwise harmonic model (legacy fallback).
         """
+        vb_method = getattr(getattr(deck, "control", None), "method", "phatpsy_scf")
+        if vb_method in ("localized_vb", "masked_vb"):
+            from phatpsy.vb_driver import LocalizedVBDriver
+            is_quiet_vb = self.quiet if quiet is None else quiet
+            grad = LocalizedVBDriver(quiet=is_quiet_vb).gradient(
+                deck, finite_diff_step=finite_diff_step, quiet=is_quiet_vb
+            )
+            if getattr(deck.control, "use_dispersion", False):
+                from phatpsy.dispersion import compute_dispersion_gradient
+                kernel = getattr(deck.control, "exchange_kernel", "hf") or "hf"
+                fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
+                grad = grad + compute_dispersion_gradient(deck.geometry, functional=fn)
+            return grad
+
         if method == "finite_difference":
             from phatpsy.gradients import compute_scf_finite_difference_gradient
             return compute_scf_finite_difference_gradient(self, deck)

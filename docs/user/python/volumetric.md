@@ -158,3 +158,25 @@ visualize_hybrid_orbitals(element="Ni", basis="ADF-DZ", geometry="dsp2", auto_op
   * Total electron density: `0.02` to `0.05` $\text{e/bohr}^3$ (approximates the van der Waals molecular surface).
   * Molecular orbitals: `0.05` to `0.10` $\text{a.u.}^{-3/2}$.
   * Deformation density: `0.005` to `0.02` $\text{e/bohr}^3$.
+
+---
+
+## Localized VB Orbitals (`vb_orbital`)
+
+Results returned by `run_localized_vb` (or `PhatpsyDriver().run_deck` on a `method: localized_vb` deck) expose individual localized and symmetrically orthogonalized VB orbitals for 3D volumetric export and interactive Three.js visualization (including translucent rendering of `active: false` spectators):
+
+```python
+from phatpsy import compute_grid, compute_vb_orbital_grid, show_vb_orbitals, visualize_vb_orbitals
+
+# Evaluate 1-based localized VB orbital on a 3D grid and export Gaussian Cube
+grid_vb = compute_vb_orbital_grid(state, orbital_index=1, spacing=0.2)
+grid_vb.to_cube("vb_orbital_1.cube")
+
+# Or call compute_grid(..., grid_type="vb_orbital") directly
+grid_ortho = compute_grid(state, grid_type="vb_orthonormal", vb_orbital_index=1, spacing=0.2)
+
+# Save standalone 3D WebGL viewer with per-orbital checkboxes or display inline in Jupyter
+visualize_vb_orbitals(state, output_path="vb_orbitals.html", isovalue=0.05)
+show_vb_orbitals(state)
+```
+

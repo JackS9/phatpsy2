@@ -378,7 +378,8 @@ class CalculationState(dict):
 
                 # Ensure numpy arrays for primary matrix fields
                 for key in ("eigenvalues", "occupations", "mo_coefficients", "overlap_packed",
-                            "ewmat_packed", "atom_charges", "atom_coordinates", "atom_populations"):
+                            "ewmat_packed", "atom_charges", "atom_coordinates", "atom_populations",
+                            "localized_orbitals", "localized_orbitals_embedded", "orthonormal_orbitals", "rdm1_ao"):
                     if key in state_dict and not isinstance(state_dict[key], np.ndarray):
                         state_dict[key] = np.array(state_dict[key])
 
@@ -392,7 +393,8 @@ class CalculationState(dict):
 
             # Convert arrays
             for key in ("eigenvalues", "occupations", "mo_coefficients", "overlap_packed",
-                        "ewmat_packed", "atom_charges", "atom_coordinates", "atom_populations"):
+                        "ewmat_packed", "atom_charges", "atom_coordinates", "atom_populations",
+                        "localized_orbitals", "localized_orbitals_embedded", "orthonormal_orbitals", "rdm1_ao"):
                 if key in state_dict and not isinstance(state_dict[key], np.ndarray):
                     state_dict[key] = np.array(state_dict[key])
 
@@ -465,10 +467,18 @@ class CalculationState(dict):
             from phatpsy.schema import resolve_atom_coordinates
             resolve_atom_coordinates(new_deck.geometry, force_symmetry=True)
 
+        if self.get("method") in ("localized_vb", "masked_vb"):
+            vb_orbs = self.get("localized_orbitals_embedded", self.get("localized_orbitals"))
+            if vb_orbs is not None:
+                new_deck._vb_restart_orbitals = np.array(vb_orbs, copy=True)
+
         # Attach pre-converged embedded atom states to override initial basis starting orbitals
         if use_embedded_orbitals:
+            is_vb_run = self.get("method") in ("localized_vb", "masked_vb")
             embedded = self.get("embedded_atoms", {})
             for idx, atom in enumerate(new_deck.geometry):
+                if is_vb_run and getattr(atom, "is_active", True):
+                    continue
                 if getattr(atom, "hybridization", None):
                     # Preserve geometric Pauling hybrid seeds (QNWVEC) instead of double-projecting
                     atom.embedded_state = None

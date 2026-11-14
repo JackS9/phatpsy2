@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from phatpsy.embedding import embed_from_full_integrals
 from phatpsy.localized_vb import MaskedVB, atom_basis, pyscf_mean_field
@@ -35,14 +36,15 @@ def test_h2o_rotational_invariance_dz():
         (1.0, H2_b, atom_basis(H2_b, "H", "DZ")),
     ]
 
-    ints_a = molecular_ao_integrals(atoms_a)
-    ints_b = molecular_ao_integrals(atoms_b)
+    ints_a = molecular_ao_integrals(atoms_a, n_eta=24, n_phi=16, lmax=18, mmax=4)
+    ints_b = molecular_ao_integrals(atoms_b, n_eta=24, n_phi=16, lmax=18, mmax=4)
 
     mf_a = pyscf_mean_field(ints_a, (5, 5), "RHF")
     mf_b = pyscf_mean_field(ints_b, (5, 5), "RHF")
     assert abs(mf_a.e_tot - mf_b.e_tot) < 1e-11
 
 
+@pytest.mark.slow
 def test_h2o_first_principles_bond_angle_and_core_embedding_dz():
     """H2O equilibrium bond angle ~105 deg emerges without empirical w_HH tuning, and E1/E2 embedding match."""
     R = 1.8088

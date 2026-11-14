@@ -160,8 +160,35 @@ RETIRED_YAML_CONTROL_PARAMS: set = {
 }
 
 
+VALID_METHODS: Tuple[str, ...] = ("phatpsy_scf", "localized_vb", "masked_vb")
+VALID_VB_WAVEFUNCTIONS: Tuple[str, ...] = ("cas", "covalent", "pp", "hl")
+VALID_DOMAIN_MODES: Tuple[str, ...] = (
+    "strict_1c",
+    "bond_local",
+    "bond_local_h",
+    "blyholder",
+    "blyholder_r0",
+    "blyholder_r1",
+    "blyholder_r2",
+    "delocalized",
+    "custom",
+)
+VALID_CORE_EMBEDDINGS: Tuple[str, ...] = (
+    "all_electron",
+    "exact_backprojected",
+    "unprojected_eri",
+    "eri_free_2c",
+)
+VALID_ENVIRONMENT_EMBEDDINGS: Tuple[str, ...] = ("exact_joint_pk", "model_potential", "none")
+
+
 @dataclass
 class ControlConfig:
+    method: str = "phatpsy_scf"  # Calculation engine ('phatpsy_scf', 'localized_vb', or 'masked_vb')
+    vb_wavefunction: str = "cas"  # Active-space VB wavefunction ('cas', 'covalent', 'pp', or 'hl')
+    domain_mode: str = "bond_local"  # Orbital AO domain policy ('strict_1c', 'bond_local', 'bond_local_h', 'blyholder_r0', 'blyholder_r1', 'blyholder_r2', 'delocalized', or 'custom')
+    core_embedding: str = "unprojected_eri"  # Frozen noble-gas core treatment ('all_electron', 'exact_backprojected', 'unprojected_eri', or 'eri_free_2c')
+    environment_embedding: str = "exact_joint_pk"  # Spectator environment embedding ('exact_joint_pk' or 'model_potential')
     spin_unrestricted: bool = True
     max_cycles: int = 200
     convergence: float = 1.0e-6
@@ -198,9 +225,69 @@ class ControlConfig:
                 f"atomic_smearing must be >= 0 (Fermi-Dirac width in Hartree; 0 disables), "
                 f"got {self.atomic_smearing!r}"
             )
+        self.method = str(self.method).strip().lower()
+        if self.method not in VALID_METHODS:
+            raise ValueError(
+                f"ControlConfig.method must be one of {VALID_METHODS}, got {self.method!r}"
+            )
+        self.vb_wavefunction = str(self.vb_wavefunction).strip().lower()
+        if self.vb_wavefunction not in VALID_VB_WAVEFUNCTIONS:
+            raise ValueError(
+                f"ControlConfig.vb_wavefunction must be one of {VALID_VB_WAVEFUNCTIONS}, got {self.vb_wavefunction!r}"
+            )
+        self.domain_mode = str(self.domain_mode).strip().lower()
+        if self.domain_mode not in VALID_DOMAIN_MODES:
+            raise ValueError(
+                f"ControlConfig.domain_mode must be one of {VALID_DOMAIN_MODES}, got {self.domain_mode!r}"
+            )
+        self.core_embedding = str(self.core_embedding).strip().lower()
+        if self.core_embedding not in VALID_CORE_EMBEDDINGS:
+            raise ValueError(
+                f"ControlConfig.core_embedding must be one of {VALID_CORE_EMBEDDINGS}, got {self.core_embedding!r}"
+            )
+        self.environment_embedding = str(self.environment_embedding).strip().lower()
+        if self.environment_embedding not in VALID_ENVIRONMENT_EMBEDDINGS:
+            raise ValueError(
+                f"ControlConfig.environment_embedding must be one of {VALID_ENVIRONMENT_EMBEDDINGS}, got {self.environment_embedding!r}"
+            )
+
+    @classmethod
+    def localized_vb(
+        cls,
+        basis: str = "ADF-TZP",
+        domain_mode: str = "bond_local",
+        vb_wavefunction: str = "cas",
+        core_embedding: str = "unprojected_eri",
+        environment_embedding: str = "exact_joint_pk",
+        **kwargs: Any,
+    ) -> "ControlConfig":
+        """Constructs a ControlConfig preconfigured for exact-integral Localized VB."""
+        method = kwargs.pop("method", "localized_vb")
+        spin_unrestricted = kwargs.pop("spin_unrestricted", False)
+        return cls(
+            method=method,
+            default_basis=basis,
+            domain_mode=domain_mode,
+            vb_wavefunction=vb_wavefunction,
+            core_embedding=core_embedding,
+            environment_embedding=environment_embedding,
+            spin_unrestricted=spin_unrestricted,
+            **kwargs,
+        )
 
     def to_dict(self, include_retired: bool = False) -> Dict[str, Any]:
         d = asdict(self)
+        if self.method == "phatpsy_scf":
+            # Keep default phatpsy_scf serialization concise unless customized
+            del d["method"]
+            if d.get("vb_wavefunction") == "cas":
+                del d["vb_wavefunction"]
+            if d.get("domain_mode") == "bond_local":
+                del d["domain_mode"]
+            if d.get("core_embedding") == "unprojected_eri":
+                del d["core_embedding"]
+            if d.get("environment_embedding") == "exact_joint_pk":
+                del d["environment_embedding"]
         if not self.extra_namelist:
             del d["extra_namelist"]
         if self.default_basis is None:
@@ -215,6 +302,8 @@ class ControlConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ControlConfig":
         valid_keys = {
+            "method", "vb_wavefunction", "domain_mode", "core_embedding",
+            "environment_embedding",
             "spin_unrestricted", "max_cycles", "convergence", "time_limit",
             "charge_damp", "charge_accel", "potential_damp", "potential_accel",
             "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",
@@ -547,6 +636,8 @@ class AtomConfig:
     cutoff: Optional[float] = None  # Atom-specific cutoff radius RMAX in Bohr (limits virtual-atom interactions)
     hybridization: Optional[str] = None  # Named hybridization type override (e.g. 'sp3', 'sp2', 'dsp2', 'd2sp3')
     valence_config: Optional[List[ValenceOrbital]] = None  # Explicit orbital-level valence configuration
+    active: Optional[bool] = None  # Explicit active bonded region flag (True = exact-integral VB, False = frozen spectator; None = not fixed and not virtual)
+    orbital_domains: Optional[List[List[str]]] = None  # Optional explicit per-orbital list of allowed atom IDs for custom MaskedVB domains
     embedded_state: Optional[Any] = None
     starting_orbitals: Optional[List[Any]] = None
 
@@ -885,6 +976,15 @@ class AtomConfig:
     def is_equivalent(self) -> bool:
         return self.equivalent_to is not None or self.symmetry is not None
 
+    @property
+    def is_active(self) -> bool:
+        """True if this atom belongs to the active exact-integral bonded region."""
+        if self.virtual:
+            return False
+        if self.active is not None:
+            return bool(self.active)
+        return (not bool(self.fixed)) and (self.embedded_state is None)
+
     def to_dict(self) -> Dict[str, Any]:
         res: Dict[str, Any] = {
             "element": self.element,
@@ -906,6 +1006,10 @@ class AtomConfig:
             res["fixed"] = True
         if self.virtual:
             res["virtual"] = True
+        if self.active is not None:
+            res["active"] = bool(self.active)
+        if self.orbital_domains is not None:
+            res["orbital_domains"] = [list(dom) for dom in self.orbital_domains]
         if self.spin:
             res["spin"] = self.spin
         elif self.spin_flip:
@@ -982,6 +1086,13 @@ class AtomConfig:
         if spin_val is None and spin_flip_val:
             spin_val = "down"
 
+        raw_orbital_domains = data.get("orbital_domains")
+        parsed_orbital_domains = (
+            [[str(aid) for aid in dom] for dom in raw_orbital_domains]
+            if raw_orbital_domains is not None
+            else None
+        )
+
         return cls(
             element=data["element"].strip().capitalize(),
             id=data.get("id"),
@@ -993,6 +1104,8 @@ class AtomConfig:
             charge=float(data.get("charge", 0.0)),
             fixed=bool(data.get("fixed", False)),
             virtual=bool(data.get("virtual", False)),
+            active=(bool(data["active"]) if data.get("active") is not None else None),
+            orbital_domains=parsed_orbital_domains,
             spin_flip=spin_flip_val,
             spin=spin_val,
             basis=data.get("basis"),
@@ -1202,6 +1315,14 @@ class CalculationDeck:
             # up/down labels carry no meaning (the engine ignores QFLIP when QOPEN=F),
             # so they are optional and not validated.
             return
+
+        if self.control.method in ("localized_vb", "masked_vb"):
+            # Localized VB explicitly spin-couples active electron pairs and does not
+            # require UHF broken-symmetry per-atom up/down labels unless all non-virtual
+            # atoms already specify them.
+            non_virt = [a for a in self.geometry if not a.virtual]
+            if not all(a.spin in ("up", "down") for a in non_virt):
+                return
 
         n_up = 0
         n_down = 0
@@ -2230,6 +2351,7 @@ class CalculationDeck:
         basis: Union[str, Dict[str, str]] = "DZP",
         units: str = "bohr",
         use_symmetry: bool = True,
+        spin_unrestricted: Optional[bool] = None,
         spins: Optional[Union[List[str], Tuple[str, str]]] = None,
         net_spin: Optional[int] = None,
         spin_flip: Optional[bool] = None,
@@ -2248,6 +2370,7 @@ class CalculationDeck:
             basis=basis,
             units=units,
             use_symmetry=use_symmetry,
+            spin_unrestricted=spin_unrestricted,
             spins=spins,
             net_spin=net_spin,
             spin_flip=spin_flip,

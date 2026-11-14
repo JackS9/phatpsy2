@@ -236,6 +236,8 @@ def generalized_ci_energy(dets, ints: AOIntegrals) -> Tuple[float, np.ndarray]:
 
 
 def _sym_orth_cols(C: np.ndarray, S: np.ndarray) -> np.ndarray:
+    if C.shape[1] == 0:
+        return np.zeros((C.shape[0], 0))
     M = C.T @ S @ C
     w, v = np.linalg.eigh(M)
     return C @ (v @ np.diag(w ** -0.5) @ v.T)
@@ -250,13 +252,6 @@ def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOInteg
 
     S, h = ints.S, ints.h
     Ci = _sym_orth_cols(inactive, S) if inactive.shape[1] else inactive
-    Ca = np.array(active).T
-    if Ci.shape[1]:
-        Ca = Ca - Ci @ (Ci.T @ S @ Ca)
-    Ca = _sym_orth_cols(Ca, S)
-    nact = Ca.shape[1]
-    if nelec_act is None:
-        nelec_act = (nact // 2, nact - nact // 2)
     Jm, Km = ints.jk_matrices()
     if Ci.shape[1]:
         Dc = Ci @ Ci.T
@@ -267,6 +262,15 @@ def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOInteg
     else:
         fock_core = h
         e_core = 0.0
+    if len(active) == 0:
+        return float(e_core + ints.vnn)
+    Ca = np.array(active).T
+    if Ci.shape[1]:
+        Ca = Ca - Ci @ (Ci.T @ S @ Ca)
+    Ca = _sym_orth_cols(Ca, S)
+    nact = Ca.shape[1]
+    if nelec_act is None:
+        nelec_act = (nact // 2, nact - nact // 2)
     h1 = Ca.T @ fock_core @ Ca
     if nelec_act == (nact, 0):
         eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
@@ -284,7 +288,7 @@ def orthonormal_mo_guess(Xi: np.ndarray, Xa: np.ndarray, S: np.ndarray) -> np.nd
     its energy is guaranteed not to exceed the localized one)."""
     n = S.shape[0]
     Ci = _sym_orth_cols(Xi, S) if Xi.shape[1] else Xi
-    Ya = Xa - Ci @ (Ci.T @ S @ Xa) if Ci.shape[1] else Xa
+    Ya = Xa - Ci @ (Ci.T @ S @ Xa) if (Ci.shape[1] and Xa.shape[1]) else Xa
     Ca = _sym_orth_cols(Ya, S)
     occ = np.hstack([Ci, Ca])
     P = np.eye(n) - occ @ occ.T @ S
@@ -292,6 +296,107 @@ def orthonormal_mo_guess(Xi: np.ndarray, Xa: np.ndarray, S: np.ndarray) -> np.nd
     Cv = P @ v[:, w > 1e-8]
     Cv = _sym_orth_cols(Cv, S)
     return np.hstack([occ, Cv])
+
+
+def cas_rdm1_and_natural_orbitals(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
+                                  nelec_act: Optional[Tuple[int, int]] = None):
+    """Evaluate exact CAS/CI energy, spin-resolved 1-RDMs, and natural orbitals.
+
+    Returns a dictionary containing:
+        energy: Total electronic + nuclear energy (Hartrees).
+        Ci: Orthonormal inactive MO coefficients ``(nao, n_inact)``.
+        Ca: Orthonormal active MO coefficients ``(nao, n_act)``.
+        dm1_act_a: Alpha 1-RDM in the ``Ca`` basis ``(n_act, n_act)``.
+        dm1_act_b: Beta 1-RDM in the ``Ca`` basis ``(n_act, n_act)``.
+        dm1_act: Total active 1-RDM ``dm1_act_a + dm1_act_b``.
+        dm1_a: Alpha 1-RDM in the AO basis ``(nao, nao)``.
+        dm1_b: Beta 1-RDM in the AO basis ``(nao, nao)``.
+        dm1_ao: Total spin-summed 1-RDM in the AO basis ``(nao, nao)``.
+        nat_orbs: Natural orbitals ``[Ci | nat_Ca]`` sorted descending in occupation.
+        nat_occ: Spin-summed natural occupation numbers matching ``nat_orbs``.
+        nat_occ_a: Alpha occupation weights matching ``nat_orbs``.
+        nat_occ_b: Beta occupation weights matching ``nat_orbs``.
+    """
+    from pyscf import ao2mo, fci
+
+    S, h = ints.S, ints.h
+    n = ints.nao
+    Jm, Km = ints.jk_matrices()
+    J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
+    K = lambda g: (Km @ g.ravel()).reshape(g.shape)
+
+    Ci = _sym_orth_cols(Xi, S) if Xi.shape[1] else np.zeros((n, 0))
+    if Ci.shape[1]:
+        Dc = Ci @ Ci.T
+        Fc = h + 2 * J(Dc) - K(Dc)
+        e_core = float(np.sum(Dc * (h + Fc)))
+    else:
+        Dc = np.zeros((n, n))
+        Fc = h
+        e_core = 0.0
+
+    Ya = Xa - Dc @ S @ Xa if (Ci.shape[1] and Xa.shape[1]) else Xa
+    Ca = _sym_orth_cols(Ya, S) if Ya.shape[1] else np.zeros((n, 0))
+    nact = Ca.shape[1]
+    if nelec_act is None:
+        nelec_act = (nact // 2, nact - nact // 2)
+
+    if nact == 0:
+        dm1_act_a = np.zeros((0, 0))
+        dm1_act_b = np.zeros((0, 0))
+        e = float(e_core + ints.vnn)
+    elif nelec_act == (nact, 0):
+        eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
+        h1 = Ca.T @ Fc @ Ca
+        dm1_act_a = np.eye(nact)
+        dm1_act_b = np.zeros((nact, nact))
+        dm2 = np.einsum("pq,rs->pqrs", dm1_act_a, dm1_act_a) - np.einsum("ps,qr->pqrs", dm1_act_a, dm1_act_a)
+        e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+    else:
+        h1 = Ca.T @ Fc @ Ca
+        eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
+        e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+        dm1_act_a, dm1_act_b = fci.direct_spin1.make_rdm1s(civec, nact, nelec_act)
+
+    dm1_act = dm1_act_a + dm1_act_b
+    dm1_a = Dc + Ca @ dm1_act_a @ Ca.T
+    dm1_b = Dc + Ca @ dm1_act_b @ Ca.T
+    dm1_ao = dm1_a + dm1_b
+
+    if nact > 0:
+        w_nat, v_nat = np.linalg.eigh(dm1_act)
+        order = np.argsort(w_nat)[::-1]
+        v_nat = v_nat[:, order]
+        w_act = np.clip(w_nat[order], 0.0, 2.0)
+        nat_Ca = Ca @ v_nat
+        w_act_a = np.clip(np.diag(v_nat.T @ dm1_act_a @ v_nat), 0.0, 1.0)
+        w_act_b = np.clip(np.diag(v_nat.T @ dm1_act_b @ v_nat), 0.0, 1.0)
+    else:
+        nat_Ca = np.zeros((n, 0))
+        w_act = np.zeros(0)
+        w_act_a = np.zeros(0)
+        w_act_b = np.zeros(0)
+
+    ni = Ci.shape[1]
+    nat_orbs = np.hstack([Ci, nat_Ca])
+    nat_occ = np.concatenate([np.full(ni, 2.0), w_act])
+    nat_occ_a = np.concatenate([np.full(ni, 1.0), w_act_a])
+    nat_occ_b = np.concatenate([np.full(ni, 1.0), w_act_b])
+    return {
+        "energy": float(e),
+        "Ci": Ci,
+        "Ca": Ca,
+        "dm1_act_a": dm1_act_a,
+        "dm1_act_b": dm1_act_b,
+        "dm1_act": dm1_act,
+        "dm1_a": dm1_a,
+        "dm1_b": dm1_b,
+        "dm1_ao": dm1_ao,
+        "nat_orbs": nat_orbs,
+        "nat_occ": nat_occ,
+        "nat_occ_a": nat_occ_a,
+        "nat_occ_b": nat_occ_b,
+    }
 
 
 def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
@@ -325,6 +430,10 @@ def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
         Dc = np.zeros((n, n))
     Fc = h + 2 * J(Dc) - K(Dc)
     e_core = float(np.sum(Dc * (h + Fc)))
+
+    if Xa.shape[1] == 0:
+        G_Xi = 2 * (I - S @ Dc) @ (2 * Fc) @ Xi @ Ni if Xi.shape[1] else np.zeros_like(Xi)
+        return float(e_core + ints.vnn), G_Xi, np.zeros((n, 0))
 
     Y = Xa - Dc @ S @ Xa
     w, v = np.linalg.eigh(Y.T @ S @ Y)
@@ -541,6 +650,11 @@ class MaskedVB:
                         options={"maxiter": maxiter, "gtol": gtol})
 
 
+def optimize_masked_vb(model: MaskedVB, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
+    """Optimize a :class:`MaskedVB` model using BFGS with exact analytic gradients."""
+    return model.optimize(x0, maxiter=maxiter, gtol=gtol)
+
+
 def own_atom_character(ints, W: np.ndarray, atom: int, k: int) -> np.ndarray:
     """Gauge-invariant locality of a subspace.
 
@@ -552,10 +666,12 @@ def own_atom_character(ints, W: np.ndarray, atom: int, k: int) -> np.ndarray:
     """
     S = ints.S
     w, v = np.linalg.eigh(W.T @ S @ W)
-    Wo = W @ v @ np.diag(w ** -0.5) @ v.T
+    kw = w > 1e-10
+    Wo = W @ v[:, kw] @ np.diag(w[kw] ** -0.5) @ v[:, kw].T
     idx = np.where(np.asarray(ints.atom_of) == atom)[0]
     wa, va = np.linalg.eigh(S[np.ix_(idx, idx)])
-    M = (va @ np.diag(wa ** -0.5) @ va.T) @ S[idx, :] @ Wo
+    ka = wa > 1e-10
+    M = (va[:, ka] @ np.diag(wa[ka] ** -0.5) @ va[:, ka].T) @ S[idx, :] @ Wo
     s = np.linalg.svd(M, compute_uv=False)
     return np.sort(s ** 2)[::-1][:k]
 

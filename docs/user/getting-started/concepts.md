@@ -96,3 +96,15 @@ geometry:
 
 Here, `N2` is generated from `N1` via inversion through the origin
 (`symmetry_op: -2`; `symmetry_axis: 1` selects the $z$ axis, unused by inversion).
+
+---
+
+## 7. Exact-Integral Localized Valence Bond & Active-Site Embedding
+
+To eliminate non-variational single-center model-potential errors in strongly covalent bonds (`ROADMAP.md` Open Model Items & Phase 17), PHATPSY 2.0 provides an exact-integral Localized Valence Bond engine (`method: localized_vb` or `masked_vb`, orchestrated by `phatpsy/vb_driver.py`):
+
+* **Active Region ($\mathcal{A}$):** Evaluated with exact two-center (`phatpsy/two_center_integrals.py`) and multi-center (`phatpsy/multicenter_integrals.py`) STO integrals inside explicit per-orbital AO domains (`strict_1c`, `bond_local`, `blyholder`, `delocalized`).
+* **Frozen Cores & Non-Bonded Spectators ($\mathcal{B}$):** Inner atomic cores and atoms marked `fixed: true` or `active: false` are represented by Phillips-Kleinman / Huzinaga frozen-environment states (`phatpsy/embedding.py`) using the joint environment overlap inverse $(S_{\mathcal{B}\mathcal{B}})^{-1}$, while fitted single-center model potentials can optionally be relegated to distant spectators (`environment_embedding: model_potential`).
+
+See [YAML Overview](../yaml/overview.md) and [Python Setup & Execution](../python/setup-and-run.md) for deck configuration details.
+

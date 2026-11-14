@@ -130,17 +130,22 @@ def handle_elements(args):
 
 def handle_build(args):
     from phatpsy.builder import build_molecule
+    from phatpsy.schema import ControlConfig
     spins_val = None
     if getattr(args, "spins", None):
         spins_val = [s.strip() for s in args.spins.split(",")] if "," in args.spins else args.spins.strip()
     net_spin_val = getattr(args, "net_spin", None)
+    use_vb = bool(getattr(args, "localized_vb", False))
+    ctrl = ControlConfig.localized_vb(basis=args.basis) if use_vb else None
     deck = build_molecule(
         args.xyz_file,
         basis=args.basis,
         title=args.title,
+        control=ctrl,
         units=args.units,
+        spin_unrestricted=not use_vb,
         spins=spins_val,
-        net_spin=net_spin_val,
+        net_spin=(0 if (use_vb and net_spin_val is None) else net_spin_val),
         auto_spin_flip=args.auto_spin if args.auto_spin else None,
     )
     out_path = Path(args.output) if args.output else None
@@ -768,9 +773,11 @@ def handle_cube(args):
 
     # Check property-colored density
     property_grid = None
-    if args.esp and (args.density or not (args.mo or args.ao or args.spin_density or args.deformation)):
+    if args.esp and (args.density or not (args.mo or args.ao or args.vb_orbital or args.spin_density or args.deformation)):
         grid = compute_grid(res, grid_type="density", spacing=args.spacing, padding=args.padding)
         property_grid = compute_grid(res, grid_type="esp", spacing=args.spacing, padding=args.padding)
+    elif args.vb_orbital:
+        grid = compute_grid(res, grid_type="vb_orbital", vb_orbital_index=args.vb_orbital, spacing=args.spacing, padding=args.padding)
     elif args.ao:
         grid = compute_grid(res, grid_type="ao", ao_index=args.ao, spacing=args.spacing, padding=args.padding)
     elif args.mo:
@@ -795,7 +802,7 @@ def handle_cube(args):
         sys.stderr.write(f"  Dimensions:  {grid.dimensions[0]} x {grid.dimensions[1]} x {grid.dimensions[2]}\n")
         sys.stderr.write(f"  Integral:    {grid.integrate():12.6f}\n")
     else:
-        tag = "esp_density" if property_grid else ("mo" + str(args.mo) if args.mo else ("ao" + str(args.ao) if args.ao else ("spin" if args.spin_density else ("deformation" if args.deformation else ("esp" if args.esp else "density")))))
+        tag = "esp_density" if property_grid else ("vb" + str(args.vb_orbital) if args.vb_orbital else ("mo" + str(args.mo) if args.mo else ("ao" + str(args.ao) if args.ao else ("spin" if args.spin_density else ("deformation" if args.deformation else ("esp" if args.esp else "density"))))))
         cube_file = in_path.with_suffix(f".{tag}.cube")
         grid.to_cube(cube_file)
         sys.stderr.write(f"PHATPSY: Gaussian Cube exported to '{cube_file}'\n")
@@ -824,7 +831,7 @@ def handle_assemble(args):
         sys.stderr.write(f"PHATPSY: Interactive molecular assembler saved to '{html_out}'\n")
         return 0
 
-    deck = asm.to_deck()
+    deck = asm.to_localized_vb_deck() if getattr(args, "localized_vb", False) else asm.to_deck()
     if out_path:
         out_suffix = out_path.suffix.lower()
         if out_suffix == ".json":
@@ -838,9 +845,132 @@ def handle_assemble(args):
     return 0
 
 
+def handle_vb(args):
+    from phatpsy.builder import build_molecule
+    from phatpsy.formats import detect_format
+    from phatpsy.schema import ControlConfig
+    from phatpsy.vb_driver import run_localized_vb
+
+    in_path = Path(args.input_file)
+    fmt = detect_format(in_path)
+    if fmt in ("xyz", "pdb", "gaussian", "poscar", "cif", "gro", "mol", "sdf", "gen", "car", "arc", "res", "cell", "extxyz", "lammps-data", "ase"):
+        ctrl = ControlConfig.localized_vb(basis=args.basis or "ADF-TZP")
+        deck = build_molecule(
+            in_path,
+            basis=ctrl.default_basis,
+            control=ctrl,
+            spin_unrestricted=False,
+            spins=None,
+            net_spin=0,
+        )
+    else:
+        deck = load_deck_from_arg(in_path)
+
+    if deck.control.method not in ("localized_vb", "masked_vb"):
+        deck.control.method = args.method or "localized_vb"
+    elif args.method:
+        deck.control.method = args.method
+    deck.control.spin_unrestricted = False
+
+    if args.basis:
+        deck.control.default_basis = args.basis
+        deck.basis = args.basis
+        for a in deck.geometry:
+            a.basis = args.basis
+        if hasattr(deck, "elements"):
+            deck.elements.clear()
+    if args.wavefunction:
+        deck.control.vb_wavefunction = args.wavefunction
+    if args.domain:
+        deck.control.domain_mode = args.domain
+    if args.core_embedding:
+        deck.control.core_embedding = args.core_embedding
+    if args.environment_embedding:
+        deck.control.environment_embedding = args.environment_embedding
+
+    state = run_localized_vb(deck, quiet=True, compare_regimes=args.compare_regimes)
+    res = state
+    n_act = sum(1 for a in deck.geometry if getattr(a, "is_active", True) and not a.virtual)
+    n_spec = sum(1 for a in deck.geometry if not getattr(a, "is_active", True) and not a.virtual)
+
+    if not args.json_stdout:
+        print(f"Localized VB ({res.get('method')}, wf={res.get('vb_wavefunction')}, domain={res.get('domain_mode')}):")
+        print(f"  Atoms:            {n_act} active, {n_spec} frozen spectators")
+        print(f"  Core Embedding:   {res.get('core_embedding')}  |  Env: {res.get('environment_embedding')}")
+        print(f"  Total Energy:     {res['total_energy']:18.8f} Hartree")
+        print(f"  Separated Atoms:  {res.get('separated_atoms_energy', 0.0):18.8f} Hartree")
+        print(f"  Binding Energy:   {res.get('binding_energy_ev', 0.0):18.6f} eV")
+        print(f"  Virial (-V/T):    {res.get('virial_ratio', 0.0):18.6f}")
+        print(f"  Dipole Moment:    {res.get('dipole_moment_debye', 0.0):18.6f} Debye")
+        oac = res.get("own_atom_character") or {}
+        if oac:
+            print("  Own-Atom Locality:")
+            for aid, vals in oac.items():
+                vals_str = ", ".join(f"{v:.4f}" for v in vals)
+                print(f"    {aid:<6s}: [{vals_str}]")
+        ed = res.get("embedding_diagnostics") or {}
+        if "lmin_S_eff_exact" in ed:
+            print(f"  Pseudometric lmin(S_eff): exact={ed['lmin_S_eff_exact']:+.5f}, naive={ed.get('lmin_S_eff_naive', 0.0):+.5f}")
+        bd = res.get("blyholder_decomposition")
+        if bd:
+            print(f"  Blyholder CT:     dE_sigma={bd['delta_e_sigma_ev']:+.4f} eV, dE_pi={bd['delta_e_pi_ev']:+.4f} eV, pi_share={100.0*bd['pi_share']:.1f}%")
+        rc = res.get("regime_comparison")
+        if rc:
+            print("  Regime Comparison (Hartree):")
+            for r_name, r_e in rc.items():
+                print(f"    {r_name:<16s}: {r_e:18.8f}")
+
+    if args.output:
+        save_results_to_json(state, args.output)
+        if not args.json_stdout:
+            print(f"Saved JSON results to '{args.output}'")
+
+    if args.json_stdout:
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", suffix=".json") as tf:
+            save_results_to_json(state, tf.name)
+            tf.seek(0)
+            sys.stdout.write(tf.read())
+
+    if args.cube:
+        from phatpsy.volumetric import compute_grid
+        grid = compute_grid(state, grid_type="density")
+        grid.to_cube(args.cube)
+        if not args.json_stdout:
+            print(f"Saved density Gaussian Cube to '{args.cube}'")
+
+    if args.view:
+        from phatpsy.visualizer import visualize_vb_orbitals
+        visualize_vb_orbitals(state, auto_open=not args.no_browser)
+
+    return 0
+
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+
+    # Handle 'vb' / 'localized-vb' / 'masked-vb' command
+    if argv and argv[0] in ("vb", "localized-vb", "masked-vb"):
+        parser = argparse.ArgumentParser(
+            prog="phatpsy vb",
+            description="Run exact-integral Localized VB / MaskedVB with optional active-site frozen-environment embedding."
+        )
+        parser.add_argument("input_file", help="Input deck (.yaml, .json) or geometry file (.xyz)")
+        parser.add_argument("-b", "--basis", default=None, help="Override STO basis set (e.g. ADF-TZP, DZP, DZ, SZ)")
+        parser.add_argument("--method", choices=["localized_vb", "masked_vb"], default=None, help="Localized VB engine variant")
+        parser.add_argument("--wavefunction", choices=["cas", "covalent", "pp", "hl"], default=None, help="Active-space VB wavefunction model")
+        parser.add_argument("--domain", choices=["strict_1c", "bond_local", "bond_local_h", "blyholder", "blyholder_r0", "blyholder_r1", "blyholder_r2", "delocalized", "custom"], default=None, help="Per-orbital AO domain restriction policy")
+        parser.add_argument("--core-embedding", choices=["all_electron", "exact_backprojected", "unprojected_eri", "eri_free_2c"], default=None, help="Noble-gas core embedding treatment")
+        parser.add_argument("--environment-embedding", choices=["exact_joint_pk", "model_potential", "none"], default=None, help="Frozen spectator environment embedding treatment")
+        parser.add_argument("--compare-regimes", action="store_true", help="Evaluate strict_1c -> bond_local -> delocalized or Blyholder regimes")
+        parser.add_argument("-o", "--output", default=None, help="Output JSON results path")
+        parser.add_argument("--json-stdout", action="store_true", help="Write structured JSON summary to standard output")
+        parser.add_argument("--cube", default=None, help="Export total electron density to Gaussian Cube (.cube)")
+        parser.add_argument("--view", action="store_true", help="Launch 3D WebGL viewer for localized VB orbitals")
+        parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open browser automatically when viewing")
+        args = parser.parse_args(argv[1:])
+        return handle_vb(args)
 
     # Handle 'assemble' command
     if argv and argv[0] in ("assemble", "assembler", "build-hybrid"):
@@ -851,6 +981,7 @@ def main(argv=None):
         parser.add_argument("-r", "--root", default="C", help="Root atom element (default: C)")
         parser.add_argument("--hybridization", default="sp3", help="Root hybridization ('sp3', 'sp2', 'sp', 'sp3_bent', 'delta', etc., default: sp3)")
         parser.add_argument("-c", "--cap", default="H", help="Terminal capping element (default: H)")
+        parser.add_argument("--localized-vb", action="store_true", help="Export closed-shell Localized VB deck via to_localized_vb_deck()")
         parser.add_argument("-o", "--output", default=None, help="Output calculation deck (.yaml, .json) or HTML visualization (.html)")
         parser.add_argument("--interactive", "--view", action="store_true", help="Launch interactive 3D WebGL click-to-build assembler in browser")
         parser.add_argument("-n", "--no-browser", action="store_true", help="Do not open browser automatically")
@@ -866,6 +997,7 @@ def main(argv=None):
         parser.add_argument("input_file", help="Input calculation deck (.yaml, .json, .stdin, .xyz)")
         parser.add_argument("--mo", type=int, default=None, help="Molecular orbital index (1-based) to evaluate")
         parser.add_argument("--ao", type=int, default=None, help="Atomic orbital index (1-based) to evaluate")
+        parser.add_argument("--vb-orbital", type=int, default=None, help="Localized VB orbital index (1-based) to evaluate")
         parser.add_argument("--density", action="store_true", help="Evaluate total electron density rho(r)")
         parser.add_argument("--spin-density", action="store_true", help="Evaluate spin density Delta rho_s(r)")
         parser.add_argument("--deformation", action="store_true", help="Evaluate deformation/binding density Delta rho(r)")
@@ -946,6 +1078,7 @@ def main(argv=None):
         parser.add_argument("-t", "--title", default=None, help="Calculation title")
         parser.add_argument("--spins", default=None, help="Explicit per-atom spins (e.g. 'up,down' or 'up')")
         parser.add_argument("--net-spin", type=int, default=None, help="Net spin (n_up - n_down, default: 0)")
+        parser.add_argument("--localized-vb", action="store_true", help="Generate a closed-shell Localized VB CalculationDeck")
         parser.add_argument("-s", "--auto-spin", action="store_true", help="[DEPRECATED] Automatically assign alternating spin states")
         parser.add_argument("-o", "--output", default=None, help="Output calculation deck file (.yaml, .json, .stdin)")
         args = parser.parse_args(argv[1:])

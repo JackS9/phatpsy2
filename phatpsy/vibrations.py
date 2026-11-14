@@ -452,6 +452,9 @@ def compute_hessian(
     H = np.zeros((dim, dim), dtype=np.float64)
     h = float(step_size)
 
+    if getattr(getattr(calc_deck, "control", None), "method", "phatpsy_scf") in ("localized_vb", "masked_vb"):
+        use_analytical_gradients = False
+
     if use_analytical_gradients:
         for j in active_indices:
             atom_idx = j // 3

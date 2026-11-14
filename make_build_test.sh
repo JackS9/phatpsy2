@@ -28,7 +28,7 @@ fi
 
 # 3. Run the automated pytest regression suite
 if [ -f ".venv/bin/pytest" ]; then
-    PYTHONPATH=. .venv/bin/pytest tests/ -v -s --tb=short
+    PYTHONPATH=. .venv/bin/pytest tests/ -v -s --tb=short "$@"
 else
-    PYTHONPATH=. pytest tests/ -v -s --tb=short
+    PYTHONPATH=. pytest tests/ -v -s --tb=short "$@"
 fi

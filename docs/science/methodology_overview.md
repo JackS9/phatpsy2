@@ -337,3 +337,13 @@ The IRC path ([`phatpsy/irc.py`](https://github.com/JackS9/phatpsy2/blob/master/
 $$\frac{d\mathbf{x}}{ds} = -\frac{\mathbf{g}_x}{\|\mathbf{g}_x\|}, \quad \mathbf{x}_A = \sqrt{M_A} \mathbf{R}_A$$
 Initiated along the forward and backward directions of the imaginary transition normal mode $\hat{\mathbf{Q}}_{\text{imag}}$, verifying that the transition state rigorously connects the postulated reactant and product minima.
 
+---
+
+## 16. Exact-Integral Localized Valence Bond (`LocalizedVB` / `MaskedVB`) & Active-Site Embedding (Phase 17)
+
+Stage 3 diagnostics (`ROADMAP.md` Open Model Items; `phatpsy/vb_correction.py`) demonstrated that the single-center model-potential/PK functional is non-variational on covalently bonded molecules, underestimating exact expectation values by $-0.68\text{ eV}$ ($\text{H}_2$ `DZP`) to $-75\text{ eV}$ ($\text{N}_2$ `DZP`). Under the **Option B** architecture introduced in Phase 17 (`ROADMAP.md` Phase 17), PHATPSY 2.0 separates every chemical system into two regions:
+
+1. **Active Bonded Region ($\mathcal{A}$):** Evaluated with exact two-center prolate-spheroidal Neumann quadrature (`phatpsy/two_center_integrals.py`) and multi-center pair-density Poisson integration (`phatpsy/multicenter_integrals.py`), with zero empirical pair fitting. Orbitals are optimized in orbital-restricted AO domains (`LocalizedVBModel` and `MaskedVB` in `phatpsy/localized_vb.py`) using `strict_1c`, `bond_local` (Option 1), Blyholder chemisorption (`blyholder_r0`/`r1`/`r2`), or full `delocalized` domains, and quantified via the gauge-invariant principal-angle overlap diagnostic `own_atom_character`.
+2. **Frozen Core & Non-Bonded Spectator Environment ($\mathcal{B}$):** Inner atomic shells ($1s^2$, $[\text{Ne}]$, $[\text{Ar}]$) and inactive spectators (`fixed: true` or `active: false`) are projected out via analytical Phillips-Kleinman / Huzinaga operators (`phatpsy/embedding.py`) across Levels **E1** (`exact_backprojected`), **E2** (`unprojected_eri` with charge-conserving metric renormalization $W$), and **E3** (`eri_free_2c`). Multi-atom slab/cluster environments use the **exact joint environment overlap inverse** $(S_{\mathcal{B}\mathcal{B}})^{-1}$ with unit projector scaling (`pk_scale = 1.0`), ensuring a strictly positive-definite valence pseudometric $\tilde{S}_{\text{eff}}$ on condensed-matter surfaces such as $\text{CO}/\text{Ni}(100)$. Fitted single-center model potentials remain available strictly as an optional fast approximation for distant non-bonded spectators (`environment_embedding="model_potential"`) or via `method="phatpsy_scf"`.
+
+

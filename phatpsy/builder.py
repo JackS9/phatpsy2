@@ -688,6 +688,7 @@ def build_diatomic(
     basis: Union[str, Dict[str, str]] = "DZP",
     units: str = "bohr",
     use_symmetry: bool = True,
+    spin_unrestricted: Optional[bool] = None,
     spins: Optional[Union[List[str], Tuple[str, str]]] = None,
     net_spin: Optional[int] = None,
     physical_net_spin: Optional[int] = None,
@@ -708,6 +709,8 @@ def build_diatomic(
     Valence-Bond (PP-VB) state (['up', 'down'], net_spin=0).
     For heteronuclear diatomics (e.g. CO), atoms default to un-flipped configuration
     (['up', 'up'], net_spin=2) reproducing the physical closed-shell ground-state basin.
+    For closed-shell restricted or Localized VB decks, pass ``spin_unrestricted=False``
+    (or ``control=ControlConfig.localized_vb(...)``).
 
     Args:
         element1: Symbol of the first atom (e.g. 'N', 'C', 'Ag').
@@ -716,6 +719,7 @@ def build_diatomic(
         basis: Basis set ('DZ', 'SZ', 'THAKKAR').
         units: 'bohr' or 'angstrom'.
         use_symmetry: If True and homodiatomic, use reflection/inversion symmetry card.
+        spin_unrestricted: Override ``control.spin_unrestricted`` (False for restricted / Localized VB).
         spins: Explicit 2-element spin list (e.g. ['up', 'down'] or ['up', 'up']).
         net_spin: Integer (n_up - n_down). Defaults to 0 for alternating spins, 2 for un-flipped.
         spin_flip: [DEPRECATED] Backward compatibility shim. Maps to spins=['up', 'down'] (True)
@@ -733,6 +737,14 @@ def build_diatomic(
     sym2 = (element2 or element1).strip().capitalize()
     is_homo = (sym1 == sym2)
 
+    eff_spin_unrestricted = (
+        bool(spin_unrestricted)
+        if spin_unrestricted is not None
+        else (bool(control.spin_unrestricted) if control is not None else True)
+    )
+    if control is not None and spin_unrestricted is not None:
+        control.spin_unrestricted = eff_spin_unrestricted
+
     # Deprecated spin_flip migration shim
     if spin_flip is not None:
         warnings.warn(
@@ -744,52 +756,59 @@ def build_diatomic(
         if spins is None:
             spins = ["up", "down"] if spin_flip else ["up", "up"]
 
-    # Explicit default spin lists (Requirement 4 & 6)
-    if spins is None:
-        if is_homo:
-            # Homonuclear PP-VB alternating pattern
-            spins = ["up", "down"]
-        else:
-            # Heteronuclear diatomic gets no flip unless explicitly requested
-            spins = ["up", "up"]
-
-    if len(spins) != 2:
-        raise ValueError(f"Diatomic spins must contain exactly 2 spin values, got {len(spins)}: {spins}")
-
-    s1_raw = str(spins[0]).strip().lower() if spins[0] is not None else None
-    s2_raw = str(spins[1]).strip().lower() if spins[1] is not None else None
-
-    spin_map = {"up": "up", "alpha": "up", "+1": "up", "1": "up", "+": "up",
-                "down": "down", "beta": "down", "-1": "down", "-": "down"}
-    s1 = spin_map.get(s1_raw)
-    s2 = spin_map.get(s2_raw)
-
-    if s1 is None or s2 is None:
-        raise ValueError(
-            f"Explicit spins must be 'up' or 'down', got {spins}. None anywhere in spin path is forbidden."
-        )
-
-    n_up = (1 if s1 == "up" else 0) + (1 if s2 == "up" else 0)
-    n_down = (1 if s1 == "down" else 0) + (1 if s2 == "down" else 0)
-    calc_net = n_up - n_down
-
-    if net_spin is None:
-        resolved_net_spin = calc_net
+    if not eff_spin_unrestricted and spins is None:
+        s1: Optional[str] = None
+        s2: Optional[str] = None
+        do_flip = False
+        resolved_net_spin = 0 if net_spin is None else int(net_spin)
+        geom_spins: Optional[List[str]] = None
     else:
-        if calc_net != net_spin:
+        # Explicit default spin lists (Requirement 4 & 6)
+        if spins is None:
+            if is_homo:
+                # Homonuclear PP-VB alternating pattern
+                spins = ["up", "down"]
+            else:
+                # Heteronuclear diatomic gets no flip unless explicitly requested
+                spins = ["up", "up"]
+
+        if len(spins) != 2:
+            raise ValueError(f"Diatomic spins must contain exactly 2 spin values, got {len(spins)}: {spins}")
+
+        s1_raw = str(spins[0]).strip().lower() if spins[0] is not None else None
+        s2_raw = str(spins[1]).strip().lower() if spins[1] is not None else None
+
+        spin_map = {"up": "up", "alpha": "up", "+1": "up", "1": "up", "+": "up",
+                    "down": "down", "beta": "down", "-1": "down", "-": "down"}
+        s1 = spin_map.get(s1_raw)
+        s2 = spin_map.get(s2_raw)
+
+        if s1 is None or s2 is None:
             raise ValueError(
-                f"Net spin mismatch in build_diatomic: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net} "
-                f"from spins={spins}, but net_spin={net_spin} was requested."
+                f"Explicit spins must be 'up' or 'down', got {spins}. None anywhere in spin path is forbidden."
             )
-        resolved_net_spin = net_spin
+
+        n_up = (1 if s1 == "up" else 0) + (1 if s2 == "up" else 0)
+        n_down = (1 if s1 == "down" else 0) + (1 if s2 == "down" else 0)
+        calc_net = n_up - n_down
+
+        if net_spin is None:
+            resolved_net_spin = calc_net
+        else:
+            if calc_net != net_spin:
+                raise ValueError(
+                    f"Net spin mismatch in build_diatomic: calculated n_up ({n_up}) - n_down ({n_down}) = {calc_net} "
+                    f"from spins={spins}, but net_spin={net_spin} was requested."
+                )
+            resolved_net_spin = net_spin
+        do_flip = (s1 != s2)
+        geom_spins = [s1, s2]
 
     to_bohr = BOHR_PER_ANGSTROM if units.lower() in ("angstrom", "angstroms", "aa", "a") else 1.0
     r_bohr = bond_length * to_bohr
 
     if title is None:
         title = f"{sym1}{sym2} Diatomic (R={r_bohr:.3f} Bohr)"
-
-    do_flip = (s1 != s2)
 
     c1, c2 = 0.0, 0.0
     if charges is not None:
@@ -832,7 +851,8 @@ def build_diatomic(
         title=title,
         control=control,
         units="bohr",
-        spins=[s1, s2],
+        spin_unrestricted=eff_spin_unrestricted,
+        spins=geom_spins,
         net_spin=resolved_net_spin,
         physical_net_spin=physical_net_spin,
         hybridization=hybridization,

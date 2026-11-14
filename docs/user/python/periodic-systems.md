@@ -145,3 +145,45 @@ phatpsy chemisorption ni100_co.yaml --sites --lattice 4.71    # lateral PES scan
 phatpsy chemisorption ni100_co.yaml --vib --scls              # red-shift + SCLS
 phatpsy chemisorption ni100_co.yaml --all -o chemi_full.json  # everything
 ```
+
+---
+
+## Exact Joint $(S_{\mathcal{B}\mathcal{B}})^{-1}$ Active-Site Slab Embedding
+
+For transition-metal surface chemisorption where naive pairwise Phillips-Kleinman projection breaks positive-definiteness ($\lambda_{\min}(\tilde{S}_{\text{naive}}) < -1.5$), mark the adsorbate + primary surface site with `active=True` and the surrounding $C_{4v}$ slab neighbors with `fixed=True, active=False` carrying pre-converged `embedded_state` JSON files (`data/ni_surf_embedded.json`, `data/ni_sub_embedded.json`). Setting `environment_embedding="exact_joint_pk"` applies the parameter-free (`pk_scale=1.0`) exact joint $(S_{\mathcal{B}\mathcal{B}})^{-1}$ Huzinaga/PK metric:
+
+```python
+from phatpsy import AtomConfig, CalculationDeck, ControlConfig, run_localized_vb
+
+ctrl = ControlConfig.localized_vb(
+    basis="DZP",
+    domain_mode="blyholder",
+    core_embedding="unprojected_eri",
+    environment_embedding="exact_joint_pk",
+)
+deck = CalculationDeck(
+    title="CO / Ni(100) Exact-Metric Active-Site Embedding",
+    control=ctrl,
+    net_spin=0,
+    geometry=[
+        AtomConfig(id="Ni1", element="Ni", xyz=[0.0, 0.0, 0.0], basis="DZP", active=True),
+        AtomConfig(id="C2", element="C", xyz=[0.0, 0.0, 3.59], basis="DZP", active=True),
+        AtomConfig(id="O3", element="O", xyz=[0.0, 0.0, 5.722], basis="DZP", active=True),
+        AtomConfig(
+            id="Ni_surf", element="Ni", xyz=[4.709, 0.0, 0.0], basis="DZP",
+            fixed=True, active=False, embedded_state="data/ni_surf_embedded.json",
+        ),
+        AtomConfig(
+            id="Ni_sub", element="Ni", xyz=[2.3545, 2.3545, -3.330], basis="DZP",
+            fixed=True, active=False, embedded_state="data/ni_sub_embedded.json",
+        ),
+    ],
+)
+
+state = run_localized_vb(deck, quiet=True, compare_regimes=True)
+diag = state["embedding_diagnostics"]
+bly = state["blyholder_decomposition"]
+print(f"lmin(S_eff) exact={diag['lmin_S_eff_exact']:+.4f} vs naive={diag['lmin_S_eff_naive']:+.4f}")
+print(f"Blyholder dE_sigma={bly['delta_e_sigma_ev']:+.4f} eV, dE_pi={bly['delta_e_pi_ev']:+.4f} eV (pi share {100*bly['pi_share']:.1f}%)")
+```
+

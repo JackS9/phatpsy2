@@ -78,8 +78,14 @@ def test_cas_analytic_orbital_gradient_matches_finite_differences():
     from phatpsy.localized_vb import atom_basis
 
     for a, b, R in (("N", "N", 2.0744), ("C", "O", 2.132)):
-        ints = diatomic_ao_integrals(atom_basis((0, 0, 0), a, "DZ"), atom_basis((0, 0, R), b, "DZ"),
-                                     float(NELEC[a]), float(NELEC[b]))
+        ints = diatomic_ao_integrals(
+            atom_basis((0, 0, 0), a, "DZ"),
+            atom_basis((0, 0, R), b, "DZ"),
+            float(NELEC[a]),
+            float(NELEC[b]),
+            n_eta=24,
+            lmax=14,
+        )
         m = build_model(ints, a, b, a == b)
         m.method = "cas"
         x = m.pack(initial_orbitals(m)) + 0.05 * np.random.default_rng(1).standard_normal(m.nparam)

@@ -210,3 +210,41 @@ elements:
 ```
 
 The Fortran computational core uses the `equivalent_to` relationship to evaluate only non-redundant matrix blocks, saving CPU time and memory.
+
+---
+
+## 5. Exact-Integral Localized VB ($H_2O$ Bond-Local MaskedVB)
+
+Uses `method: localized_vb` and `domain_mode: bond_local` to solve bent $H_2O$ via exact multi-center STO integrals and per-orbital AO masks with zero empirical $\text{H}\text{--}\text{H}$ parameters:
+
+```yaml
+title: "Water (H2O) - Exact-Integral Bond-Local MaskedVB"
+net_spin: 0
+control:
+  method: localized_vb
+  spin_unrestricted: false
+  vb_wavefunction: cas
+  domain_mode: bond_local
+  core_embedding: unprojected_eri
+  default_basis: DZP
+
+geometry:
+  - element: O
+    id: O1
+    xyz: [0.0, 0.0, 0.0]
+    active: true
+  - element: H
+    id: H1
+    xyz: [1.430, 0.0, 1.107]
+    active: true
+  - element: H
+    id: H2
+    xyz: [-1.430, 0.0, 1.107]
+    active: true
+```
+
+### Key Features:
+* `method: localized_vb` and `spin_unrestricted: false`: Dispatches directly to the variational multi-center STO `MaskedVB` driver (`phatpsy.vb_driver`).
+* `domain_mode: bond_local`: Restricts each $\text{O}\text{--}\text{H}$ bond pair to $\{O, H_i\}$ while keeping Oxygen lone pairs on `{O}` (>95% own-atom character).
+* Run directly from the CLI via `phatpsy vb h2o_vb.yaml`.
+

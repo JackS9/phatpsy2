@@ -9,6 +9,7 @@ spin-down first atoms as spin-up.  They are marked xfail (non-strict, they still
 suite is green while the baselines are re-established.  A quarantined test that passes shows
 up as XPASS, which is the cue to remove its entry.  Do not add entries without a ROADMAP note.
 """
+import os
 import pytest
 
 BASELINE_QUARANTINE_REASON = (
@@ -45,8 +46,36 @@ BASELINE_QUARANTINE = {
 }
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="Run @pytest.mark.slow tests in addition to the default fast suite.",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "slow: long-running multi-center numerical quadrature or slab embedding tests",
+    )
+
+
 def pytest_collection_modifyitems(config, items):
+    markexpr = (getattr(config.option, "markexpr", "") or "").strip()
+    explicit_slow_expr = ("slow" in markexpr) and ("not slow" not in markexpr)
+    run_slow = (
+        bool(config.getoption("--runslow"))
+        or os.environ.get("PHATPSY_RUN_SLOW", "") == "1"
+        or explicit_slow_expr
+    )
+    skip_slow = pytest.mark.skip(
+        reason="slow numerical quadrature/slab test; pass --runslow or -m slow to run"
+    )
     marker = pytest.mark.xfail(reason=BASELINE_QUARANTINE_REASON, strict=False)
     for item in items:
         if item.nodeid in BASELINE_QUARANTINE:
             item.add_marker(marker)
+        if not run_slow and "slow" in item.keywords:
+            item.add_marker(skip_slow)

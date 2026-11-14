@@ -346,6 +346,7 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
             "spin": a.spin or ("down" if a.spin_flip else "none"),
             "fixed": a.fixed,
             "virtual": a.virtual,
+            "active": getattr(a, "is_active", getattr(a, "active", True)),
             "symmetry": sym_dict,
         })
 
@@ -362,6 +363,8 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
     n_down = sum(1 for a in atoms if a.is_spin_down)
     n_virt = sum(1 for a in atoms if a.virtual)
     n_fixed = sum(1 for a in atoms if a.fixed)
+    n_act = sum(1 for a in atoms if getattr(a, "is_active", getattr(a, "active", True)) and not a.virtual)
+    n_spec = sum(1 for a in atoms if not getattr(a, "is_active", getattr(a, "active", True)) and not a.virtual)
 
     return {
         "title": title,
@@ -377,6 +380,8 @@ def generate_visualization_data(deck_or_atoms: Any) -> Dict[str, Any]:
             "spin_down": n_down,
             "virtual": n_virt,
             "fixed": n_fixed,
+            "active_atoms": n_act,
+            "spectator_atoms": n_spec,
         }
     }
 
@@ -1059,6 +1064,8 @@ def generate_html(
       <span id="badge-stat-down" class="badge badge-orange" style="{'display: inline-flex;' if data['stats'].get('spin_down', 0) > 0 else 'display: none;'}">Spin Down &darr;: <span id="val-stat-down">{data['stats'].get('spin_down', 0)}</span></span>
       <span id="badge-stat-virt" class="badge badge-violet" style="{'display: inline-flex;' if data['stats'].get('virtual', 0) > 0 else 'display: none;'}">Virtual: <span id="val-stat-virt">{data['stats'].get('virtual', 0)}</span></span>
       <span id="badge-stat-fixed" class="badge badge-gray" style="{'display: inline-flex;' if data['stats'].get('fixed', 0) > 0 else 'display: none;'}">Fixed: <span id="val-stat-fixed">{data['stats'].get('fixed', 0)}</span></span>
+      {f'<span class="badge badge-violet">Method: {data.get("control", {}).get("method", "phatpsy_scf")} ({data.get("control", {}).get("domain_mode", "bond_local")})</span>' if data.get("control", {}).get("method") in ("localized_vb", "masked_vb") else ''}
+      {f'<span class="badge badge-blue">Active / Spectator: {data["stats"].get("active_atoms", data["stats"]["total_atoms"])} / {data["stats"].get("spectator_atoms", 0)}</span>' if (data["stats"].get("spectator_atoms", 0) > 0 or data.get("control", {}).get("method") in ("localized_vb", "masked_vb")) else ''}
     </div>
     
     <div class="controls">
@@ -1074,6 +1081,15 @@ def generate_html(
         <label><input type="checkbox" id="toggle-wireframe"> Wireframe Mode</label>
       </div>
       ''' if data.get('surfaces') else ''}
+      {f'''
+      <div id="vb-orbital-list" style="margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; max-height: 140px; overflow-y: auto;">
+        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 4px; font-weight: 600;">Localized VB Orbitals (&plusmn; phase)</div>
+        {''.join(
+            f'<div class="control-row" style="margin-bottom:2px;"><label style="font-size:0.73rem;"><input type="checkbox" class="vb-orb-toggle" data-orbital-idx="{item["index"]}" {"checked" if item.get("visible", True) else ""}> {item["label"]}</label></div>'
+            for item in data.get("vb_orbital_items", [])
+        )}
+      </div>
+      ''' if data.get('vb_orbital_items') else ''}
       {f'''
       <div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px;">
         <div style="font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px; display: flex; justify-content: space-between;">
@@ -1224,6 +1240,14 @@ def generate_html(
           wireframe: true,
           transparent: true,
           opacity: 0.45,
+        }});
+      }} else if (a.active === false) {{
+        mat = new THREE.MeshStandardMaterial({{
+          color: 0x64748b,
+          transparent: true,
+          opacity: 0.45,
+          roughness: 0.7,
+          metalness: 0.1,
         }});
       }} else {{
         const isUp = (a.spin === 'up');
@@ -1431,6 +1455,8 @@ def generate_html(
 
         const mesh = new THREE.Mesh(geom, mat);
         mesh.name = s.name;
+        mesh.userData = {{ orbital_index: s.orbital_index }};
+        if (s.visible === false) mesh.visible = false;
         surfaceGroup.add(mesh);
       }});
     }}
@@ -1570,6 +1596,18 @@ def generate_html(
     if (elToggleWireframe) elToggleWireframe.addEventListener('change', (e) => {{
       surfaceGroup.traverse(child => {{
         if (child.isMesh && child.material) child.material.wireframe = e.target.checked;
+      }});
+    }});
+
+    document.querySelectorAll('.vb-orb-toggle').forEach(cb => {{
+      cb.addEventListener('change', (e) => {{
+        const idx = parseInt(e.target.getAttribute('data-orbital-idx'), 10);
+        const show = e.target.checked;
+        surfaceGroup.children.forEach(mesh => {{
+          if (mesh.userData && mesh.userData.orbital_index === idx) {{
+            mesh.visible = show;
+          }}
+        }});
       }});
     }});
 
@@ -7217,7 +7255,7 @@ def show_assembler(assembler: Any, height: int = 600, in_browser: bool = False):
             f.write(generate_assembler_html(assembler))
             tmp_path = f.name
         try:
-            webbrowser.open(f"file://{{tmp_path}}")
+            webbrowser.open(f"file://{tmp_path}")
             return badge_msg
         except Exception:
             return badge_msg
@@ -7232,14 +7270,1312 @@ def show_assembler(assembler: Any, height: int = 600, in_browser: bool = False):
             escaped_html = html.escape(html_code, quote=True)
             iframe_html = (
                 f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'
-                f'<iframe srcdoc="{{escaped_html}}" width="100%" height="{{height}}" '
+                f'<iframe srcdoc="{escaped_html}" width="100%" height="{height}" '
                 f'sandbox="allow-scripts allow-same-origin allow-popups" '
-                f'style="border:none; width:100%; height:{{height}}px; display:block; background:#0f172a;"></iframe>'
+                f'style="border:none; width:100%; height:{height}px; display:block; background:#0f172a;"></iframe>'
                 f'</div>'
             )
             return HTML(iframe_html)
     except ImportError:
         return badge_msg
+
+
+def generate_vb_orbitals_visualization_data(
+    calculation_results: Union[Dict[str, Any], Any],
+    orbital_indices: Optional[Sequence[int]] = None,
+    orthonormal: bool = False,
+    isovalue: float = 0.05,
+    spacing: float = 0.25,
+    padding: float = 4.0,
+    title: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Build structured JSON mesh data (+/- phase lobes) for Localized VB orbitals.
+    """
+    import numpy as np
+    from phatpsy.volumetric import compute_vb_orbital_grid
+
+    res = calculation_results
+    vb_orbs = res.get("localized_orbitals")
+    if vb_orbs is None or len(vb_orbs) == 0:
+        raise ValueError("calculation_results must include 'localized_orbitals'.")
+    vb_arr = np.asarray(vb_orbs, dtype=float)
+    n_vb = vb_arr.shape[0]
+    roles = res.get("vb_roles") or [f"vb-{i + 1}" for i in range(n_vb)]
+    oac_map = res.get("own_atom_character") or {}
+    binfo = res.get("basis_info") or {}
+    iatomx = binfo.get("iatomx")
+    deck = res.get("deck") or getattr(calculation_results, "deck", None)
+
+    coords = np.asarray(res["atom_coordinates"], dtype=float)
+    natom = coords.shape[1]
+    atoms_list = []
+    if deck is not None and hasattr(deck, "geometry"):
+        deck_vis = generate_visualization_data(deck)
+        atom_data = deck_vis["atoms"]
+        bond_data = deck_vis["bonds"]
+        stats_base = deck_vis["stats"]
+        control_dict = deck_vis.get("control", {})
+    else:
+        for idx in range(natom):
+            elem = f"Z{int(round(res['atom_charges'][0, idx]))}" if "atom_charges" in res else "X"
+            atoms_list.append(AtomConfig(id=f"{elem}{idx + 1}", element=elem, xyz=coords[:, idx].tolist()))
+        deck_vis = generate_visualization_data(atoms_list)
+        atom_data = deck_vis["atoms"]
+        bond_data = deck_vis["bonds"]
+        stats_base = deck_vis["stats"]
+        control_dict = {
+            "method": res.get("method", "localized_vb"),
+            "domain_mode": res.get("domain_mode", "bond_local"),
+        }
+
+    # Precompute 1-based orbital selection and per-orbital own-atom character label
+    if orbital_indices is None:
+        roles_lower = [
+            str(roles[k] if k < len(roles) else f"vb-{k + 1}").strip().lower()
+            for k in range(n_vb)
+        ]
+        has_inactive = any(r == "inactive" for r in roles_lower)
+        has_active = any(r != "inactive" for r in roles_lower)
+        if has_inactive and has_active:
+            visible_set = {k + 1 for k, r in enumerate(roles_lower) if r != "inactive"}
+        else:
+            visible_set = set(range(1, n_vb + 1))
+    else:
+        visible_set = {int(i) for i in orbital_indices}
+    iso = abs(float(isovalue))
+    surfaces = []
+    orbital_items = []
+    orbital_labels = []
+
+    for orb_1 in range(1, n_vb + 1):
+        k = orb_1 - 1
+        role = roles[k] if k < len(roles) else f"vb-{orb_1}"
+        # Identify dominant atom and retrieve own-atom character summary if available
+        dom_aid = ""
+        oac_suffix = ""
+        if iatomx is not None and k < vb_arr.shape[0]:
+            dom_ao = int(np.argmax(np.abs(vb_arr[k])))
+            ia0 = int(iatomx[dom_ao]) - 1
+            if 0 <= ia0 < len(atom_data):
+                dom_aid = atom_data[ia0].get("id", f"A{ia0 + 1}")
+                atom_oacs = oac_map.get(dom_aid)
+                if atom_oacs:
+                    oac_suffix = f", own-atom={float(np.mean(atom_oacs)):.3f}"
+        loc_tag = f" ({dom_aid}{oac_suffix})" if dom_aid else (f" ({oac_suffix.lstrip(', ')})" if oac_suffix else "")
+        label = f"#{orb_1} {role}{loc_tag}"
+        is_vis = orb_1 in visible_set
+        orbital_labels.append(label)
+        orbital_items.append({"index": k, "label": label, "role": str(role), "visible": is_vis})
+
+        grid = compute_vb_orbital_grid(
+            res,
+            orbital_index=orb_1,
+            orthonormal=orthonormal,
+            spacing=spacing,
+            padding=padding,
+        )
+        mesh_pos = grid.extract_isosurface(+iso)
+        if len(mesh_pos["vertices"]) > 0:
+            surfaces.append({
+                "name": f"{label} (+{iso:.3f})",
+                "orbital_index": k,
+                "visible": is_vis,
+                "isovalue": +iso,
+                "color": "#00e5ff",
+                "opacity": 0.75,
+                "vertices": np.round(mesh_pos["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
+                "faces": mesh_pos["faces"].tolist(),
+                "normals": np.round(mesh_pos["normals"], 2).tolist(),
+                "colors": None,
+            })
+        mesh_neg = grid.extract_isosurface(-iso)
+        if len(mesh_neg["vertices"]) > 0:
+            surfaces.append({
+                "name": f"{label} (-{iso:.3f})",
+                "orbital_index": k,
+                "visible": is_vis,
+                "isovalue": -iso,
+                "color": "#ff9100",
+                "opacity": 0.75,
+                "vertices": np.round(mesh_neg["vertices"] / BOHR_PER_ANGSTROM, 3).tolist(),
+                "faces": mesh_neg["faces"].tolist(),
+                "normals": np.round(mesh_neg["normals"], 2).tolist(),
+                "colors": None,
+            })
+
+    stats = dict(stats_base)
+    stats["surfaces"] = len(surfaces)
+    return {
+        "title": title or f"PHATPSY Localized VB Orbitals ({res.get('domain_mode', 'bond_local')})",
+        "field_type": "orbital",
+        "isovalue": iso,
+        "has_property": False,
+        "atoms": atom_data,
+        "bonds": bond_data,
+        "control": control_dict,
+        "surfaces": surfaces,
+        "symmetry_planes": [],
+        "symmetry_axes": [],
+        "inversion_centers": [],
+        "stats": stats,
+        "orbital_labels": orbital_labels,
+        "vb_orbital_items": orbital_items,
+    }
+
+
+def visualize_vb_orbitals(
+    calculation_results: Union[Dict[str, Any], Any],
+    orbital_indices: Optional[Sequence[int]] = None,
+    orthonormal: bool = False,
+    isovalue: float = 0.05,
+    spacing: float = 0.25,
+    padding: float = 4.0,
+    output_path: Optional[Union[str, Path]] = None,
+    auto_open: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Render an interactive 3D WebGL viewer of localized VB orbitals (+/- phases)
+    with per-orbital toggle checkboxes labeled by role and own-atom character.
+    """
+    data = generate_vb_orbitals_visualization_data(
+        calculation_results=calculation_results,
+        orbital_indices=orbital_indices,
+        orthonormal=orthonormal,
+        isovalue=isovalue,
+        spacing=spacing,
+        padding=padding,
+        title=title,
+    )
+    html_content = generate_html(data, title=data["title"])
+    if output_path:
+        out_file = Path(output_path)
+    elif auto_open:
+        out_file = Path(tempfile.gettempdir()) / "phatpsy_vb_orbitals.html"
+    else:
+        out_file = None
+
+    if out_file:
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(html_content, encoding="utf-8")
+        if auto_open:
+            webbrowser.open(out_file.resolve().as_uri())
+
+    return html_content
+
+
+_VB_ORBITALS_INLINE_SCRIPT_TEMPLATE = r"""
+<script>
+(function() {
+  var UID = "__UID__";
+  var DEFAULT_HEIGHT = __HEIGHT__;
+  var MOL_DATA = __PAYLOAD__;
+
+  var root = document.getElementById(UID + "_root");
+  var canvas = document.getElementById(UID + "_canvas");
+  var hud = document.getElementById(UID + "_hud");
+  if (!root || !canvas || !hud) return;
+
+  var backendBadge = document.getElementById(UID + "_backend");
+  var toggleSurf = document.getElementById(UID + "_toggle_surf");
+  var opacitySlider = document.getElementById(UID + "_opacity");
+  var opacityVal = document.getElementById(UID + "_opac_val");
+  var toggleWire = document.getElementById(UID + "_toggle_wire");
+  var toggleBonds = document.getElementById(UID + "_toggle_bonds");
+  var toggleLabels = document.getElementById(UID + "_toggle_labels");
+  var btnReset = document.getElementById(UID + "_btn_reset");
+  var btnAll = document.getElementById(UID + "_btn_all");
+  var btnActive = document.getElementById(UID + "_btn_active");
+  var btnNone = document.getElementById(UID + "_btn_none");
+
+  var atoms = MOL_DATA.atoms || [];
+  var bonds = MOL_DATA.bonds || [];
+  var rawSurfaces = MOL_DATA.surfaces || [];
+  var orbitalItems = MOL_DATA.vb_orbital_items || [];
+
+  var orbVisible = {};
+  for (var i = 0; i < orbitalItems.length; i++) {
+    orbVisible[orbitalItems[i].index] = (orbitalItems[i].visible !== false);
+  }
+
+  // Center coordinates around atomic centroid
+  var cx = 0, cy = 0, cz = 0;
+  if (atoms.length > 0) {
+    for (var i = 0; i < atoms.length; i++) {
+      cx += atoms[i].x || 0;
+      cy += atoms[i].y || 0;
+      cz += atoms[i].z || 0;
+    }
+    cx /= atoms.length;
+    cy /= atoms.length;
+    cz /= atoms.length;
+  }
+
+  var maxDist = 2.6;
+  for (var i = 0; i < atoms.length; i++) {
+    var dx = (atoms[i].x || 0) - cx;
+    var dy = (atoms[i].y || 0) - cy;
+    var dz = (atoms[i].z || 0) - cz;
+    var da = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.6;
+    if (da > maxDist) maxDist = da;
+  }
+  for (var si = 0; si < rawSurfaces.length; si++) {
+    var sv = rawSurfaces[si].vertices || [];
+    var step = Math.max(1, Math.floor(sv.length / 200));
+    for (var vi = 0; vi < sv.length; vi += step) {
+      var vx = sv[vi][0] - cx;
+      var vy = sv[vi][1] - cy;
+      var vz = sv[vi][2] - cz;
+      var dv = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (dv > maxDist) maxDist = dv;
+    }
+  }
+
+  var defaultYaw = 0.55;
+  var defaultPitch = 0.35;
+  var defaultDist = Math.max(5.5, maxDist * 3.6);
+  var rotY = defaultYaw;
+  var rotX = defaultPitch;
+  var camDist = defaultDist;
+  var panX = 0.0;
+  var panY = 0.0;
+
+  var showSurfaces = toggleSurf ? !!toggleSurf.checked : true;
+  var surfaceOpacity = opacitySlider ? parseFloat(opacitySlider.value) : 0.72;
+  var wireframe = toggleWire ? !!toggleWire.checked : false;
+  var showBonds = toggleBonds ? !!toggleBonds.checked : true;
+  var showLabels = toggleLabels ? !!toggleLabels.checked : true;
+  var dirty = true;
+
+  function hexToRgb01(hex) {
+    if (!hex || typeof hex !== "string") return [0.22, 0.74, 0.97];
+    var h = hex.replace("#", "");
+    if (h.length === 3) {
+      h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return [0.22, 0.74, 0.97];
+    return [((n >> 16) & 255) / 255.0, ((n >> 8) & 255) / 255.0, (n & 255) / 255.0];
+  }
+
+  // Column-major 4x4 matrix math
+  function mat4Identity() {
+    var m = new Float32Array(16);
+    m[0] = 1; m[5] = 1; m[10] = 1; m[15] = 1;
+    return m;
+  }
+
+  function mat4Perspective(fovyRad, aspect, near, far) {
+    var f = 1.0 / Math.tan(fovyRad * 0.5);
+    var nf = 1.0 / (near - far);
+    var m = new Float32Array(16);
+    m[0] = f / Math.max(0.05, aspect);
+    m[5] = f;
+    m[10] = (far + near) * nf;
+    m[11] = -1.0;
+    m[14] = 2.0 * far * near * nf;
+    return m;
+  }
+
+  function mat4Mul(a, b) {
+    var out = new Float32Array(16);
+    for (var col = 0; col < 4; col++) {
+      var b0 = b[col * 4], b1 = b[col * 4 + 1], b2 = b[col * 4 + 2], b3 = b[col * 4 + 3];
+      out[col * 4]     = a[0] * b0 + a[4] * b1 + a[8]  * b2 + a[12] * b3;
+      out[col * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9]  * b2 + a[13] * b3;
+      out[col * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+      out[col * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+    }
+    return out;
+  }
+
+  function mat4View(yaw, pitch, dist, px, py) {
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    var cxv = Math.cos(pitch), sx = Math.sin(pitch);
+    // R = R_x(pitch) * R_y(yaw)
+    var m = new Float32Array(16);
+    m[0] = cy;        m[1] = sx * sy;  m[2] = -cxv * sy; m[3] = 0;
+    m[4] = 0;         m[5] = cxv;      m[6] = sx;        m[7] = 0;
+    m[8] = sy;        m[9] = -sx * cy; m[10] = cxv * cy; m[11] = 0;
+    m[12] = -px;      m[13] = -py;     m[14] = -dist;    m[15] = 1;
+    return m;
+  }
+
+  function mat4FromTRS(tx, ty, tz, rx, ry, rz, ux, uy, uz, sValX, sValY, sValZ) {
+    // Basis vectors rx, ry, rz (unit orthogonal axes scaled by sValX, sValY, sValZ) and translation
+    var m = new Float32Array(16);
+    m[0] = rx * sValX; m[1] = ry * sValX; m[2] = rz * sValX; m[3] = 0;
+    m[4] = ux * sValY; m[5] = uy * sValY; m[6] = uz * sValY; m[7] = 0;
+    var bx = ry * uz - rz * uy;
+    var by = rz * ux - rx * uz;
+    var bz = rx * uy - ry * ux;
+    m[8]  = bx * sValZ; m[9]  = by * sValZ; m[10] = bz * sValZ; m[11] = 0;
+    m[12] = tx;         m[13] = ty;         m[14] = tz;         m[15] = 1;
+    return m;
+  }
+
+  function mat4UniformScaleTranslate(tx, ty, tz, s) {
+    var m = new Float32Array(16);
+    m[0] = s;  m[5] = s;  m[10] = s; m[15] = 1;
+    m[12] = tx; m[13] = ty; m[14] = tz;
+    return m;
+  }
+
+  function mat3NormalFromMat4(m) {
+    var a00 = m[0], a10 = m[1], a20 = m[2];
+    var a01 = m[4], a11 = m[5], a21 = m[6];
+    var a02 = m[8], a12 = m[9], a22 = m[10];
+    var c00 = a11 * a22 - a12 * a21;
+    var c01 = a12 * a20 - a10 * a22;
+    var c02 = a10 * a21 - a11 * a20;
+    var det = a00 * c00 + a01 * c01 + a02 * c02;
+    var invDet = Math.abs(det) > 1e-10 ? (1.0 / det) : 1.0;
+    var out = new Float32Array(9);
+    out[0] = c00 * invDet;
+    out[1] = (a02 * a21 - a01 * a22) * invDet;
+    out[2] = (a01 * a12 - a02 * a11) * invDet;
+    out[3] = c01 * invDet;
+    out[4] = (a00 * a22 - a02 * a20) * invDet;
+    out[5] = (a02 * a10 - a00 * a12) * invDet;
+    out[6] = c02 * invDet;
+    out[7] = (a01 * a20 - a00 * a21) * invDet;
+    out[8] = (a00 * a11 - a01 * a10) * invDet;
+    return out;
+  }
+
+  function mulMat4Vec4(m, v) {
+    return [
+      m[0] * v[0] + m[4] * v[1] + m[8]  * v[2] + m[12] * v[3],
+      m[1] * v[0] + m[5] * v[1] + m[9]  * v[2] + m[13] * v[3],
+      m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3],
+      m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3]
+    ];
+  }
+
+  function projectToScreen(x, y, z, viewProj, w, h) {
+    var clip = mulMat4Vec4(viewProj, [x, y, z, 1.0]);
+    if (clip[3] <= 0.05) return null;
+    var nx = clip[0] / clip[3];
+    var ny = clip[1] / clip[3];
+    return [(nx * 0.5 + 0.5) * w, (0.5 - ny * 0.5) * h];
+  }
+
+  // Procedural unit UV sphere (radius 1) and unit Y cylinder (radius 1, height 1)
+  function buildUnitSphere(latBands, lonBands) {
+    var pos = [], norm = [], idx = [];
+    for (var lat = 0; lat <= latBands; lat++) {
+      var theta = (lat * Math.PI) / latBands;
+      var sinT = Math.sin(theta), cosT = Math.cos(theta);
+      for (var lon = 0; lon <= lonBands; lon++) {
+        var phi = (lon * 2.0 * Math.PI) / lonBands;
+        var x = Math.cos(phi) * sinT;
+        var y = cosT;
+        var z = Math.sin(phi) * sinT;
+        pos.push(x, y, z);
+        norm.push(x, y, z);
+      }
+    }
+    for (var lat = 0; lat < latBands; lat++) {
+      for (var lon = 0; lon < lonBands; lon++) {
+        var first = lat * (lonBands + 1) + lon;
+        var second = first + lonBands + 1;
+        idx.push(first, first + 1, second);
+        idx.push(second, first + 1, second + 1);
+      }
+    }
+    return {
+      positions: new Float32Array(pos),
+      normals: new Float32Array(norm),
+      indices: new Uint16Array(idx)
+    };
+  }
+
+  function buildUnitCylinder(segments) {
+    var pos = [], norm = [], idx = [];
+    for (var i = 0; i <= segments; i++) {
+      var phi = (i * 2.0 * Math.PI) / segments;
+      var x = Math.cos(phi), z = Math.sin(phi);
+      pos.push(x, -0.5, z); norm.push(x, 0, z);
+      pos.push(x,  0.5, z); norm.push(x, 0, z);
+    }
+    for (var i = 0; i < segments; i++) {
+      var b0 = i * 2, t0 = b0 + 1, b1 = b0 + 2, t1 = b0 + 3;
+      idx.push(b0, t0, b1);
+      idx.push(t0, t1, b1);
+    }
+    return {
+      positions: new Float32Array(pos),
+      normals: new Float32Array(norm),
+      indices: new Uint16Array(idx)
+    };
+  }
+
+  function buildSurfaceChunks(surface, allowUint32) {
+    var verts = surface.vertices || [];
+    var faces = surface.faces || [];
+    var norms = surface.normals || [];
+    if (verts.length === 0 || faces.length === 0) return [];
+
+    function makeEdges(faceArr, nVerts) {
+      var seen = new Set();
+      var edges = [];
+      var stride = Math.max(nVerts + 1, 100000);
+      for (var i = 0; i < faceArr.length; i += 3) {
+        var pairs = [
+          [faceArr[i], faceArr[i + 1]],
+          [faceArr[i + 1], faceArr[i + 2]],
+          [faceArr[i + 2], faceArr[i]]
+        ];
+        for (var p = 0; p < 3; p++) {
+          var a = pairs[p][0], b = pairs[p][1];
+          if (a === b) continue;
+          var lo = a < b ? a : b;
+          var hi = a < b ? b : a;
+          var key = lo * stride + hi;
+          if (!seen.has(key)) {
+            seen.add(key);
+            edges.push(lo, hi);
+          }
+        }
+      }
+      return edges;
+    }
+
+    var nV = verts.length;
+    if (allowUint32 || nV <= 65532) {
+      var pArr = new Float32Array(nV * 3);
+      var nArr = new Float32Array(nV * 3);
+      var hasN = (norms.length === nV);
+      for (var i = 0; i < nV; i++) {
+        pArr[i * 3]     = verts[i][0] - cx;
+        pArr[i * 3 + 1] = verts[i][1] - cy;
+        pArr[i * 3 + 2] = verts[i][2] - cz;
+        if (hasN) {
+          nArr[i * 3]     = norms[i][0];
+          nArr[i * 3 + 1] = norms[i][1];
+          nArr[i * 3 + 2] = norms[i][2];
+        } else {
+          nArr[i * 3 + 2] = 1.0;
+        }
+      }
+      var fFlat = allowUint32 ? new Uint32Array(faces.length * 3) : new Uint16Array(faces.length * 3);
+      for (var i = 0; i < faces.length; i++) {
+        fFlat[i * 3]     = faces[i][0];
+        fFlat[i * 3 + 1] = faces[i][1];
+        fFlat[i * 3 + 2] = faces[i][2];
+      }
+      var eRaw = makeEdges(fFlat, nV);
+      var eFlat = allowUint32 ? new Uint32Array(eRaw) : new Uint16Array(eRaw);
+      return [{
+        positions: pArr,
+        normals: nArr,
+        indices: fFlat,
+        edges: eFlat,
+        useUint32: !!allowUint32
+      }];
+    }
+
+    // Uint16 fallback with <= 65532 vertices per bucket
+    var chunks = [];
+    var MAX_V = 65532;
+    var remap = new Map();
+    var cPos = [];
+    var cNorm = [];
+    var cIdx = [];
+    var hasN = (norms.length === nV);
+
+    function flushChunk() {
+      if (cIdx.length === 0) return;
+      var eRaw = makeEdges(cIdx, Math.floor(cPos.length / 3));
+      chunks.push({
+        positions: new Float32Array(cPos),
+        normals: new Float32Array(cNorm),
+        indices: new Uint16Array(cIdx),
+        edges: new Uint16Array(eRaw),
+        useUint32: false
+      });
+      remap.clear();
+      cPos = [];
+      cNorm = [];
+      cIdx = [];
+    }
+
+    for (var fi = 0; fi < faces.length; fi++) {
+      var f = faces[fi];
+      var need = 0;
+      for (var k = 0; k < 3; k++) {
+        if (!remap.has(f[k])) need++;
+      }
+      if (Math.floor(cPos.length / 3) + need > MAX_V) {
+        flushChunk();
+      }
+      for (var k = 0; k < 3; k++) {
+        var gi = f[k];
+        var li = remap.get(gi);
+        if (li === undefined) {
+          li = Math.floor(cPos.length / 3);
+          remap.set(gi, li);
+          cPos.push(verts[gi][0] - cx, verts[gi][1] - cy, verts[gi][2] - cz);
+          if (hasN) {
+            cNorm.push(norms[gi][0], norms[gi][1], norms[gi][2]);
+          } else {
+            cNorm.push(0.0, 0.0, 1.0);
+          }
+        }
+        cIdx.push(li);
+      }
+    }
+    flushChunk();
+    return chunks;
+  }
+
+  // Attempt WebGL1 initialization
+  var gl = null;
+  try {
+    var glOpts = { antialias: true, alpha: false, premultipliedAlpha: false };
+    gl = canvas.getContext("webgl", glOpts) || canvas.getContext("experimental-webgl", glOpts);
+  } catch (err) {
+    gl = null;
+  }
+
+  var mode = gl ? "webgl" : "2d";
+  var glState = null;
+
+  if (gl) {
+    var vsSrc = [
+      "attribute vec3 aPos;",
+      "attribute vec3 aNorm;",
+      "uniform mat4 uProj;",
+      "uniform mat4 uView;",
+      "uniform mat4 uModel;",
+      "uniform mat3 uNormalMat;",
+      "varying vec3 vNorm;",
+      "varying vec3 vPosView;",
+      "void main(void) {",
+      "  vec4 pView = uView * uModel * vec4(aPos, 1.0);",
+      "  vPosView = pView.xyz;",
+      "  vNorm = uNormalMat * aNorm;",
+      "  gl_Position = uProj * pView;",
+      "}"
+    ].join("\n");
+
+    var fsSrc = [
+      "precision mediump float;",
+      "uniform vec3 uColor;",
+      "uniform float uAlpha;",
+      "uniform float uFlipNormal;",
+      "uniform float uUnlit;",
+      "varying vec3 vNorm;",
+      "varying vec3 vPosView;",
+      "void main(void) {",
+      "  if (uUnlit > 0.5) {",
+      "    gl_FragColor = vec4(uColor, uAlpha);",
+      "    return;",
+      "  }",
+      "  vec3 n = normalize(vNorm) * uFlipNormal;",
+      "  if (!gl_FrontFacing) n = -n;",
+      "  vec3 v = normalize(-vPosView);",
+      "  if (dot(n, v) < 0.0) n = -n;",
+      "  vec3 l1 = normalize(vec3(0.55, 0.85, 0.70));",
+      "  vec3 l2 = normalize(vec3(-0.70, -0.45, 0.35));",
+      "  float diff1 = max(dot(n, l1), 0.0);",
+      "  float diff2 = max(dot(n, l2), 0.0);",
+      "  vec3 h1 = normalize(l1 + v);",
+      "  float spec = pow(max(dot(n, h1), 0.0), 36.0) * 0.28;",
+      "  float rim = pow(1.0 - max(dot(n, v), 0.0), 2.5) * 0.16;",
+      "  vec3 col = uColor * (0.34 + 0.62 * diff1 + 0.22 * diff2) + vec3(spec) + uColor * rim;",
+      "  gl_FragColor = vec4(col, uAlpha);",
+      "}"
+    ].join("\n");
+
+    function compileShader(type, src) {
+      var sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        return null;
+      }
+      return sh;
+    }
+
+    var vs = compileShader(gl.VERTEX_SHADER, vsSrc);
+    var fs = compileShader(gl.FRAGMENT_SHADER, fsSrc);
+    var prog = (vs && fs) ? gl.createProgram() : null;
+    if (prog) {
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        prog = null;
+      }
+    }
+
+    if (!prog) {
+      gl = null;
+      mode = "2d";
+    } else {
+      var extUint32 = null;
+      try { extUint32 = gl.getExtension("OES_element_index_uint"); } catch (e) { extUint32 = null; }
+      var allowUint32 = !!extUint32;
+
+      function createArrayBuffer(typedArr, target) {
+        var buf = gl.createBuffer();
+        gl.bindBuffer(target, buf);
+        gl.bufferData(target, typedArr, gl.STATIC_DRAW);
+        return buf;
+      }
+
+      var unitSphere = buildUnitSphere(20, 28);
+      var unitCyl = buildUnitCylinder(18);
+      var sphereBuffers = {
+        pos: createArrayBuffer(unitSphere.positions, gl.ARRAY_BUFFER),
+        norm: createArrayBuffer(unitSphere.normals, gl.ARRAY_BUFFER),
+        idx: createArrayBuffer(unitSphere.indices, gl.ELEMENT_ARRAY_BUFFER),
+        count: unitSphere.indices.length
+      };
+      var cylBuffers = {
+        pos: createArrayBuffer(unitCyl.positions, gl.ARRAY_BUFFER),
+        norm: createArrayBuffer(unitCyl.normals, gl.ARRAY_BUFFER),
+        idx: createArrayBuffer(unitCyl.indices, gl.ELEMENT_ARRAY_BUFFER),
+        count: unitCyl.indices.length
+      };
+
+      var glSurfaces = [];
+      for (var si = 0; si < rawSurfaces.length; si++) {
+        var s = rawSurfaces[si];
+        var chunksRaw = buildSurfaceChunks(s, allowUint32);
+        var glChunks = [];
+        for (var ci = 0; ci < chunksRaw.length; ci++) {
+          var ch = chunksRaw[ci];
+          glChunks.push({
+            pos: createArrayBuffer(ch.positions, gl.ARRAY_BUFFER),
+            norm: createArrayBuffer(ch.normals, gl.ARRAY_BUFFER),
+            idx: createArrayBuffer(ch.indices, gl.ELEMENT_ARRAY_BUFFER),
+            edgeIdx: createArrayBuffer(ch.edges, gl.ELEMENT_ARRAY_BUFFER),
+            triCount: ch.indices.length,
+            edgeCount: ch.edges.length,
+            idxType: ch.useUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT
+          });
+        }
+        glSurfaces.push({
+          orbital_index: s.orbital_index,
+          color: hexToRgb01(s.color),
+          chunks: glChunks
+        });
+      }
+
+      glState = {
+        prog: prog,
+        aPos: gl.getAttribLocation(prog, "aPos"),
+        aNorm: gl.getAttribLocation(prog, "aNorm"),
+        uProj: gl.getUniformLocation(prog, "uProj"),
+        uView: gl.getUniformLocation(prog, "uView"),
+        uModel: gl.getUniformLocation(prog, "uModel"),
+        uNormalMat: gl.getUniformLocation(prog, "uNormalMat"),
+        uColor: gl.getUniformLocation(prog, "uColor"),
+        uAlpha: gl.getUniformLocation(prog, "uAlpha"),
+        uFlipNormal: gl.getUniformLocation(prog, "uFlipNormal"),
+        uUnlit: gl.getUniformLocation(prog, "uUnlit"),
+        sphere: sphereBuffers,
+        cyl: cylBuffers,
+        surfaces: glSurfaces
+      };
+    }
+  }
+
+  var ctx2d = (mode === "2d") ? canvas.getContext("2d") : null;
+  if (backendBadge) {
+    backendBadge.textContent = (mode === "webgl") ? "WebGL" : "2D Canvas";
+  }
+
+  function bondModelMatrix(a1, a2) {
+    var p1x = (a1.x || 0) - cx, p1y = (a1.y || 0) - cy, p1z = (a1.z || 0) - cz;
+    var p2x = (a2.x || 0) - cx, p2y = (a2.y || 0) - cy, p2z = (a2.z || 0) - cz;
+    var vx = p2x - p1x, vy = p2y - p1y, vz = p2z - p1z;
+    var dist = Math.sqrt(vx * vx + vy * vy + vz * vz);
+    if (dist < 1e-5) return null;
+    var ux = vx / dist, uy = vy / dist, uz = vz / dist;
+    // Choose stable perpendicular vector for cylinder X-axis
+    var refX = Math.abs(uy) < 0.9 ? 0.0 : 1.0;
+    var refY = Math.abs(uy) < 0.9 ? 1.0 : 0.0;
+    var refZ = 0.0;
+    var rx = uy * refZ - uz * refY;
+    var ry = uz * refX - ux * refZ;
+    var rz = ux * refY - uy * refX;
+    var rLen = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1.0;
+    rx /= rLen; ry /= rLen; rz /= rLen;
+    var mx = 0.5 * (p1x + p2x), my = 0.5 * (p1y + p2y), mz = 0.5 * (p1z + p2z);
+    return mat4FromTRS(mx, my, mz, rx, ry, rz, ux, uy, uz, 0.075, dist, 0.075);
+  }
+
+  function renderWebGL(w, h, viewMat, projMat) {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(15 / 255, 23 / 255, 42 / 255, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.useProgram(glState.prog);
+    gl.enableVertexAttribArray(glState.aPos);
+    gl.enableVertexAttribArray(glState.aNorm);
+    gl.uniformMatrix4fv(glState.uProj, false, projMat);
+    gl.uniformMatrix4fv(glState.uView, false, viewMat);
+    gl.uniform1f(glState.uUnlit, 0.0);
+    gl.uniform1f(glState.uFlipNormal, 1.0);
+
+    var identModel = mat4Identity();
+    var mvIdent = mat4Mul(viewMat, identModel);
+    var nrmIdent = mat3NormalFromMat4(mvIdent);
+
+    function drawMesh(bufs, modelMat, colorRgb, alpha, flipSign, asLines) {
+      var mv = mat4Mul(viewMat, modelMat);
+      gl.uniformMatrix4fv(glState.uModel, false, modelMat);
+      gl.uniformMatrix3fv(glState.uNormalMat, false, mat3NormalFromMat4(mv));
+      gl.uniform3f(glState.uColor, colorRgb[0], colorRgb[1], colorRgb[2]);
+      gl.uniform1f(glState.uAlpha, alpha);
+      gl.uniform1f(glState.uFlipNormal, flipSign);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufs.pos);
+      gl.vertexAttribPointer(glState.aPos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufs.norm);
+      gl.vertexAttribPointer(glState.aNorm, 3, gl.FLOAT, false, 0, 0);
+      if (asLines) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufs.edgeIdx);
+        gl.drawElements(gl.LINES, bufs.edgeCount, bufs.idxType, 0);
+      } else {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufs.idx);
+        gl.drawElements(gl.TRIANGLES, bufs.triCount || bufs.count, bufs.idxType || gl.UNSIGNED_SHORT, 0);
+      }
+    }
+
+    // Pass 1: Opaque active atoms + bonds
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+
+    for (var i = 0; i < atoms.length; i++) {
+      var a = atoms[i];
+      if (a.active === false || a.virtual) continue;
+      var rad = Math.max(0.32, (a.radius || 0.6) * 0.44);
+      var mAtom = mat4UniformScaleTranslate((a.x || 0) - cx, (a.y || 0) - cy, (a.z || 0) - cz, rad);
+      drawMesh(glState.sphere, mAtom, hexToRgb01(a.color), 1.0, 1.0, false);
+    }
+
+    if (showBonds) {
+      for (var bi = 0; bi < bonds.length; bi++) {
+        var pair = bonds[bi];
+        var a1 = atoms[pair[0]], a2 = atoms[pair[1]];
+        if (!a1 || !a2) continue;
+        var mBond = bondModelMatrix(a1, a2);
+        if (mBond) {
+          drawMesh(glState.cyl, mBond, [0.42, 0.48, 0.58], 1.0, 1.0, false);
+        }
+      }
+    }
+
+    // Pass 2: Translucent spectator / virtual atoms
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    for (var i = 0; i < atoms.length; i++) {
+      var a = atoms[i];
+      if (a.active !== false && !a.virtual) continue;
+      var rad = Math.max(0.30, (a.radius || 0.6) * 0.42);
+      var col = a.virtual ? [0.75, 0.52, 0.99] : [0.39, 0.45, 0.55];
+      var mAtom = mat4UniformScaleTranslate((a.x || 0) - cx, (a.y || 0) - cy, (a.z || 0) - cz, rad);
+      drawMesh(glState.sphere, mAtom, col, 0.46, 1.0, false);
+    }
+
+    // Pass 3: Translucent localized VB orbital isosurfaces
+    if (showSurfaces) {
+      gl.uniformMatrix4fv(glState.uModel, false, identModel);
+      gl.uniformMatrix3fv(glState.uNormalMat, false, nrmIdent);
+
+      for (var si = 0; si < glState.surfaces.length; si++) {
+        var s = glState.surfaces[si];
+        if (!orbVisible[s.orbital_index]) continue;
+
+        if (wireframe) {
+          gl.disable(gl.CULL_FACE);
+          gl.uniform1f(glState.uUnlit, 1.0);
+          gl.uniform3f(glState.uColor, s.color[0], s.color[1], s.color[2]);
+          gl.uniform1f(glState.uAlpha, Math.max(0.28, surfaceOpacity));
+          for (var ci = 0; ci < s.chunks.length; ci++) {
+            var ch = s.chunks[ci];
+            gl.bindBuffer(gl.ARRAY_BUFFER, ch.pos);
+            gl.vertexAttribPointer(glState.aPos, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, ch.norm);
+            gl.vertexAttribPointer(glState.aNorm, 3, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ch.edgeIdx);
+            gl.drawElements(gl.LINES, ch.edgeCount, ch.idxType, 0);
+          }
+          gl.uniform1f(glState.uUnlit, 0.0);
+        } else {
+          gl.enable(gl.CULL_FACE);
+          gl.uniform3f(glState.uColor, s.color[0], s.color[1], s.color[2]);
+          gl.uniform1f(glState.uAlpha, surfaceOpacity);
+          for (var pass = 0; pass < 2; pass++) {
+            gl.cullFace(pass === 0 ? gl.FRONT : gl.BACK);
+            gl.uniform1f(glState.uFlipNormal, pass === 0 ? -1.0 : 1.0);
+            for (var ci = 0; ci < s.chunks.length; ci++) {
+              var ch = s.chunks[ci];
+              gl.bindBuffer(gl.ARRAY_BUFFER, ch.pos);
+              gl.vertexAttribPointer(glState.aPos, 3, gl.FLOAT, false, 0, 0);
+              gl.bindBuffer(gl.ARRAY_BUFFER, ch.norm);
+              gl.vertexAttribPointer(glState.aNorm, 3, gl.FLOAT, false, 0, 0);
+              gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ch.idx);
+              gl.drawElements(gl.TRIANGLES, ch.triCount, ch.idxType, 0);
+            }
+          }
+        }
+      }
+    }
+
+    gl.disable(gl.CULL_FACE);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  function render2DFallback(w, h, dpr, viewMat, viewProj) {
+    if (!ctx2d) return;
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx2d.fillStyle = "#0f172a";
+    ctx2d.fillRect(0, 0, w, h);
+
+    var drawQueue = [];
+    var focalPx = 0.5 * h / Math.tan(42.0 * Math.PI / 360.0);
+
+    // Project atoms
+    var atomProj = [];
+    for (var i = 0; i < atoms.length; i++) {
+      var a = atoms[i];
+      var ax = (a.x || 0) - cx, ay = (a.y || 0) - cy, az = (a.z || 0) - cz;
+      var pv = mulMat4Vec4(viewMat, [ax, ay, az, 1.0]);
+      var sc = projectToScreen(ax, ay, az, viewProj, w, h);
+      var rad = Math.max(0.32, (a.radius || 0.6) * 0.44);
+      var pr = sc ? Math.max(5, (rad * focalPx) / Math.max(0.4, -pv[2])) : 0;
+      atomProj.push({ sc: sc, z: pv[2], r: pr, atom: a });
+      if (sc) {
+        drawQueue.push({ type: "atom", z: pv[2], item: atomProj[i] });
+      }
+    }
+
+    // Bonds
+    if (showBonds) {
+      for (var bi = 0; bi < bonds.length; bi++) {
+        var pair = bonds[bi];
+        var p1 = atomProj[pair[0]], p2 = atomProj[pair[1]];
+        if (!p1 || !p2 || !p1.sc || !p2.sc) continue;
+        drawQueue.push({
+          type: "bond",
+          z: 0.5 * (p1.z + p2.z),
+          p1: p1,
+          p2: p2
+        });
+      }
+    }
+
+    // Surfaces (projected triangles)
+    if (showSurfaces) {
+      for (var si = 0; si < rawSurfaces.length; si++) {
+        var s = rawSurfaces[si];
+        if (!orbVisible[s.orbital_index]) continue;
+        var verts = s.vertices || [];
+        var faces = s.faces || [];
+        if (verts.length === 0 || faces.length === 0) continue;
+        var rgb = hexToRgb01(s.color);
+        var projV = new Array(verts.length);
+        for (var vi = 0; vi < verts.length; vi++) {
+          var vx = verts[vi][0] - cx, vy = verts[vi][1] - cy, vz = verts[vi][2] - cz;
+          var pv = mulMat4Vec4(viewMat, [vx, vy, vz, 1.0]);
+          var sc = projectToScreen(vx, vy, vz, viewProj, w, h);
+          projV[vi] = sc ? [sc[0], sc[1], pv[2], pv[0], pv[1]] : null;
+        }
+        for (var fi = 0; fi < faces.length; fi++) {
+          var f = faces[fi];
+          var a = projV[f[0]], b = projV[f[1]], c = projV[f[2]];
+          if (!a || !b || !c) continue;
+          var zAvg = (a[2] + b[2] + c[2]) / 3.0;
+          var e1x = b[3] - a[3], e1y = b[4] - a[4], e1z = b[2] - a[2];
+          var e2x = c[3] - a[3], e2y = c[4] - a[4], e2z = c[2] - a[2];
+          var nx = e1y * e2z - e1z * e2y;
+          var ny = e1z * e2x - e1x * e2z;
+          var nz = e1x * e2y - e1y * e2x;
+          var nLen = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1.0;
+          if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+          var diff = Math.max(0, (nx * 0.55 + ny * 0.85 + nz * 0.70) / (nLen * 1.23));
+          var shade = 0.38 + 0.62 * diff;
+          drawQueue.push({
+            type: "tri",
+            z: zAvg,
+            a: a,
+            b: b,
+            c: c,
+            r: Math.min(255, Math.round(rgb[0] * 255 * shade)),
+            g: Math.min(255, Math.round(rgb[1] * 255 * shade)),
+            bcol: Math.min(255, Math.round(rgb[2] * 255 * shade)),
+            baseRgb: rgb
+          });
+        }
+      }
+    }
+
+    drawQueue.sort(function(u, v) { return u.z - v.z; });
+    for (var qi = 0; qi < drawQueue.length; qi++) {
+      var q = drawQueue[qi];
+      if (q.type === "bond") {
+        ctx2d.strokeStyle = "#64748b";
+        ctx2d.lineWidth = Math.max(2.5, Math.min(9.0, 0.22 * (q.p1.r + q.p2.r)));
+        ctx2d.lineCap = "round";
+        ctx2d.beginPath();
+        ctx2d.moveTo(q.p1.sc[0], q.p1.sc[1]);
+        ctx2d.lineTo(q.p2.sc[0], q.p2.sc[1]);
+        ctx2d.stroke();
+      } else if (q.type === "atom") {
+        var at = q.item.atom, sc = q.item.sc, r = q.item.r;
+        var col = (at.active === false) ? "#64748b" : (at.color || "#94a3b8");
+        var grad = ctx2d.createRadialGradient(sc[0] - r * 0.3, sc[1] - r * 0.3, r * 0.1, sc[0], sc[1], r);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.32, col);
+        grad.addColorStop(1, "#0b1120");
+        ctx2d.save();
+        if (at.active === false || at.virtual) ctx2d.globalAlpha = 0.48;
+        ctx2d.fillStyle = grad;
+        ctx2d.beginPath();
+        ctx2d.arc(sc[0], sc[1], r, 0, Math.PI * 2);
+        ctx2d.fill();
+        ctx2d.restore();
+      } else if (q.type === "tri") {
+        ctx2d.beginPath();
+        ctx2d.moveTo(q.a[0], q.a[1]);
+        ctx2d.lineTo(q.b[0], q.b[1]);
+        ctx2d.lineTo(q.c[0], q.c[1]);
+        ctx2d.closePath();
+        if (wireframe) {
+          ctx2d.strokeStyle = "rgba(" + Math.round(q.baseRgb[0] * 255) + "," + Math.round(q.baseRgb[1] * 255) + "," + Math.round(q.baseRgb[2] * 255) + "," + Math.max(0.3, surfaceOpacity) + ")";
+          ctx2d.lineWidth = 0.8;
+          ctx2d.stroke();
+        } else {
+          ctx2d.fillStyle = "rgba(" + q.r + "," + q.g + "," + q.bcol + "," + surfaceOpacity + ")";
+          ctx2d.fill();
+        }
+      }
+    }
+  }
+
+  function renderHudLabels(w, h, dpr, viewProj) {
+    var hCtx = hud.getContext ? hud.getContext("2d") : null;
+    if (!hCtx) return;
+    hCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hCtx.clearRect(0, 0, w, h);
+    if (!showLabels) return;
+    hCtx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+    hCtx.textAlign = "center";
+    hCtx.textBaseline = "middle";
+    for (var i = 0; i < atoms.length; i++) {
+      var a = atoms[i];
+      var sc = projectToScreen((a.x || 0) - cx, (a.y || 0) - cy, (a.z || 0) - cz, viewProj, w, h);
+      if (!sc) continue;
+      var text = a.id || (a.element + (i + 1));
+      var tw = (hCtx.measureText ? hCtx.measureText(text).width : text.length * 7) + 8;
+      var lx = sc[0], ly = sc[1] - 18;
+      hCtx.fillStyle = "rgba(15, 23, 42, 0.78)";
+      hCtx.fillRect(lx - tw * 0.5, ly - 8, tw, 16);
+      hCtx.fillStyle = (a.active === false) ? "#94a3b8" : "#f8fafc";
+      hCtx.fillText(text, lx, ly);
+    }
+  }
+
+  // Event listeners for UI controls
+  var orbCheckboxes = root.querySelectorAll(".vb-orb-toggle");
+  for (var i = 0; i < orbCheckboxes.length; i++) {
+    orbCheckboxes[i].addEventListener("change", function(e) {
+      var idx = parseInt(e.target.getAttribute("data-orbital-idx"), 10);
+      orbVisible[idx] = !!e.target.checked;
+      dirty = true;
+    });
+  }
+
+  function setOrbitalSelection(modeSel) {
+    for (var i = 0; i < orbCheckboxes.length; i++) {
+      var cb = orbCheckboxes[i];
+      var idx = parseInt(cb.getAttribute("data-orbital-idx"), 10);
+      var role = (cb.getAttribute("data-role") || "").toLowerCase();
+      var vis = (modeSel === "all") ? true : (modeSel === "active" ? (role !== "inactive") : false);
+      cb.checked = vis;
+      orbVisible[idx] = vis;
+    }
+    dirty = true;
+  }
+
+  if (btnAll) btnAll.addEventListener("click", function() { setOrbitalSelection("all"); });
+  if (btnActive) btnActive.addEventListener("click", function() { setOrbitalSelection("active"); });
+  if (btnNone) btnNone.addEventListener("click", function() { setOrbitalSelection("none"); });
+
+  if (toggleSurf) toggleSurf.addEventListener("change", function(e) { showSurfaces = !!e.target.checked; dirty = true; });
+  if (opacitySlider) opacitySlider.addEventListener("input", function(e) {
+    surfaceOpacity = parseFloat(e.target.value);
+    if (opacityVal) opacityVal.textContent = surfaceOpacity.toFixed(2);
+    dirty = true;
+  });
+  if (toggleWire) toggleWire.addEventListener("change", function(e) { wireframe = !!e.target.checked; dirty = true; });
+  if (toggleBonds) toggleBonds.addEventListener("change", function(e) { showBonds = !!e.target.checked; dirty = true; });
+  if (toggleLabels) toggleLabels.addEventListener("change", function(e) { showLabels = !!e.target.checked; dirty = true; });
+  if (btnReset) btnReset.addEventListener("click", function() {
+    rotY = defaultYaw;
+    rotX = defaultPitch;
+    camDist = defaultDist;
+    panX = 0.0;
+    panY = 0.0;
+    dirty = true;
+  });
+
+  // Mouse orbit / pan / zoom
+  var dragMode = null;
+  var lastMouseX = 0, lastMouseY = 0;
+  canvas.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+  canvas.addEventListener("mousedown", function(e) {
+    dragMode = (e.shiftKey || e.button === 2) ? "pan" : "orbit";
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+    canvas.style.cursor = "grabbing";
+  });
+  window.addEventListener("mouseup", function() {
+    dragMode = null;
+    canvas.style.cursor = "grab";
+  });
+  window.addEventListener("mousemove", function(e) {
+    if (!dragMode) return;
+    var dx = e.clientX - lastMouseX;
+    var dy = e.clientY - lastMouseY;
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+    if (dragMode === "orbit") {
+      rotY += dx * 0.009;
+      rotX = Math.max(-1.52, Math.min(1.52, rotX + dy * 0.009));
+    } else {
+      var scalePan = camDist * 0.0018;
+      panX -= dx * scalePan;
+      panY += dy * scalePan;
+    }
+    dirty = true;
+  });
+  canvas.addEventListener("wheel", function(e) {
+    e.preventDefault();
+    var factor = (e.deltaY > 0) ? 1.09 : 0.917;
+    camDist = Math.max(1.2, Math.min(120.0, camDist * factor));
+    dirty = true;
+  }, { passive: false });
+
+  var lastW = 0, lastH = 0, lastDpr = 0;
+  var wasMounted = false;
+  var rafFn = (typeof requestAnimationFrame === "function") ? requestAnimationFrame : null;
+
+  function renderFrame() {
+    var mounted = !document.body || document.body.contains(root);
+    if (mounted) {
+      wasMounted = true;
+    } else if (wasMounted) {
+      return;
+    }
+
+    var w = canvas.clientWidth || root.clientWidth || 760;
+    var h = canvas.clientHeight || root.clientHeight || DEFAULT_HEIGHT;
+    var dpr = (typeof window !== "undefined" && window.devicePixelRatio) ? Math.min(2.0, window.devicePixelRatio) : 1.0;
+
+    if (w > 0 && h > 0 && (w !== lastW || h !== lastH || dpr !== lastDpr)) {
+      lastW = w; lastH = h; lastDpr = dpr;
+      canvas.width = Math.max(1, Math.floor(w * dpr));
+      canvas.height = Math.max(1, Math.floor(h * dpr));
+      hud.width = canvas.width;
+      hud.height = canvas.height;
+      dirty = true;
+    }
+
+    if (dirty && w > 0 && h > 0) {
+      dirty = false;
+      var aspect = w / Math.max(1, h);
+      var projMat = mat4Perspective(42.0 * Math.PI / 180.0, aspect, 0.1, Math.max(200.0, camDist * 6.0));
+      var viewMat = mat4View(rotY, rotX, camDist, panX, panY);
+      var viewProj = mat4Mul(projMat, viewMat);
+
+      if (mode === "webgl" && glState) {
+        renderWebGL(w, h, viewMat, projMat);
+      } else {
+        render2DFallback(w, h, dpr, viewMat, viewProj);
+      }
+      renderHudLabels(w, h, dpr, viewProj);
+    }
+
+    if (rafFn) {
+      rafFn(renderFrame);
+    }
+  }
+
+  renderFrame();
+})();
+</script>
+"""
+
+
+def _generate_vb_orbitals_inline_html(data: Dict[str, Any], height: int = 600) -> str:
+    """
+    Generate a zero-dependency, self-contained inline WebGL1 (+ 2D Canvas fallback)
+    HTML widget for Jupyter/VS Code notebooks without <iframe srcdoc> or external CDNs.
+    """
+    import html
+    import uuid
+
+    uid = f"phatpsy_vborb_{uuid.uuid4().hex[:8]}"
+    payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+
+    title_str = html.escape(str(data.get("title", "PHATPSY Localized VB Orbitals")))
+    stats = data.get("stats") or {}
+    ctrl = data.get("control") or {}
+    total_atoms = int(stats.get("total_atoms", len(data.get("atoms", []))))
+    n_active = int(stats.get("active_atoms", total_atoms))
+    n_spec = int(stats.get("spectator_atoms", 0))
+    method = html.escape(str(ctrl.get("method", "localized_vb")))
+    domain_mode = html.escape(str(ctrl.get("domain_mode", "bond_local")))
+    iso = float(data.get("isovalue", 0.05))
+
+    orbital_rows = []
+    for item in data.get("vb_orbital_items", []):
+        idx = int(item.get("index", 0))
+        role_attr = html.escape(str(item.get("role", "")), quote=True)
+        label = html.escape(str(item.get("label", f"#{idx + 1}")))
+        checked = "checked" if item.get("visible", True) else ""
+        orbital_rows.append(
+            f'<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#e2e8f0;margin:2px 0;cursor:pointer;line-height:1.25;">'
+            f'<input type="checkbox" class="vb-orb-toggle" data-orbital-idx="{idx}" data-role="{role_attr}" {checked} style="accent-color:#38bdf8;cursor:pointer;flex-shrink:0;">'
+            f'<span>{label}</span></label>'
+        )
+    orbital_rows_html = "".join(orbital_rows)
+
+    btn_style = (
+        "background:#1e293b;color:#cbd5e1;border:1px solid rgba(255,255,255,0.18);"
+        "border-radius:4px;padding:1px 6px;font-size:10.5px;font-weight:600;cursor:pointer;"
+    )
+
+    markup = f"""<div id="{uid}_root" style="position:relative;width:100%;height:{int(height)}px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.15);background:radial-gradient(circle at 50% 45%,#1e293b 0%,#0f172a 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f8fafc;user-select:none;">
+  <canvas id="{uid}_canvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;"></canvas>
+  <canvas id="{uid}_hud" style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;"></canvas>
+
+  <div style="position:absolute;top:12px;left:12px;background:rgba(15,23,42,0.86);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:10px 14px;z-index:10;max-width:390px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+      <span style="font-size:13.5px;font-weight:700;color:#38bdf8;">{title_str}</span>
+      <span id="{uid}_backend" style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(56,189,248,0.16);color:#7dd3fc;border:1px solid rgba(56,189,248,0.35);">WebGL</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+      <span style="padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.38);">Total: {total_atoms} Atoms</span>
+      <span style="padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(168,85,247,0.18);color:#c084fc;border:1px solid rgba(168,85,247,0.38);">Method: {method} ({domain_mode})</span>
+      <span style="padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(56,189,248,0.14);color:#7dd3fc;border:1px solid rgba(56,189,248,0.32);">Active / Spectator: {n_active} / {n_spec}</span>
+      <span style="padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.16);color:#fdba74;border:1px solid rgba(249,115,22,0.35);">Iso: &plusmn;{iso:.4f} au</span>
+    </div>
+  </div>
+
+  <div style="position:absolute;top:12px;right:12px;width:270px;background:rgba(15,23,42,0.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:10px 12px;z-index:10;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Localized VB Orbitals</span>
+      <span style="display:flex;gap:3px;">
+        <button type="button" id="{uid}_btn_all" style="{btn_style}">All</button>
+        <button type="button" id="{uid}_btn_active" style="{btn_style}">Active</button>
+        <button type="button" id="{uid}_btn_none" style="{btn_style}">None</button>
+      </span>
+    </div>
+    <div style="max-height:155px;overflow-y:auto;padding-right:4px;margin-bottom:8px;">
+      {orbital_rows_html}
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:7px;display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:#cbd5e1;">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="{uid}_toggle_surf" checked style="accent-color:#38bdf8;cursor:pointer;"> 3D Isosurface Envelope</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <label for="{uid}_opacity" style="white-space:nowrap;">Opacity: <span id="{uid}_opac_val" style="color:#38bdf8;font-weight:600;">0.72</span></label>
+        <input type="range" id="{uid}_opacity" min="0.10" max="1.00" step="0.02" value="0.72" style="width:125px;accent-color:#38bdf8;cursor:pointer;">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="{uid}_toggle_wire" style="accent-color:#38bdf8;cursor:pointer;"> Wireframe Mode</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="{uid}_toggle_bonds" checked style="accent-color:#38bdf8;cursor:pointer;"> Covalent Bonds</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="{uid}_toggle_labels" checked style="accent-color:#38bdf8;cursor:pointer;"> Atom Labels</label>
+      <button type="button" id="{uid}_btn_reset" style="margin-top:2px;background:#1e293b;color:#38bdf8;border:1px solid rgba(56,189,248,0.4);border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;">Reset Camera</button>
+    </div>
+  </div>
+
+  <div style="position:absolute;bottom:12px;left:12px;background:rgba(15,23,42,0.85);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);border-radius:9px;padding:8px 12px;font-size:11.5px;display:flex;flex-direction:column;gap:4px;z-index:10;">
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#00e5ff;box-shadow:0 0 6px #00e5ff;display:inline-block;"></span> <b>Positive Phase (+)</b>: +{iso:.4f} au (Cyan)</div>
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:#ff9100;box-shadow:0 0 6px #ff9100;display:inline-block;"></span> <b>Negative Phase (-)</b>: &minus;{iso:.4f} au (Orange)</div>
+    <div style="font-size:10.5px;color:#94a3b8;margin-top:1px;">Drag: Orbit &middot; Shift/Right-Drag: Pan &middot; Scroll: Zoom</div>
+  </div>
+</div>"""
+
+    script = (
+        _VB_ORBITALS_INLINE_SCRIPT_TEMPLATE
+        .replace("__UID__", uid)
+        .replace("__HEIGHT__", str(int(height)))
+        .replace("__PAYLOAD__", payload)
+    )
+    return markup + script
+
+
+def show_vb_orbitals(
+    calculation_results: Union[Dict[str, Any], Any],
+    orbital_indices: Optional[Sequence[int]] = None,
+    orthonormal: bool = False,
+    isovalue: float = 0.05,
+    spacing: float = 0.25,
+    padding: float = 4.0,
+    height: int = 600,
+    in_browser: bool = False,
+    title: Optional[str] = None,
+) -> Any:
+    """
+    Display interactive 3D Localized VB orbitals inline in a Jupyter notebook or browser.
+    """
+    if in_browser:
+        visualize_vb_orbitals(
+            calculation_results=calculation_results,
+            orbital_indices=orbital_indices,
+            orthonormal=orthonormal,
+            isovalue=isovalue,
+            spacing=spacing,
+            padding=padding,
+            auto_open=True,
+            title=title,
+        )
+        badge_msg = "PHATPSY 3D Localized VB Orbitals launched in browser."
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+                from IPython.display import HTML
+                return HTML(
+                    '<div style="padding:10px 16px; background:rgba(56,189,248,0.12); '
+                    'border:1px solid rgba(56,189,248,0.35); border-radius:6px; '
+                    'color:#38bdf8; font-family:sans-serif; font-size:13px; display:inline-flex; align-items:center; gap:8px;">'
+                    '<span>🌐</span> <span>Opened 3D Localized VB Orbitals in default web browser.</span>'
+                    '</div>'
+                )
+        except ImportError:
+            return badge_msg
+
+    data = generate_vb_orbitals_visualization_data(
+        calculation_results=calculation_results,
+        orbital_indices=orbital_indices,
+        orthonormal=orthonormal,
+        isovalue=isovalue,
+        spacing=spacing,
+        padding=padding,
+        title=title,
+    )
+    inline_html = _generate_vb_orbitals_inline_html(data, height=height)
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
+            from IPython.display import HTML
+            return HTML(inline_html)
+    except ImportError:
+        return inline_html
+
 
 
 

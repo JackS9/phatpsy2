@@ -169,6 +169,7 @@ def test_md_result_exports_and_visualization(tmp_path):
     assert "BOMD Trajectory" in html_text
 
 
+@pytest.mark.slow
 def test_bomd_n2_nve_trajectory():
     """
     Integration test: run a 2-step NVE Born-Oppenheimer MD on N2 with symmetry.
@@ -206,6 +207,7 @@ def test_bomd_n2_nve_trajectory():
         assert 1.9 < s.virial_ratio < 2.1
 
 
+@pytest.mark.slow
 def test_bomd_thermostats():
     """Verify Berendsen and velocity rescaling thermostat operations."""
     deck = build_diatomic("N", "N", bond_length=2.0744, basis="DZ", use_symmetry=False)
