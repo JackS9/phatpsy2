@@ -1,3 +1,8 @@
+# NOTE: This Phase 9 PHATPSY SCF deck places NO at the 1-fold atop site directly above Ni1 (0, 0, 3.40 Bohr).
+# Jack A. Smith's 1978 PhD dissertation (Chapter IX, Tables 7-8) actually examined NO upright (N-down vs O-down)
+# in the 4-fold hollow site of a Ni5 cluster. For active-space LocalizedVB studies of the 4-fold hollow
+# site and dissociation pathway on Ni(100), see examples/NO_Ni100_hollow_Ndown.yaml and
+# notebooks/10_NO_dissociation_and_N2_formation_on_Ni100.ipynb.
 title: NO on Ni(100), R(NO)=2.1747 Bohr, R(NiN)=3.40 Bohr, C4v Top Site
 net_spin: 1
 control:

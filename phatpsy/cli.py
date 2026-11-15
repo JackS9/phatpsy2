@@ -622,12 +622,16 @@ def handle_chemisorption(args):
     if args.scls or args.all:
         scls_res = compute_surface_core_level_shifts(deck, driver=driver)
         res_dict["surface_core_level_shifts"] = scls_res.to_dict()
-        print(f"\n[Surface Core-Level Shifts (SCLS)]")
-        print(f"  Metal surface core-level shift: {scls_res.metal_scls_ev:6.3f} eV (benchmark: [0.2, 0.6] eV)")
-        if scls_res.adsorbate_n1s_be_ev:
-            print(f"  Adsorbate N 1s binding energy:  {scls_res.adsorbate_n1s_be_ev:6.1f} eV (dissertation: 415.5 eV)")
-        if scls_res.adsorbate_o1s_be_ev:
-            print(f"  Adsorbate O 1s binding energy:  {scls_res.adsorbate_o1s_be_ev:6.1f} eV (dissertation: 548.0 eV)")
+        print(f"\n[Surface Core-Level Shifts ({scls_res.method_label})]")
+        print(f"  Metal surface core-level shift: {scls_res.metal_scls_ev:6.3f} eV")
+        print(
+            f"  Note: Koopmans -eps_1s values typically exceed relaxed XPS by "
+            f"~{scls_res.expected_relaxation_offset_ev:.0f} eV."
+        )
+        if scls_res.adsorbate_n1s_be_ev is not None:
+            print(f"  Adsorbate N 1s Koopmans BE:     {scls_res.adsorbate_n1s_be_ev:6.2f} eV")
+        if scls_res.adsorbate_o1s_be_ev is not None:
+            print(f"  Adsorbate O 1s Koopmans BE:     {scls_res.adsorbate_o1s_be_ev:6.2f} eV")
 
     if args.output:
         out_p = Path(args.output)

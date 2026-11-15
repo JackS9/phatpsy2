@@ -297,9 +297,8 @@ def evaluate_no_ni100_benchmark(
     control: Optional[ControlConfig] = None,
 ) -> Dict[str, Any]:
     """
-    Evaluates NO on Ni(100) chemisorption binding energy against Jack A. Smith's
-    1980 PhD dissertation (Chapter IX, Table 8):
-    D_e = 1.0 eV (E_ads = -23.06 kcal/mol = -1.0 eV).
+    Evaluates NO on Ni(100) chemisorption against Jack A. Smith's
+    1978 PhD dissertation (Chapter IX, Tables 7-8) and NIST/surface-science references.
     """
     d = driver or PhatpsyDriver(quiet=True)
     repo_root = Path(__file__).resolve().parent.parent
@@ -311,12 +310,14 @@ def evaluate_no_ni100_benchmark(
     decomp = res.subsystem_decomposition
 
     from phatpsy.chemisorption import (
+        evaluate_chemisorption_energy,
         project_c4v_dband,
         compute_chemisorption_vibrational_shift,
         compute_surface_core_level_shifts,
     )
+    ads = evaluate_chemisorption_energy(res, driver=d, site_name="top")
     c4v = project_c4v_dband(res, atom_id="Ni1")
-    vib = compute_chemisorption_vibrational_shift(deck, driver=d)
+    vib = compute_chemisorption_vibrational_shift(res, driver=d)
     scls = compute_surface_core_level_shifts(res, driver=d)
 
     return {
@@ -326,16 +327,17 @@ def evaluate_no_ni100_benchmark(
         "energy_cluster": float(decomp.energy_cluster),
         "energy_environment": float(decomp.energy_environment),
         "energy_embedding": float(decomp.energy_embedding),
-        "adsorption_energy_ev": -1.0,
-        "adsorption_energy_kcal_mol": -23.06,
+        "adsorption_energy_ev": float(ads.energy_ads_ev),
+        "adsorption_energy_kcal_mol": float(ads.energy_ads_kcal_mol),
         "c4v_dband_total_population": float(c4v.total_d_population),
         "c4v_crystal_field_splitting_ev": float(c4v.crystal_field_splitting_ev),
         "blyholder_ratio": float(c4v.blyholder_ratio),
         "vibrational_frequency_cm": float(vib.nu_ads_cm),
         "vibrational_red_shift_cm": float(vib.delta_nu_cm),
         "metal_scls_ev": float(scls.metal_scls_ev),
-        "adsorbate_n1s_be_ev": float(scls.adsorbate_n1s_be_ev) if scls.adsorbate_n1s_be_ev else None,
-        "adsorbate_o1s_be_ev": float(scls.adsorbate_o1s_be_ev) if scls.adsorbate_o1s_be_ev else None,
+        "adsorbate_n1s_be_ev": float(scls.adsorbate_n1s_be_ev) if scls.adsorbate_n1s_be_ev is not None else None,
+        "adsorbate_o1s_be_ev": float(scls.adsorbate_o1s_be_ev) if scls.adsorbate_o1s_be_ev is not None else None,
+        "core_level_method": scls.method_label,
         "converged": bool(res.converged),
         "cycles": int(res.cycles),
     }

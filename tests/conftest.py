@@ -20,7 +20,6 @@ BASELINE_QUARANTINE_REASON = (
 BASELINE_QUARANTINE = {
     "tests/test_basis_adf.py::test_adf_n2_scf_convergence",
     "tests/test_benchmarks.py::test_n2_benchmark",
-    "tests/test_chemisorption.py::test_chemisorption_adsorption_energy",
     "tests/test_chemisorption.py::test_evaluate_no_ni100_benchmark",
     "tests/test_coords_pes_optimize.py::test_scan_1d_n2_rigid_stretch",
     "tests/test_correlation_and_dispersion.py::test_deck_with_pbe_xc_and_dispersion",

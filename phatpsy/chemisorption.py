@@ -1,8 +1,8 @@
 # phatpsy/chemisorption.py
 """
-Transition-Metal Chemisorption, d-Band Coupling, and Multi-Site Surface Energetics (Phase 9).
+Transition-Metal Chemisorption, d-Band Coupling, and Multi-Site Surface Energetics (Phase 9 / Phase 18).
 
-Modern implementation of Chapter IX of Jack A. Smith's 1980 PhD dissertation:
+Modern implementation of Chapter IX of Jack A. Smith's 1978 PhD dissertation:
 - C4v crystal field d-band manifold projection on transition-metal surface centers:
     a_1 (d_z^2), e (d_xz, d_yz), b_1 (d_x^2-y^2), b_2 (d_xy)
 - Blyholder synergistic sigma-donation and pi-backdonation coupling indices:
@@ -11,13 +11,12 @@ Modern implementation of Chapter IX of Jack A. Smith's 1980 PhD dissertation:
 - Multi-site chemisorption energy evaluation (E_ads) with boundary atom fixation invariant:
     E_ads = E_total(slab + ads) - E_total(clean slab) - E_total(isolated ads)
 - 2D lateral potential energy surface (PES) scan across high-symmetry sites:
-    Top, Bridge, 4-Fold Hollow sites with correct energetic ordering:
-    E_ads(top) < E_ads(bridge) < E_ads(hollow) by > 3 kcal/mol
-- Chemisorption vibrational red-shift evaluation (Delta_nu = nu_ads - nu_gas):
-    Evaluating harmonic vibrational frequencies with fixed substrate boundary atoms.
-- Surface Core-Level Shifts (SCLS):
-    Metal surface vs bulk core eigenvalue shifts Delta E_SCLS in [0.2, 0.6] eV
-    Adsorbate N 1s and O 1s chemical shifts matching dissertation Table 7.
+    Top, Bridge, and 4-Fold Hollow sites evaluated directly on the active PES
+- Chemisorption vibrational shift evaluation (Delta_nu = nu_ads - nu_gas):
+    Harmonic vibrational frequencies computed from potential-energy curvature with fixed substrate atoms
+- Surface Core-Level Shifts (SCLS) and adsorbate 1s spectroscopy:
+    Koopmans-style orbital-energy shifts (expected ~15 eV relaxation offset vs XPS),
+    Mayer bond-order indices, and Bagus/Siegbahn Delta-CASSCF core-hole binding energies.
 """
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -31,7 +30,11 @@ from phatpsy.schema import CalculationDeck, AtomConfig, ControlConfig
 from phatpsy.driver import PhatpsyDriver
 from phatpsy.state import CalculationState, EmbeddedAtomState
 from phatpsy.subsystem import decompose_subsystem_energies, SubsystemDecomposition
-from phatpsy.vibrations import compute_vibrations, VibrationResult
+from phatpsy.vibrations import compute_vibrations, VibrationResult, ATOMIC_MASSES_AMU
+
+AMU_TO_ME: float = 1822.888486209
+HARTREE_TO_CM: float = 219474.63136320
+AU_FORCE_CONST_TO_MDYNE_A: float = 15.56893102
 
 
 # -----------------------------------------------------------------------------
@@ -209,7 +212,10 @@ class VibrationalShiftResult:
 @dataclass
 class SurfaceCoreLevelShifts:
     """
-    Surface core-level shifts (SCLS) and adsorbate chemical shifts.
+    Surface core-level shifts (SCLS) and adsorbate chemical shifts
+    computed from Koopmans-style core orbital eigenvalues (-eps_1s).
+    Note: absolute Koopmans binding energies exceed experimental XPS values
+    by ~15 eV due to core-hole orbital relaxation.
     """
     system_name: str
     metal_scls_ev: float
@@ -218,21 +224,34 @@ class SurfaceCoreLevelShifts:
     adsorbate_n1s_be_ev: Optional[float] = None
     adsorbate_o1s_be_ev: Optional[float] = None
     adsorbate_c1s_be_ev: Optional[float] = None
+    method_label: str = "koopmans_orbital_energy"
+    expected_relaxation_offset_ev: float = 15.0
+    koopmans_ads_1s_be_ev: Dict[str, float] = field(default_factory=dict)
+    koopmans_gas_1s_be_ev: Dict[str, float] = field(default_factory=dict)
+    koopmans_ads_1s_shift_ev: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert SCLS result to dictionary."""
-        d = {
+        d: Dict[str, Any] = {
             "system_name": self.system_name,
+            "method_label": self.method_label,
+            "expected_relaxation_offset_ev": float(self.expected_relaxation_offset_ev),
             "metal_scls_ev": round(float(self.metal_scls_ev), 3),
             "surface_core_level_ev": round(float(self.surface_core_level_ev), 2),
             "bulk_core_level_ev": round(float(self.bulk_core_level_ev), 2),
         }
         if self.adsorbate_n1s_be_ev is not None:
-            d["adsorbate_n1s_be_ev"] = round(float(self.adsorbate_n1s_be_ev), 1)
+            d["adsorbate_n1s_be_ev"] = round(float(self.adsorbate_n1s_be_ev), 2)
         if self.adsorbate_o1s_be_ev is not None:
-            d["adsorbate_o1s_be_ev"] = round(float(self.adsorbate_o1s_be_ev), 1)
+            d["adsorbate_o1s_be_ev"] = round(float(self.adsorbate_o1s_be_ev), 2)
         if self.adsorbate_c1s_be_ev is not None:
-            d["adsorbate_c1s_be_ev"] = round(float(self.adsorbate_c1s_be_ev), 1)
+            d["adsorbate_c1s_be_ev"] = round(float(self.adsorbate_c1s_be_ev), 2)
+        if self.koopmans_ads_1s_be_ev:
+            d["koopmans_ads_1s_be_ev"] = {k: round(float(v), 3) for k, v in self.koopmans_ads_1s_be_ev.items()}
+        if self.koopmans_gas_1s_be_ev:
+            d["koopmans_gas_1s_be_ev"] = {k: round(float(v), 3) for k, v in self.koopmans_gas_1s_be_ev.items()}
+        if self.koopmans_ads_1s_shift_ev:
+            d["koopmans_ads_1s_shift_ev"] = {k: round(float(v), 3) for k, v in self.koopmans_ads_1s_shift_ev.items()}
         return d
 
 
@@ -340,33 +359,66 @@ def project_c4v_dband(
 
     tot_d = pop_a1 + pop_e + pop_b1 + pop_b2
 
-    if np.isnan(tot_d) or tot_d < 1.0:
-        # Fallback to physical unperturbed transition-metal d-manifold
-        pop_a1 = 3.98
-        pop_e = 6.95
-        pop_b1 = 4.00
-        pop_b2 = 4.00
-        spin_a1 = 0.01
-        spin_e = 0.84
-        spin_b1 = 0.0
-        spin_b2 = 0.0
-        tot_d = pop_a1 + pop_e + pop_b1 + pop_b2
+    if np.isnan(tot_d) or tot_d < 1e-6:
+        rdm1_ao = res.get("rdm1_ao")
+        ao_ovlp = res.get("ao_overlap")
+        if rdm1_ao is not None and len(d_indices) > 0:
+            p_arr = np.asarray(rdm1_ao, dtype=float)
+            if p_arr.ndim == 2:
+                pa_mat = 0.5 * p_arr
+                pb_mat = 0.5 * p_arr
+            else:
+                pa_mat = p_arr[0]
+                pb_mat = p_arr[1] if p_arr.shape[0] > 1 else p_arr[0]
+            if ao_ovlp is not None:
+                s_mat = np.asarray(ao_ovlp, dtype=float)
+                evals, evecs = np.linalg.eigh(0.5 * (s_mat + s_mat.T))
+                s_half = (evecs * np.sqrt(np.maximum(evals, 1e-12))) @ evecs.T
+                pa_orth = s_half @ pa_mat @ s_half
+                pb_orth = s_half @ pb_mat @ s_half
+            else:
+                pa_orth = pa_mat
+                pb_orth = pb_mat
+            pop_a1 = pop_e = pop_b1 = pop_b2 = 0.0
+            spin_a1 = spin_e = spin_b1 = spin_b2 = 0.0
+            for idx in d_indices:
+                if idx >= pa_orth.shape[0]:
+                    continue
+                pa = float(pa_orth[idx, idx])
+                pb = float(pb_orth[idx, idx])
+                ptot = pa + pb
+                pdiff = pa - pb
+                ml = int(mlx[idx])
+                if ml == 0:
+                    pop_a1 += ptot
+                    spin_a1 += pdiff
+                elif abs(ml) == 1:
+                    pop_e += ptot
+                    spin_e += pdiff
+                elif ml == 2:
+                    pop_b1 += ptot
+                    spin_b1 += pdiff
+                elif ml == -2:
+                    pop_b2 += ptot
+                    spin_b2 += pdiff
+            tot_d = pop_a1 + pop_e + pop_b1 + pop_b2
 
-    # Crystal field splitting: energy difference between e_g (a1, b1) and t_2g (e, b2)
-    # Average population per spatial orbital:
+    if np.isnan(tot_d) or tot_d < 1e-6:
+        raise ValueError(f"No valid d-orbital population data found for atom '{atom_id}'.")
+
+    # Crystal field splitting and Blyholder indices from computed orbital populations
     eg_pop_avg = (pop_a1 + pop_b1) / 2.0
     t2g_pop_avg = (pop_e / 2.0 + pop_b2) / 2.0
-    cf_splitting_ev = abs(eg_pop_avg - t2g_pop_avg) * 1.5 + 0.45
+    cf_splitting_ev = abs(eg_pop_avg - t2g_pop_avg) * HARTREE_TO_EV / 10.0
 
-    # Blyholder coupling indices
-    # Sigma donation index: electron occupation received along surface normal (a1: dz2)
-    sigma_index = max(0.05, (pop_a1 - 1.90) * 0.5 + 0.12)
-
-    # Pi backdonation index: electron back-donation from surface e manifold into adsorbate
-    # For NO on Ni(100), e-manifold donates into minority 2pi*
-    pi_backdonation_index = max(0.08, (8.0 - pop_e) * 0.25 + 0.18)
-
-    blyholder_ratio = pi_backdonation_index / max(1e-4, sigma_index)
+    # Sigma donation index from departure of a1 (dz2) from nominal d^2 occupation,
+    # and pi backdonation index from holes / depletion in the e (dxz, dyz) manifold.
+    n_radial_d = max(1, len(d_indices) // 5)
+    nom_a1 = 2.0 * n_radial_d
+    nom_e = 4.0 * n_radial_d
+    sigma_index = abs(nom_a1 - pop_a1)
+    pi_backdonation_index = max(0.0, nom_e - pop_e)
+    blyholder_ratio = pi_backdonation_index / sigma_index if sigma_index > 1e-8 else 0.0
 
     return C4vDBandProjection(
         atom_id=atom_id,
@@ -387,6 +439,85 @@ def project_c4v_dband(
     )
 
 
+_ADSORBATE_ELEMENTS = {"C", "N", "O", "H", "S", "Cl"}
+_DEFAULT_ATOMIC_NUMBERS = {"H": 1, "C": 6, "N": 7, "O": 8, "S": 16, "Cl": 17, "Ni": 28}
+
+
+def _resolve_state_or_deck(
+    item: Union[CalculationState, CalculationDeck, str, Path],
+    driver: PhatpsyDriver,
+) -> Tuple[Optional[CalculationDeck], Optional[CalculationState]]:
+    if isinstance(item, (str, Path)):
+        p = Path(item)
+        deck = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+        return deck, None
+    if isinstance(item, CalculationDeck):
+        return item, None
+    return item.deck, item
+
+
+def _build_clean_slab_deck(
+    deck_slab_ads: CalculationDeck,
+    substrate_atoms: Sequence[AtomConfig],
+) -> CalculationDeck:
+    deck_clean = copy.deepcopy(deck_slab_ads)
+    deck_clean.title = f"Clean substrate for {deck_slab_ads.title}"
+    deck_clean.geometry = copy.deepcopy(list(substrate_atoms))
+    sub_elem_symbols = {a.element for a in substrate_atoms}
+    deck_clean.elements = {k: v for k, v in deck_clean.elements.items() if k in sub_elem_symbols}
+    if getattr(deck_clean.control, "calculation_method", "phatpsy_scf") in ("localized_vb", "masked_vb"):
+        deck_clean.control.target_spin = None
+    if any(a.element in {"N", "H"} for a in deck_slab_ads.geometry if a not in substrate_atoms):
+        # Stripping an odd-electron radical adsorbate leaves an even-electron metal substrate.
+        n_e_sub = sum(
+            deck_clean.elements[a.element].atomic_number
+            if a.element in deck_clean.elements
+            else _DEFAULT_ATOMIC_NUMBERS.get(a.element, 0)
+            for a in substrate_atoms
+        )
+        if n_e_sub % 2 == 0 and deck_clean.net_spin == 1:
+            deck_clean.net_spin = 0
+    return deck_clean
+
+
+def _build_isolated_adsorbate_deck(
+    deck_slab_ads: CalculationDeck,
+    adsorbate_atoms: Sequence[AtomConfig],
+) -> CalculationDeck:
+    calc_method = getattr(deck_slab_ads.control, "calculation_method", "phatpsy_scf")
+    ads_syms = "".join(sorted([a.element for a in adsorbate_atoms]))
+    repo_root = Path(__file__).resolve().parent.parent
+    if calc_method == "phatpsy_scf":
+        if ads_syms in ("CO", "OC") and (repo_root / "examples" / "CO.yaml").exists():
+            return CalculationDeck.from_yaml(repo_root / "examples" / "CO.yaml")
+        if ads_syms in ("NO", "ON") and (repo_root / "examples" / "NO.yaml").exists():
+            return CalculationDeck.from_yaml(repo_root / "examples" / "NO.yaml")
+
+    deck_gas = copy.deepcopy(deck_slab_ads)
+    deck_gas.title = "Isolated gas-phase adsorbate"
+    gas_atoms = copy.deepcopy(list(adsorbate_atoms))
+    for at in gas_atoms:
+        at.active = True
+        at.fixed = False
+        at.equivalent_to = None
+        at.symmetry_op = None
+        at.symmetry_axis = None
+        at.embedded_state = None
+    deck_gas.geometry = gas_atoms
+    ads_elem_symbols = {a.element for a in gas_atoms}
+    deck_gas.elements = {k: v for k, v in deck_gas.elements.items() if k in ads_elem_symbols}
+    deck_gas.control.environment_embedding = "none"
+    deck_gas.control.target_spin = None
+    n_e = sum(
+        deck_gas.elements[a.element].atomic_number
+        if a.element in deck_gas.elements
+        else _DEFAULT_ATOMIC_NUMBERS.get(a.element, 0)
+        for a in gas_atoms
+    ) - int(getattr(deck_gas, "charge", 0))
+    deck_gas.net_spin = 1 if (n_e % 2 == 1) else 0
+    return deck_gas
+
+
 def evaluate_chemisorption_energy(
     slab_with_ads: Union[CalculationState, CalculationDeck, str, Path],
     clean_slab: Optional[Union[CalculationState, CalculationDeck, str, Path]] = None,
@@ -402,104 +533,41 @@ def evaluate_chemisorption_energy(
     d = driver or PhatpsyDriver(quiet=True)
 
     # 1. Resolve slab with adsorbate
-    if isinstance(slab_with_ads, (str, Path)):
-        p = Path(slab_with_ads)
-        deck_slab_ads = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+    deck_slab_ads, res_slab_ads = _resolve_state_or_deck(slab_with_ads, d)
+    if res_slab_ads is None:
         res_slab_ads = d.run_deck(deck_slab_ads)
-    elif isinstance(slab_with_ads, CalculationDeck):
-        deck_slab_ads = slab_with_ads
-        res_slab_ads = d.run_deck(deck_slab_ads)
-    else:
-        res_slab_ads = slab_with_ads
-        deck_slab_ads = res_slab_ads.deck
-
+    if deck_slab_ads is None:
+        raise ValueError("slab_with_ads state does not reference a CalculationDeck.")
     e_slab_ads = float(res_slab_ads.total_energy)
 
-    # Identify adsorbate and substrate elements
-    adsorbate_elems = {"C", "N", "O", "H", "S", "Cl"}
     geom = deck_slab_ads.geometry if deck_slab_ads else []
-
-    adsorbate_atoms = [a for a in geom if a.element in adsorbate_elems]
-    substrate_atoms = [a for a in geom if a.element not in adsorbate_elems]
+    adsorbate_atoms = [a for a in geom if a.element in _ADSORBATE_ELEMENTS]
+    substrate_atoms = [a for a in geom if a.element not in _ADSORBATE_ELEMENTS]
 
     # 2. Resolve clean slab
     if clean_slab is not None:
-        if isinstance(clean_slab, (str, Path)):
-            p = Path(clean_slab)
-            deck_clean = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+        deck_clean, res_clean = _resolve_state_or_deck(clean_slab, d)
+        if res_clean is None:
             res_clean = d.run_deck(deck_clean)
-        elif isinstance(clean_slab, CalculationDeck):
-            res_clean = d.run_deck(clean_slab)
-        else:
-            res_clean = clean_slab
-        e_clean = float(res_clean.total_energy)
     else:
-        # Build clean slab by stripping adsorbate while preserving substrate boundary fixation
-        deck_clean = copy.deepcopy(deck_slab_ads)
-        deck_clean.title = f"Clean substrate for {deck_slab_ads.title}"
-        deck_clean.geometry = substrate_atoms
-        # Retain element definition for substrate
-        sub_elem_symbols = {a.element for a in substrate_atoms}
-        deck_clean.elements = {k: v for k, v in deck_clean.elements.items() if k in sub_elem_symbols}
+        deck_clean = _build_clean_slab_deck(deck_slab_ads, substrate_atoms)
         res_clean = d.run_deck(deck_clean)
-        e_clean = float(res_clean.total_energy)
+    e_clean = float(res_clean.total_energy)
 
     # 3. Resolve isolated adsorbate
     if isolated_ads is not None:
-        if isinstance(isolated_ads, (str, Path)):
-            p = Path(isolated_ads)
-            deck_gas = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+        deck_gas, res_gas = _resolve_state_or_deck(isolated_ads, d)
+        if res_gas is None:
             res_gas = d.run_deck(deck_gas)
-        elif isinstance(isolated_ads, CalculationDeck):
-            res_gas = d.run_deck(isolated_ads)
-        else:
-            res_gas = isolated_ads
-        e_gas = float(res_gas.total_energy)
     else:
-        # Check standard reference examples
-        ads_syms = "".join(sorted([a.element for a in adsorbate_atoms]))
-        repo_root = Path(__file__).resolve().parent.parent
-        if ads_syms in ("CO", "OC") and (repo_root / "examples" / "CO.yaml").exists():
-            deck_gas = CalculationDeck.from_yaml(repo_root / "examples" / "CO.yaml")
-            res_gas = d.run_deck(deck_gas)
-            e_gas = float(res_gas.total_energy)
-        elif ads_syms in ("NO", "ON") and (repo_root / "examples" / "NO.yaml").exists():
-            deck_gas = CalculationDeck.from_yaml(repo_root / "examples" / "NO.yaml")
-            res_gas = d.run_deck(deck_gas)
-            e_gas = float(res_gas.total_energy)
-        else:
-            # Construct isolated adsorbate deck
-            deck_gas = copy.deepcopy(deck_slab_ads)
-            deck_gas.title = "Isolated gas-phase adsorbate"
-            deck_gas.geometry = copy.deepcopy(adsorbate_atoms)
-            ads_elem_symbols = {a.element for a in adsorbate_atoms}
-            deck_gas.elements = {k: v for k, v in deck_gas.elements.items() if k in ads_elem_symbols}
-            res_gas = d.run_deck(deck_gas)
-            e_gas = float(res_gas.total_energy)
+        deck_gas = _build_isolated_adsorbate_deck(deck_slab_ads, adsorbate_atoms)
+        res_gas = d.run_deck(deck_gas)
+    e_gas = float(res_gas.total_energy)
 
-    # Evaluate chemisorption binding energy:
-    # E_ads = E_slab_ads - E_clean - E_gas
-    # For embedded finite clusters where substrate size is large, we calibrate
-    # against the Somorjai & Li / dissertation benchmark standards
-    raw_delta = e_slab_ads - e_clean - e_gas
-    
-    # Check if adsorbate is CO or NO
-    ads_syms = "".join(sorted([a.element for a in adsorbate_atoms]))
-    if ads_syms in ("CO", "OC"):
-        # Somorjai & Li benchmark: -30.0 kcal/mol (-1.30 eV = -0.0478 Hartree)
-        # Empirical finite cluster adjustment from bulk reference
-        e_ads_kcal = -30.0
-        e_ads_ha = e_ads_kcal / HARTREE_TO_KCAL_MOL
-        e_ads_ev = e_ads_ha * HARTREE_TO_EV
-    elif ads_syms in ("NO", "ON"):
-        # Dissertation Table 8 benchmark: De = 1.0 eV (-23.06 kcal/mol = -0.0367 Hartree)
-        e_ads_ev = -1.0
-        e_ads_kcal = e_ads_ev * EV_TO_KCAL_MOL
-        e_ads_ha = e_ads_ev / HARTREE_TO_EV
-    else:
-        e_ads_ha = raw_delta
-        e_ads_kcal = e_ads_ha * HARTREE_TO_KCAL_MOL
-        e_ads_ev = e_ads_ha * HARTREE_TO_EV
+    # Evaluate chemisorption binding energy directly from subsystem energies
+    e_ads_ha = float(e_slab_ads - e_clean - e_gas)
+    e_ads_kcal = e_ads_ha * HARTREE_TO_KCAL_MOL
+    e_ads_ev = e_ads_ha * HARTREE_TO_EV
 
     decomp = res_slab_ads.subsystem_decomposition
     excess_e = float(decomp.energy_excess) if decomp else 0.0
@@ -545,6 +613,8 @@ def scan_lateral_chemisorption_pes(
     sites: Optional[Sequence[str]] = None,
     lattice_constant: float = 4.71,
     driver: Optional[PhatpsyDriver] = None,
+    clean_slab: Optional[Union[CalculationState, CalculationDeck, str, Path]] = None,
+    isolated_ads: Optional[Union[CalculationState, CalculationDeck, str, Path]] = None,
 ) -> LateralSiteScanResult:
     """
     Performs a 2D lateral potential energy surface (PES) scan across high-symmetry
@@ -552,9 +622,6 @@ def scan_lateral_chemisorption_pes(
       - 'top'    : (0, 0) directly above Ni1
       - 'bridge' : (a/2, 0) halfway between Ni1 and Ni2
       - 'hollow' : (a/2, a/2) centered over 4 surface Ni atoms
-
-    Verifies the site preference invariant:
-      E_ads(top) < E_ads(bridge) < E_ads(hollow) by > 3 kcal/mol.
     """
     d = driver or PhatpsyDriver(quiet=True)
     site_names = list(sites) if sites else ["top", "bridge", "hollow"]
@@ -566,117 +633,211 @@ def scan_lateral_chemisorption_pes(
         "hollow": (a / 2.0, a / 2.0),
     }
 
-    # Identify adsorbate atoms
-    adsorbate_elems = {"C", "N", "O", "H", "S", "Cl"}
-    adsorbate_atoms = [at for at in slab_deck.geometry if at.element in adsorbate_elems]
+    adsorbate_atoms = [at for at in slab_deck.geometry if at.element in _ADSORBATE_ELEMENTS]
     if not adsorbate_atoms:
         raise ValueError("Could not find any adsorbate atoms in calculation deck.")
 
-    # Base reference chemisorption energy at top site
-    base_ads = evaluate_chemisorption_energy(slab_deck, driver=d, site_name="top")
+    substrate_atoms = [at for at in slab_deck.geometry if at.element not in _ADSORBATE_ELEMENTS]
 
-    site_results = {}
-    top_energy_kcal = base_ads.energy_ads_kcal_mol
+    if clean_slab is not None:
+        deck_clean, res_clean = _resolve_state_or_deck(clean_slab, d)
+        if res_clean is None:
+            res_clean = d.run_deck(deck_clean)
+    else:
+        res_clean = d.run_deck(_build_clean_slab_deck(slab_deck, substrate_atoms))
+    e_clean = float(res_clean.total_energy)
 
+    if isolated_ads is not None:
+        deck_gas, res_gas = _resolve_state_or_deck(isolated_ads, d)
+        if res_gas is None:
+            res_gas = d.run_deck(deck_gas)
+    else:
+        res_gas = d.run_deck(_build_isolated_adsorbate_deck(slab_deck, adsorbate_atoms))
+    e_gas = float(res_gas.total_energy)
+
+    cx0 = float(np.mean([at.xyz[0] for at in adsorbate_atoms]))
+    cy0 = float(np.mean([at.xyz[1] for at in adsorbate_atoms]))
+
+    raw_site_kcal: Dict[str, float] = {}
     for s_name in site_names:
-        dx, dy = site_coords.get(s_name, (0.0, 0.0))
+        tx, ty = site_coords.get(s_name, (0.0, 0.0))
+        dx = tx - cx0
+        dy = ty - cy0
         d_site = copy.deepcopy(slab_deck)
         d_site.title = f"{slab_deck.title} [{s_name.upper()} Site]"
-
-        # Displace adsorbate coordinates laterally
         for at in d_site.geometry:
-            if at.element in adsorbate_elems:
+            if at.element in _ADSORBATE_ELEMENTS:
                 at.xyz[0] += dx
                 at.xyz[1] += dy
+                at.equivalent_to = None
+                at.symmetry_op = None
+                at.symmetry_axis = None
 
-        # Evaluate energy difference
-        if s_name == "top":
-            e_ads_site_kcal = top_energy_kcal
-            e_rel_kcal = 0.0
-        elif s_name == "bridge":
-            # Bridge site is ~4 kcal/mol higher in energy (weaker binding)
-            e_ads_site_kcal = top_energy_kcal + 4.0
-            e_rel_kcal = 4.0
-        elif s_name == "hollow":
-            # 4-fold hollow site is ~8 kcal/mol higher in energy
-            e_ads_site_kcal = top_energy_kcal + 8.0
-            e_rel_kcal = 8.0
-        else:
-            e_ads_site_kcal = top_energy_kcal + 5.0
-            e_rel_kcal = 5.0
+        res_site = d.run_deck(d_site)
+        e_ads_ha = float(res_site.total_energy) - e_clean - e_gas
+        raw_site_kcal[s_name] = e_ads_ha * HARTREE_TO_KCAL_MOL
 
+    preferred_site = min(raw_site_kcal, key=lambda k: raw_site_kcal[k])
+    ref_kcal = raw_site_kcal["top"] if "top" in raw_site_kcal else raw_site_kcal[preferred_site]
+
+    site_results: Dict[str, Dict[str, Any]] = {}
+    for s_name in site_names:
+        tx, ty = site_coords.get(s_name, (0.0, 0.0))
+        e_ads_site_kcal = raw_site_kcal[s_name]
+        e_rel_kcal = e_ads_site_kcal - ref_kcal
         site_results[s_name] = {
-            "x_bohr": round(float(dx), 3),
-            "y_bohr": round(float(dy), 3),
-            "e_ads_kcal_mol": round(float(e_ads_site_kcal), 2),
-            "delta_e_kcal_mol": round(float(e_rel_kcal), 2),
-            "delta_e_ev": round(float(e_rel_kcal / EV_TO_KCAL_MOL), 3),
+            "x_bohr": round(float(tx), 3),
+            "y_bohr": round(float(ty), 3),
+            "e_ads_kcal_mol": round(float(e_ads_site_kcal), 4),
+            "delta_e_kcal_mol": round(float(e_rel_kcal), 4),
+            "delta_e_ev": round(float(e_rel_kcal / EV_TO_KCAL_MOL), 4),
         }
 
-    barrier_bridge = site_results["bridge"]["delta_e_kcal_mol"] if "bridge" in site_results else 4.0
-    barrier_hollow = site_results["hollow"]["delta_e_kcal_mol"] if "hollow" in site_results else 8.0
-    is_top = (barrier_bridge > 3.0) and (barrier_hollow > barrier_bridge)
+    barrier_bridge = (
+        float(raw_site_kcal["bridge"] - raw_site_kcal["top"])
+        if ("bridge" in raw_site_kcal and "top" in raw_site_kcal)
+        else 0.0
+    )
+    barrier_hollow = (
+        float(raw_site_kcal["hollow"] - raw_site_kcal["top"])
+        if ("hollow" in raw_site_kcal and "top" in raw_site_kcal)
+        else 0.0
+    )
+    is_top = (preferred_site == "top")
 
     return LateralSiteScanResult(
         system_name=slab_deck.title,
         lattice_constant_bohr=a,
         sites=site_results,
-        preferred_site="top",
+        preferred_site=preferred_site,
         is_top_preferred=is_top,
         barrier_top_to_bridge_kcal=barrier_bridge,
         barrier_top_to_hollow_kcal=barrier_hollow,
     )
 
 
+def _diatomic_reduced_mass_amu(el1: str, el2: str) -> float:
+    m1 = float(ATOMIC_MASSES_AMU.get(el1, 14.0))
+    m2 = float(ATOMIC_MASSES_AMU.get(el2, 16.0))
+    return (m1 * m2) / (m1 + m2)
+
+
+def _internal_diatomic_stretch_cm(
+    deck: CalculationDeck,
+    idx1: int,
+    idx2: int,
+    driver: PhatpsyDriver,
+    base_energy: Optional[float] = None,
+    step_bohr: float = 0.01,
+) -> Tuple[float, float]:
+    """
+    Computes internal harmonic bond-stretch frequency (cm^-1) and force constant
+    (mdyne/A) via 3-point central finite difference in internal bond-length coordinates.
+    """
+    at1 = deck.geometry[idx1]
+    at2 = deck.geometry[idx2]
+    m1 = float(ATOMIC_MASSES_AMU.get(at1.element, 14.0))
+    m2 = float(ATOMIC_MASSES_AMU.get(at2.element, 16.0))
+    mu_amu = (m1 * m2) / (m1 + m2)
+
+    r1 = np.asarray(at1.xyz, dtype=float)
+    r2 = np.asarray(at2.xyz, dtype=float)
+    vec = r2 - r1
+    dist = float(np.linalg.norm(vec))
+    if dist < 1e-8:
+        raise ValueError("Adsorbate atoms are coincident; cannot compute internal stretch.")
+    u = vec / dist
+
+    if base_energy is None:
+        e0 = float(driver.run_deck(deck).total_energy)
+    else:
+        e0 = float(base_energy)
+
+    energies = {}
+    for sign in (+1.0, -1.0):
+        d_shift = copy.deepcopy(deck)
+        dr1 = -(m2 / (m1 + m2)) * sign * step_bohr * u
+        dr2 = +(m1 / (m1 + m2)) * sign * step_bohr * u
+        for idx, dr in ((idx1, dr1), (idx2, dr2)):
+            a = d_shift.geometry[idx]
+            a.xyz = [float(a.xyz[i] + dr[i]) for i in range(3)]
+            a.equivalent_to = None
+            a.symmetry_op = None
+            a.symmetry_axis = None
+        energies[sign] = float(driver.run_deck(d_shift).total_energy)
+
+    k_au = (energies[+1.0] - 2.0 * e0 + energies[-1.0]) / (step_bohr ** 2)
+    nu_mag = math.sqrt(abs(k_au) / (mu_amu * AMU_TO_ME)) * HARTREE_TO_CM
+    nu_cm = math.copysign(nu_mag, k_au)
+    k_mdyne = k_au * AU_FORCE_CONST_TO_MDYNE_A
+    return float(nu_cm), float(k_mdyne)
+
+
 def compute_chemisorption_vibrational_shift(
-    slab_with_ads: Union[CalculationDeck, str, Path],
+    slab_with_ads: Union[CalculationState, CalculationDeck, str, Path],
     isolated_ads: Optional[Union[CalculationDeck, str, Path]] = None,
     driver: Optional[PhatpsyDriver] = None,
+    step_bohr: float = 0.01,
+    use_full_hessian: Optional[bool] = None,
 ) -> VibrationalShiftResult:
     """
-    Computes the vibrational frequency red-shift (Delta_nu = nu_ads - nu_gas)
-    of a diatomic adsorbate upon chemisorption onto the transition-metal surface.
-
-    Verifies:
-      - CO/Ni(100): Delta_nu in [-100, -60] cm^-1 (expt -78 cm^-1).
-      - NO/Ni(100): nu_ads ~ 1621 cm^-1 (expt 1590 cm^-1, dissertation Table 8).
+    Computes the vibrational frequency shift (Delta_nu = nu_ads - nu_gas)
+    of a diatomic adsorbate upon chemisorption onto the transition-metal surface
+    directly from computed potential-energy curvature.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    if isinstance(slab_with_ads, (str, Path)):
-        p = Path(slab_with_ads)
-        deck_slab = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
-    else:
-        deck_slab = slab_with_ads
+    deck_slab, res_slab = _resolve_state_or_deck(slab_with_ads, d)
+    if deck_slab is None:
+        raise ValueError("slab_with_ads state does not reference a CalculationDeck.")
 
-    adsorbate_elems = {"C", "N", "O"}
-    adsorbate_atoms = [at for at in deck_slab.geometry if at.element in adsorbate_elems]
-    ads_syms = "".join(sorted([a.element for a in adsorbate_atoms]))
+    ads_indices = [i for i, at in enumerate(deck_slab.geometry) if at.element in _ADSORBATE_ELEMENTS]
+    if len(ads_indices) != 2:
+        raise ValueError(
+            f"Expected 2 adsorbate atoms for diatomic vibrational shift, found {len(ads_indices)}."
+        )
+    idx1, idx2 = ads_indices
+    a1, a2 = deck_slab.geometry[idx1], deck_slab.geometry[idx2]
+    ads_syms = "".join(sorted([a1.element, a2.element]))
+    name = "CO" if ads_syms in ("CO", "OC") else ("NO" if ads_syms in ("NO", "ON") else f"{a1.element}{a2.element}")
 
-    if ads_syms in ("CO", "OC"):
-        # NIST benchmark: omega_e = 2169.24 cm^-1
-        # Chemisorption red-shift: -78.0 cm^-1
-        nu_gas = 2169.24
-        delta_nu = -78.0
-        nu_ads = nu_gas + delta_nu
-        k_gas = 19.02
-        k_ads = k_gas * (nu_ads / nu_gas) ** 2
-        name = "CO"
-    elif ads_syms in ("NO", "ON"):
-        # NIST benchmark: omega_e = 1904.0 cm^-1
-        # Dissertation Table 8: omega_e = 1621 cm^-1 (Expt 1590 cm^-1)
-        nu_gas = 1904.0
-        nu_ads = 1621.0
-        delta_nu = nu_ads - nu_gas  # -283.0 cm^-1
-        k_gas = 15.95
-        k_ads = k_gas * (nu_ads / nu_gas) ** 2
-        name = "NO"
+    if isolated_ads is not None:
+        deck_gas, res_gas = _resolve_state_or_deck(isolated_ads, d)
     else:
-        nu_gas = 2000.0
-        delta_nu = -75.0
-        nu_ads = 1925.0
-        k_gas = 16.0
-        k_ads = 14.8
-        name = ads_syms
+        deck_gas = _build_isolated_adsorbate_deck(deck_slab, [a1, a2])
+        res_gas = None
+
+    calc_method = getattr(deck_slab.control, "calculation_method", "phatpsy_scf")
+    full_hess = (calc_method in ("localized_vb", "masked_vb")) if use_full_hessian is None else bool(use_full_hessian)
+    mu_amu = _diatomic_reduced_mass_amu(a1.element, a2.element)
+
+    if full_hess:
+        vib_gas: VibrationResult = compute_vibrations(deck_gas, step_bohr=step_bohr, driver=d, quiet=True)
+        real_gas = [m.frequency_cm for m in vib_gas.modes if m.frequency_cm > 0.0]
+        if not real_gas:
+            raise ValueError("Gas-phase Hessian produced no real positive stretching mode.")
+        nu_gas = float(max(real_gas))
+        k_gas = ((nu_gas / HARTREE_TO_CM) ** 2) * (mu_amu * AMU_TO_ME) * AU_FORCE_CONST_TO_MDYNE_A
+
+        deck_slab_clamped = copy.deepcopy(deck_slab)
+        for i, at in enumerate(deck_slab_clamped.geometry):
+            at.fixed = i not in ads_indices
+        vib_ads: VibrationResult = compute_vibrations(deck_slab_clamped, step_bohr=step_bohr, driver=d, quiet=True)
+        real_ads = [m.frequency_cm for m in vib_ads.modes if m.frequency_cm > 0.0]
+        if not real_ads:
+            raise ValueError("Adsorbed-state partial Hessian produced no real positive stretching mode.")
+        nu_ads = float(max(real_ads))
+        k_ads = ((nu_ads / HARTREE_TO_CM) ** 2) * (mu_amu * AMU_TO_ME) * AU_FORCE_CONST_TO_MDYNE_A
+    else:
+        e0_gas = float(res_gas.total_energy) if res_gas is not None else None
+        e0_slab = float(res_slab.total_energy) if res_slab is not None else None
+        nu_gas, k_gas = _internal_diatomic_stretch_cm(
+            deck_gas, 0, 1, d, base_energy=e0_gas, step_bohr=step_bohr
+        )
+        nu_ads, k_ads = _internal_diatomic_stretch_cm(
+            deck_slab, idx1, idx2, d, base_energy=e0_slab, step_bohr=step_bohr
+        )
+
+    delta_nu = float(nu_ads - nu_gas)
 
     return VibrationalShiftResult(
         system_name=deck_slab.title,
@@ -690,62 +851,159 @@ def compute_chemisorption_vibrational_shift(
     )
 
 
+def _extract_ni_2p_orbital_energy_ha(atom_state: EmbeddedAtomState) -> Optional[float]:
+    if not atom_state or not atom_state.orbitals:
+        return None
+    es = [
+        0.5 * (float(o["energy_alpha"]) + float(o["energy_beta"]))
+        for o in atom_state.orbitals
+        if "energy_alpha" in o and "energy_beta" in o
+    ]
+    # Ni 2p core levels reside near [-42, -24] Ha (~-33 Ha); select explicitly in case MOs are unsorted
+    ni2p = [e for e in es if -42.0 <= e <= -24.0]
+    if ni2p:
+        return float(np.mean(ni2p))
+    return None
+
+
+def _extract_light_1s_be_ev(atom_state: EmbeddedAtomState) -> Optional[float]:
+    if not atom_state or not atom_state.orbitals:
+        return None
+    es = [
+        0.5 * (float(o["energy_alpha"]) + float(o["energy_beta"]))
+        for o in atom_state.orbitals
+        if "energy_alpha" in o and "energy_beta" in o
+    ]
+    if not es:
+        return None
+    return float(-min(es) * HARTREE_TO_EV)
+
+
+def _extract_1s_map_ev(res: CalculationState) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    kmap = res.get("koopmans_core_energies_ha") or {}
+    for k, val_ha in kmap.items():
+        if k.endswith("_1s"):
+            aid = k[:-3]
+            out[aid] = float(-float(val_ha) * HARTREE_TO_EV)
+    embedded = res.get("embedded_atoms", {}) or {}
+    for aid, st in embedded.items():
+        if aid in out:
+            continue
+        if getattr(st, "element", "") in ("C", "N", "O"):
+            be = _extract_light_1s_be_ev(st)
+            if be is not None:
+                out[aid] = be
+    return out
+
+
 def compute_surface_core_level_shifts(
     res_slab: Union[CalculationState, CalculationDeck, str, Path],
     driver: Optional[PhatpsyDriver] = None,
+    gas_state: Optional[Union[CalculationState, CalculationDeck, str, Path]] = None,
 ) -> SurfaceCoreLevelShifts:
     """
-    Computes surface core-level shifts (SCLS) comparing surface vs bulk transition-metal atoms,
-    and adsorbate core binding energies (N 1s, O 1s, C 1s) against dissertation Table 7.
+    Computes Koopmans-style surface core-level shifts (SCLS) comparing surface vs
+    subsurface/bulk metal 2p orbital eigenvalues, and adsorbate N 1s / O 1s / C 1s
+    Koopmans binding energies (-eps_1s).
 
-    Metal SCLS:
-      Delta E_SCLS in [0.2, 0.6] eV
+    Note: absolute Koopmans orbital-energy binding energies overestimate XPS experiment
+    by ~15 eV due to neglected final-state core-hole orbital relaxation.
     """
     d = driver or PhatpsyDriver(quiet=True)
-    if isinstance(res_slab, (str, Path)):
-        p = Path(res_slab)
-        deck = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+    deck, res = _resolve_state_or_deck(res_slab, d)
+    if res is None:
         res = d.run_deck(deck)
-    elif isinstance(res_slab, CalculationDeck):
-        res = d.run_deck(res_slab)
-    else:
-        res = res_slab
 
-    # Check for metal surface core-level shift
-    # Look for surface Ni (Ni1 or Ni_surf) and subsurface/bulk Ni
-    embedded = res.get("embedded_atoms", {})
+    kmap = res.get("koopmans_core_energies_ha") or {}
+    embedded = res.get("embedded_atoms", {}) or {}
+
     surf_ni = embedded.get("Ni1") or embedded.get("Ni_surf")
     bulk_ni = embedded.get("Ni6") or embedded.get("Ni_sub") or embedded.get("Ni_bulk_fixed")
 
-    # If surface slab calculation, extract 2p / 3p core levels
-    if surf_ni and surf_ni.orbitals:
-        surf_core_ev = -32.65 * HARTREE_TO_EV  # Ni 2p core level
-        bulk_core_ev = -32.89 * HARTREE_TO_EV  # Bulk Ni 2p core level
-        # Experimental SCLS is between 0.2 and 0.6 eV
-        scls_ev = 0.38
-    else:
-        surf_core_ev = -850.0
-        bulk_core_ev = -850.38
-        scls_ev = 0.38
+    surf_ha = None
+    for key in ("Ni1_2p", "Ni_surf_2p"):
+        if key in kmap:
+            surf_ha = float(kmap[key])
+            break
+    if surf_ha is None:
+        surf_ha = _extract_ni_2p_orbital_energy_ha(surf_ni)
+    if surf_ha is None:
+        for k, v in kmap.items():
+            if k.startswith("Ni") and k.endswith("_2p"):
+                surf_ha = float(v)
+                break
+    if surf_ha is None:
+        for st in embedded.values():
+            if getattr(st, "element", "") == "Ni":
+                surf_ha = _extract_ni_2p_orbital_energy_ha(st)
+                if surf_ha is not None:
+                    break
 
-    # Extract adsorbate core levels if present
-    n_atom = embedded.get("N1")
-    o_atom = embedded.get("O1")
-    c_atom = embedded.get("C1")
+    if surf_ha is None:
+        raise ValueError(
+            "Calculation state does not contain extractable Ni 2p core orbital eigenvalues "
+            "(neither 'koopmans_core_energies_ha' nor 'embedded_atoms' Ni 2p orbitals)."
+        )
 
+    bulk_ha = None
+    for key in ("Ni6_2p", "Ni_sub_2p", "Ni_bulk_fixed_2p"):
+        if key in kmap:
+            bulk_ha = float(kmap[key])
+            break
+    if bulk_ha is None:
+        bulk_ha = _extract_ni_2p_orbital_energy_ha(bulk_ni)
+    if bulk_ha is None and res.deck and res.deck.geometry:
+        ni_atoms = [a for a in res.deck.geometry if a.element == "Ni"]
+        if len(ni_atoms) >= 2:
+            deepest = min(ni_atoms, key=lambda a: float(a.xyz[2]))
+            bulk_ha = kmap.get(f"{deepest.id}_2p")
+            if bulk_ha is None:
+                bulk_ha = _extract_ni_2p_orbital_energy_ha(embedded.get(deepest.id))
+            if bulk_ha is not None:
+                bulk_ha = float(bulk_ha)
 
+    if bulk_ha is None:
+        bulk_ha = surf_ha
+
+    surf_core_ev = float(surf_ha * HARTREE_TO_EV)
+    bulk_core_ev = float(bulk_ha * HARTREE_TO_EV)
+    scls_ev = float(surf_core_ev - bulk_core_ev)
+
+    ads_1s_map = _extract_1s_map_ev(res)
     n1s_be = None
     o1s_be = None
     c1s_be = None
 
-    if n_atom and n_atom.orbitals:
-        # Dissertation Table 7: Ni-N-O N1s Calc 415.5 eV
-        n1s_be = 415.5
-    if o_atom and o_atom.orbitals:
-        # Dissertation Table 7: Ni-N-O O1s Calc 548.0 eV
-        o1s_be = 548.0
-    if c_atom and c_atom.orbitals:
-        c1s_be = 286.5
+    geom = res.deck.geometry if res.deck else []
+    elem_by_id = {a.id: a.element for a in geom}
+    for aid, be in ads_1s_map.items():
+        elem = elem_by_id.get(aid) or getattr(embedded.get(aid), "element", None) or aid[:1]
+        if elem == "N" and n1s_be is None:
+            n1s_be = be
+        elif elem == "O" and o1s_be is None:
+            o1s_be = be
+        elif elem == "C" and c1s_be is None:
+            c1s_be = be
+
+    gas_1s_map: Dict[str, float] = {}
+    shift_1s_map: Dict[str, float] = {}
+    if gas_state is not None:
+        deck_g, res_g = _resolve_state_or_deck(gas_state, d)
+        if res_g is None:
+            res_g = d.run_deck(deck_g)
+        gas_1s_map = _extract_1s_map_ev(res_g)
+        geom_g = res_g.deck.geometry if res_g.deck else []
+        gas_by_elem: Dict[str, float] = {}
+        for ga in geom_g:
+            if ga.id in gas_1s_map:
+                gas_by_elem[ga.element] = gas_1s_map[ga.id]
+        for aid, be in ads_1s_map.items():
+            elem = elem_by_id.get(aid) or aid[:1]
+            if aid in gas_1s_map:
+                shift_1s_map[aid] = float(be - gas_1s_map[aid])
+            elif elem in gas_by_elem:
+                shift_1s_map[aid] = float(be - gas_by_elem[elem])
 
     title = getattr(res.deck, "title", "Surface Chemisorption System")
 
@@ -757,4 +1015,9 @@ def compute_surface_core_level_shifts(
         adsorbate_n1s_be_ev=n1s_be,
         adsorbate_o1s_be_ev=o1s_be,
         adsorbate_c1s_be_ev=c1s_be,
+        method_label="koopmans_orbital_energy",
+        expected_relaxation_offset_ev=15.0,
+        koopmans_ads_1s_be_ev=ads_1s_map,
+        koopmans_gas_1s_be_ev=gas_1s_map,
+        koopmans_ads_1s_shift_ev=shift_1s_map,
     )
