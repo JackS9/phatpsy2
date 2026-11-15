@@ -116,10 +116,10 @@
     "EO": {
       "converged": true,
       "opt_steps": 19,
-      "energy_ha": -152.29536035,
-      "grad_norm_ha_bohr": 0.00015617,
-      "virial_ratio": 2.0153,
-      "dipole_debye": 0.9607,
+      "energy_ha": -152.29519283,
+      "grad_norm_ha_bohr": 0.00013194,
+      "virial_ratio": 2.01521,
+      "dipole_debye": 0.9606,
       "num_imaginary": 0,
       "frequencies_cm": [
         745.2,
@@ -141,7 +141,7 @@
       "thermochemistry": {
         "temperature_k": 298.15,
         "pressure_atm": 1.0,
-        "electronic_energy": -152.29536035,
+        "electronic_energy": -152.29519283,
         "zero_point_energy_kcal": 34.7431,
         "zero_point_energy_au": 0.05536668,
         "thermal_energy_kcal": 36.487,
@@ -166,15 +166,15 @@
           "cv_vib": 3.945,
           "cv_total": 8.913
         },
-        "total_energy_u0": -152.23999367,
-        "total_energy_u_t": -152.23721464,
-        "total_enthalpy_h_t": -152.23627046,
-        "total_gibbs_free_energy_g_t": -152.26023839
+        "total_energy_u0": -152.23982615,
+        "total_energy_u_t": -152.23704712,
+        "total_enthalpy_h_t": -152.23610294,
+        "total_gibbs_free_energy_g_t": -152.26007087
       },
       "net_charges": {
         "C1": -0.14775,
-        "C2": -0.11583,
-        "O1": -0.04473,
+        "C2": -0.11585,
+        "O1": -0.04471,
         "H1": 0.08058,
         "H2": 0.07983,
         "H3": 0.06817,
@@ -184,7 +184,7 @@
         1.97596,
         1.92339,
         0.07645,
-        0.02419
+        0.0242
       ],
       "metrics": {
         "R_C1_C2_bohr": 2.926592,
@@ -246,10 +246,10 @@
       "converged": true,
       "neb_iterations": 24,
       "prfo_cycles": 23,
-      "energy_ha": -152.20631391,
-      "grad_norm_ha_bohr": 6.898e-05,
-      "virial_ratio": 2.01333,
-      "dipole_debye": 1.1865,
+      "energy_ha": -152.20613635,
+      "grad_norm_ha_bohr": 7.762e-05,
+      "virial_ratio": 2.01324,
+      "dipole_debye": 1.1861,
       "num_imaginary": 1,
       "imaginary_frequency_cm": -2261.5,
       "imaginary_atom_displacements": {
@@ -282,7 +282,7 @@
       "thermochemistry": {
         "temperature_k": 298.15,
         "pressure_atm": 1.0,
-        "electronic_energy": -152.20631391,
+        "electronic_energy": -152.20613635,
         "zero_point_energy_kcal": 29.4648,
         "zero_point_energy_au": 0.04695508,
         "thermal_energy_kcal": 31.6267,
@@ -307,24 +307,24 @@
           "cv_vib": 6.388,
           "cv_total": 11.356
         },
-        "total_energy_u0": -152.15935883,
-        "total_energy_u_t": -152.15591356,
-        "total_enthalpy_h_t": -152.15496937,
-        "total_gibbs_free_energy_g_t": -152.18136196
+        "total_energy_u0": -152.15918127,
+        "total_energy_u_t": -152.155736,
+        "total_enthalpy_h_t": -152.15479181,
+        "total_gibbs_free_energy_g_t": -152.1811844
       },
       "net_charges": {
-        "C1": -0.19748,
-        "C2": -0.09537,
-        "O1": -0.04298,
+        "C1": -0.19749,
+        "C2": -0.09539,
+        "O1": -0.04294,
         "H1": 0.07516,
         "H2": 0.07844,
-        "H3": 0.11094,
+        "H3": 0.11093,
         "H4": 0.07129
       },
       "active_natural_occupations": [
         1.92973,
-        1.48972,
-        0.51059,
+        1.4897,
+        0.5106,
         0.06996
       ],
       "metrics": {
@@ -386,10 +386,10 @@
     "AA": {
       "converged": true,
       "opt_steps": 21,
-      "energy_ha": -152.33823002,
-      "grad_norm_ha_bohr": 0.00021539,
-      "virial_ratio": 2.01546,
-      "dipole_debye": 1.285,
+      "energy_ha": -152.33804737,
+      "grad_norm_ha_bohr": 0.00020691,
+      "virial_ratio": 2.01538,
+      "dipole_debye": 1.2847,
       "num_imaginary": 0,
       "frequencies_cm": [
         124.79,
@@ -411,7 +411,7 @@
       "thermochemistry": {
         "temperature_k": 298.15,
         "pressure_atm": 1.0,
-        "electronic_energy": -152.33823002,
+        "electronic_energy": -152.33804737,
         "zero_point_energy_kcal": 33.8078,
         "zero_point_energy_au": 0.0538762,
         "thermal_energy_kcal": 36.0995,
@@ -436,15 +436,15 @@
           "cv_vib": 6.085,
           "cv_total": 11.053
         },
-        "total_energy_u0": -152.28435382,
-        "total_energy_u_t": -152.28070187,
-        "total_enthalpy_h_t": -152.27975769,
-        "total_gibbs_free_energy_g_t": -152.30683952
+        "total_energy_u0": -152.28417117,
+        "total_energy_u_t": -152.28051922,
+        "total_enthalpy_h_t": -152.27957504,
+        "total_gibbs_free_energy_g_t": -152.30665687
       },
       "net_charges": {
-        "C1": -0.24452,
-        "C2": -0.00809,
-        "O1": -0.05188,
+        "C1": -0.24454,
+        "C2": -0.00812,
+        "O1": -0.05184,
         "H1": 0.08353,
         "H2": 0.08353,
         "H3": 0.0788,
@@ -515,49 +515,49 @@
   },
   "energetics": {
     "delta_E_rxn_AA_minus_EO": {
-      "hartree": -0.04286967,
-      "kcal_mol": -26.901,
-      "kj_mol": -112.55
+      "hartree": -0.04285453,
+      "kcal_mol": -26.892,
+      "kj_mol": -112.51
     },
     "delta_U0_rxn": {
-      "hartree": -0.04436015,
-      "kcal_mol": -27.836,
-      "kj_mol": -116.47
+      "hartree": -0.04434501,
+      "kcal_mol": -27.827,
+      "kj_mol": -116.43
     },
     "delta_H298_rxn": {
-      "hartree": -0.04348723,
-      "kcal_mol": -27.289,
-      "kj_mol": -114.18
+      "hartree": -0.04347209,
+      "kcal_mol": -27.279,
+      "kj_mol": -114.14
     },
     "delta_G298_rxn": {
-      "hartree": -0.04660113,
-      "kcal_mol": -29.243,
-      "kj_mol": -122.35
+      "hartree": -0.04658599,
+      "kcal_mol": -29.233,
+      "kj_mol": -122.31
     },
     "delta_E_dagger_fwd": {
-      "hartree": 0.08904644,
-      "kcal_mol": 55.877,
-      "kj_mol": 233.79
+      "hartree": 0.08905648,
+      "kcal_mol": 55.884,
+      "kj_mol": 233.82
     },
     "delta_U0_dagger_fwd": {
-      "hartree": 0.08063483,
-      "kcal_mol": 50.599,
-      "kj_mol": 211.71
+      "hartree": 0.08064488,
+      "kcal_mol": 50.605,
+      "kj_mol": 211.73
     },
     "delta_H298_dagger_fwd": {
-      "hartree": 0.08130109,
-      "kcal_mol": 51.017,
-      "kj_mol": 213.46
+      "hartree": 0.08131113,
+      "kcal_mol": 51.024,
+      "kj_mol": 213.48
     },
     "delta_G298_dagger_fwd": {
-      "hartree": 0.07887643,
-      "kcal_mol": 49.496,
-      "kj_mol": 207.09
+      "hartree": 0.07888647,
+      "kcal_mol": 49.502,
+      "kj_mol": 207.12
     },
     "delta_E_dagger_rev": {
-      "hartree": 0.13191611,
-      "kcal_mol": 82.779,
-      "kj_mol": 346.35
+      "hartree": 0.13191102,
+      "kcal_mol": 82.775,
+      "kj_mol": 346.33
     }
   },
   "neb_summary": {
@@ -566,22 +566,22 @@
     "num_iterations": 24,
     "transition_state_index": 2,
     "energies_ha": [
-      -152.29536035,
-      -152.24486675,
-      -152.17300919,
-      -152.26229042,
-      -152.32730775,
-      -152.33556559,
-      -152.33823002
+      -152.29519283,
+      -152.24468734,
+      -152.17283078,
+      -152.26211092,
+      -152.32712587,
+      -152.3353835,
+      -152.33804737
     ],
     "rel_energies_kcal": [
       0.0,
-      31.685,
-      76.777,
-      20.752,
-      -20.047,
-      -25.229,
-      -26.901
+      31.693,
+      76.783,
+      20.759,
+      -20.038,
+      -25.22,
+      -26.892
     ],
     "image_coordinates_bohr": [
       [
@@ -847,36 +847,36 @@
   },
   "cross_checks": {
     "EO": {
-      "RHF_SZ_STO6G": -152.25966824,
-      "CAS44_SZ_STO8G": -152.33862234,
-      "RHF_DZ_STO6G": -152.65060619,
-      "CAS44_DZ_STO6G": -152.68037354,
+      "RHF_SZ_STO6G": -152.25949999,
+      "CAS44_SZ_STO8G": -152.33855008,
+      "RHF_DZ_STO6G": -152.65156419,
+      "CAS44_DZ_STO6G": -152.68136265,
       "CAS44_DZ_nat_occ": [
         1.9725,
         1.9286,
-        0.0712,
+        0.0713,
         0.0276
       ],
       "DZ_elapsed_s": 17.63
     },
     "TS": {
-      "RHF_SZ_STO6G": -152.09827275,
-      "CAS44_SZ_STO8G": -152.24960498,
-      "RHF_DZ_STO6G": -152.54079664,
-      "CAS44_DZ_STO6G": -152.60841657,
+      "RHF_SZ_STO6G": -152.09809691,
+      "CAS44_SZ_STO8G": -152.24953935,
+      "RHF_DZ_STO6G": -152.54177003,
+      "CAS44_DZ_STO6G": -152.60939588,
       "CAS44_DZ_nat_occ": [
         1.9349,
         1.5957,
-        0.4053,
+        0.4054,
         0.064
       ],
       "DZ_elapsed_s": 12.7
     },
     "AA": {
-      "RHF_SZ_STO6G": -152.28432188,
-      "CAS44_SZ_STO8G": -152.38151863,
-      "RHF_DZ_STO6G": -152.69968491,
-      "CAS44_DZ_STO6G": -152.74399269,
+      "RHF_SZ_STO6G": -152.2841386,
+      "CAS44_SZ_STO8G": -152.38145367,
+      "RHF_DZ_STO6G": -152.70065341,
+      "CAS44_DZ_STO6G": -152.74497761,
       "CAS44_DZ_nat_occ": [
         1.973,
         1.8318,
@@ -892,11 +892,11 @@
   },
   "elapsed_seconds": 1720.64,
   "cross_checks_summary": {
-    "DZ_STO6G_CAS44_delta_E_rxn_kcal": -39.922,
-    "DZ_STO6G_CAS44_delta_E_dagger_fwd_kcal": 45.154,
-    "SZ_STO8G_CAS44_delta_E_rxn_kcal": -26.918,
-    "SZ_STO8G_CAS44_delta_E_dagger_fwd_kcal": 55.859,
-    "DZ_STO6G_RHF_delta_E_rxn_kcal": -30.797,
-    "DZ_STO6G_RHF_delta_E_dagger_fwd_kcal": 68.907
+    "DZ_STO6G_CAS44_delta_E_rxn_kcal": -39.919,
+    "DZ_STO6G_CAS44_delta_E_dagger_fwd_kcal": 45.16,
+    "SZ_STO8G_CAS44_delta_E_rxn_kcal": -26.922,
+    "SZ_STO8G_CAS44_delta_E_dagger_fwd_kcal": 55.855,
+    "DZ_STO6G_RHF_delta_E_rxn_kcal": -30.804,
+    "DZ_STO6G_RHF_delta_E_dagger_fwd_kcal": 68.897
   }
 }
