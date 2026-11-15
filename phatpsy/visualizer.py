@@ -4071,18 +4071,27 @@ def generate_irc_visualization_data(irc_result: Any) -> Dict[str, Any]:
     }
 
 
-def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
+def generate_irc_html(
+    irc_result: Any,
+    title: Optional[str] = None,
+    reactant_label: str = "Reactant Minimum",
+    ts_label: str = "Transition State (s=0)",
+    product_label: str = "Product Minimum",
+) -> str:
     """Generates standalone HTML with interactive Three.js IRC pathway playback controls."""
+    import html as _html
+
     data = generate_irc_visualization_data(irc_result)
     if title:
         data["title"] = title
     payload = json.dumps(data)
+    safe_title = _html.escape(str(data.get("title", "PHATPSY 2.0 IRC Visualizer")))
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{data.get('title', 'PHATPSY 2.0 IRC Visualizer')}</title>
+  <title>{safe_title}</title>
   <style>
     body {{
       margin: 0;
@@ -4258,9 +4267,9 @@ def generate_irc_html(irc_result: Any, title: Optional[str] = None) -> str:
       <div class="slider-container">
         <input type="range" id="frame-slider" min="0" max="{data['num_frames'] - 1}" value="0" step="1">
         <div class="slider-labels">
-          <span>Reactant Minimum</span>
-          <span>Transition State (s=0)</span>
-          <span>Product Minimum</span>
+          <span>{_html.escape(str(reactant_label))}</span>
+          <span>{_html.escape(str(ts_label))}</span>
+          <span>{_html.escape(str(product_label))}</span>
         </div>
       </div>
 
@@ -4515,9 +4524,18 @@ def visualize_irc(
     output_path: Optional[Union[str, Path]] = None,
     open_browser: bool = False,
     title: Optional[str] = None,
+    reactant_label: str = "Reactant Minimum",
+    ts_label: str = "Transition State (s=0)",
+    product_label: str = "Product Minimum",
 ) -> str:
     """Renders standalone HTML with interactive 3D WebGL IRC reaction pathway player."""
-    html_content = generate_irc_html(irc_result, title=title)
+    html_content = generate_irc_html(
+        irc_result,
+        title=title,
+        reactant_label=reactant_label,
+        ts_label=ts_label,
+        product_label=product_label,
+    )
     if output_path:
         out_file = Path(output_path)
     elif open_browser:
@@ -4539,6 +4557,9 @@ def show_irc(
     irc_result: Any,
     height: int = 550,
     title: Optional[str] = None,
+    reactant_label: str = "Reactant Minimum",
+    ts_label: str = "Transition State (s=0)",
+    product_label: str = "Product Minimum",
 ) -> Any:
     """Displays interactive 3D IRC reaction pathway visualizer inside Jupyter notebooks."""
     try:
@@ -4547,7 +4568,13 @@ def show_irc(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="IPython.*")
             from IPython.display import HTML
-            html_code = generate_irc_html(irc_result, title=title)
+            html_code = generate_irc_html(
+                irc_result,
+                title=title,
+                reactant_label=reactant_label,
+                ts_label=ts_label,
+                product_label=product_label,
+            )
             escaped_html = html.escape(html_code, quote=True)
             iframe_html = (
                 f'<div style="width:100%; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:#0f172a;">'

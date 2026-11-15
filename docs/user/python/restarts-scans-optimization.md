@@ -446,6 +446,8 @@ driver = PhatpsyDriver(quiet=True)
 deck_ts = CalculationDeck.from_yaml("ts_molecule.yaml")
 
 # Trace IRC in both directions (reactant and product branches)
+# Pass integrator="lqa" for Page & McIver (1988) Local Quadratic Approximation
+# with Bofill Hessian updates on curved or stiff multi-dimensional PES valleys
 irc_res = compute_irc(
     deck=deck_ts,
     driver=driver,
@@ -453,6 +455,7 @@ irc_res = compute_irc(
     max_steps=40,         # Maximum integration steps per branch
     direction="both",     # "both", "forward", or "reverse"
     grad_tol=1e-3,        # Convergence gradient norm in Hartree / Bohr
+    integrator="euler",   # "euler" (default) or "lqa"
     quiet=True,
 )
 
@@ -474,11 +477,17 @@ irc_res.plot_pathway("irc_profile.png")
 
 ### Interactive 3D Reaction Pathway Animation
 
-Scrub through the reaction pathway in 3D WebGL with synchronized energy cards in Three.js:
+Scrub through the reaction pathway in 3D WebGL with synchronized energy cards in Three.js. Both `show()` and `visualize()` (and the underlying `show_irc()` / `visualize_irc()` functions in `phatpsy.visualizer`) accept optional `title`, `reactant_label`, `ts_label`, and `product_label` keyword arguments so multi-step mechanisms can label intermediate basins accurately:
 
 ```python
 # Display interactive widget inside Jupyter Notebook
-irc_res.show(height=520)
+irc_res.show(
+    height=520,
+    title="Step 2 IRC",
+    reactant_label="Intermediate Basin",
+    ts_label="TS2 (s=0)",
+    product_label="Product Minimum",
+)
 
 # Export standalone HTML visualization with playback controls
 irc_res.visualize("irc_pathway.html", open_browser=True)

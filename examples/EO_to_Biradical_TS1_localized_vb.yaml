@@ -1,0 +1,284 @@
+title: EO -> CH2-CH2-O Ring-Opening TS1 (Localized VB CAS(4,4) SZ/STO-6G Saddle)
+control:
+  method: masked_vb
+  vb_wavefunction: cas
+  domain_mode: bond_local
+  core_embedding: all_electron
+  environment_embedding: exact_joint_pk
+  integral_backend: sto_ng
+  sto_ng_primitives: 6
+  vb_orbital_specs:
+  - role: inactive
+    atoms:
+    - C1
+    seed:
+    - -0.99182988
+    - -0.03475638
+    - 0.00124426
+    - 0.00309845
+    - 0.00107409
+  - role: inactive
+    atoms:
+    - C2
+    seed:
+    - -0.99177648
+    - -0.03496255
+    - -0.00065981
+    - 0.00386248
+    - -0.00013354
+  - role: inactive
+    atoms:
+    - O1
+    seed:
+    - -0.9862139
+    - -0.05384294
+    - 0.00032002
+    - 0.00031775
+    - 0.0004037
+  - role: inactive
+    atoms:
+    - O1
+    seed:
+    - -0.23157149
+    - 1.02051563
+    - -0.00136609
+    - 0.117311
+    - 0.01086782
+  - role: inactive
+    atoms:
+    - O1
+    seed:
+    - -0.00029043
+    - 0.00381624
+    - 0.95875888
+    - -0.06438338
+    - 0.27680688
+  - role: inactive
+    atoms:
+    - C1
+    - H1
+    seed:
+    - -0.17415256
+    - 0.54400328
+    - -0.30086254
+    - 0.00727259
+    - -0.18490347
+    - 0.44465649
+  - role: inactive
+    atoms:
+    - C1
+    - H2
+    seed:
+    - -0.05193619
+    - 0.54422671
+    - 0.23674263
+    - -0.18145145
+    - -0.17896367
+    - 0.44296706
+  - role: inactive
+    atoms:
+    - C2
+    - H4
+    seed:
+    - -0.14878757
+    - 0.50112554
+    - 0.29073226
+    - -0.21288915
+    - 0.16260181
+    - 0.45417136
+  - role: inactive
+    atoms:
+    - C1
+    - C2
+    seed:
+    - -0.05458481
+    - 0.48673707
+    - -0.01599822
+    - -0.00946928
+    - 0.28082311
+    - -0.06111463
+    - 0.44256441
+    - 0.00130459
+    - -0.07304039
+    - -0.31402505
+  - role: inactive
+    atoms:
+    - C2
+    - O1
+    seed:
+    - -0.07094465
+    - 0.57857792
+    - 0.00931702
+    - 0.37054067
+    - 0.11199762
+    - 0.01314198
+    - -0.16938706
+    - -0.00155142
+    - -0.56375301
+    - -0.07122767
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+    seed:
+    - 0.00929527
+    - -0.03943792
+    - -0.07812186
+    - -0.10140595
+    - 0.01651393
+    - -0.03621029
+    - 0.38006856
+    - -0.27090662
+    - -0.2506068
+    - 0.14613332
+    - 0.00068803
+    - 0.00124894
+    - 0.0695962
+    - 0.06259218
+    - 0.08138571
+    - 0.52505979
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+    seed:
+    - 0.00825253
+    - -0.20951503
+    - -0.17751619
+    - -0.55317054
+    - 0.17483502
+    - 0.04365778
+    - -0.16423846
+    - 0.06521899
+    - -0.08585645
+    - -0.05995594
+    - -0.02092897
+    - 0.15086087
+    - -0.02250062
+    - -0.01275342
+    - 0.66021235
+    - -0.19485447
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+    seed:
+    - -0.03420377
+    - 0.38319824
+    - 0.21066364
+    - 0.59134744
+    - -0.12054944
+    - 0.01340131
+    - -0.13778266
+    - -0.03986792
+    - -0.13550156
+    - 0.01254537
+    - -0.00173293
+    - 0.0341595
+    - -0.0051666
+    - 0.10112226
+    - 0.68707069
+    - 0.10407058
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+    seed:
+    - 0.01089675
+    - -0.03297421
+    - -0.03501895
+    - -0.09569423
+    - 0.00289886
+    - 0.10349637
+    - -0.71685849
+    - 0.80269358
+    - 0.3175458
+    - -0.31801644
+    - -0.01510846
+    - 0.08521522
+    - -0.06084156
+    - -0.0151951
+    - 0.04182038
+    - 1.2809905
+  spin_unrestricted: false
+  max_cycles: 400
+  convergence: 1.0e-08
+  use_grid_fit: true
+  atomic_smearing: 0.0
+  use_global_fermi: false
+  fermi_temperature: null
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
+  correlation_kernel: null
+  use_dispersion: false
+  dispersion_model: d3bj
+  default_basis: ADF-TZP
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: C
+  xyz:
+  - 1.550093
+  - 0.001171
+  - -0.797765
+  id: C1
+  active: true
+  basis: SZ
+- element: C
+  xyz:
+  - -1.425856
+  - -0.012303
+  - -0.576434
+  id: C2
+  active: true
+  basis: SZ
+- element: O
+  xyz:
+  - -1.98163
+  - -0.061654
+  - 2.248968
+  id: O1
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - 2.607062
+  - 1.934042
+  - -0.653398
+  id: H1
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - 2.570316
+  - -1.611754
+  - -1.904975
+  id: H2
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - -2.350621
+  - 1.853487
+  - -1.517818
+  id: H3
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - -2.313269
+  - -1.78134
+  - -1.584682
+  id: H4
+  active: true
+  basis: SZ
+net_spin: 0

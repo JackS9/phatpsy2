@@ -199,15 +199,45 @@ class IRCResult:
         lines.append("=" * 76)
         return "\n".join(lines)
 
-    def show(self, height: int = 520) -> Any:
+    def show(
+        self,
+        height: int = 520,
+        title: Optional[str] = None,
+        reactant_label: str = "Reactant Minimum",
+        ts_label: str = "Transition State (s=0)",
+        product_label: str = "Product Minimum",
+    ) -> Any:
         """Displays interactive 3D WebGL IRC visualizer widget in Jupyter/IPython."""
         from phatpsy.visualizer import show_irc
-        return show_irc(self, height=height)
+        return show_irc(
+            self,
+            height=height,
+            title=title,
+            reactant_label=reactant_label,
+            ts_label=ts_label,
+            product_label=product_label,
+        )
 
-    def visualize(self, output_path: Optional[Union[str, Path]] = None, open_browser: bool = False) -> Any:
+    def visualize(
+        self,
+        output_path: Optional[Union[str, Path]] = None,
+        open_browser: bool = False,
+        title: Optional[str] = None,
+        reactant_label: str = "Reactant Minimum",
+        ts_label: str = "Transition State (s=0)",
+        product_label: str = "Product Minimum",
+    ) -> Any:
         """Generates standalone 3D WebGL HTML visualizer for IRC trajectory playback."""
         from phatpsy.visualizer import visualize_irc
-        return visualize_irc(self, output_path=output_path, open_browser=open_browser)
+        return visualize_irc(
+            self,
+            output_path=output_path,
+            open_browser=open_browser,
+            title=title,
+            reactant_label=reactant_label,
+            ts_label=ts_label,
+            product_label=product_label,
+        )
 
 
 # ==============================================================================
@@ -227,6 +257,8 @@ def compute_irc(
     finite_diff_step: float = 0.005,
     warm_restart: bool = True,
     quiet: bool = True,
+    integrator: str = "euler",
+    initial_hessian_mw: Optional[np.ndarray] = None,
 ) -> IRCResult:
     """
     Traces the Intrinsic Reaction Coordinate (IRC) from a transition state along mass-weighted steepest descent.
@@ -258,12 +290,23 @@ def compute_irc(
         Whether to warm-start wavefunctions across successive steps (default: True).
     quiet : bool
         Whether to suppress verbose Fortran SCF stdout (default: True).
+    integrator : str
+        Path integration algorithm: ``"euler"`` (adaptive mass-weighted steepest descent,
+        default) or ``"lqa"`` (Page & McIver 1988 Local Quadratic Approximation with
+        Bofill Hessian updates for curved or stiff multi-dimensional valleys).
+    initial_hessian_mw : Optional[np.ndarray]
+        Optional ``(3*N, 3*N)`` mass-weighted Hessian at the TS when
+        ``integrator="lqa"``. Computed via forward finite differences if omitted.
 
     Returns
     -------
     IRCResult
         Complete reaction path, forward/reverse points, energy barriers, and trajectory.
     """
+    mode_int = str(integrator or "euler").strip().lower()
+    if mode_int not in ("euler", "lqa"):
+        raise ValueError(f"Unsupported IRC integrator {integrator!r}; expected 'euler' or 'lqa'.")
+
     if driver is None:
         driver = PhatpsyDriver(quiet=quiet)
 
@@ -457,7 +500,67 @@ def compute_irc(
     # Delta s_0 initial step size
     ds0 = float(initial_displacement if initial_displacement is not None else step_size)
 
-    # 3. Path Integration Function (Mass-Weighted Steepest Descent)
+    if mode_int == "lqa":
+        from scipy.optimize import brentq
+        from phatpsy.dimer import _bofill_update
+
+        if initial_hessian_mw is not None:
+            H0_mw = np.array(initial_hessian_mw, dtype=np.float64, copy=True)
+            if H0_mw.shape != (dim, dim):
+                raise ValueError(f"initial_hessian_mw must have shape {(dim, dim)}, got {H0_mw.shape}.")
+            H0_mw = 0.5 * (H0_mw + H0_mw.T)
+            H0_mw[~active_mask, :] = 0.0
+            H0_mw[:, ~active_mask] = 0.0
+        else:
+            H_cart = np.zeros((dim, dim), dtype=np.float64)
+            h_fd = float(finite_diff_step)
+            for idx_j in active_indices:
+                last_state = ts_state
+                c_p = coords0.copy()
+                c_p[idx_j] += h_fd
+                _, gp, _ = evaluate_energy_and_gradient(c_p)
+                H_cart[active_indices, idx_j] = (gp[active_indices] - grad_ts[active_indices]) / h_fd
+            last_state = ts_state
+            H_cart = 0.5 * (H_cart + H_cart.T)
+            H0_mw = (inv_sqrt_m[:, None] * H_cart) * inv_sqrt_m[None, :]
+            H0_mw[~active_mask, :] = 0.0
+            H0_mw[:, ~active_mask] = 0.0
+
+        def _lqa_step_mw(gx_vec: np.ndarray, H_mw_mat: np.ndarray, target_ds: float) -> np.ndarray:
+            out = np.zeros(dim, dtype=np.float64)
+            if not active_indices:
+                return out
+            H_act = H_mw_mat[np.ix_(active_indices, active_indices)]
+            evals, evecs = np.linalg.eigh(H_act)
+            g_act = gx_vec[active_indices]
+            proj = evecs.T @ g_act
+
+            def _dq_act(t_val: float) -> np.ndarray:
+                factors = np.empty_like(evals)
+                for idx_e, lam in enumerate(evals):
+                    lt = lam * t_val
+                    if abs(lt) < 1e-6:
+                        factors[idx_e] = t_val * (1.0 - 0.5 * lt + (lt * lt) / 6.0)
+                    elif lt >= -4.0:
+                        factors[idx_e] = (1.0 - math.exp(-lt)) / lam
+                    else:
+                        factors[idx_e] = (1.0 - math.exp(4.0)) / (-4.0 / t_val)
+                return -(evecs @ (factors * proj))
+
+            t_hi = target_ds / max(float(np.linalg.norm(g_act)), 1e-12)
+            for _ in range(40):
+                if float(np.linalg.norm(_dq_act(t_hi))) >= target_ds:
+                    break
+                t_hi *= 2.0
+            else:
+                out[active_indices] = _dq_act(t_hi)
+                return out
+
+            t_star = brentq(lambda tv: float(np.linalg.norm(_dq_act(tv))) - target_ds, 0.0, t_hi, xtol=1e-9)
+            out[active_indices] = _dq_act(float(t_star))
+            return out
+
+    # 3. Path Integration Function (Mass-Weighted Steepest Descent or Page-McIver LQA)
     def trace_branch(branch_dir: int, branch_label: str) -> Tuple[List[IRCPoint], bool]:
         """
         Traces one branch (+1 for forward, -1 for reverse) down the energy valley.
@@ -470,12 +573,24 @@ def compute_irc(
         # Initial step from TS in mass-weighted coordinates:
         # dx_0 = sign * ds0 * L_mw
         # In Cartesian: dr_0 = dx_0 / sqrt(M)
-        dr0 = (branch_dir * ds0) * (L_mw * inv_sqrt_m)
+        dr0_mw = (branch_dir * ds0) * L_mw
+        dr0 = dr0_mw * inv_sqrt_m
         c_curr = coords0 + dr0
         s_curr = branch_dir * ds0
 
         E_curr, grad_curr, virial_curr = evaluate_energy_and_gradient(c_curr)
         g_norm = float(np.linalg.norm(grad_curr))
+
+        H_mw = None
+        if mode_int == "lqa":
+            H_mw = H0_mw.copy()
+            if active_indices:
+                dg0_mw = (grad_curr - grad_ts) * inv_sqrt_m
+                H_mw[np.ix_(active_indices, active_indices)] = _bofill_update(
+                    H_mw[np.ix_(active_indices, active_indices)],
+                    dr0_mw[active_indices],
+                    dg0_mw[active_indices],
+                )
 
         pt0 = IRCPoint(
             step=1,
@@ -492,7 +607,15 @@ def compute_irc(
         current_ds = float(step_size)
 
         for step_idx in range(2, max_steps + 1):
-            if g_norm <= grad_tol:
+            if mode_int == "lqa":
+                if (
+                    step_idx >= 5
+                    and (E_ts - E_curr) > max(10.0 * energy_tol, 1.0e-4)
+                    and g_norm <= grad_tol
+                ):
+                    converged = True
+                    break
+            elif g_norm <= grad_tol:
                 converged = True
                 break
 
@@ -504,36 +627,54 @@ def compute_irc(
                 converged = True
                 break
 
-            # Normalized descent direction in mass-weighted space: u = -gx / ||gx||
-            u = -gx / norm_gx
-
-            # Line search for energy reduction
             step_accepted = False
             trial_ds = current_ds
-            for _ in range(5):
-                # Displacement in mass-weighted: dx = trial_ds * u
-                # In Cartesian: dr = dx / sqrt(M) = trial_ds * (u / sqrt(M))
-                dr_trial = trial_ds * (u * inv_sqrt_m)
-                c_trial = c_curr + dr_trial
+            prev_state = last_state
 
-                E_trial, grad_trial, virial_trial = evaluate_energy_and_gradient(c_trial)
-
-                if E_trial <= E_curr + 1e-7:
-                    # Step accepted!
-                    c_curr = c_trial
-                    E_prev = E_curr
-                    E_curr = E_trial
-                    grad_curr = grad_trial
-                    virial_curr = virial_trial
-                    g_norm = float(np.linalg.norm(grad_curr))
-                    s_curr += branch_dir * trial_ds
-                    step_accepted = True
-
-                    # Adapt step size slightly upward if decrease was smooth
-                    current_ds = min(trial_ds * 1.1, float(step_size) * 1.5)
-                    break
-                else:
-                    # Backtrack
+            if mode_int == "lqa":
+                for _ in range(6):
+                    dq = _lqa_step_mw(gx, H_mw, trial_ds)
+                    c_trial = c_curr + dq * inv_sqrt_m
+                    E_trial, grad_trial, virial_trial = evaluate_energy_and_gradient(c_trial)
+                    if E_trial <= E_curr + 2e-6:
+                        if active_indices:
+                            dgx_act = ((grad_trial - grad_curr) * inv_sqrt_m)[active_indices]
+                            H_mw[np.ix_(active_indices, active_indices)] = _bofill_update(
+                                H_mw[np.ix_(active_indices, active_indices)],
+                                dq[active_indices],
+                                dgx_act,
+                            )
+                        c_curr = c_trial
+                        E_prev = E_curr
+                        E_curr = E_trial
+                        grad_curr = grad_trial
+                        virial_curr = virial_trial
+                        g_norm = float(np.linalg.norm(grad_curr))
+                        s_curr += branch_dir * float(np.linalg.norm(dq))
+                        current_ds = min(trial_ds * 1.1, float(step_size))
+                        step_accepted = True
+                        break
+                    last_state = prev_state
+                    trial_ds *= 0.5
+            else:
+                # Normalized descent direction in mass-weighted space: u = -gx / ||gx||
+                u = -gx / norm_gx
+                for _ in range(5):
+                    dr_trial = trial_ds * (u * inv_sqrt_m)
+                    c_trial = c_curr + dr_trial
+                    E_trial, grad_trial, virial_trial = evaluate_energy_and_gradient(c_trial)
+                    if E_trial <= E_curr + 1e-7:
+                        c_curr = c_trial
+                        E_prev = E_curr
+                        E_curr = E_trial
+                        grad_curr = grad_trial
+                        virial_curr = virial_trial
+                        g_norm = float(np.linalg.norm(grad_curr))
+                        s_curr += branch_dir * trial_ds
+                        step_accepted = True
+                        current_ds = min(trial_ds * 1.1, float(step_size) * 1.5)
+                        break
+                    last_state = prev_state
                     trial_ds *= 0.5
                     if trial_ds < 1e-4:
                         break
@@ -555,11 +696,15 @@ def compute_irc(
             )
             branch_points.append(pt)
 
-            if abs(E_curr - E_prev) < energy_tol:
+            if mode_int == "lqa":
+                if step_idx >= 5 and g_norm <= max(5.0 * grad_tol, 3.0e-3) and abs(E_curr - E_prev) < energy_tol:
+                    converged = True
+                    break
+            elif abs(E_curr - E_prev) < energy_tol:
                 converged = True
                 break
 
-        if g_norm <= grad_tol:
+        if g_norm <= grad_tol and (mode_int != "lqa" or len(branch_points) >= 5):
             converged = True
 
         return branch_points, converged

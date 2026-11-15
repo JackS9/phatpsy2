@@ -289,6 +289,22 @@ class ControlConfig:
                 cleaned = dict(spec)
                 cleaned["role"] = role
                 cleaned["atoms"] = [a.strip() for a in atoms_raw]
+                if "seed" in spec and spec["seed"] is not None:
+                    seed_raw = spec["seed"]
+                    if (
+                        not isinstance(seed_raw, (list, tuple))
+                        or len(seed_raw) == 0
+                        or any(
+                            isinstance(v, bool)
+                            or not isinstance(v, (int, float))
+                            or not math.isfinite(float(v))
+                            for v in seed_raw
+                        )
+                    ):
+                        raise ValueError(
+                            f"vb_orbital_specs[{idx_s}]['seed'] must be a non-empty list of finite numbers."
+                        )
+                    cleaned["seed"] = [float(v) for v in seed_raw]
                 norm_specs.append(cleaned)
             self.vb_orbital_specs = norm_specs
 

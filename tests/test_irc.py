@@ -331,3 +331,80 @@ def test_co_irc_heteronuclear_mass_weighting(driver):
     expected_ratio = math.sqrt(m_o / m_c)
     assert math.isclose(actual_ratio, expected_ratio, rel_tol=1e-3)
 
+
+def test_irc_html_custom_labels(driver):
+    """Verify customizable endpoint/TS labels and HTML escaping in generate_irc_html and IRCResult.visualize."""
+    deck = get_n2_test_deck()
+    deck.geometry[0].xyz = [0.0, 0.0, 0.750]
+    deck.geometry[1].xyz = [0.0, 0.0, -0.750]
+
+    irc_res = compute_irc(
+        deck=deck,
+        driver=driver,
+        step_size=0.05,
+        max_steps=2,
+        direction="both",
+        normal_mode=[[0.0, 0.0, 0.7071], [0.0, 0.0, -0.7071]],
+        quiet=True,
+    )
+
+    html_code = generate_irc_html(
+        irc_res,
+        title="Step 2 <BIRAD -> AA>",
+        reactant_label="Biradical <Int>",
+        ts_label="TS2 (s=0)",
+        product_label="Product Basin",
+    )
+    assert "<title>Step 2 &lt;BIRAD -&gt; AA&gt;</title>" in html_code
+    assert "<span>Biradical &lt;Int&gt;</span>" in html_code
+    assert "<span>TS2 (s=0)</span>" in html_code
+    assert "<span>Product Basin</span>" in html_code
+
+    vis_html = irc_res.visualize(
+        title="Method <Test>",
+        reactant_label="Left Basin",
+        ts_label="Saddle",
+        product_label="Right Basin",
+    )
+    assert "<span>Left Basin</span>" in vis_html
+    assert "<span>Saddle</span>" in vis_html
+    assert "<span>Right Basin</span>" in vis_html
+
+
+def test_compute_irc_lqa_integrator(driver):
+    """Verify Page-McIver LQA + Bofill Hessian IRC integrator produces monotonic, energy-decreasing path."""
+    deck = get_n2_test_deck()
+    deck.geometry[0].xyz = [0.0, 0.0, 0.850]
+    deck.geometry[1].xyz = [0.0, 0.0, -0.850]
+
+    test_mode = NormalMode(
+        index=1,
+        frequency_cm=-600.0,
+        is_imaginary=True,
+        reduced_mass_amu=14.007,
+        force_constant_mdyne_a=5.0,
+        displacements=[
+            [0.0, 0.0, +1.0 / math.sqrt(2.0)],
+            [0.0, 0.0, -1.0 / math.sqrt(2.0)],
+        ],
+    )
+
+    irc_res = compute_irc(
+        deck=deck,
+        driver=driver,
+        step_size=0.08,
+        max_steps=3,
+        direction="both",
+        grad_tol=1e-3,
+        normal_mode=test_mode,
+        integrator="lqa",
+        quiet=True,
+    )
+
+    assert irc_res.num_points >= 5
+    s_list = [pt.s for pt in irc_res.points]
+    assert all(s_list[i] < s_list[i + 1] for i in range(len(s_list) - 1))
+    assert irc_res.reactant_point.energy < irc_res.ts_energy
+    assert irc_res.product_point.energy < irc_res.ts_energy
+
+

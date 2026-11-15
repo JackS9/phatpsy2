@@ -86,57 +86,57 @@ control:
 geometry:
 - element: C
   xyz:
-  - 1.488925
+  - 1.488906
   - -0.003636
-  - -0.779502
+  - -0.779441
   id: C1
   active: true
   basis: SZ
 - element: C
   xyz:
-  - -1.436781
-  - -0.015783
-  - -0.708481
+  - -1.436771
+  - -0.015781
+  - -0.708476
   id: C2
   active: true
   basis: SZ
 - element: O
   xyz:
-  - -0.079726
-  - -0.006429
-  - 1.792973
+  - -0.079694
+  - -0.006428
+  - 1.792926
   id: O1
   active: true
   basis: SZ
 - element: H
   xyz:
-  - 2.53796
-  - 1.877051
-  - -1.249765
+  - 2.537951
+  - 1.877029
+  - -1.249768
   id: H1
   active: true
   basis: SZ
 - element: H
   xyz:
-  - 2.556084
-  - -1.877193
-  - -1.236766
+  - 2.556075
+  - -1.877171
+  - -1.23677
   id: H2
   active: true
   basis: SZ
 - element: H
   xyz:
-  - -2.535632
-  - 1.893447
-  - -1.220328
+  - -2.535634
+  - 1.893426
+  - -1.220333
   id: H3
   active: true
   basis: SZ
 - element: H
   xyz:
-  - -2.53083
-  - -1.867456
-  - -1.218131
+  - -2.530833
+  - -1.867438
+  - -1.218138
   id: H4
   active: true
   basis: SZ

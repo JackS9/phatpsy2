@@ -307,3 +307,72 @@ def test_eo_to_aa_stationary_decks_live_anti_circular():
         results[key] = float(st.total_energy)
 
     assert results["AA"] < results["EO"] < results["TS"]
+
+
+def test_eo_to_aa_two_step_ts1_biradical_and_irc1_live():
+    """Live evaluation of Step-1 TS1, BIRAD intermediate, and Step-1 ring-opening IRC."""
+    import copy
+
+    data_dir = REPO_ROOT / "data" / "eo_to_aa_localized_vb"
+    summary = json.loads((data_dir / "summary.json").read_text(encoding="utf-8"))
+    irc1 = json.loads((data_dir / "irc_step1_ring_opening.json").read_text(encoding="utf-8"))
+    drv = LocalizedVBDriver(quiet=True)
+
+    sp = summary["stationary_points"]
+    for key in ("EO", "TS1", "BIRAD", "TS", "AA"):
+        assert sp[key]["converged"] is True
+    assert sp["BIRAD"]["num_imaginary"] == 0
+    assert sp["TS1"]["num_imaginary"] == 1
+
+    live_e = {}
+    for key, fname in [
+        ("TS1", "EO_to_Biradical_TS1_localized_vb.yaml"),
+        ("BIRAD", "EO_Biradical_localized_vb.yaml"),
+    ]:
+        deck = CalculationDeck.from_yaml(REPO_ROOT / "examples" / fname)
+        st, g = drv.energy_and_gradient(deck)
+        assert st.converged is True
+        assert float(np.linalg.norm(g)) < 5.0e-4
+        assert abs(float(st.total_energy) - float(sp[key]["energy_ha"])) < 1.0e-5
+        nat_occ = np.asarray(st["active_natural_occupations"], dtype=float)
+        assert nat_occ.shape == (4,)
+        assert abs(float(np.sum(nat_occ)) - 4.0) < 1.0e-4
+        if key == "BIRAD":
+            assert 0.95 < float(nat_occ[1]) < 1.05
+            assert 0.95 < float(nat_occ[2]) < 1.05
+        live_e[key] = float(st.total_energy)
+
+    e_aa = float(sp["AA"]["energy_ha"])
+    e_eo = float(sp["EO"]["energy_ha"])
+    e_ts2 = float(sp["TS"]["energy_ha"])
+    assert e_aa < e_eo < live_e["BIRAD"] < live_e["TS1"] < e_ts2
+
+    pts = irc1["points"]
+    assert len(pts) >= 10
+    s_vals = [float(p["s_bohr_amu_half"]) for p in pts]
+    assert all(s_vals[i] < s_vals[i + 1] for i in range(len(s_vals) - 1))
+    peak_idx = int(np.argmax([float(p["energy_ha"]) for p in pts]))
+    assert abs(float(pts[peak_idx]["s_bohr_amu_half"])) < 1e-8
+
+    eo_end = pts[0]
+    birad_end = pts[-1]
+    assert eo_end["metrics"]["R_C1_O1_ang"] < 1.68
+    assert eo_end["metrics"]["angle_C1_C2_O1_deg"] < 66.0
+    assert birad_end["metrics"]["R_C1_O1_ang"] > 2.50
+    assert birad_end["metrics"]["angle_C1_C2_O1_deg"] > 108.0
+
+    # Live anti-circular energy verification on an interior ring-closing (s < 0) IRC 1 point
+    interior_pts = [
+        p for p in pts
+        if float(p["s_bohr_amu_half"]) < -0.5 and float(p["metrics"]["R_C1_O1_ang"]) < 2.20
+    ]
+    assert interior_pts
+    sample_pt = interior_pts[len(interior_pts) // 2]
+    eo_deck = CalculationDeck.from_yaml(REPO_ROOT / "examples" / "EO_localized_vb.yaml")
+    sample_deck = copy.deepcopy(eo_deck)
+    for atom, xyz in zip(sample_deck.geometry, sample_pt["coordinates"]):
+        atom.xyz = [float(c) for c in xyz]
+    st_sample = drv.run_deck(sample_deck)
+    assert st_sample.converged is True
+    assert abs(float(st_sample.total_energy) - float(sample_pt["energy_ha"])) < 1.0e-5
+

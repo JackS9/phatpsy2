@@ -664,6 +664,27 @@ def _build_setup_from_orbital_specs(
 
     na_tot = n_inact + na_act
     nb_tot = n_inact + nb_act
+    S = ints.S
+
+    seeded_orbs: List[Optional[np.ndarray]] = [None] * len(roles)
+    for k, spec in enumerate(vb_orbital_specs):
+        seed_raw = spec.get("seed")
+        if isinstance(seed_raw, (list, tuple, np.ndarray)):
+            seed_arr = np.asarray(seed_raw, dtype=float)
+            if seed_arr.ndim == 1 and seed_arr.size in (len(masks[k]), nao):
+                v_cand = np.zeros(nao, dtype=float)
+                if seed_arr.size == len(masks[k]):
+                    v_cand[masks[k]] = seed_arr
+                else:
+                    v_cand[masks[k]] = seed_arr[masks[k]]
+                s_norm2 = float(v_cand @ S @ v_cand)
+                if s_norm2 > 1e-14:
+                    v_cand /= float(np.sqrt(s_norm2))
+                    seeded_orbs[k] = v_cand
+
+    if seeded_orbs and all(s is not None for s in seeded_orbs):
+        return roles, masks, (int(na_act), int(nb_act)), [s for s in seeded_orbs if s is not None]
+
     mf_kind = "RHF" if na_tot == nb_tot else "ROHF"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -679,10 +700,12 @@ def _build_setup_from_orbital_specs(
     virt_weights = 1.0 / np.sqrt(1.0 + 0.05 * np.arange(C_virt.shape[1], dtype=float))
     C_virt_w = C_virt * virt_weights[None, :]
 
-    S = ints.S
     h_mat = ints.h
     Q_assigned: List[np.ndarray] = []
-    seeds: List[Optional[np.ndarray]] = [None] * len(roles)
+    seeds: List[Optional[np.ndarray]] = list(seeded_orbs)
+    for s_orb in seeded_orbs:
+        if s_orb is not None:
+            Q_assigned.append(s_orb)
 
     def _pick_mask_seed(m: np.ndarray, C_pool: np.ndarray) -> np.ndarray:
         S_m = S[np.ix_(m, m)]
@@ -736,17 +759,18 @@ def _build_setup_from_orbital_specs(
         return v_cand
 
     # Assign inactive specs first (smallest masks first so atomic cores precede multi-center bonds)
-    inact_order = sorted([k for k, r in enumerate(roles) if r == "inactive"], key=lambda k: (len(masks[k]), k))
+    inact_order = sorted([k for k, r in enumerate(roles) if r == "inactive" and seeds[k] is None], key=lambda k: (len(masks[k]), k))
     for k in inact_order:
         v = _pick_mask_seed(masks[k], C_occ_w)
         seeds[k] = v
         Q_assigned.append(v)
 
     # Assign occupied-count active specs from remaining occupied RHF space, remainder from lowest virtuals
-    act_order = sorted([k for k, r in enumerate(roles) if r == "active"], key=lambda k: (len(masks[k]), k))
+    act_order = sorted([k for k, r in enumerate(roles) if r == "active" and seeds[k] is None], key=lambda k: (len(masks[k]), k))
     n_act_occ = min(n_act, max(na_act, nb_act))
+    n_seeded_act = sum(1 for k, r in enumerate(roles) if r == "active" and seeded_orbs[k] is not None)
     for pos, k in enumerate(act_order):
-        pool = C_occ_w if pos < n_act_occ else C_virt_w
+        pool = C_occ_w if (n_seeded_act + pos) < n_act_occ else C_virt_w
         v = _pick_mask_seed(masks[k], pool)
         seeds[k] = v
         Q_assigned.append(v)
