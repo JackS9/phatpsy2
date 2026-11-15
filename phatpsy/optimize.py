@@ -172,10 +172,19 @@ def optimize_geometry(
         return new_atoms
 
     last_state: Optional[CalculationState] = None
+    from phatpsy.vb_driver import LocalizedVBDriver
 
-    def evaluate_energy_and_state(x: np.ndarray, update_restart: bool = True) -> Tuple[float, CalculationState]:
-        nonlocal last_state
-        test_atoms = unpack_free_coords(x, atoms)
+    use_vb_analytic = LocalizedVBDriver.has_analytical_gradient(current_deck)
+    vb_direct = (
+        use_vb_analytic
+        and (not getattr(getattr(current_deck, "control", None), "use_dispersion", False))
+        and type(driver).__name__ in ("PhatpsyDriver", "LocalizedVBDriver")
+    )
+    vb_drv = LocalizedVBDriver(quiet=quiet) if vb_direct else None
+    grad_cache: Dict[str, Any] = {"key": None, "grad": None}
+
+    def _build_eval_deck(x_vec: np.ndarray) -> CalculationDeck:
+        test_atoms = unpack_free_coords(x_vec, atoms)
         test_deck = copy.deepcopy(current_deck)
         if hasattr(test_deck, "geometry"):
             test_deck.geometry = test_atoms
@@ -185,13 +194,41 @@ def optimize_geometry(
         if warm_restart and last_state is not None and last_state.converged:
             new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in test_atoms]
             test_deck = last_state.create_restart_deck(new_geometry=new_geom)
+        return test_deck
 
-        state = driver.run_deck(test_deck, quiet=quiet)
+    def evaluate_energy_and_state(
+        x: np.ndarray,
+        update_restart: bool = True,
+        need_grad: bool = False,
+    ) -> Tuple[float, CalculationState]:
+        nonlocal last_state
+        test_deck = _build_eval_deck(x)
+
+        if need_grad and vb_drv is not None:
+            state, g_full = vb_drv.energy_and_gradient(test_deck, quiet=quiet)
+            g_free = np.concatenate([np.asarray(g_full[i], dtype=np.float64) for i in free_indices])
+            grad_cache["key"] = x.tobytes()
+            grad_cache["grad"] = g_free
+        else:
+            state = driver.run_deck(test_deck, quiet=quiet)
+
         if update_restart and state.converged:
             last_state = state
         return float(state.total_energy), state
 
     def evaluate_gradient(x: np.ndarray, f0: float) -> np.ndarray:
+        x_key = x.tobytes()
+        if grad_cache["key"] == x_key and grad_cache["grad"] is not None:
+            return grad_cache["grad"].copy()
+
+        if use_vb_analytic:
+            test_deck = _build_eval_deck(x)
+            g_full = driver.gradient(test_deck, method="analytical", quiet=quiet)
+            g_free = np.concatenate([np.asarray(g_full[i], dtype=np.float64) for i in free_indices])
+            grad_cache["key"] = x_key
+            grad_cache["grad"] = g_free
+            return g_free.copy()
+
         grad = np.zeros_like(x)
         h = finite_diff_step
         for i in range(len(x)):
@@ -208,7 +245,7 @@ def optimize_geometry(
 
     # Initial state evaluation
     x = pack_free_coords(atoms)
-    e_current, state_current = evaluate_energy_and_state(x)
+    e_current, state_current = evaluate_energy_and_state(x, need_grad=vb_direct)
     initial_energy = e_current
     last_state = state_current
 
@@ -243,12 +280,12 @@ def optimize_geometry(
         alpha = 1.0
         c1 = 1e-4
         x_new = x + alpha * p
-        e_new, state_new = evaluate_energy_and_state(x_new)
+        e_new, state_new = evaluate_energy_and_state(x_new, need_grad=vb_direct)
 
         while e_new > e_current + c1 * alpha * np.dot(grad, p) and alpha > 0.05:
             alpha *= 0.5
             x_new = x + alpha * p
-            e_new, state_new = evaluate_energy_and_state(x_new)
+            e_new, state_new = evaluate_energy_and_state(x_new, need_grad=False)
 
         # Evaluate new gradient
         grad_new = evaluate_gradient(x_new, e_new)
@@ -294,7 +331,10 @@ def optimize_geometry(
         optimized_deck = state_current.create_restart_deck(new_geometry=new_geom)
     else:
         optimized_deck = copy.deepcopy(current_deck)
-        optimized_deck.atoms = final_atoms
+        if hasattr(optimized_deck, "geometry"):
+            optimized_deck.geometry = final_atoms
+        else:
+            optimized_deck.atoms = final_atoms
 
     return OptimizationResult(
         converged=converged,

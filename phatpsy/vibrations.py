@@ -452,10 +452,65 @@ def compute_hessian(
     H = np.zeros((dim, dim), dtype=np.float64)
     h = float(step_size)
 
-    if getattr(getattr(calc_deck, "control", None), "method", "phatpsy_scf") in ("localized_vb", "masked_vb"):
-        use_analytical_gradients = False
+    vb_method = getattr(getattr(calc_deck, "control", None), "method", "phatpsy_scf")
+    vb_analytic = False
+    if vb_method in ("localized_vb", "masked_vb"):
+        from phatpsy.vb_driver import LocalizedVBDriver
+        vb_analytic = LocalizedVBDriver.has_analytical_gradient(calc_deck)
+        if not vb_analytic:
+            use_analytical_gradients = False
 
     if use_analytical_gradients:
+        if vb_analytic and type(driver).__name__ in ("PhatpsyDriver", "LocalizedVBDriver"):
+            from phatpsy.vb_driver import LocalizedVBDriver
+
+            def _grad_with_dispersion(target_deck: CalculationDeck, warm_orbs: Optional[Any]) -> np.ndarray:
+                g_vb = LocalizedVBDriver(quiet=quiet).gradient(
+                    target_deck,
+                    method=gradient_method,
+                    quiet=quiet,
+                    warm_orbitals=warm_orbs,
+                )
+                if getattr(target_deck.control, "use_dispersion", False):
+                    from phatpsy.dispersion import compute_dispersion_gradient
+                    kernel = getattr(target_deck.control, "exchange_kernel", "hf") or "hf"
+                    fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
+                    g_vb = g_vb + compute_dispersion_gradient(target_deck.geometry, functional=fn)
+                return g_vb.flatten()
+
+            res0, g0_raw = LocalizedVBDriver(quiet=quiet).energy_and_gradient(
+                calc_deck,
+                method=gradient_method,
+                quiet=quiet,
+            )
+            warm_vb = res0.get("localized_orbitals_embedded", res0.get("localized_orbitals"))
+            g0_flat = g0_raw.flatten()
+            if getattr(calc_deck.control, "use_dispersion", False):
+                from phatpsy.dispersion import compute_dispersion_gradient
+                kernel = getattr(calc_deck.control, "exchange_kernel", "hf") or "hf"
+                fn = kernel if kernel.lower() not in ("hf", "hartree-fock") else "hf"
+                g0_flat = g0_flat + compute_dispersion_gradient(calc_deck.geometry, functional=fn).flatten()
+
+            use_forward = method.strip().lower() == "forward"
+            for j in active_indices:
+                atom_idx = j // 3
+                coord_idx = j % 3
+
+                d_plus = copy.deepcopy(calc_deck)
+                d_plus.geometry[atom_idx].xyz[coord_idx] += h
+                g_plus = _grad_with_dispersion(d_plus, warm_vb)
+
+                if use_forward:
+                    H[:, j] = (g_plus - g0_flat) / h
+                else:
+                    d_minus = copy.deepcopy(calc_deck)
+                    d_minus.geometry[atom_idx].xyz[coord_idx] -= h
+                    g_minus = _grad_with_dispersion(d_minus, warm_vb)
+                    H[:, j] = (g_plus - g_minus) / (2.0 * h)
+
+            H = 0.5 * (H + H.T)
+            return H, calc_deck, active_indices
+
         for j in active_indices:
             atom_idx = j // 3
             coord_idx = j % 3

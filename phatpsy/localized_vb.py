@@ -470,6 +470,97 @@ def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
     return float(e), G_Xi, G_Xa
 
 
+def cas_nuclear_gradient_intermediates(
+    Xi: np.ndarray,
+    Xa: np.ndarray,
+    ints: Any,
+    nelec_act: Optional[Tuple[int, int]] = None,
+) -> Dict[str, Any]:
+    """Fixed-``(Xi, Xa)`` AO Lagrangian densities needed for exact analytical nuclear gradients.
+
+    Because :class:`MaskedVB` minimizes ``E(x, c_CI)`` variationally with respect to both
+    the domain-masked orbital parameters ``x`` and the CAS CI vector ``c_CI``, and raw
+    columns ``(Xi, Xa)`` are independent of the AO metric ``S(R)`` when no frozen/CPHF-coupled
+    orbital projector depends on nuclear coordinates (all-electron CAS), the exact total
+    nuclear gradient reduces to explicit differentiation of ``(S, h, eri)`` plus nuclear
+    repulsion at fixed ``(Xi, Xa)`` (Pulay 1969).
+    """
+    from pyscf import ao2mo, fci
+
+    S, h = ints.S, ints.h
+    n = ints.nao
+    Jm, Km = ints.jk_matrices()
+    J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
+    K = lambda g: (Km @ g.ravel()).reshape(g.shape)
+
+    if Xi.shape[1]:
+        Sc = 0.5 * (Xi.T @ S @ Xi + (Xi.T @ S @ Xi).T)
+        Ni = np.linalg.inv(Sc)
+        Dc = Xi @ Ni @ Xi.T
+    else:
+        Ni = np.zeros((0, 0))
+        Dc = np.zeros((n, n))
+    Fc = h + 2.0 * J(Dc) - K(Dc)
+    e_core = float(np.sum(Dc * (h + Fc)))
+
+    nact = Xa.shape[1]
+    if nact == 0:
+        Pa = np.zeros((n, n))
+        Ca = np.zeros((n, 0))
+        dm1 = np.zeros((0, 0))
+        dm2 = np.zeros((0, 0, 0, 0))
+        S_act_term = np.zeros((n, n))
+        e = float(e_core + ints.vnn)
+    else:
+        Y = Xa - Dc @ (S @ Xa) if Xi.shape[1] else Xa.copy()
+        M_ov = 0.5 * (Y.T @ S @ Y + (Y.T @ S @ Y).T)
+        w, V = np.linalg.eigh(M_ov)
+        w = np.maximum(w, 1e-14)
+        inv_sqrt_w = 1.0 / np.sqrt(w)
+        Tm = (V * inv_sqrt_w[None, :]) @ V.T
+        Ca = Y @ Tm
+
+        if nelec_act is None:
+            nelec_act = (nact // 2, nact - nact // 2)
+        h1 = Ca.T @ Fc @ Ca
+        if nelec_act == (nact, 0):
+            eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
+            dm1 = np.eye(nact)
+            dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
+            e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+        else:
+            eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
+            e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+            dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+
+        Pa = Ca @ dm1 @ Ca.T
+        eri3_ca = np.einsum("mnls,nq,lr,st->mqrt", ints.eri, Ca, Ca, Ca, optimize=True)
+        Q_ca = np.einsum("mqrt,pqrt->mp", eri3_ca, dm2, optimize=True)
+        G_Ca = 2.0 * (Fc @ Ca @ dm1) + 2.0 * Q_ca
+
+        B_V = V.T @ (Y.T @ G_Ca) @ V
+        denom = np.sqrt(w[:, None] * w[None, :]) * (np.sqrt(w[:, None]) + np.sqrt(w[None, :]))
+        W_M = V @ (0.5 * (B_V + B_V.T) / denom) @ V.T
+        S_act_term = -Y @ W_M @ Y.T - 0.5 * (Dc @ G_Ca @ Ca.T + Ca @ G_Ca.T @ Dc)
+
+    Ja = J(Pa) if nact > 0 else np.zeros((n, n))
+    Ka = K(Pa) if nact > 0 else np.zeros((n, n))
+    Ac = 2.0 * Fc + 2.0 * Ja - Ka
+    dE_dS_raw = -Dc @ Ac @ Dc + S_act_term
+    dE_dS = 0.5 * (dE_dS_raw + dE_dS_raw.T)
+    D_tot = 2.0 * Dc + Pa
+    return {
+        "energy": float(e),
+        "D_tot": D_tot,
+        "dE_dS": dE_dS,
+        "Dc": Dc,
+        "Pa": Pa,
+        "Ca": Ca,
+        "dm1": dm1,
+        "dm2": dm2,
+    }
+
+
 def structure_ci_energy(inactive, pairs, ints: AOIntegrals) -> Tuple[float, np.ndarray]:
     """Variational mixing of the 2^n covalent determinant products is NOT used; instead
     this returns the lowest eigenvalue over the space spanned by the PP determinants
@@ -646,8 +737,20 @@ class MaskedVB:
 
     def optimize(self, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
         from scipy.optimize import minimize
-        return minimize(self.energy_and_grad, x0, jac=True, method="BFGS",
-                        options={"maxiter": maxiter, "gtol": gtol})
+
+        x_init = np.array(x0, dtype=float, copy=True)
+        for k in range(len(self.masks)):
+            s0, s1 = int(self.off[k]), int(self.off[k + 1])
+            nrm = float(np.linalg.norm(x_init[s0:s1]))
+            if nrm > 1e-12:
+                x_init[s0:s1] /= nrm
+        return minimize(
+            self.energy_and_grad,
+            x_init,
+            jac=True,
+            method="BFGS",
+            options={"maxiter": maxiter, "gtol": gtol},
+        )
 
 
 def optimize_masked_vb(model: MaskedVB, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
@@ -714,6 +817,7 @@ def _optimize_fd(model: LocalizedVBModel, x0: np.ndarray, maxiter: int = 400, gt
 
 def pyscf_mean_field(ints: AOIntegrals, nelec: Tuple[int, int], kind: str = "RHF", h: Optional[np.ndarray] = None,
                      dm0=None):
+    import warnings
     from pyscf import ao2mo, gto, scf
 
     mol = gto.M(verbose=0)
@@ -729,5 +833,7 @@ def pyscf_mean_field(ints: AOIntegrals, nelec: Tuple[int, int], kind: str = "RHF
     mf._eri = ao2mo.restore(8, ints.eri, ints.nao)
     mf.conv_tol = 1e-10
     mf.max_cycle = 300
-    mf.kernel(dm0=dm0)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Function mol.dumps drops attribute.*", category=UserWarning)
+        mf.kernel(dm0=dm0)
     return mf

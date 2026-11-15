@@ -13,7 +13,7 @@ Implements:
 """
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Any, Union, Callable
+from typing import List, Dict, Tuple, Optional, Any, Union, Callable, Sequence
 import copy
 import json
 import math
@@ -403,6 +403,7 @@ def neb_search(
     warm_restart: bool = True,
     callback: Optional[Callable[[int, List[float], float], None]] = None,
     quiet: bool = True,
+    initial_images: Optional[Sequence[CalculationDeck]] = None,
 ) -> NEBResult:
     """
     Performs Nudged Elastic Band (NEB) or Climbing-Image NEB (CI-NEB) transition state search.
@@ -421,6 +422,7 @@ def neb_search(
         warm_restart: Whether to seed successive SCF evaluations with previous wavefunctions.
         callback: Optional callback func(iteration, energies, max_force).
         quiet: Whether to suppress verbose Fortran output (default: True).
+        initial_images: Optional explicit sequence of images overriding linear interpolation.
 
     Returns:
         NEBResult with full pathway, transition state, and barrier metrics.
@@ -428,8 +430,16 @@ def neb_search(
     if driver is None:
         driver = PhatpsyDriver(quiet=quiet)
 
-    # 1. Generate initial interpolated images
-    images = interpolate_images(initial_deck, final_deck, num_images=num_images)
+    # 1. Generate or adopt initial pathway images
+    if initial_images is not None:
+        if len(initial_images) < 3:
+            raise ValueError(f"initial_images requires at least 3 images, got {len(initial_images)}.")
+        images = [copy.deepcopy(img) for img in initial_images]
+        for img in images:
+            img.ensure_atom_ids()
+            img.resolve_coordinates()
+    else:
+        images = interpolate_images(initial_deck, final_deck, num_images=num_images)
     n_images = len(images)
     ref_atoms = images[0].geometry if hasattr(images[0], "geometry") else images[0].atoms
 
@@ -457,10 +467,21 @@ def neb_search(
         resolve_atom_coordinates(new_atoms, force_symmetry=True)
         return new_atoms
 
-    # Track wavefunctions for warm restarts
-    image_states: List[Optional[CalculationState]] = [None] * n_images
+    from phatpsy.vb_driver import LocalizedVBDriver
 
-    def evaluate_image(img_idx: int, x: np.ndarray, update_restart: bool = True) -> Tuple[float, CalculationState]:
+    use_vb_analytic = LocalizedVBDriver.has_analytical_gradient(images[0])
+    vb_direct = (
+        use_vb_analytic
+        and (not getattr(getattr(images[0], "control", None), "use_dispersion", False))
+        and type(driver).__name__ in ("PhatpsyDriver", "LocalizedVBDriver")
+    )
+    vb_drv = LocalizedVBDriver(quiet=quiet) if vb_direct else None
+
+    # Track wavefunctions (and cached analytical gradients when available) for warm restarts
+    image_states: List[Optional[CalculationState]] = [None] * n_images
+    image_grad_cache: List[Optional[Tuple[bytes, np.ndarray]]] = [None] * n_images
+
+    def _build_image_deck(img_idx: int, x: np.ndarray, seed_state: Optional[CalculationState] = None) -> CalculationDeck:
         img_atoms = images[img_idx].geometry if hasattr(images[img_idx], "geometry") else images[img_idx].atoms
         current_atoms = unpack_coords(x, img_atoms)
         deck_eval = copy.deepcopy(images[img_idx])
@@ -469,16 +490,43 @@ def neb_search(
         else:
             deck_eval.atoms = current_atoms
 
-        if warm_restart and image_states[img_idx] is not None and image_states[img_idx].converged:
+        prev_state = seed_state if (seed_state is not None and seed_state.converged) else image_states[img_idx]
+        if warm_restart and prev_state is not None and prev_state.converged:
             new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in current_atoms]
-            deck_eval = image_states[img_idx].create_restart_deck(new_geometry=new_geom)
+            deck_eval = prev_state.create_restart_deck(new_geometry=new_geom)
+        return deck_eval
 
-        state = driver.run_deck(deck_eval, quiet=quiet)
+    def evaluate_image(
+        img_idx: int,
+        x: np.ndarray,
+        update_restart: bool = True,
+        seed_state: Optional[CalculationState] = None,
+    ) -> Tuple[float, CalculationState]:
+        deck_eval = _build_image_deck(img_idx, x, seed_state=seed_state)
+        if update_restart and vb_drv is not None and 0 < img_idx < n_images - 1:
+            state, g_full = vb_drv.energy_and_gradient(deck_eval, quiet=quiet)
+            raw_free = np.concatenate([np.asarray(g_full[i], dtype=np.float64) for i in free_indices])
+            image_grad_cache[img_idx] = (x.tobytes(), np.clip(raw_free, -20.0, 20.0))
+        else:
+            state = driver.run_deck(deck_eval, quiet=quiet)
         if update_restart and state.converged:
             image_states[img_idx] = state
         return float(state.total_energy), state
 
     def evaluate_gradient(img_idx: int, x: np.ndarray) -> np.ndarray:
+        cached = image_grad_cache[img_idx]
+        x_key = x.tobytes()
+        if cached is not None and cached[0] == x_key:
+            return cached[1].copy()
+
+        if use_vb_analytic:
+            deck_eval = _build_image_deck(img_idx, x)
+            g_full = driver.gradient(deck_eval, method="analytical", quiet=quiet)
+            raw_free = np.concatenate([np.asarray(g_full[i], dtype=np.float64) for i in free_indices])
+            clipped = np.clip(raw_free, -20.0, 20.0)
+            image_grad_cache[img_idx] = (x_key, clipped)
+            return clipped.copy()
+
         grad = np.zeros_like(x)
         h = finite_diff_step
         for dim in range(len(x)):
@@ -494,7 +542,7 @@ def neb_search(
             grad[dim] = float(np.clip(raw_g, -20.0, 20.0))
         return grad
 
-    # 2. Evaluate initial energies of all images
+    # 2. Evaluate initial energies of all images (inward warm-starting from both endpoints)
     x_coords: List[np.ndarray] = [pack_coords(img.atoms) for img in images]
     energies: List[float] = [0.0] * n_images
 
@@ -507,10 +555,21 @@ def neb_search(
     energies[-1] = e_end
     image_states[-1] = s_end
 
-    for i in range(1, n_images - 1):
-        ei, si = evaluate_image(i, x_coords[i])
-        energies[i] = ei
-        image_states[i] = si
+    left = 1
+    right = n_images - 2
+    while left <= right:
+        if left < n_images - 1:
+            seed_l = image_states[left - 1] if warm_restart else None
+            el, sl = evaluate_image(left, x_coords[left], seed_state=seed_l)
+            energies[left] = el
+            image_states[left] = sl
+            left += 1
+        if right >= left:
+            seed_r = image_states[right + 1] if warm_restart else None
+            er, sr = evaluate_image(right, x_coords[right], seed_state=seed_r)
+            energies[right] = er
+            image_states[right] = sr
+            right -= 1
 
     # Velocities for QuickMin optimizer
     velocities: List[np.ndarray] = [np.zeros_like(x_coords[0]) for _ in range(n_images)]

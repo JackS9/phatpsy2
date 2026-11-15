@@ -335,7 +335,10 @@ class PhatpsyDriver:
             from phatpsy.vb_driver import LocalizedVBDriver
             is_quiet_vb = self.quiet if quiet is None else quiet
             grad = LocalizedVBDriver(quiet=is_quiet_vb).gradient(
-                deck, finite_diff_step=finite_diff_step, quiet=is_quiet_vb
+                deck,
+                finite_diff_step=finite_diff_step,
+                quiet=is_quiet_vb,
+                method=method,
             )
             if getattr(deck.control, "use_dispersion", False):
                 from phatpsy.dispersion import compute_dispersion_gradient

@@ -530,9 +530,23 @@ def dimer_search(
             last_state = st
         return float(st.total_energy)
 
+    from phatpsy.vb_driver import LocalizedVBDriver
+
+    use_vb_analytic = LocalizedVBDriver.has_analytical_gradient(calc_deck)
+
     def evaluate_force(c_flat: np.ndarray) -> np.ndarray:
-        """Evaluates numerical Cartesian force F = -dE/dr."""
+        """Evaluates Cartesian force F = -dE/dr analytically (when available) or via central FD."""
         nonlocal last_state
+        if use_vb_analytic:
+            atoms_c = _unpack_and_sync(c_flat)
+            dc = copy.deepcopy(calc_deck)
+            dc.geometry = atoms_c
+            if warm_restart and last_state is not None and last_state.converged:
+                dc = last_state.create_restart_deck([(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in atoms_c])
+            g_arr = np.asarray(driver.gradient(dc, method="analytical", quiet=quiet), dtype=np.float64).flatten()
+            g_arr[~active_mask] = 0.0
+            return -g_arr
+
         grad = np.zeros(dim, dtype=np.float64)
         h = float(finite_diff_step)
 
@@ -737,4 +751,336 @@ def refine_neb_saddle(
         force_tol=force_tol,
         rot_tol=rot_tol,
         quiet=quiet,
+    )
+
+
+# ==============================================================================
+# Baker (1986) / Bofill (1994) Partitioned RFO Saddle Refinement
+# ==============================================================================
+
+def _internal_vib_basis(coords_flat: np.ndarray, n_atoms: int) -> np.ndarray:
+    """Return orthonormal Cartesian complement ``Q_vib`` orthogonal to rigid translations and rotations."""
+    dim = 3 * n_atoms
+    if n_atoms <= 1:
+        return np.eye(dim, dtype=np.float64)
+
+    r_mat = coords_flat.reshape(n_atoms, 3)
+    com = np.mean(r_mat, axis=0)
+    r_rel = r_mat - com[None, :]
+
+    tr_rows: List[np.ndarray] = []
+    for axis in range(3):
+        t_vec = np.zeros(dim, dtype=np.float64)
+        t_vec[axis::3] = 1.0
+        t_vec /= max(float(np.linalg.norm(t_vec)), 1e-12)
+        tr_rows.append(t_vec)
+
+    for axis in range(3):
+        e_ax = np.zeros(3, dtype=np.float64)
+        e_ax[axis] = 1.0
+        rot_vec = np.cross(e_ax[None, :], r_rel).reshape(dim)
+        nrm = float(np.linalg.norm(rot_vec))
+        if nrm > 1e-8:
+            tr_rows.append(rot_vec / nrm)
+
+    TR = np.vstack(tr_rows)
+    _, s_vals, vt = np.linalg.svd(TR, full_matrices=True)
+    r_tr = int(np.sum(s_vals > 1e-8))
+    if r_tr >= dim:
+        return np.zeros((dim, 0), dtype=np.float64)
+    return vt[r_tr:].T
+
+
+def _bofill_update(H: np.ndarray, dx: np.ndarray, dg: np.ndarray) -> np.ndarray:
+    """Apply Bofill (1994) SR1/PSB symmetric Hessian update preserving saddle-point curvature."""
+    dx_n2 = float(np.dot(dx, dx))
+    if dx_n2 < 1e-20:
+        return H
+    y = dg - H.dot(dx)
+    y_n2 = float(np.dot(y, y))
+    if y_n2 < 1e-24:
+        return H
+    y_dx = float(np.dot(y, dx))
+    phi = (y_dx * y_dx) / (dx_n2 * y_n2)
+
+    H_psb = H + (np.outer(y, dx) + np.outer(dx, y)) / dx_n2 - (y_dx / (dx_n2 * dx_n2)) * np.outer(dx, dx)
+    if abs(y_dx) > 1e-10 * math.sqrt(dx_n2 * y_n2):
+        H_sr1 = H + np.outer(y, y) / y_dx
+        H_new = phi * H_sr1 + (1.0 - phi) * H_psb
+    else:
+        H_new = H_psb
+    return 0.5 * (H_new + H_new.T)
+
+
+def prfo_step(
+    grad_int: np.ndarray,
+    hess_int: np.ndarray,
+    trust_radius: float = 0.15,
+) -> np.ndarray:
+    """Compute Baker (1986) P-RFO saddle step maximizing the lowest eigenmode and minimizing all others."""
+    g = np.asarray(grad_int, dtype=np.float64).flatten()
+    n_vib = int(g.size)
+    if n_vib == 0:
+        return g.copy()
+
+    H_sym = 0.5 * (np.asarray(hess_int, dtype=np.float64) + np.asarray(hess_int, dtype=np.float64).T)
+    evals, evecs = np.linalg.eigh(H_sym)
+    F = evecs.T @ g
+
+    b0 = float(evals[0])
+    F0 = float(F[0])
+    lambda_p = 0.5 * (b0 + math.sqrt(b0 * b0 + 4.0 * F0 * F0))
+    denom0 = lambda_p - b0
+    p0 = (F0 / denom0) if denom0 > 1e-14 else 0.0
+
+    if n_vib == 1:
+        ds = p0 * evecs[:, 0]
+    else:
+        b_min = evals[1:]
+        F_min = F[1:]
+        n_min = int(b_min.size)
+        A_min = np.zeros((n_min + 1, n_min + 1), dtype=np.float64)
+        A_min[:n_min, :n_min] = np.diag(b_min)
+        A_min[:n_min, n_min] = F_min
+        A_min[n_min, :n_min] = F_min
+        w_min, v_min = np.linalg.eigh(A_min)
+        lambda_n = float(w_min[0])
+        nu = float(v_min[n_min, 0])
+        if abs(nu) > 1e-10:
+            p_min = v_min[:n_min, 0] / nu
+        else:
+            p_min = -F_min / np.maximum(b_min - lambda_n, 1e-4)
+        p = np.concatenate(([p0], p_min))
+        ds = evecs @ p
+
+    ds_norm = float(np.linalg.norm(ds))
+    if trust_radius > 0.0 and ds_norm > trust_radius:
+        ds = ds * (float(trust_radius) / ds_norm)
+    return ds
+
+
+def refine_saddle_prfo(
+    deck: Any,
+    driver: Optional[PhatpsyDriver] = None,
+    max_cycles: int = 25,
+    force_tol: float = 1e-4,
+    step_size: float = 0.005,
+    trust_radius: float = 0.15,
+    hessian_recalc: int = 5,
+    initial_hessian: Optional[np.ndarray] = None,
+    hessian_method: str = "forward",
+    callback: Optional[Callable[[int, float, float, float], None]] = None,
+    quiet: bool = True,
+) -> DimerResult:
+    """Refine a transition-state geometry via Eckart-projected Baker (1986) P-RFO with Bofill (1994) updates.
+
+    Accepts either a :class:`~phatpsy.schema.CalculationDeck` or an ``NEBResult`` / dict
+    (extracting ``images[transition_state_index]``). Returns a :class:`DimerResult`.
+    """
+    from phatpsy.vibrations import compute_hessian
+    from phatpsy.vb_driver import LocalizedVBDriver
+
+    if driver is None:
+        driver = PhatpsyDriver(quiet=quiet)
+
+    if isinstance(deck, dict):
+        ts_idx = deck.get("transition_state_index", 0)
+        raw_images = deck.get("images", [])
+        atom_list = [
+            AtomConfig(
+                element=a["element"],
+                xyz=a["xyz"],
+                fixed=a.get("fixed", False),
+                virtual=a.get("virtual", False),
+            )
+            for a in raw_images[ts_idx].get("atoms", [])
+        ]
+        calc_deck = CalculationDeck(geometry=atom_list)
+    elif hasattr(deck, "transition_state_index") and hasattr(deck, "images"):
+        calc_deck = copy.deepcopy(deck.images[int(deck.transition_state_index)])
+    else:
+        calc_deck = copy.deepcopy(deck)
+
+    calc_deck.ensure_atom_ids()
+    calc_deck.resolve_coordinates()
+    for a in calc_deck.geometry:
+        if not a.fixed and not a.virtual:
+            a.symmetry = None
+            a.symmetry_op = None
+            a.symmetry_axis = None
+            a.equivalent_to = None
+
+    atoms = calc_deck.geometry
+    n_atoms = len(atoms)
+    dim = 3 * n_atoms
+    active_indices = [
+        i * 3 + ax
+        for i, a in enumerate(atoms)
+        if not a.fixed and not a.virtual
+        for ax in range(3)
+    ]
+    if not active_indices:
+        raise ValueError("Cannot perform P-RFO saddle refinement: all atoms are fixed or virtual.")
+    act_idx_arr = np.asarray(active_indices, dtype=int)
+    all_free = len(active_indices) == dim
+
+    use_vb_analytic = LocalizedVBDriver.has_analytical_gradient(calc_deck)
+    vb_direct = (
+        use_vb_analytic
+        and (not getattr(getattr(calc_deck, "control", None), "use_dispersion", False))
+        and type(driver).__name__ in ("PhatpsyDriver", "LocalizedVBDriver")
+    )
+    vb_drv = LocalizedVBDriver(quiet=quiet) if vb_direct else None
+
+    coords0 = np.array([a.xyz for a in atoms], dtype=np.float64).flatten()
+    last_state: Optional[CalculationState] = None
+    n_grad_evals = 0
+
+    def _build_deck(c_flat: np.ndarray) -> CalculationDeck:
+        test_atoms = copy.deepcopy(atoms)
+        for i in range(n_atoms):
+            test_atoms[i].xyz = [float(c_flat[i * 3]), float(c_flat[i * 3 + 1]), float(c_flat[i * 3 + 2])]
+        d = copy.deepcopy(calc_deck)
+        d.geometry = test_atoms
+        if last_state is not None and last_state.converged:
+            d = last_state.create_restart_deck([(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in test_atoms])
+        return d
+
+    def _eval_energy_and_grad(c_flat: np.ndarray) -> Tuple[float, np.ndarray, CalculationState]:
+        nonlocal last_state, n_grad_evals
+        d = _build_deck(c_flat)
+        if vb_drv is not None:
+            st, g_full = vb_drv.energy_and_gradient(d, quiet=quiet)
+            g_vec = np.asarray(g_full, dtype=np.float64).flatten()
+        else:
+            st = driver.run_deck(d, quiet=quiet)
+            grad_deck = d
+            if st.converged:
+                grad_deck = st.create_restart_deck([(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in d.geometry])
+            g_vec = np.asarray(
+                driver.gradient(grad_deck, method="analytical", finite_diff_step=step_size, quiet=quiet),
+                dtype=np.float64,
+            ).flatten()
+        n_grad_evals += 1
+        if st.converged:
+            last_state = st
+        return float(st.total_energy), g_vec[act_idx_arr], st
+
+    def _compute_active_hessian(c_flat: np.ndarray) -> np.ndarray:
+        nonlocal n_grad_evals
+        d = _build_deck(c_flat)
+        H_full, _, _ = compute_hessian(
+            deck=d,
+            driver=driver,
+            step_size=step_size,
+            method=hessian_method,
+            use_analytical_gradients=True,
+            quiet=quiet,
+        )
+        n_eval_step = len(active_indices) * (1 if hessian_method.strip().lower() == "forward" else 2)
+        n_grad_evals += n_eval_step
+        return H_full[np.ix_(act_idx_arr, act_idx_arr)]
+
+    c_curr = coords0.copy()
+    E_curr, g_act, st_curr = _eval_energy_and_grad(c_curr)
+    E_init = E_curr
+
+    if initial_hessian is not None:
+        H_full0 = np.asarray(initial_hessian, dtype=np.float64)
+        H_act = H_full0[np.ix_(act_idx_arr, act_idx_arr)] if H_full0.shape[0] == dim else H_full0.copy()
+        hess_exact = False
+    else:
+        H_act = _compute_active_hessian(c_curr)
+        hess_exact = True
+
+    traj: List[DimerStep] = []
+    converged = False
+    b0 = 0.0
+    g_norm = 0.0
+    trust_curr = float(trust_radius)
+
+    for cyc in range(max_cycles + 1):
+        x_act = c_curr[act_idx_arr]
+        Q_vib = _internal_vib_basis(x_act, n_atoms) if all_free else np.eye(len(act_idx_arr), dtype=np.float64)
+        g_int = Q_vib.T @ g_act
+        g_norm = float(np.linalg.norm(g_int))
+
+        H_int = Q_vib.T @ H_act @ Q_vib
+        H_int = 0.5 * (H_int + H_int.T)
+        evals, evecs = np.linalg.eigh(H_int)
+        b0 = float(evals[0]) if evals.size > 0 else 0.0
+        b1 = float(evals[1]) if evals.size > 1 else 1.0
+
+        orient_vec = np.zeros(dim, dtype=np.float64)
+        if evals.size > 0:
+            orient_vec[act_idx_arr] = Q_vib @ evecs[:, 0]
+
+        traj.append(
+            DimerStep(
+                step=cyc,
+                energy=E_curr,
+                curvature=b0,
+                force_eff_norm=g_norm,
+                rot_torque_norm=0.0,
+                coordinates=[c_curr[i * 3 : (i + 1) * 3].tolist() for i in range(n_atoms)],
+                orientation=[orient_vec[i * 3 : (i + 1) * 3].tolist() for i in range(n_atoms)],
+            )
+        )
+        if callback is not None:
+            callback(cyc, E_curr, g_norm, b0)
+
+        if g_norm < force_tol:
+            if (not hess_exact) and hessian_recalc > 0:
+                H_act = _compute_active_hessian(c_curr)
+                hess_exact = True
+                H_int = 0.5 * (Q_vib.T @ H_act @ Q_vib + (Q_vib.T @ H_act @ Q_vib).T)
+                evals, evecs = np.linalg.eigh(H_int)
+                b0 = float(evals[0]) if evals.size > 0 else 0.0
+                b1 = float(evals[1]) if evals.size > 1 else 1.0
+                traj[-1].curvature = b0
+            if b0 < 0.0 and (evals.size <= 1 or b1 > 0.0):
+                converged = True
+                break
+
+        if cyc == max_cycles:
+            break
+
+        ds_int = prfo_step(g_int, H_int, trust_radius=trust_curr)
+        dx_act = Q_vib @ ds_int
+
+        c_next = c_curr.copy()
+        c_next[act_idx_arr] += dx_act
+        E_next, g_next_act, st_next = _eval_energy_and_grad(c_next)
+
+        dg_act = g_next_act - g_act
+        H_act = _bofill_update(H_act, dx_act, dg_act)
+        hess_exact = False
+
+        g_norm_next = float(np.linalg.norm(Q_vib.T @ g_next_act))
+        if g_norm_next > 3.0 * max(g_norm, 1e-6) and trust_curr > 0.03:
+            trust_curr *= 0.5
+        elif g_norm_next < 0.7 * g_norm:
+            trust_curr = min(float(trust_radius), trust_curr * 1.25)
+
+        c_curr = c_next
+        E_curr = E_next
+        g_act = g_next_act
+        st_curr = st_next
+
+        if hessian_recalc > 0 and ((cyc + 1) % hessian_recalc == 0) and not converged:
+            H_act = _compute_active_hessian(c_curr)
+            hess_exact = True
+
+    saddle_deck = _build_deck(c_curr)
+    return DimerResult(
+        converged=converged,
+        saddle_energy=E_curr,
+        initial_energy=E_init,
+        num_cycles=len(traj) - 1,
+        num_gradient_evals=n_grad_evals,
+        final_curvature=b0,
+        final_force_norm=g_norm,
+        trajectory=traj,
+        saddle_deck=saddle_deck,
+        saddle_state=st_curr,
     )

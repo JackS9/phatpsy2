@@ -299,9 +299,18 @@ def compute_irc(
     coords0 = np.array([a.xyz for a in atoms], dtype=np.float64).flatten()
 
     last_state: Optional[CalculationState] = None
+    from phatpsy.vb_driver import LocalizedVBDriver
+
+    vb_analytic = LocalizedVBDriver.has_analytical_gradient(calc_deck)
+    vb_direct = (
+        vb_analytic
+        and (not getattr(getattr(calc_deck, "control", None), "use_dispersion", False))
+        and type(driver).__name__ in ("PhatpsyDriver", "LocalizedVBDriver")
+    )
+    vb_drv = LocalizedVBDriver(quiet=quiet) if vb_direct else None
 
     def evaluate_energy_and_gradient(c_flat: np.ndarray) -> Tuple[float, np.ndarray, float]:
-        """Evaluates electronic energy and numerical Cartesian gradient."""
+        """Evaluates electronic energy and analytical or numerical Cartesian gradient."""
         nonlocal last_state
         test_atoms = copy.deepcopy(atoms)
         for i in range(n_atoms):
@@ -314,11 +323,27 @@ def compute_irc(
             new_geom = [(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in test_atoms]
             test_deck = last_state.create_restart_deck(new_geometry=new_geom)
 
+        if vb_direct and vb_drv is not None:
+            state, grad_full = vb_drv.energy_and_gradient(test_deck, quiet=quiet)
+            if state.converged:
+                last_state = state
+            grad = np.asarray(grad_full, dtype=np.float64).flatten()
+            grad[~active_mask] = 0.0
+            return float(state.total_energy), grad, float(state.virial_ratio)
+
         state = driver.run_deck(test_deck, quiet=quiet)
         if state.converged:
             last_state = state
         E = float(state.total_energy)
         virial = float(state.virial_ratio)
+
+        if vb_analytic:
+            grad_deck = test_deck
+            if warm_restart and state.converged:
+                grad_deck = state.create_restart_deck([(a.element, a.xyz[0], a.xyz[1], a.xyz[2]) for a in test_atoms])
+            grad = np.asarray(driver.gradient(grad_deck, method="analytical", quiet=quiet), dtype=np.float64).flatten()
+            grad[~active_mask] = 0.0
+            return E, grad, virial
 
         # Numerical Cartesian gradient
         grad = np.zeros(dim, dtype=np.float64)
@@ -354,6 +379,7 @@ def compute_irc(
 
     # 1. Reference Transition State Evaluation
     E_ts, grad_ts, virial_ts = evaluate_energy_and_gradient(coords0)
+    ts_state = last_state
     grad_norm_ts = float(np.linalg.norm(grad_ts))
 
     def make_geom_dict(c_flat: np.ndarray) -> List[Dict[str, Any]]:
@@ -436,6 +462,8 @@ def compute_irc(
         """
         Traces one branch (+1 for forward, -1 for reverse) down the energy valley.
         """
+        nonlocal last_state
+        last_state = ts_state
         branch_points: List[IRCPoint] = []
         converged = False
 

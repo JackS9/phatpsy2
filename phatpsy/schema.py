@@ -180,6 +180,7 @@ VALID_CORE_EMBEDDINGS: Tuple[str, ...] = (
     "eri_free_2c",
 )
 VALID_ENVIRONMENT_EMBEDDINGS: Tuple[str, ...] = ("exact_joint_pk", "model_potential", "none")
+VALID_INTEGRAL_BACKENDS: Tuple[str, ...] = ("prolate", "sto_ng")
 
 
 @dataclass
@@ -189,6 +190,9 @@ class ControlConfig:
     domain_mode: str = "bond_local"  # Orbital AO domain policy ('strict_1c', 'bond_local', 'bond_local_h', 'blyholder_r0', 'blyholder_r1', 'blyholder_r2', 'delocalized', or 'custom')
     core_embedding: str = "unprojected_eri"  # Frozen noble-gas core treatment ('all_electron', 'exact_backprojected', 'unprojected_eri', or 'eri_free_2c')
     environment_embedding: str = "exact_joint_pk"  # Spectator environment embedding ('exact_joint_pk' or 'model_potential')
+    integral_backend: str = "prolate"  # Integral evaluation backend for localized_vb/masked_vb ('prolate' or 'sto_ng')
+    sto_ng_primitives: int = 6  # Stewart (1970) L2-optimal Gaussian primitives per STO shell when integral_backend='sto_ng' (3..20)
+    vb_orbital_specs: Optional[List[Dict[str, Any]]] = None  # Optional explicit orbital domain specs ([{'role': 'inactive'|'active', 'atoms': ['C1', ...]}])
     spin_unrestricted: bool = True
     max_cycles: int = 200
     convergence: float = 1.0e-6
@@ -250,6 +254,43 @@ class ControlConfig:
             raise ValueError(
                 f"ControlConfig.environment_embedding must be one of {VALID_ENVIRONMENT_EMBEDDINGS}, got {self.environment_embedding!r}"
             )
+        self.integral_backend = str(self.integral_backend).strip().lower()
+        if self.integral_backend not in VALID_INTEGRAL_BACKENDS:
+            raise ValueError(
+                f"ControlConfig.integral_backend must be one of {VALID_INTEGRAL_BACKENDS}, got {self.integral_backend!r}"
+            )
+        if (
+            isinstance(self.sto_ng_primitives, bool)
+            or not isinstance(self.sto_ng_primitives, int)
+            or not (3 <= int(self.sto_ng_primitives) <= 20)
+        ):
+            raise ValueError(
+                f"ControlConfig.sto_ng_primitives must be an integer in 3..20, got {self.sto_ng_primitives!r}"
+            )
+        if self.vb_orbital_specs is not None:
+            if not isinstance(self.vb_orbital_specs, list) or len(self.vb_orbital_specs) == 0:
+                raise ValueError("ControlConfig.vb_orbital_specs must be a non-empty list of spec dicts when provided.")
+            norm_specs: List[Dict[str, Any]] = []
+            for idx_s, spec in enumerate(self.vb_orbital_specs):
+                if not isinstance(spec, dict):
+                    raise ValueError(f"vb_orbital_specs[{idx_s}] must be a dict, got {type(spec).__name__}")
+                role = str(spec.get("role", "")).strip().lower()
+                if role not in ("inactive", "active"):
+                    raise ValueError(
+                        f"vb_orbital_specs[{idx_s}]['role'] must be 'inactive' or 'active', got {role!r}"
+                    )
+                atoms_raw = spec.get("atoms")
+                if not isinstance(atoms_raw, (list, tuple)) or len(atoms_raw) == 0 or not all(
+                    isinstance(a, str) and a.strip() for a in atoms_raw
+                ):
+                    raise ValueError(
+                        f"vb_orbital_specs[{idx_s}]['atoms'] must be a non-empty list of atom ID strings, got {atoms_raw!r}"
+                    )
+                cleaned = dict(spec)
+                cleaned["role"] = role
+                cleaned["atoms"] = [a.strip() for a in atoms_raw]
+                norm_specs.append(cleaned)
+            self.vb_orbital_specs = norm_specs
 
     @classmethod
     def localized_vb(
@@ -259,6 +300,9 @@ class ControlConfig:
         vb_wavefunction: str = "cas",
         core_embedding: str = "unprojected_eri",
         environment_embedding: str = "exact_joint_pk",
+        integral_backend: str = "prolate",
+        sto_ng_primitives: int = 6,
+        vb_orbital_specs: Optional[List[Dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> "ControlConfig":
         """Constructs a ControlConfig preconfigured for exact-integral Localized VB."""
@@ -271,6 +315,9 @@ class ControlConfig:
             vb_wavefunction=vb_wavefunction,
             core_embedding=core_embedding,
             environment_embedding=environment_embedding,
+            integral_backend=integral_backend,
+            sto_ng_primitives=sto_ng_primitives,
+            vb_orbital_specs=vb_orbital_specs,
             spin_unrestricted=spin_unrestricted,
             **kwargs,
         )
@@ -288,6 +335,12 @@ class ControlConfig:
                 del d["core_embedding"]
             if d.get("environment_embedding") == "exact_joint_pk":
                 del d["environment_embedding"]
+            if d.get("integral_backend") == "prolate":
+                del d["integral_backend"]
+            if d.get("sto_ng_primitives") == 6:
+                del d["sto_ng_primitives"]
+        if self.vb_orbital_specs is None:
+            d.pop("vb_orbital_specs", None)
         if not self.extra_namelist:
             del d["extra_namelist"]
         if self.default_basis is None:
@@ -303,7 +356,8 @@ class ControlConfig:
     def from_dict(cls, data: Dict[str, Any]) -> "ControlConfig":
         valid_keys = {
             "method", "vb_wavefunction", "domain_mode", "core_embedding",
-            "environment_embedding",
+            "environment_embedding", "integral_backend", "sto_ng_primitives",
+            "vb_orbital_specs",
             "spin_unrestricted", "max_cycles", "convergence", "time_limit",
             "charge_damp", "charge_accel", "potential_damp", "potential_accel",
             "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",

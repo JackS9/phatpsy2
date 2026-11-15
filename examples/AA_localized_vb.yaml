@@ -1,0 +1,143 @@
+title: Acetaldehyde (Localized VB CAS(4,4) SZ/STO-6G Minimum)
+control:
+  method: masked_vb
+  vb_wavefunction: cas
+  domain_mode: bond_local
+  core_embedding: all_electron
+  environment_embedding: exact_joint_pk
+  integral_backend: sto_ng
+  sto_ng_primitives: 6
+  vb_orbital_specs:
+  - role: inactive
+    atoms:
+    - C1
+  - role: inactive
+    atoms:
+    - C2
+  - role: inactive
+    atoms:
+    - O1
+  - role: inactive
+    atoms:
+    - O1
+  - role: inactive
+    atoms:
+    - O1
+  - role: inactive
+    atoms:
+    - C1
+    - H1
+  - role: inactive
+    atoms:
+    - C1
+    - H2
+  - role: inactive
+    atoms:
+    - C2
+    - H4
+  - role: inactive
+    atoms:
+    - C1
+    - C2
+  - role: inactive
+    atoms:
+    - C2
+    - O1
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+  - role: active
+    atoms:
+    - C1
+    - C2
+    - O1
+    - H3
+  spin_unrestricted: false
+  max_cycles: 400
+  convergence: 1.0e-08
+  use_grid_fit: true
+  atomic_smearing: 0.0
+  use_global_fermi: false
+  fermi_temperature: null
+  exchange_kernel: hartree-fock
+  exchange_alpha: 0.6666666666666666
+  correlation_kernel: null
+  use_dispersion: false
+  dispersion_model: d3bj
+  default_basis: ADF-TZP
+  separate_atoms_first_cycle: true
+  debug: false
+  trace: false
+geometry:
+- element: C
+  xyz:
+  - 1.467514
+  - -0.0
+  - -0.762115
+  id: C1
+  active: true
+  basis: SZ
+- element: C
+  xyz:
+  - -1.516768
+  - 0.0
+  - -0.798957
+  id: C2
+  active: true
+  basis: SZ
+- element: O
+  xyz:
+  - -2.864219
+  - 0.0
+  - 1.355665
+  id: O1
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - 2.292475
+  - 1.786684
+  - -1.753809
+  id: H1
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - 2.292475
+  - -1.786684
+  - -1.753809
+  id: H2
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - 2.197103
+  - -0.0
+  - 1.373469
+  id: H3
+  active: true
+  basis: SZ
+- element: H
+  xyz:
+  - -2.58858
+  - 0.0
+  - -2.750445
+  id: H4
+  active: true
+  basis: SZ
+net_spin: 0

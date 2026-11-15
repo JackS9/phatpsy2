@@ -40,6 +40,7 @@ from phatpsy.localized_vb import (
     OrbitalSpec,
     atom_basis,
     cas_energy_and_gradient,
+    cas_nuclear_gradient_intermediates,
     cas_rdm1_and_natural_orbitals,
     covalent_determinants,
     diatomic_ao_integrals,
@@ -51,7 +52,11 @@ from phatpsy.localized_vb import (
     pyscf_mean_field,
     symmetry_mask,
 )
-from phatpsy.multicenter_integrals import molecular_ao_integrals
+from phatpsy.multicenter_integrals import (
+    PySCFSTOContext,
+    molecular_ao_integrals,
+    sto_ng_ao_integrals,
+)
 from phatpsy.schema import ATOMIC_NUMBERS, AtomConfig, CalculationDeck
 from phatpsy.spin import build_connectivity_graph
 from phatpsy.state import CalculationState, EmbeddedAtomState
@@ -584,6 +589,172 @@ def _build_nico_blyholder_setup(
     return roles, masks, (2, 0), orbs0
 
 
+def _build_setup_from_orbital_specs(
+    active_atoms: List[AtomConfig],
+    ints: Any,
+    vb_orbital_specs: Sequence[Dict[str, Any]],
+    core_embedding: str,
+    net_spin_override: Optional[int],
+    charge: int,
+) -> Tuple[List[str], List[np.ndarray], Tuple[int, int], List[np.ndarray]]:
+    """Construct roles, domain masks, active electron counts, and RHF-projected seeds from ``vb_orbital_specs``."""
+    import warnings
+
+    n_atoms = len(active_atoms)
+    nao = ints.nao
+    atom_of = np.asarray(ints.atom_of, dtype=int)
+    z_list = [_atomic_num(a) for a in active_atoms]
+    idx_by_atom = [np.where(atom_of == ia)[0] for ia in range(n_atoms)]
+
+    id_to_idx: Dict[str, int] = {}
+    for idx, atom in enumerate(active_atoms):
+        if atom.id:
+            id_to_idx[str(atom.id)] = idx
+        id_to_idx.setdefault(f"{atom.element.strip().capitalize()}{idx + 1}", idx)
+
+    roles: List[str] = []
+    masks: List[np.ndarray] = []
+    for k, spec in enumerate(vb_orbital_specs):
+        if not isinstance(spec, dict):
+            raise ValueError(f"vb_orbital_specs[{k}] must be a dict with 'role' and 'atoms', got {type(spec).__name__}.")
+        role = str(spec.get("role", "active")).strip().lower()
+        if role not in ("inactive", "active"):
+            raise ValueError(f"vb_orbital_specs[{k}]['role'] must be 'inactive' or 'active', got {role!r}.")
+        raw_atoms = spec.get("atoms", spec.get("domain_atoms", []))
+        if isinstance(raw_atoms, (str, int)):
+            raw_atoms = [raw_atoms]
+        atom_idxs: List[int] = []
+        for ref in raw_atoms:
+            if isinstance(ref, (int, np.integer)):
+                ia = int(ref)
+                if not (0 <= ia < n_atoms):
+                    raise ValueError(f"vb_orbital_specs[{k}] atom index {ia} out of range [0, {n_atoms}).")
+                atom_idxs.append(ia)
+            else:
+                key = str(ref)
+                if key not in id_to_idx:
+                    raise ValueError(
+                        f"vb_orbital_specs[{k}] references unknown atom id {key!r}; valid ids: {sorted(id_to_idx)}."
+                    )
+                atom_idxs.append(id_to_idx[key])
+        if not atom_idxs:
+            raise ValueError(f"vb_orbital_specs[{k}] must specify at least one atom in 'atoms'.")
+        m = np.unique(np.concatenate([idx_by_atom[ia] for ia in atom_idxs])).astype(int)
+        roles.append(role)
+        masks.append(m)
+
+    n_inact = sum(1 for r in roles if r == "inactive")
+    n_act = sum(1 for r in roles if r == "active")
+    total_e = sum(z_list) - charge
+    if core_embedding != "all_electron":
+        total_e -= 2 * sum(_core_shells_count(z) for z in z_list)
+    n_act_e = total_e - 2 * n_inact
+    if n_act_e < 0 or n_act_e > 2 * n_act:
+        raise ValueError(
+            f"Incompatible vb_orbital_specs: total_e={total_e}, n_inactive={n_inact} -> "
+            f"n_act_e={n_act_e} for {n_act} active orbitals."
+        )
+
+    if net_spin_override is not None and (abs(net_spin_override) % 2) == (n_act_e % 2):
+        spin_diff = int(net_spin_override)
+    else:
+        spin_diff = n_act_e % 2
+    na_act = (n_act_e + spin_diff) // 2
+    nb_act = (n_act_e - spin_diff) // 2
+
+    na_tot = n_inact + na_act
+    nb_tot = n_inact + nb_act
+    mf_kind = "RHF" if na_tot == nb_tot else "ROHF"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mf = pyscf_mean_field(ints, (na_tot, nb_tot), kind=mf_kind)
+
+    C_all = np.asarray(mf.mo_coeff, dtype=float)
+    n_occ_tot = max(na_tot, nb_tot)
+    C_occ = C_all[:, :n_occ_tot]
+    C_virt = C_all[:, n_occ_tot:]
+
+    occ_weights = 1.0 / np.sqrt(1.0 + 0.02 * np.arange(C_occ.shape[1], dtype=float))
+    C_occ_w = C_occ * occ_weights[None, :]
+    virt_weights = 1.0 / np.sqrt(1.0 + 0.05 * np.arange(C_virt.shape[1], dtype=float))
+    C_virt_w = C_virt * virt_weights[None, :]
+
+    S = ints.S
+    h_mat = ints.h
+    Q_assigned: List[np.ndarray] = []
+    seeds: List[Optional[np.ndarray]] = [None] * len(roles)
+
+    def _pick_mask_seed(m: np.ndarray, C_pool: np.ndarray) -> np.ndarray:
+        S_m = S[np.ix_(m, m)]
+        w_m, v_m = np.linalg.eigh(S_m)
+        km = w_m > 1e-10
+        S_m_inv_half = (v_m[:, km] * (w_m[km] ** -0.5)[None, :]) @ v_m[:, km].T
+
+        Q_mat = np.column_stack(Q_assigned) if Q_assigned else None
+        S_Q_inv = np.linalg.pinv(Q_mat.T @ S @ Q_mat, rcond=1e-10) if Q_mat is not None else None
+
+        if C_pool.shape[1] > 0:
+            if Q_mat is not None:
+                C_rem = C_pool - Q_mat @ (S_Q_inv @ (Q_mat.T @ S @ C_pool))
+            else:
+                C_rem = C_pool
+            Proj_m = S_m_inv_half @ (S[m, :] @ C_rem)
+            U, s_vals, _ = np.linalg.svd(Proj_m, full_matrices=False)
+            for r in range(min(U.shape[1], len(s_vals))):
+                if s_vals[r] < 1e-4:
+                    break
+                v_cand = np.zeros(nao, dtype=float)
+                v_cand[m] = S_m_inv_half @ U[:, r]
+                nrm = float(np.sqrt(max(float(v_cand @ S @ v_cand), 1e-16)))
+                v_cand /= nrm
+                if Q_mat is None:
+                    return v_cand
+                v_perp = v_cand - Q_mat @ (S_Q_inv @ (Q_mat.T @ S @ v_cand))
+                indep = float(np.sqrt(max(float(v_perp @ S @ v_perp), 0.0)))
+                if indep > 0.15:
+                    return v_cand
+
+        # Orthogonal complement fallback inside mask m ordered by projected 1e energy
+        h_orth = S_m_inv_half @ h_mat[np.ix_(m, m)] @ S_m_inv_half
+        if Q_mat is not None:
+            B = S_m_inv_half @ S[np.ix_(m, np.arange(nao))] @ Q_mat
+            P_rem = B @ S_Q_inv @ B.T
+            P_null = np.eye(len(m)) - 0.5 * (P_rem + P_rem.T)
+            w_n, v_n = np.linalg.eigh(P_null)
+            keep_n = np.where(w_n > 0.1)[0]
+            if keep_n.size == 0:
+                keep_n = np.array([int(np.argmax(w_n))])
+            Vn = v_n[:, keep_n]
+            _, vec_h = np.linalg.eigh(Vn.T @ h_orth @ Vn)
+            u_best = Vn @ vec_h[:, 0]
+        else:
+            _, vec_h = np.linalg.eigh(h_orth)
+            u_best = vec_h[:, 0]
+        v_cand = np.zeros(nao, dtype=float)
+        v_cand[m] = S_m_inv_half @ u_best
+        v_cand /= float(np.sqrt(max(float(v_cand @ S @ v_cand), 1e-16)))
+        return v_cand
+
+    # Assign inactive specs first (smallest masks first so atomic cores precede multi-center bonds)
+    inact_order = sorted([k for k, r in enumerate(roles) if r == "inactive"], key=lambda k: (len(masks[k]), k))
+    for k in inact_order:
+        v = _pick_mask_seed(masks[k], C_occ_w)
+        seeds[k] = v
+        Q_assigned.append(v)
+
+    # Assign occupied-count active specs from remaining occupied RHF space, remainder from lowest virtuals
+    act_order = sorted([k for k, r in enumerate(roles) if r == "active"], key=lambda k: (len(masks[k]), k))
+    n_act_occ = min(n_act, max(na_act, nb_act))
+    for pos, k in enumerate(act_order):
+        pool = C_occ_w if pos < n_act_occ else C_virt_w
+        v = _pick_mask_seed(masks[k], pool)
+        seeds[k] = v
+        Q_assigned.append(v)
+
+    x0 = [s for s in seeds if s is not None]
+    return roles, masks, (int(na_act), int(nb_act)), x0
+
+
 def _build_general_vb_setup(
     active_atoms: List[AtomConfig],
     ints: Any,
@@ -591,6 +762,7 @@ def _build_general_vb_setup(
     core_embedding: str,
     net_spin_override: Optional[int],
     charge: int,
+    vb_orbital_specs: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Tuple[List[str], List[np.ndarray], Tuple[int, int], List[np.ndarray]]:
     """Construct roles, domain masks, active electron counts, and chemically directed seeds."""
     n_atoms = len(active_atoms)
@@ -602,6 +774,16 @@ def _build_general_vb_setup(
 
     idx_by_atom = [np.where(atom_of == ia)[0] for ia in range(n_atoms)]
     n_cores = [0 if core_embedding != "all_electron" else _core_shells_count(z) for z in z_list]
+
+    if vb_orbital_specs:
+        return _build_setup_from_orbital_specs(
+            active_atoms,
+            ints,
+            vb_orbital_specs,
+            core_embedding,
+            net_spin_override,
+            charge,
+        )
 
     # Single active atom
     if n_atoms == 1:
@@ -799,6 +981,33 @@ def _build_general_vb_setup(
                 act_orbs.append(bond_orb)
                 act_masks.append(_domain_for(i, nbs))
                 act_atoms_idx.append(i)
+            elif n_val_i >= 6 and len(adj[j]) >= 3:
+                # Terminal carbonyl/thione (=O, =S) bonded to sp2/polycoordinated center j:
+                # 2 inactive lone pairs (outward sp + in-plane p) + 2 active (sigma + out-of-plane pi)
+                inact_orbs.append(s_val - 0.55 * p_par)
+                inact_masks.append(_inact_mask(idxs))
+                j_other = [nb for nb in adj[j] if nb != i]
+                if len(j_other) >= 2:
+                    v1 = coords[j_other[0]] - coords[j]
+                    v2 = coords[j_other[1]] - coords[j]
+                    p_norm = np.cross(v1, v2)
+                    p_norm = p_norm - np.dot(p_norm, u) * u
+                    nrm_pn = float(np.linalg.norm(p_norm))
+                    if nrm_pn > 1e-6:
+                        e_oop = p_norm / nrm_pn
+                        e_inp = np.cross(u, e_oop)
+                        e_inp /= max(float(np.linalg.norm(e_inp)), 1e-12)
+                    else:
+                        e_inp, e_oop = e1, e2
+                else:
+                    e_inp, e_oop = e1, e2
+                inact_orbs.append(_p_vec(i, e_inp, idxs))
+                inact_masks.append(_inact_mask(idxs))
+                dom = _domain_for(i, nbs)
+                for vec in (s_val + 0.55 * p_par, _p_vec(i, e_oop, idxs)):
+                    act_orbs.append(vec)
+                    act_masks.append(dom)
+                    act_atoms_idx.append(i)
             elif n_val_i >= 4 and n_val_j >= 4:
                 # Multiple-bonded heavy-heavy pair (N2, CO, NO, O2, CN): 1 outward sp LP + 3 active (sig, px, py)
                 inact_orbs.append(s_val - 0.55 * p_par)
@@ -930,6 +1139,7 @@ def _solve_general_regimes(
     gtol: float,
     target_regime: Optional[str] = None,
     warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+    vb_orbital_specs: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, float], Optional[Tuple[MaskedVB, List[str], List[np.ndarray], Tuple[int, int], Any]]]:
     """Evaluate strict_1c -> bond_local -> delocalized regimes with sequential warm-starting."""
     regime_energies: Dict[str, float] = {}
@@ -937,7 +1147,13 @@ def _solve_general_regimes(
     prev_orbs: Optional[List[np.ndarray]] = None
     for reg_name in _GENERAL_REGIME_ORDER:
         roles_r, masks_r, nelec_r, x0_r = _build_general_vb_setup(
-            active_atoms, ints, reg_name, core_embedding, net_spin_override, charge
+            active_atoms,
+            ints,
+            reg_name,
+            core_embedding,
+            net_spin_override,
+            charge,
+            vb_orbital_specs=vb_orbital_specs,
         )
         m_r = MaskedVB(ints, roles_r, masks_r, nelec_r)
         if prev_orbs is not None and len(prev_orbs) == len(masks_r) and np.asarray(prev_orbs).shape[1] == ints.nao:
@@ -988,6 +1204,35 @@ class LocalizedVBDriver:
     def __init__(self, quiet: bool = True):
         self.quiet = quiet
 
+    @staticmethod
+    def has_analytical_gradient(deck: CalculationDeck) -> bool:
+        """Return True when exact variational analytical nuclear gradients are available for ``deck``."""
+        ctrl = getattr(deck, "control", None)
+        if ctrl is None:
+            return False
+        method = str(getattr(ctrl, "method", "phatpsy_scf") or "phatpsy_scf").strip().lower()
+        if method not in ("localized_vb", "masked_vb"):
+            return False
+        integral_backend = str(getattr(ctrl, "integral_backend", "prolate") or "prolate").strip().lower()
+        core_embedding = str(getattr(ctrl, "core_embedding", "unprojected_eri") or "unprojected_eri").strip().lower()
+        vb_wavefunction = str(getattr(ctrl, "vb_wavefunction", "cas") or "cas").strip().lower()
+        domain_mode = str(getattr(ctrl, "domain_mode", "bond_local") or "bond_local").strip().lower()
+        if integral_backend != "sto_ng" or core_embedding != "all_electron" or vb_wavefunction != "cas":
+            return False
+        non_virt = [a for a in deck.geometry if not a.virtual]
+        if any(not a.is_active for a in non_virt):
+            return False
+        active_atoms = [a for a in non_virt if a.is_active]
+        if len(active_atoms) == 0:
+            return False
+        act_syms = [a.element.strip().capitalize() for a in active_atoms]
+        if len(active_atoms) == 3 and act_syms == ["Ni", "C", "O"] and domain_mode.startswith("blyholder"):
+            return False
+        vb_specs = getattr(ctrl, "vb_orbital_specs", None)
+        if len(active_atoms) == 2 and domain_mode == "strict_1c" and method == "localized_vb" and not vb_specs:
+            return False
+        return True
+
     def run_deck(
         self,
         deck: CalculationDeck,
@@ -996,6 +1241,24 @@ class LocalizedVBDriver:
         warm_orbitals: Optional[Sequence[np.ndarray]] = None,
     ) -> CalculationState:
         """Execute a Localized VB or MaskedVB calculation on ``deck``."""
+        state, _ = self._solve_deck_internal(
+            deck,
+            quiet=quiet,
+            compare_regimes=compare_regimes,
+            warm_orbitals=warm_orbitals,
+            return_grad_context=False,
+        )
+        return state
+
+    def _solve_deck_internal(
+        self,
+        deck: CalculationDeck,
+        quiet: Optional[bool] = None,
+        compare_regimes: bool = False,
+        warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+        return_grad_context: bool = False,
+    ) -> Tuple[CalculationState, Optional[Dict[str, Any]]]:
+        """Internal solver returning ``(state, grad_context_or_None)``."""
         is_quiet = self.quiet if quiet is None else quiet
         deck.ensure_atom_ids()
         deck.resolve_coordinates()
@@ -1043,8 +1306,14 @@ class LocalizedVBDriver:
         env_mode = getattr(ctrl, "environment_embedding", "exact_joint_pk")
         domain_mode = getattr(ctrl, "domain_mode", "bond_local")
         vb_wf = getattr(ctrl, "vb_wavefunction", "cas")
+        integral_backend = str(getattr(ctrl, "integral_backend", "prolate") or "prolate").strip().lower()
+        sto_ng_k = int(getattr(ctrl, "sto_ng_primitives", 6))
+        vb_orbital_specs = getattr(ctrl, "vb_orbital_specs", None)
         maxiter = max(200, int(getattr(ctrl, "max_cycles", 400)) * 5)
         gtol = max(1e-7, float(getattr(ctrl, "convergence", 1e-6)))
+        if integral_backend == "sto_ng":
+            maxiter = max(maxiter, 800)
+            gtol = min(gtol, 1e-8)
 
         # Check whether active region is the collinear C4v Ni + CO surface chemisorption motif
         act_syms = [a.element.strip().capitalize() for a in active_atoms]
@@ -1058,9 +1327,16 @@ class LocalizedVBDriver:
         embedding_diag: Dict[str, Any] = {
             "core_embedding": core_mode,
             "environment_embedding": env_mode if spectator_atoms else "none",
+            "integral_backend": integral_backend,
             "n_active_atoms": len(active_atoms),
             "n_spectator_atoms": len(spectator_atoms),
         }
+        if integral_backend == "sto_ng":
+            embedding_diag["sto_ng_primitives"] = sto_ng_k
+
+        pyscf_ctx: Optional[PySCFSTOContext] = None
+        Xi_opt: Optional[np.ndarray] = None
+        Xa_opt: Optional[np.ndarray] = None
 
         # ------------------------------------------------------------------
         # 1. Construct Active + Embedded AO Integrals
@@ -1129,10 +1405,22 @@ class LocalizedVBDriver:
             bare_S = ints.S
             full_active_basis = list(ints.basis)
         else:
-            # General active integral path (1-center, z-aligned 2-center, or multicenter)
+            # General active integral path (STO-nG, 1-center, z-aligned 2-center, or multicenter prolate)
             full_active_basis = [f for b in active_bases for f in b]
             n_act_ao = len(full_active_basis)
-            if len(active_atoms) == 1:
+            if integral_backend == "sto_ng":
+                specs_mc = [
+                    (float(_atomic_num(a)), tuple(float(v) for v in a.xyz), b)
+                    for a, b in zip(active_atoms, active_bases)
+                ]
+                full_ints, pyscf_ctx = sto_ng_ao_integrals(
+                    specs_mc,
+                    n_prim=sto_ng_k,
+                    return_pyscf_context=True,
+                )
+                bare_S = full_ints.S
+                bare_T = full_ints.T
+            elif len(active_atoms) == 1:
                 full_ints = _wrap_one_center(active_bases[0], float(_atomic_num(active_atoms[0])))
                 bare_S = full_ints.S
                 bare_T = full_ints.T
@@ -1218,7 +1506,12 @@ class LocalizedVBDriver:
                         (float(_atomic_num(b)), tuple(float(v) for v in b.xyz), bb)
                         for b, bb in zip(spectator_atoms, spec_bases)
                     ]
-                    ab_ints = molecular_ao_integrals(all_specs, n_eta=32, n_phi=16, lmax=16, mmax=4)
+                    ab_ints = (
+                        sto_ng_ao_integrals(all_specs, n_prim=sto_ng_k)
+                        if integral_backend == "sto_ng"
+                        else molecular_ao_integrals(all_specs, n_eta=32, n_phi=16, lmax=16, mmax=4)
+                    )
+                    pyscf_ctx = None
                     n_total_ao = ab_ints.nao
                     active_idx = np.arange(n_act_ao, dtype=int)
                     env_cols: List[np.ndarray] = []
@@ -1285,6 +1578,7 @@ class LocalizedVBDriver:
             len(active_atoms) == 2
             and not spectator_atoms
             and domain_mode == "strict_1c"
+            and not vb_orbital_specs
             and (vb_wf in ("covalent", "pp", "hl") or (method_name == "localized_vb" and vb_wf == "cas"))
             and isinstance(ints, (AOIntegrals, EmbeddedAOIntegrals))
             and abs(active_atoms[0].xyz[0] - active_atoms[1].xyz[0]) < 1e-9
@@ -1443,12 +1737,24 @@ class LocalizedVBDriver:
                 total_energy = float(opt_res.fun)
             else:
                 roles, masks, nelec_act, x0_orbs = _build_general_vb_setup(
-                    active_atoms, ints, domain_mode, core_mode, spin_override, active_charge
+                    active_atoms,
+                    ints,
+                    domain_mode,
+                    core_mode,
+                    spin_override,
+                    active_charge,
+                    vb_orbital_specs=vb_orbital_specs,
                 )
         else:
             effective_dom = domain_mode
             roles, masks, nelec_act, x0_orbs = _build_general_vb_setup(
-                active_atoms, ints, effective_dom, core_mode, spin_override, active_charge
+                active_atoms,
+                ints,
+                effective_dom,
+                core_mode,
+                spin_override,
+                active_charge,
+                vb_orbital_specs=vb_orbital_specs,
             )
 
         run_general_sweep_in_place = (
@@ -1457,6 +1763,7 @@ class LocalizedVBDriver:
             and not used_localized_vb_model
             and len(active_atoms) >= 2
             and domain_mode in _GENERAL_REGIME_ORDER
+            and not vb_orbital_specs
         )
 
         if not used_localized_vb_model and not uses_nico_pipeline:
@@ -1471,6 +1778,7 @@ class LocalizedVBDriver:
                     gtol,
                     target_regime=domain_mode,
                     warm_orbitals=warm,
+                    vb_orbital_specs=vb_orbital_specs,
                 )
                 model, roles, masks, nelec_act, opt_res = selected
             else:
@@ -1484,13 +1792,14 @@ class LocalizedVBDriver:
         if not used_localized_vb_model:
             orbs_conv = model.orbitals(opt_res.x)
             Xi, Xa = model.spaces(orbs_conv)
+            Xi_opt, Xa_opt = Xi, Xa
             rdm_info = cas_rdm1_and_natural_orbitals(Xi, Xa, ints, nelec_act)
             total_energy = float(opt_res.fun)
 
         if compare_regimes and not uses_nico_pipeline and regime_comparison is None:
             if len(active_atoms) == 1:
                 regime_comparison = {r: total_energy for r in _GENERAL_REGIME_ORDER}
-            else:
+            elif not vb_orbital_specs:
                 regime_comparison, _ = _solve_general_regimes(
                     active_atoms,
                     ints,
@@ -1733,6 +2042,10 @@ class LocalizedVBDriver:
         converged = bool(getattr(opt_res, "success", False) or grad_norm < max(1e-4, gtol * 10.0))
         n_iters = int(getattr(opt_res, "nit", 0))
 
+        n_inact_roles = sum(1 for r in roles if r == "inactive")
+        nat_occ_arr = np.asarray(rdm_info.get("nat_occ", occ_bare_tot), dtype=float)
+        active_nat_occ = nat_occ_arr[n_inact_roles:].tolist() if nat_occ_arr.size > n_inact_roles else []
+
         state_dict: Dict[str, Any] = {
             "converged": converged,
             "stop_reason": "converged" if converged else "max_cycles_reached",
@@ -1743,6 +2056,7 @@ class LocalizedVBDriver:
             "domain_mode": domain_mode,
             "core_embedding": core_mode,
             "environment_embedding": env_mode if spectator_atoms else "none",
+            "integral_backend": integral_backend,
             "total_energy": total_energy,
             "kinetic_energy": kinetic_energy,
             "potential_energy": potential_energy,
@@ -1777,6 +2091,7 @@ class LocalizedVBDriver:
             "vb_roles": list(roles),
             "vb_domain_masks": [np.asarray(m, dtype=int).tolist() for m in masks],
             "vb_nelec_act": [int(nelec_act[0]), int(nelec_act[1])],
+            "active_natural_occupations": active_nat_occ,
             "own_atom_character": oac_map,
             "embedding_diagnostics": embedding_diag,
             "optimization_grad_norm": grad_norm,
@@ -1785,6 +2100,8 @@ class LocalizedVBDriver:
                 for ia in range(len(active_atoms))
             },
         }
+        if integral_backend == "sto_ng":
+            state_dict["sto_ng_primitives"] = sto_ng_k
         if blyholder_decomp is not None:
             state_dict["blyholder_decomposition"] = blyholder_decomp
         if regime_comparison is not None:
@@ -1797,15 +2114,44 @@ class LocalizedVBDriver:
         except Exception:
             pass
 
-        return CalculationState(state_dict, deck=deck)
+        state = CalculationState(state_dict, deck=deck)
+        grad_ctx: Optional[Dict[str, Any]] = None
+        if (
+            return_grad_context
+            and pyscf_ctx is not None
+            and not uses_nico_pipeline
+            and not used_localized_vb_model
+            and not spectator_atoms
+            and core_mode == "all_electron"
+            and vb_wf == "cas"
+            and Xi_opt is not None
+            and Xa_opt is not None
+        ):
+            grad_ctx = {
+                "ints": ints,
+                "pyscf_ctx": pyscf_ctx,
+                "Xi": Xi_opt,
+                "Xa": Xa_opt,
+                "nelec_act": nelec_act,
+                "active_indices": list(active_indices),
+            }
+        return state, grad_ctx
 
-    def gradient(
+    def energy_and_gradient(
         self,
         deck: CalculationDeck,
         finite_diff_step: float = 1e-3,
+        method: str = "auto",
         quiet: Optional[bool] = None,
-    ) -> np.ndarray:
-        """Compute Cartesian nuclear gradient ``(natom, 3)`` in Hartree/Bohr via central differences."""
+        warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+    ) -> Tuple[CalculationState, np.ndarray]:
+        """Compute both converged :class:`CalculationState` and nuclear gradient ``(natom, 3)`` in Ha/Bohr.
+
+        When ``method`` is ``"auto"`` or ``"analytical"``/``"relaxed"`` and
+        :meth:`has_analytical_gradient` is True (all-electron ``STO-KG`` CAS MaskedVB),
+        evaluates exact variational analytical gradients without finite-difference displacements.
+        Otherwise falls back to warm-started central finite differences.
+        """
         import copy
 
         is_quiet = self.quiet if quiet is None else quiet
@@ -1816,13 +2162,26 @@ class LocalizedVBDriver:
             a.symmetry = None
             a.equivalent_to = None
 
-        ref_state = self.run_deck(base_deck, quiet=is_quiet)
-        warm = ref_state.get("localized_orbitals_embedded", ref_state.get("localized_orbitals"))
+        use_analytic = (method != "finite_difference") and self.has_analytical_gradient(base_deck)
+        ref_state, grad_ctx = self._solve_deck_internal(
+            base_deck,
+            quiet=is_quiet,
+            warm_orbitals=warm_orbitals,
+            return_grad_context=use_analytic,
+        )
 
         n_atoms = len(base_deck.geometry)
         grad = np.zeros((n_atoms, 3), dtype=float)
-        h = float(finite_diff_step)
 
+        if use_analytic and grad_ctx is not None:
+            grad_active = _compute_sto_ng_nuclear_gradient(grad_ctx)
+            for ia, deck_idx in enumerate(grad_ctx["active_indices"]):
+                if not base_deck.geometry[deck_idx].fixed:
+                    grad[deck_idx] = grad_active[ia]
+            return ref_state, grad
+
+        warm = ref_state.get("localized_orbitals_embedded", ref_state.get("localized_orbitals"))
+        h = float(finite_diff_step)
         for ia in range(n_atoms):
             atom = base_deck.geometry[ia]
             if atom.virtual or atom.fixed or (not atom.is_active):
@@ -1836,7 +2195,109 @@ class LocalizedVBDriver:
                 rm = self.run_deck(dm, quiet=is_quiet, warm_orbitals=warm)
                 grad[ia, axis] = (float(rp["total_energy"]) - float(rm["total_energy"])) / (2.0 * h)
 
+        return ref_state, grad
+
+    def gradient(
+        self,
+        deck: CalculationDeck,
+        finite_diff_step: float = 1e-3,
+        quiet: Optional[bool] = None,
+        method: str = "auto",
+        warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+    ) -> np.ndarray:
+        """Compute Cartesian nuclear gradient ``(natom, 3)`` in Hartree/Bohr."""
+        _, grad = self.energy_and_gradient(
+            deck,
+            finite_diff_step=finite_diff_step,
+            method=method,
+            quiet=quiet,
+            warm_orbitals=warm_orbitals,
+        )
         return grad
+
+
+def _compute_sto_ng_nuclear_gradient(grad_ctx: Dict[str, Any]) -> np.ndarray:
+    """Compute exact variational nuclear gradient ``(n_active, 3)`` in Ha/Bohr from PySCF ``STO-KG`` context."""
+    ints = grad_ctx["ints"]
+    ctx: PySCFSTOContext = grad_ctx["pyscf_ctx"]
+    Xi = grad_ctx["Xi"]
+    Xa = grad_ctx["Xa"]
+    nelec_act = grad_ctx["nelec_act"]
+
+    inter = cas_nuclear_gradient_intermediates(Xi, Xa, ints, nelec_act)
+    D_tot = inter["D_tot"]
+    dE_dS = inter["dE_dS"]
+    Pa = inter["Pa"]
+    Ca = inter["Ca"]
+    dm2 = inter["dm2"]
+
+    mol = ctx.mol
+    ao_map = ctx.ao_map
+    nao_py = int(ao_map.shape[0])
+    n2 = nao_py * nao_py
+    n_act = int(Ca.shape[1])
+
+    D_py = ao_map @ D_tot @ ao_map.T
+    dS_py = ao_map @ dE_dS @ ao_map.T
+    Pa_py = ao_map @ Pa @ ao_map.T
+    Ca_py = ao_map @ Ca if n_act > 0 else np.zeros((nao_py, 0), dtype=float)
+    Ca2_rsvw = (
+        np.einsum("rv,sw->rsvw", Ca_py, Ca_py, optimize=True).reshape(n2, n_act * n_act)
+        if n_act > 0
+        else None
+    )
+
+    s1 = -mol.intor("int1e_ipovlp")
+    h1_ip = -(mol.intor("int1e_ipkin") + mol.intor("int1e_ipnuc"))
+    ip_s2 = -mol.intor("int2e_ip1", aosym="s2kl")
+
+    G_2e_a = np.zeros((nao_py, 3), dtype=float)
+    tril_r, tril_c = np.tril_indices(nao_py)
+    D_flat = D_py.ravel()
+    Pa_flat = Pa_py.ravel() if n_act > 0 else None
+    for x in range(3):
+        buf = np.empty((nao_py, nao_py, nao_py, nao_py), dtype=float)
+        buf[:, :, tril_r, tril_c] = ip_s2[x]
+        buf[:, :, tril_c, tril_r] = ip_s2[x]
+        buf_2d = buf.reshape(n2, n2)
+        buf_ex_2d = buf.transpose(0, 3, 1, 2).reshape(n2, n2)
+        J_D = (buf_2d @ D_flat).reshape(nao_py, nao_py)
+        K_D = (buf_ex_2d @ D_flat).reshape(nao_py, nao_py)
+        term = 2.0 * np.sum(D_py * J_D, axis=1) - np.sum(D_py * K_D, axis=1)
+        if n_act > 0:
+            J_P = (buf_2d @ Pa_flat).reshape(nao_py, nao_py)
+            K_P = (buf_ex_2d @ Pa_flat).reshape(nao_py, nao_py)
+            term -= 2.0 * np.sum(Pa_py * J_P, axis=1) - np.sum(Pa_py * K_P, axis=1)
+            V_pqvw = (buf_2d @ Ca2_rsvw).reshape(nao_py, nao_py, n_act, n_act)
+            W_pt = np.einsum("pqvw,tuvw,qu->pt", V_pqvw, dm2, Ca_py, optimize=True)
+            term += 2.0 * np.sum(Ca_py * W_pt, axis=1)
+        G_2e_a[:, x] = term
+
+    aoslices = mol.aoslice_by_atom()
+    n_active = len(aoslices)
+    charges = np.asarray(ctx.charges, dtype=float)
+    coords = np.asarray(ctx.coords, dtype=float)
+    grad_active = np.zeros((n_active, 3), dtype=float)
+
+    for ia in range(n_active):
+        p0, p1 = int(aoslices[ia, 2]), int(aoslices[ia, 3])
+        g1_kin_nuc = 2.0 * np.einsum("xab,ab->x", h1_ip[:, p0:p1, :], D_py[p0:p1, :])
+        with mol.with_rinv_at_nucleus(ia):
+            rinv_ip = mol.intor("int1e_iprinv")
+        g1_hf = -2.0 * charges[ia] * np.einsum("xab,ab->x", rinv_ip, D_py)
+        g_ovlp = 2.0 * np.einsum("xab,ab->x", s1[:, p0:p1, :], dS_py[p0:p1, :])
+        g_2e = np.sum(G_2e_a[p0:p1, :], axis=0)
+        g_vnn = np.zeros(3, dtype=float)
+        for ib in range(n_active):
+            if ib == ia:
+                continue
+            dR = coords[ia] - coords[ib]
+            r2 = float(np.dot(dR, dR))
+            if r2 > 1e-24:
+                g_vnn -= (charges[ia] * charges[ib]) * (r2 ** -1.5) * dR
+        grad_active[ia] = g1_kin_nuc + g1_hf + g_ovlp + g_2e + g_vnn
+
+    return grad_active
 
 
 def run_localized_vb(

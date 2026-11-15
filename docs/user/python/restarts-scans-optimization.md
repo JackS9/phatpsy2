@@ -554,6 +554,25 @@ dimer_res.show(height=520)
 dimer_res.visualize("dimer_refinement.html", open_browser=True)
 ```
 
+### Hessian-Based P-RFO Saddle Refinement (Baker/Bofill)
+
+For smooth variational PES surfaces—such as `method: localized_vb` / `masked_vb` with `integral_backend: sto_ng` or converged multi-center CPHF relaxed gradients—you can replace derivative-only Dimer searches with Eckart-projected Baker (1986) partitioned Rational Function Optimization (`refine_saddle_prfo`) using Bofill (1994) SR1/PSB Hessian updates (`prfo_step`):
+
+```python
+from phatpsy.dimer import refine_saddle_prfo
+
+prfo_res = refine_saddle_prfo(
+    deck=neb_res,          # CalculationDeck or NEBResult (extracts peak image)
+    driver=driver,
+    max_cycles=25,
+    force_tol=2e-4,
+    trust_radius=0.12,
+    hessian_recalc=5,
+    hessian_method="forward",
+)
+ts_deck = prfo_res.saddle_deck
+```
+
 ---
 
 ## Electronic, Optical & Magnetic (EOM) Properties

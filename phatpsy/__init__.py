@@ -176,6 +176,8 @@ from phatpsy.dimer import (
     dimer_optimize_vector,
     dimer_search,
     refine_neb_saddle,
+    prfo_step,
+    refine_saddle_prfo,
 )
 from phatpsy.eom import (
     compute_eom,
@@ -230,6 +232,7 @@ from phatpsy.schema import (
     VALID_DOMAIN_MODES,
     VALID_CORE_EMBEDDINGS,
     VALID_ENVIRONMENT_EMBEDDINGS,
+    VALID_INTEGRAL_BACKENDS,
 )
 from phatpsy.localized_vb import (
     AOIntegrals,
@@ -240,13 +243,17 @@ from phatpsy.localized_vb import (
     own_atom_character,
     cas_energy,
     cas_energy_and_gradient,
+    cas_nuclear_gradient_intermediates,
     cas_rdm1_and_natural_orbitals,
     optimize_masked_vb,
 )
 from phatpsy.multicenter_integrals import (
     MolecularAOIntegrals,
+    PySCFSTOContext,
     molecular_ao_integrals,
     multicenter_ao_integrals,
+    stewart_sto_expansion,
+    sto_ng_ao_integrals,
 )
 from phatpsy.embedding import (
     EmbeddedAOIntegrals,
@@ -421,6 +428,8 @@ __all__ = [
     "dimer_optimize_vector",
     "dimer_search",
     "refine_neb_saddle",
+    "prfo_step",
+    "refine_saddle_prfo",
     "visualize_dimer",
     "show_dimer",
     "compute_eom",
@@ -454,6 +463,7 @@ __all__ = [
     "VALID_DOMAIN_MODES",
     "VALID_CORE_EMBEDDINGS",
     "VALID_ENVIRONMENT_EMBEDDINGS",
+    "VALID_INTEGRAL_BACKENDS",
     "AOIntegrals",
     "LocalizedVBModel",
     "MaskedVB",
@@ -462,11 +472,15 @@ __all__ = [
     "own_atom_character",
     "cas_energy",
     "cas_energy_and_gradient",
+    "cas_nuclear_gradient_intermediates",
     "cas_rdm1_and_natural_orbitals",
     "optimize_masked_vb",
     "MolecularAOIntegrals",
+    "PySCFSTOContext",
     "molecular_ao_integrals",
     "multicenter_ao_integrals",
+    "stewart_sto_expansion",
+    "sto_ng_ao_integrals",
     "EmbeddedAOIntegrals",
     "FrozenEnvironmentAtom",
     "embed_from_full_integrals",

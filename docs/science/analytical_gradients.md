@@ -189,3 +189,17 @@ To satisfy quantum mechanical boundary conditions, all analytical gradients in P
 | **Point Group Symmetry ($C_{2v}$ on $\text{H}_2\text{O}$)** | $F_x \equiv 0$, $F_y(\text{O}) \equiv 0$, $F_y(\text{H}_1) = -F_y(\text{H}_2)$ | $< 10^{-12}\text{ Ha/Bohr}$ |
 | **Point Group Symmetry ($D_{\infty h}$ on $\text{N}_2$)** | $F_x = F_y \equiv 0$, $F_z(\text{N}_1) = -F_z(\text{N}_2)$ | $< 10^{-12}\text{ Ha/Bohr}$ |
 | **Virial Theorem Sanity** | $\|-V/T - 2.0\| \le 0.05$ | Verified across all benchmark minima |
+
+---
+
+## 13. Variational Localized VB / MaskedVB Analytical Nuclear Gradients (`sto_ng`) & P-RFO Saddle Search
+
+When `control.method` is `"localized_vb"` or `"masked_vb"` (`phatpsy/vb_driver.py::LocalizedVBDriver`), the multi-orbital CASCI/VB energy functional is minimized explicitly over both orbital rotation parameters (inside per-orbital localization masks) and active CI coefficients ($\partial E / \partial \mathbf{C}_{\text{VB}} = \mathbf{0}$, $\partial E / \partial c_I = \mathbf{0}$). By the variational Hellmann–Feynman theorem and Pulay's theorem, orbital- and CI-response multipliers vanish whenever the underlying atomic-orbital integrals are $C^\infty$-smooth functions of nuclear coordinates.
+
+Setting `control.integral_backend: "sto_ng"` (`control.sto_ng_primitives: 6` or `8`; Stewart 1970, *J. Chem. Phys.* **52**, 431–438) expands every STO radial function into contracted Gaussian primitives in `phatpsy/multicenter_integrals.py` (`stewart_sto_expansion`, `sto_ng_ao_integrals`), exposing analytical Cartesian derivatives $\nabla_{\mathbf{R}_A}\mathbf{S}$, $\nabla_{\mathbf{R}_A}\mathbf{T}$, $\nabla_{\mathbf{R}_A}\mathbf{V}_{\text{nuc}}$, and four-center ERIs $\nabla_{\mathbf{R}_A}(\mu\nu|\lambda\sigma)$ through PySCF's `libcint` C routines. Evaluating the converged 1- and 2-electron reduced density matrices and generalized Fock / Pulay Lagrangian $\mathbf{W}$ in `phatpsy/localized_vb.py::cas_nuclear_gradient_intermediates`:
+
+$$\mathbf{g}_A^{\text{VB}} = \frac{\partial E_{\text{nuc}}}{\partial \mathbf{R}_A} + \operatorname{Tr}\!\left(\mathbf{P}\,\frac{\partial \mathbf{h}}{\partial \mathbf{R}_A}\right) + \frac{1}{2}\sum_{\mu\nu\lambda\sigma} \Gamma_{\mu\nu\lambda\sigma} \frac{\partial (\mu\nu|\lambda\sigma)}{\partial \mathbf{R}_A} - \operatorname{Tr}\!\left(\mathbf{W}\,\frac{\partial \mathbf{S}}{\partial \mathbf{R}_A}\right)$$
+
+yields exact analytical nuclear forces in `LocalizedVBDriver._compute_sto_ng_nuclear_gradient` (`phatpsy/vb_driver.py`) that match central finite differences to $< 3 \times 10^{-8}\text{ Ha/Bohr}$ on polyatomics (e.g. $\text{H}_2\text{O}$ and acetaldehyde $\text{CAS}(4\text{e},4\text{o})$) and satisfy translational zero-sum invariance ($\sum_A \mathbf{g}_A^{\text{VB}} = \mathbf{0}$) to $< 10^{-12}\text{ Ha/Bohr}$.
+
+Because these forces are smooth and variational, Eckart-projected partitioned Rational Function Optimization (`phatpsy/dimer.py::refine_saddle_prfo`; Baker 1986; Bofill 1994 SR1/PSB Hessian update with `prfo_step` and `_bofill_update`) can directly polish CI-NEB climbing-image peaks to tight saddle tolerances ($|\mathbf{g}| < 2 \times 10^{-4}\text{ Ha/Bohr}$) before harmonic frequency verification and mass-weighted IRC integration (`phatpsy/irc.py::compute_irc`).
