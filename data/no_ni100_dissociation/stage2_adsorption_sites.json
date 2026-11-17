@@ -1,0 +1,1806 @@
+{
+  "metadata": {
+    "stage": "Stage 2: Molecular NO* Adsorption on Ferromagnetic Embedded Ni(100)",
+    "dissertation_year": 1978,
+    "lattice_constant_bohr": 4.71,
+    "nickel_magnetic_model": "ferromagnetic_3d8_4s2_2_spins_up_per_active_Ni",
+    "adsorbate_spin_coupling": "antiferromagnetic_2pi_star_pairing_net_spin_2k_minus_1",
+    "modern_uhv_report_only": {
+      "hreels_hollow_cm": "1440-1520",
+      "hreels_bridge_cm": "1590-1670",
+      "hreels_top_cm": "1780-1820",
+      "xps_hollow_N1s_ev": "~399.8-400.2",
+      "xps_hollow_O1s_ev": "~531.0",
+      "brundle_300K_state_N1s_ev": "402-403 (re-assigned to O*-coadsorbed NO*)",
+      "dissertation_1978_Tables7_8": {
+        "e_ads_ev": -1.0,
+        "nu_no_cm": 1621.0,
+        "koopmans_N1s_ev": 415.5,
+        "koopmans_O1s_ev": 548.0,
+        "odown_shift_N1s_ev": "+1.9",
+        "odown_shift_O1s_ev": "+0.9"
+      }
+    }
+  },
+  "clean_references": {
+    "Ni2_SZ": {
+      "total_energy_ha": -3003.35314144,
+      "converged": true,
+      "cycles": 3,
+      "net_spin": 4
+    },
+    "Ni5_1978_SZ": {
+      "total_energy_ha": -7508.00273988,
+      "converged": true,
+      "cycles": 131,
+      "net_spin": 10
+    },
+    "Ni4_Ni9_SZ": {
+      "total_energy_ha": -19498.72763576,
+      "converged": true,
+      "cycles": 180,
+      "net_spin": 8
+    },
+    "Ni4_Ni9_with_O_SZ": {
+      "total_energy_ha": -19572.96092167,
+      "converged": true,
+      "net_spin": 8
+    },
+    "Ni2_SZP": {
+      "total_energy_ha": -3003.65498654,
+      "converged": true,
+      "net_spin": 4
+    },
+    "Ni4_Ni9_SZP": {
+      "total_energy_ha": -19501.1970703,
+      "converged": true,
+      "net_spin": 8
+    },
+    "Ni2_DZP": {
+      "total_energy_ha": -3011.67080684,
+      "converged": true,
+      "net_spin": 4
+    },
+    "Ni4_Ni9_SZP_Ni_SZ_spec": {
+      "total_energy_ha": -19499.44153865,
+      "converged": true,
+      "net_spin": 8
+    }
+  },
+  "gas_no_plaquette_matched_references": {
+    "SZ": {
+      "basis": "SZ",
+      "converged": true,
+      "total_energy_ha": -128.75338872,
+      "r_eq_bohr": 2.266,
+      "geometry_xyz_bohr": [
+        [
+          -0.0,
+          -0.0,
+          -0.003002
+        ],
+        [
+          0.0,
+          0.0,
+          2.263002
+        ]
+      ],
+      "mayer_bo": 2.3418,
+      "koopmans_1s_be_ev": {
+        "N1": 428.3249,
+        "O1": 564.4817
+      },
+      "nu_no_cm": 2164.43,
+      "zpve_kcal_mol": 3.0942,
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -128.75338872,
+          "zero_point_energy_kcal": 3.0942,
+          "zero_point_energy_au": 0.00493094,
+          "thermal_energy_kcal": 4.5848,
+          "thermal_enthalpy_kcal": 5.181,
+          "thermal_energy_components": {
+            "trans": 0.8942,
+            "rot": 0.5962,
+            "vib": 3.0944,
+            "zpve": 3.0942,
+            "total": 4.5848
+          },
+          "entropy_cal_mol_k": {
+            "translation": 36.161,
+            "rotation": 11.703,
+            "vibration": 0.001,
+            "electronic": 1.377,
+            "total": 49.241
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 2.981,
+            "cv_rot": 1.987,
+            "cv_vib": 0.007,
+            "cv_total": 4.975
+          },
+          "total_energy_u0": -128.74845778,
+          "total_energy_u_t": -128.74608236,
+          "total_enthalpy_h_t": -128.74513232,
+          "total_gibbs_free_energy_g_t": -128.76867366,
+          "is_adsorbate": false,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -128.75338872,
+          "zero_point_energy_kcal": 3.0942,
+          "zero_point_energy_au": 0.00493094,
+          "thermal_energy_kcal": 6.645,
+          "thermal_enthalpy_kcal": 8.0361,
+          "thermal_energy_components": {
+            "trans": 2.0866,
+            "rot": 1.391,
+            "vib": 3.1674,
+            "zpve": 3.0942,
+            "total": 6.645
+          },
+          "entropy_cal_mol_k": {
+            "translation": 40.37,
+            "rotation": 13.386,
+            "vibration": 0.128,
+            "electronic": 1.377,
+            "total": 55.262
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 2.981,
+            "cv_rot": 1.987,
+            "cv_vib": 0.471,
+            "cv_total": 5.439
+          },
+          "total_energy_u0": -128.74845778,
+          "total_energy_u_t": -128.74279918,
+          "total_enthalpy_h_t": -128.74058241,
+          "total_gibbs_free_energy_g_t": -128.8022281,
+          "is_adsorbate": false,
+          "quasi_rrho_floor_cm": 50.0
+        }
+      }
+    },
+    "SZP": {
+      "basis": "SZP",
+      "converged": true,
+      "total_energy_ha": -128.83080128,
+      "r_eq_bohr": 2.18115,
+      "geometry_xyz_bohr": [
+        [
+          0.0,
+          0.0,
+          0.039427
+        ],
+        [
+          -0.0,
+          -0.0,
+          2.220573
+        ]
+      ],
+      "mayer_bo": 2.4561,
+      "koopmans_1s_be_ev": {
+        "N1": 427.614,
+        "O1": 564.6112
+      }
+    },
+    "DZP": {
+      "basis": "DZP",
+      "converged": true,
+      "total_energy_ha": -129.23568525,
+      "r_eq_bohr": 2.13519,
+      "geometry_xyz_bohr": [
+        [
+          -0.0,
+          0.0,
+          0.062407
+        ],
+        [
+          0.0,
+          -0.0,
+          2.197593
+        ]
+      ],
+      "mayer_bo": 2.3137,
+      "koopmans_1s_be_ev": {
+        "N1": 427.5488,
+        "O1": 562.9134
+      }
+    }
+  },
+  "sites": {
+    "Ni5_1978_hollow_Ndown_fixed370": {
+      "total_energy_ha": -7636.73149946,
+      "converged": true,
+      "cycles": 393,
+      "e_ads_ha": 0.024629,
+      "e_ads_ev": 0.6702,
+      "e_ads_kcal_mol": 15.455,
+      "mayer_bo_no": 1.4956,
+      "mayer_sum_ni_n": 0.4465,
+      "mayer_sum_ni_o": 0.2015,
+      "no_lowdin_net_charge": -1.0916,
+      "net_charges": {
+        "Ni1": 0.1429,
+        "Ni2": 0.1441,
+        "Ni3": 0.6558,
+        "Ni4": 0.1441,
+        "Ni5": 0.001,
+        "N1": -1.0392,
+        "O1": -0.0523
+      },
+      "active_natural_occupations": [
+        1.6385,
+        1.0015,
+        1.0001,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9989,
+        0.9845,
+        0.3597,
+        0.0169
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 420.1605,
+        "O1_1s": 562.5869
+      },
+      "geometry_metrics": {
+        "r_no_bohr": 2.1747,
+        "r_no_angstrom": 1.1508,
+        "z_n_bohr": 1.6118,
+        "z_o_bohr": 3.7865,
+        "d_min_ni_n_bohr": 3.69999,
+        "d_min_ni_o_bohr": 5.04278,
+        "tilt_angle_deg_from_z": 0.0,
+        "n_xyz_bohr": [
+          0.0,
+          0.0,
+          1.6118
+        ],
+        "o_xyz_bohr": [
+          0.0,
+          0.0,
+          3.7865
+        ]
+      },
+      "stationary_type": "fixed_1978_geometry"
+    },
+    "Ni5_1978_hollow_Odown_fixed370": {
+      "total_energy_ha": -7636.66155855,
+      "converged": true,
+      "cycles": 283,
+      "e_ads_ha": 0.09457,
+      "e_ads_ev": 2.5734,
+      "e_ads_kcal_mol": 59.344,
+      "mayer_bo_no": 1.2409,
+      "mayer_sum_ni_n": 0.0279,
+      "mayer_sum_ni_o": 0.1169,
+      "no_lowdin_net_charge": -0.9318,
+      "net_charges": {
+        "Ni1": 0.0087,
+        "Ni2": 0.0452,
+        "Ni3": 0.0087,
+        "Ni4": 0.8658,
+        "Ni5": -0.0002,
+        "N1": -0.1482,
+        "O1": -0.7836
+      },
+      "active_natural_occupations": [
+        1.1173,
+        1.0234,
+        1.0004,
+        1.0003,
+        1.0001,
+        1.0,
+        0.9999,
+        0.9997,
+        0.9997,
+        0.971,
+        0.8824,
+        0.0059
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 424.6934,
+        "O1_1s": 557.7239
+      },
+      "geometry_metrics": {
+        "r_no_bohr": 2.1747,
+        "r_no_angstrom": 1.1508,
+        "z_n_bohr": 3.7865,
+        "z_o_bohr": 1.6118,
+        "d_min_ni_n_bohr": 5.04278,
+        "d_min_ni_o_bohr": 3.69999,
+        "tilt_angle_deg_from_z": 180.0,
+        "n_xyz_bohr": [
+          0.0,
+          0.0,
+          3.7865
+        ],
+        "o_xyz_bohr": [
+          0.0,
+          0.0,
+          1.6118
+        ]
+      },
+      "stationary_type": "fixed_1978_geometry"
+    },
+    "Ni2_bridge_Ndown": {
+      "total_energy_ha": -3132.29394114,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.187411,
+      "e_ads_ev": -5.0997,
+      "e_ads_kcal_mol": -117.602,
+      "mayer_bo_no": 0.9757,
+      "mayer_sum_ni_n": 0.9205,
+      "mayer_sum_ni_o": 0.0374,
+      "no_lowdin_net_charge": -1.3795,
+      "net_charges": {
+        "Ni1": 0.7266,
+        "Ni2": 0.6515,
+        "N1": -1.3068,
+        "O1": -0.0727
+      },
+      "active_natural_occupations": [
+        1.9731,
+        1.0,
+        1.0,
+        1.0,
+        0.0251,
+        0.0018
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 412.9289,
+        "O1_1s": 558.1642
+      },
+      "net_spin": 3,
+      "geometry_metrics": {
+        "r_no_bohr": 2.65772,
+        "r_no_angstrom": 1.4064,
+        "z_n_bohr": 1.76527,
+        "z_o_bohr": 4.42272,
+        "d_min_ni_n_bohr": 2.94312,
+        "d_min_ni_o_bohr": 4.99314,
+        "tilt_angle_deg_from_z": 0.809,
+        "n_xyz_bohr": [
+          -5.5e-05,
+          -2.3e-05,
+          1.765272
+        ],
+        "o_xyz_bohr": [
+          0.037459,
+          9e-06,
+          4.422723
+        ]
+      },
+      "opt_steps": 13,
+      "opt_converged": true,
+      "opt_max_grad": 0.000147,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          6.91,
+          106.17,
+          224.62,
+          653.48,
+          1494.75,
+          1688.28
+        ],
+        "nu_no_cm": 1688.28,
+        "delta_nu_no_cm": -476.15,
+        "delta_nu_vs_stage1_cas76_cm": 55.69,
+        "zpve_kcal_mol": 5.9673,
+        "delta_zpve_kcal_mol": 2.8731
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -3132.29394114,
+          "zero_point_energy_kcal": 5.9673,
+          "zero_point_energy_au": 0.00950955,
+          "thermal_energy_kcal": 7.4351,
+          "thermal_enthalpy_kcal": 7.4351,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 7.4351,
+            "zpve": 5.9673,
+            "total": 7.4351
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 10.502,
+            "electronic": 2.755,
+            "total": 13.257
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 6.776,
+            "cv_total": 6.776
+          },
+          "total_energy_u0": -3132.28443159,
+          "total_energy_u_t": -3132.28209252,
+          "total_enthalpy_h_t": -3132.28209252,
+          "total_gibbs_free_energy_g_t": -3132.28843043,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -3132.29394114,
+          "zero_point_energy_kcal": 5.9673,
+          "zero_point_energy_au": 0.00950955,
+          "thermal_energy_kcal": 10.7116,
+          "thermal_enthalpy_kcal": 10.7116,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 10.7116,
+            "zpve": 5.9673,
+            "total": 10.7116
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 17.285,
+            "electronic": 2.755,
+            "total": 20.04
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 9.379,
+            "cv_total": 9.379
+          },
+          "total_energy_u0": -3132.28443159,
+          "total_energy_u_t": -3132.27687117,
+          "total_enthalpy_h_t": -3132.27687117,
+          "total_gibbs_free_energy_g_t": -3132.29922625,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 5,
+        "ads_spin_multiplicity": 4,
+        "delta_g_ads_300K_kcal_mol": -103.593,
+        "delta_g_ads_700K_kcal_mol": -88.033
+      }
+    },
+    "Ni5_1978_hollow_Ndown": {
+      "total_energy_ha": -7636.9334876,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.177359,
+      "e_ads_ev": -4.8262,
+      "e_ads_kcal_mol": -111.294,
+      "mayer_bo_no": 0.9658,
+      "mayer_sum_ni_n": 0.5675,
+      "mayer_sum_ni_o": 0.0307,
+      "no_lowdin_net_charge": -1.7084,
+      "net_charges": {
+        "Ni1": 0.0088,
+        "Ni2": 0.805,
+        "Ni3": 0.0488,
+        "Ni4": 0.805,
+        "Ni5": 0.0372,
+        "N1": -1.6004,
+        "O1": -0.108
+      },
+      "active_natural_occupations": [
+        1.9875,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9982,
+        0.0099,
+        0.0044
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 415.2487,
+        "O1_1s": 561.726
+      },
+      "net_spin": 9,
+      "geometry_metrics": {
+        "r_no_bohr": 2.76053,
+        "r_no_angstrom": 1.46081,
+        "z_n_bohr": 0.29226,
+        "z_o_bohr": 3.05215,
+        "d_min_ni_n_bohr": 3.32828,
+        "d_min_ni_o_bohr": 4.48487,
+        "tilt_angle_deg_from_z": 1.233,
+        "n_xyz_bohr": [
+          -0.010642,
+          -0.010644,
+          0.292261
+        ],
+        "o_xyz_bohr": [
+          0.031374,
+          0.031375,
+          3.05215
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.000982,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          241.85,
+          282.94,
+          396.97,
+          678.79,
+          1029.94,
+          1262.08
+        ],
+        "nu_no_cm": 1262.08,
+        "delta_nu_no_cm": -902.35,
+        "delta_nu_vs_stage1_cas76_cm": -370.51,
+        "zpve_kcal_mol": 5.5647,
+        "delta_zpve_kcal_mol": 2.4705
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -7636.9334876,
+          "zero_point_energy_kcal": 5.5647,
+          "zero_point_energy_au": 0.00886793,
+          "thermal_energy_kcal": 6.4673,
+          "thermal_enthalpy_kcal": 6.4673,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 6.4673,
+            "zpve": 5.5647,
+            "total": 6.4673
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 4.765,
+            "electronic": 4.576,
+            "total": 9.341
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 6.372,
+            "cv_total": 6.372
+          },
+          "total_energy_u0": -7636.92461966,
+          "total_energy_u_t": -7636.92318133,
+          "total_enthalpy_h_t": -7636.92318133,
+          "total_gibbs_free_energy_g_t": -7636.92764709,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -7636.9334876,
+          "zero_point_energy_kcal": 5.5647,
+          "zero_point_energy_au": 0.00886793,
+          "thermal_energy_kcal": 9.8977,
+          "thermal_enthalpy_kcal": 9.8977,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.8977,
+            "zpve": 5.5647,
+            "total": 9.8977
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 11.815,
+            "electronic": 4.576,
+            "total": 16.391
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 10.006,
+            "cv_total": 10.006
+          },
+          "total_energy_u0": -7636.92461966,
+          "total_energy_u_t": -7636.91771457,
+          "total_enthalpy_h_t": -7636.91771457,
+          "total_gibbs_free_energy_g_t": -7636.93599852,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 11,
+        "ads_spin_multiplicity": 10,
+        "delta_g_ads_300K_kcal_mol": -96.609,
+        "delta_g_ads_700K_kcal_mol": -78.887
+      }
+    },
+    "Ni5_1978_hollow_Odown": {
+      "total_energy_ha": -7636.8125891,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.05646,
+      "e_ads_ev": -1.5364,
+      "e_ads_kcal_mol": -35.429,
+      "mayer_bo_no": 1.0415,
+      "mayer_sum_ni_n": 0.0154,
+      "mayer_sum_ni_o": 0.3066,
+      "no_lowdin_net_charge": -0.8322,
+      "net_charges": {
+        "Ni1": 0.8175,
+        "Ni2": 0.0053,
+        "Ni3": 0.0003,
+        "Ni4": 0.0053,
+        "Ni5": 0.0002,
+        "N1": 0.065,
+        "O1": -0.8972
+      },
+      "active_natural_occupations": [
+        1.0896,
+        1.0115,
+        1.0003,
+        1.0002,
+        1.0001,
+        1.0,
+        1.0,
+        0.9999,
+        0.9997,
+        0.9882,
+        0.9104,
+        0.0001
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 428.2594,
+        "O1_1s": 557.8624
+      },
+      "net_spin": 9,
+      "geometry_metrics": {
+        "r_no_bohr": 2.62647,
+        "r_no_angstrom": 1.38987,
+        "z_n_bohr": 3.97463,
+        "z_o_bohr": 1.34881,
+        "d_min_ni_n_bohr": 4.78041,
+        "d_min_ni_o_bohr": 2.92662,
+        "tilt_angle_deg_from_z": 178.717,
+        "n_xyz_bohr": [
+          0.476884,
+          0.476886,
+          3.974627
+        ],
+        "o_xyz_bohr": [
+          0.518455,
+          0.518459,
+          1.348812
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.009517,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          196.77,
+          201.61,
+          366.56,
+          450.85,
+          1025.61,
+          1420.99
+        ],
+        "nu_no_cm": 1420.99,
+        "delta_nu_no_cm": -743.44,
+        "delta_nu_vs_stage1_cas76_cm": -211.6,
+        "zpve_kcal_mol": 5.2356,
+        "delta_zpve_kcal_mol": 2.1414
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -7636.8125891,
+          "zero_point_energy_kcal": 5.2356,
+          "zero_point_energy_au": 0.00834352,
+          "thermal_energy_kcal": 6.3598,
+          "thermal_enthalpy_kcal": 6.3598,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 6.3598,
+            "zpve": 5.2356,
+            "total": 6.3598
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 6.313,
+            "electronic": 4.576,
+            "total": 10.889
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 7.054,
+            "cv_total": 7.054
+          },
+          "total_energy_u0": -7636.80424558,
+          "total_energy_u_t": -7636.80245418,
+          "total_enthalpy_h_t": -7636.80245418,
+          "total_gibbs_free_energy_g_t": -7636.80765993,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -7636.8125891,
+          "zero_point_energy_kcal": 5.2356,
+          "zero_point_energy_au": 0.00834352,
+          "thermal_energy_kcal": 9.9008,
+          "thermal_enthalpy_kcal": 9.9008,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.9008,
+            "zpve": 5.2356,
+            "total": 9.9008
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 13.633,
+            "electronic": 4.576,
+            "total": 18.209
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 10.077,
+            "cv_total": 10.077
+          },
+          "total_energy_u0": -7636.80424558,
+          "total_energy_u_t": -7636.79681123,
+          "total_enthalpy_h_t": -7636.79681123,
+          "total_gibbs_free_energy_g_t": -7636.81712372,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 11,
+        "ads_spin_multiplicity": 10,
+        "delta_g_ads_300K_kcal_mol": -21.315,
+        "delta_g_ads_700K_kcal_mol": -4.292
+      }
+    },
+    "Ni4_Ni9_hollow_Ndown": {
+      "total_energy_ha": -19627.59517115,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.114147,
+      "e_ads_ev": -3.1061,
+      "e_ads_kcal_mol": -71.628,
+      "mayer_bo_no": 0.9768,
+      "mayer_sum_ni_n": 0.6211,
+      "mayer_sum_ni_o": 0.0142,
+      "no_lowdin_net_charge": -1.6142,
+      "net_charges": {
+        "Ni1": -0.0217,
+        "Ni2": 0.7085,
+        "Ni3": -0.0611,
+        "Ni4": 0.7085,
+        "N1": -1.4706,
+        "O1": -0.1436
+      },
+      "active_natural_occupations": [
+        1.9801,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.998,
+        0.0158,
+        0.0061
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 412.7917,
+        "O1_1s": 559.1767
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.74148,
+        "r_no_angstrom": 1.45073,
+        "z_n_bohr": 0.68049,
+        "z_o_bohr": 3.42186,
+        "d_min_ni_n_bohr": 3.38295,
+        "d_min_ni_o_bohr": 4.76973,
+        "tilt_angle_deg_from_z": 0.508,
+        "n_xyz_bohr": [
+          0.011789,
+          0.011789,
+          0.680486
+        ],
+        "o_xyz_bohr": [
+          -0.005406,
+          -0.005406,
+          3.421859
+        ]
+      },
+      "opt_steps": 9,
+      "opt_converged": true,
+      "opt_max_grad": 0.000427,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          200.97,
+          240.28,
+          440.12,
+          509.34,
+          918.52,
+          1331.18
+        ],
+        "nu_no_cm": 1331.18,
+        "delta_nu_no_cm": -833.25,
+        "delta_nu_vs_stage1_cas76_cm": -301.41,
+        "zpve_kcal_mol": 5.2042,
+        "delta_zpve_kcal_mol": 2.11
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.59517115,
+          "zero_point_energy_kcal": 5.2042,
+          "zero_point_energy_au": 0.00829346,
+          "thermal_energy_kcal": 6.2268,
+          "thermal_enthalpy_kcal": 6.2268,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 6.2268,
+            "zpve": 5.2042,
+            "total": 6.2268
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 5.582,
+            "electronic": 4.132,
+            "total": 9.715
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 6.866,
+            "cv_total": 6.866
+          },
+          "total_energy_u0": -19627.5868777,
+          "total_energy_u_t": -19627.58524819,
+          "total_enthalpy_h_t": -19627.58524819,
+          "total_gibbs_free_energy_g_t": -19627.58989262,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.59517115,
+          "zero_point_energy_kcal": 5.2042,
+          "zero_point_energy_au": 0.00829346,
+          "thermal_energy_kcal": 9.7789,
+          "thermal_enthalpy_kcal": 9.7789,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.7789,
+            "zpve": 5.2042,
+            "total": 9.7789
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 12.91,
+            "electronic": 4.132,
+            "total": 17.043
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 10.17,
+            "cv_total": 10.17
+          },
+          "total_energy_u0": -19627.5868777,
+          "total_energy_u_t": -19627.57958757,
+          "total_enthalpy_h_t": -19627.57958757,
+          "total_gibbs_free_energy_g_t": -19627.59859886,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -57.414,
+        "delta_g_ads_700K_kcal_mol": -40.075
+      }
+    },
+    "Ni4_Ni9_hollow_Ndown_tilted_test": {
+      "total_energy_ha": -19627.69200203,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.210978,
+      "e_ads_ev": -5.741,
+      "e_ads_kcal_mol": -132.39,
+      "mayer_bo_no": 1.0211,
+      "mayer_sum_ni_n": 0.844,
+      "mayer_sum_ni_o": 0.0276,
+      "no_lowdin_net_charge": -1.4759,
+      "net_charges": {
+        "Ni1": 0.6263,
+        "Ni2": -0.0647,
+        "Ni3": -0.0641,
+        "Ni4": 0.7014,
+        "N1": -1.3958,
+        "O1": -0.0801
+      },
+      "active_natural_occupations": [
+        1.9812,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9998,
+        0.0177,
+        0.0013
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 415.1915,
+        "O1_1s": 560.4416
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.68922,
+        "r_no_angstrom": 1.42307,
+        "z_n_bohr": 0.99987,
+        "z_o_bohr": 3.67632,
+        "d_min_ni_n_bohr": 2.99242,
+        "d_min_ni_o_bohr": 4.72376,
+        "tilt_angle_deg_from_z": 5.584,
+        "n_xyz_bohr": [
+          0.796654,
+          0.004173,
+          0.999867
+        ],
+        "o_xyz_bohr": [
+          0.535098,
+          0.01266,
+          3.676321
+        ]
+      },
+      "opt_steps": 24,
+      "opt_converged": true,
+      "opt_max_grad": 1e-05,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          189.2,
+          266.77,
+          364.4,
+          891.29,
+          1373.76,
+          1483.28
+        ],
+        "nu_no_cm": 1483.28,
+        "delta_nu_no_cm": -681.15,
+        "delta_nu_vs_stage1_cas76_cm": -149.31,
+        "zpve_kcal_mol": 6.5313,
+        "delta_zpve_kcal_mol": 3.4371
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.69200203,
+          "zero_point_energy_kcal": 6.5313,
+          "zero_point_energy_au": 0.0104083,
+          "thermal_energy_kcal": 7.4559,
+          "thermal_enthalpy_kcal": 7.4559,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 7.4559,
+            "zpve": 6.5313,
+            "total": 7.4559
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 5.169,
+            "electronic": 4.132,
+            "total": 9.302
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 5.864,
+            "cv_total": 5.864
+          },
+          "total_energy_u0": -19627.68159372,
+          "total_energy_u_t": -19627.68012027,
+          "total_enthalpy_h_t": -19627.68012027,
+          "total_gibbs_free_energy_g_t": -19627.6845672,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.69200203,
+          "zero_point_energy_kcal": 6.5313,
+          "zero_point_energy_au": 0.0104083,
+          "thermal_energy_kcal": 10.5931,
+          "thermal_enthalpy_kcal": 10.5931,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 10.5931,
+            "zpve": 6.5313,
+            "total": 10.5931
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 11.605,
+            "electronic": 4.132,
+            "total": 15.737
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 9.34,
+            "cv_total": 9.34
+          },
+          "total_energy_u0": -19627.68159372,
+          "total_energy_u_t": -19627.67512083,
+          "total_enthalpy_h_t": -19627.67512083,
+          "total_gibbs_free_energy_g_t": -19627.69267568,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -116.824,
+        "delta_g_ads_700K_kcal_mol": -99.11
+      }
+    },
+    "Ni4_Ni9_hollow_Odown": {
+      "total_energy_ha": -19627.5429147,
+      "converged": true,
+      "cycles": 2,
+      "e_ads_ha": -0.06189,
+      "e_ads_ev": -1.6841,
+      "e_ads_kcal_mol": -38.837,
+      "mayer_bo_no": 1.0941,
+      "mayer_sum_ni_n": 0.0142,
+      "mayer_sum_ni_o": 0.3019,
+      "no_lowdin_net_charge": -0.8309,
+      "net_charges": {
+        "Ni1": 0.7496,
+        "Ni2": -0.0626,
+        "Ni3": -0.0657,
+        "Ni4": -0.0626,
+        "N1": -0.0103,
+        "O1": -0.8206
+      },
+      "active_natural_occupations": [
+        1.0656,
+        1.0093,
+        1.0006,
+        1.0001,
+        1.0,
+        1.0,
+        0.9993,
+        0.9906,
+        0.9344,
+        0.0001
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 425.9814,
+        "O1_1s": 556.0215
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.56065,
+        "r_no_angstrom": 1.35504,
+        "z_n_bohr": 4.33514,
+        "z_o_bohr": 1.77966,
+        "d_min_ni_n_bohr": 4.86615,
+        "d_min_ni_o_bohr": 2.96625,
+        "tilt_angle_deg_from_z": 176.358,
+        "n_xyz_bohr": [
+          0.791993,
+          0.791994,
+          4.335136
+        ],
+        "o_xyz_bohr": [
+          0.676983,
+          0.67698,
+          1.779656
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.023449,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          121.65,
+          175.55,
+          240.4,
+          396.98,
+          936.78,
+          1702.21
+        ],
+        "nu_no_cm": 1702.21,
+        "delta_nu_no_cm": -462.22,
+        "delta_nu_vs_stage1_cas76_cm": 69.62,
+        "zpve_kcal_mol": 5.1087,
+        "delta_zpve_kcal_mol": 2.0145
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.5429147,
+          "zero_point_energy_kcal": 5.1087,
+          "zero_point_energy_au": 0.00814121,
+          "thermal_energy_kcal": 6.4753,
+          "thermal_enthalpy_kcal": 6.4753,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 6.4753,
+            "zpve": 5.1087,
+            "total": 6.4753
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 8.395,
+            "electronic": 4.132,
+            "total": 12.527
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 7.565,
+            "cv_total": 7.565
+          },
+          "total_energy_u0": -19627.53477349,
+          "total_energy_u_t": -19627.53259569,
+          "total_enthalpy_h_t": -19627.53259569,
+          "total_gibbs_free_energy_g_t": -19627.5385848,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.5429147,
+          "zero_point_energy_kcal": 5.1087,
+          "zero_point_energy_au": 0.00814121,
+          "thermal_energy_kcal": 10.0726,
+          "thermal_enthalpy_kcal": 10.0726,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 10.0726,
+            "zpve": 5.1087,
+            "total": 10.0726
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 15.868,
+            "electronic": 4.132,
+            "total": 20.001
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 10.025,
+            "cv_total": 10.025
+          },
+          "total_energy_u0": -19627.53477349,
+          "total_energy_u_t": -19627.52686304,
+          "total_enthalpy_h_t": -19627.52686304,
+          "total_gibbs_free_energy_g_t": -19627.54917428,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -25.218,
+        "delta_g_ads_700K_kcal_mol": -9.061
+      }
+    },
+    "Ni4_Ni9_bridge_Ndown": {
+      "total_energy_ha": -19627.67493189,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.193907,
+      "e_ads_ev": -5.2765,
+      "e_ads_kcal_mol": -121.679,
+      "mayer_bo_no": 1.0422,
+      "mayer_sum_ni_n": 0.8751,
+      "mayer_sum_ni_o": 0.0312,
+      "no_lowdin_net_charge": -1.4503,
+      "net_charges": {
+        "Ni1": 0.6146,
+        "Ni2": 0.689,
+        "Ni3": -0.0646,
+        "Ni4": -0.0652,
+        "N1": -1.3506,
+        "O1": -0.0997
+      },
+      "active_natural_occupations": [
+        1.9794,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9996,
+        0.0199,
+        0.0011
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 415.0907,
+        "O1_1s": 559.7867
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.6561,
+        "r_no_angstrom": 1.40555,
+        "z_n_bohr": 1.34287,
+        "z_o_bohr": 3.84491,
+        "d_min_ni_n_bohr": 2.99772,
+        "d_min_ni_o_bohr": 4.52123,
+        "tilt_angle_deg_from_z": 19.61,
+        "n_xyz_bohr": [
+          0.002536,
+          1.070892,
+          1.342872
+        ],
+        "o_xyz_bohr": [
+          -0.008951,
+          1.962268,
+          3.84491
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.043085,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 1,
+        "frequencies_cm": [
+          -29.23,
+          248.07,
+          323.11,
+          956.39,
+          1354.69,
+          1479.99
+        ],
+        "nu_no_cm": 1479.99,
+        "delta_nu_no_cm": -684.44,
+        "delta_nu_vs_stage1_cas76_cm": -152.6,
+        "zpve_kcal_mol": 6.2361,
+        "delta_zpve_kcal_mol": 3.1419
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.67493189,
+          "zero_point_energy_kcal": 6.2361,
+          "zero_point_energy_au": 0.00993792,
+          "thermal_energy_kcal": 6.8329,
+          "thermal_enthalpy_kcal": 6.8329,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 6.8329,
+            "zpve": 6.2361,
+            "total": 6.8329
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 3.21,
+            "electronic": 4.132,
+            "total": 7.342
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 4.046,
+            "cv_total": 4.046
+          },
+          "total_energy_u0": -19627.66499397,
+          "total_energy_u_t": -19627.66404296,
+          "total_enthalpy_h_t": -19627.66404296,
+          "total_gibbs_free_energy_g_t": -19627.66755295,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.67493189,
+          "zero_point_energy_kcal": 6.2361,
+          "zero_point_energy_au": 0.00993792,
+          "thermal_energy_kcal": 9.1949,
+          "thermal_enthalpy_kcal": 9.1949,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.1949,
+            "zpve": 6.2361,
+            "total": 9.1949
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 8.011,
+            "electronic": 4.132,
+            "total": 12.143
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 7.364,
+            "cv_total": 7.364
+          },
+          "total_energy_u0": -19627.66499397,
+          "total_energy_u_t": -19627.66027888,
+          "total_enthalpy_h_t": -19627.66027888,
+          "total_gibbs_free_energy_g_t": -19627.67382504,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -106.147,
+        "delta_g_ads_700K_kcal_mol": -87.281
+      }
+    },
+    "Ni4_Ni9_top_Ndown": {
+      "total_energy_ha": -19627.51505153,
+      "converged": true,
+      "cycles": 2,
+      "e_ads_ha": -0.034027,
+      "e_ads_ev": -0.9259,
+      "e_ads_kcal_mol": -21.352,
+      "mayer_bo_no": 1.1845,
+      "mayer_sum_ni_n": 0.3506,
+      "mayer_sum_ni_o": 0.0116,
+      "no_lowdin_net_charge": -0.7992,
+      "net_charges": {
+        "Ni1": 0.7132,
+        "Ni2": -0.0599,
+        "Ni3": -0.0653,
+        "Ni4": -0.0599,
+        "N1": -0.7712,
+        "O1": -0.028
+      },
+      "active_natural_occupations": [
+        1.0528,
+        1.0009,
+        1.0009,
+        1.0,
+        0.9998,
+        0.9997,
+        0.9994,
+        0.9992,
+        0.9473,
+        0.0
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 419.2855,
+        "O1_1s": 561.4541
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.53256,
+        "r_no_angstrom": 1.34017,
+        "z_n_bohr": 2.86842,
+        "z_o_bohr": 4.81191,
+        "d_min_ni_n_bohr": 3.14523,
+        "d_min_ni_o_bohr": 4.82346,
+        "tilt_angle_deg_from_z": 39.879,
+        "n_xyz_bohr": [
+          1.442674,
+          1.442674,
+          2.868416
+        ],
+        "o_xyz_bohr": [
+          2.590866,
+          2.590867,
+          4.81191
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.013544,
+      "vibrations": {
+        "num_modes": 6,
+        "num_vibrational_modes": 6,
+        "num_imaginary": 0,
+        "frequencies_cm": [
+          28.77,
+          51.99,
+          239.22,
+          301.48,
+          894.06,
+          1373.93
+        ],
+        "nu_no_cm": 1373.93,
+        "delta_nu_no_cm": -790.5,
+        "delta_nu_vs_stage1_cas76_cm": -258.66,
+        "zpve_kcal_mol": 4.1307,
+        "delta_zpve_kcal_mol": 1.0365
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.51505153,
+          "zero_point_energy_kcal": 4.1307,
+          "zero_point_energy_au": 0.00658266,
+          "thermal_energy_kcal": 5.8383,
+          "thermal_enthalpy_kcal": 5.8383,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 5.8383,
+            "zpve": 4.1307,
+            "total": 5.8383
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 12.988,
+            "electronic": 4.132,
+            "total": 17.12
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 8.047,
+            "cv_total": 8.047
+          },
+          "total_energy_u0": -19627.50846888,
+          "total_energy_u_t": -19627.50574768,
+          "total_enthalpy_h_t": -19627.50574768,
+          "total_gibbs_free_energy_g_t": -19627.51393245,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19627.51505153,
+          "zero_point_energy_kcal": 4.1307,
+          "zero_point_energy_au": 0.00658266,
+          "thermal_energy_kcal": 9.613,
+          "thermal_enthalpy_kcal": 9.613,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.613,
+            "zpve": 4.1307,
+            "total": 9.613
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 20.841,
+            "electronic": 4.132,
+            "total": 24.973
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 10.418,
+            "cv_total": 10.418
+          },
+          "total_energy_u0": -19627.50846888,
+          "total_energy_u_t": -19627.49973219,
+          "total_enthalpy_h_t": -19627.49973219,
+          "total_gibbs_free_energy_g_t": -19627.52759036,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -9.749,
+        "delta_g_ads_700K_kcal_mol": 4.483
+      }
+    },
+    "Ni4_Ni9_bridge_Ndown_with_O_coads": {
+      "total_energy_ha": -19701.8587052,
+      "converged": true,
+      "cycles": 0,
+      "e_ads_ha": -0.144395,
+      "e_ads_ev": -3.9292,
+      "e_ads_kcal_mol": -90.609,
+      "mayer_bo_no": 1.0028,
+      "mayer_sum_ni_n": 0.9003,
+      "mayer_sum_ni_o": 0.0347,
+      "no_lowdin_net_charge": -1.4128,
+      "net_charges": {
+        "Ni1": 0.6717,
+        "Ni2": 0.6029,
+        "Ni3": -0.0662,
+        "Ni4": -0.0658,
+        "N1": -1.3434,
+        "O1": -0.0693,
+        "O2": -0.0108
+      },
+      "active_natural_occupations": [
+        1.9785,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9997,
+        0.0202,
+        0.0016
+      ],
+      "koopmans_1s_be_ev": {
+        "N1_1s": 414.2383,
+        "O1_1s": 559.4848,
+        "O2_1s": 565.0839
+      },
+      "net_spin": 7,
+      "geometry_metrics": {
+        "r_no_bohr": 2.8372,
+        "r_no_angstrom": 1.50138,
+        "z_n_bohr": 1.69833,
+        "z_o_bohr": 4.53285,
+        "d_min_ni_n_bohr": 2.91805,
+        "d_min_ni_o_bohr": 5.11725,
+        "tilt_angle_deg_from_z": 2.491,
+        "n_xyz_bohr": [
+          -0.000199,
+          2.647593,
+          1.698332
+        ],
+        "o_xyz_bohr": [
+          -0.016735,
+          2.769771,
+          4.532848
+        ],
+        "o2_xyz_bohr": [
+          0.00413,
+          -1.18962,
+          2.616498
+        ]
+      },
+      "opt_steps": 18,
+      "opt_converged": false,
+      "opt_max_grad": 0.178129,
+      "vibrations": {
+        "num_modes": 9,
+        "num_vibrational_modes": 9,
+        "num_imaginary": 1,
+        "frequencies_cm": [
+          -119.44,
+          293.66,
+          300.62,
+          331.31,
+          336.42,
+          500.98,
+          609.75,
+          1475.26,
+          1572.0
+        ],
+        "nu_no_cm": 1572.0,
+        "delta_nu_no_cm": -592.43,
+        "delta_nu_vs_stage1_cas76_cm": -60.59,
+        "zpve_kcal_mol": 7.7483,
+        "delta_zpve_kcal_mol": 4.6541
+      },
+      "thermochemistry": {
+        "300K": {
+          "temperature_k": 300.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19701.8587052,
+          "zero_point_energy_kcal": 7.7483,
+          "zero_point_energy_au": 0.01234765,
+          "thermal_energy_kcal": 9.016,
+          "thermal_enthalpy_kcal": 9.016,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 9.016,
+            "zpve": 7.7483,
+            "total": 9.016
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 6.515,
+            "electronic": 4.132,
+            "total": 10.648
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 9.007,
+            "cv_total": 9.007
+          },
+          "total_energy_u0": -19701.84635755,
+          "total_energy_u_t": -19701.84433737,
+          "total_enthalpy_h_t": -19701.84433737,
+          "total_gibbs_free_energy_g_t": -19701.84942775,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "700K": {
+          "temperature_k": 700.0,
+          "pressure_atm": 1.0,
+          "electronic_energy": -19701.8587052,
+          "zero_point_energy_kcal": 7.7483,
+          "zero_point_energy_au": 0.01234765,
+          "thermal_energy_kcal": 13.5936,
+          "thermal_enthalpy_kcal": 13.5936,
+          "thermal_energy_components": {
+            "trans": 0.0,
+            "rot": 0.0,
+            "vib": 13.5936,
+            "zpve": 7.7483,
+            "total": 13.5936
+          },
+          "entropy_cal_mol_k": {
+            "translation": 0.0,
+            "rotation": 0.0,
+            "vibration": 15.97,
+            "electronic": 4.132,
+            "total": 20.102
+          },
+          "heat_capacity_cal_mol_k": {
+            "cv_trans": 0.0,
+            "cv_rot": 0.0,
+            "cv_vib": 13.103,
+            "cv_total": 13.103
+          },
+          "total_energy_u0": -19701.84635755,
+          "total_energy_u_t": -19701.83704235,
+          "total_enthalpy_h_t": -19701.83704235,
+          "total_gibbs_free_energy_g_t": -19701.85946662,
+          "is_adsorbate": true,
+          "quasi_rrho_floor_cm": 50.0
+        },
+        "clean_spin_multiplicity": 9,
+        "ads_spin_multiplicity": 8,
+        "delta_g_ads_300K_kcal_mol": -73.886,
+        "delta_g_ads_700K_kcal_mol": -57.383
+      }
+    }
+  },
+  "single_point_refinements": {
+    "SZP": {
+      "Ni2_bridge_Ndown": {
+        "total_energy_ha": -3132.58988726,
+        "converged": true,
+        "e_ads_ha": -0.104099,
+        "e_ads_ev": -2.8327,
+        "e_ads_kcal_mol": -65.323
+      },
+      "Ni4_Ni9_hollow_Ndown": {
+        "total_energy_ha": -19630.08912456,
+        "converged": true,
+        "e_ads_ha": -0.061253,
+        "e_ads_ev": -1.6668,
+        "e_ads_kcal_mol": -38.437
+      },
+      "Ni4_Ni9_hollow_Odown": {
+        "total_energy_ha": -19630.01706065,
+        "converged": true,
+        "e_ads_ha": 0.010811,
+        "e_ads_ev": 0.2942,
+        "e_ads_kcal_mol": 6.784
+      },
+      "Ni4_Ni9_bridge_Ndown": {
+        "total_energy_ha": -19630.04019242,
+        "converged": true,
+        "e_ads_ha": -0.012321,
+        "e_ads_ev": -0.3353,
+        "e_ads_kcal_mol": -7.731
+      },
+      "Ni4_Ni9_top_Ndown": {
+        "total_energy_ha": -19630.05683315,
+        "converged": true,
+        "e_ads_ha": -0.028962,
+        "e_ads_ev": -0.7881,
+        "e_ads_kcal_mol": -18.174
+      }
+    },
+    "DZP": {
+      "Ni2_bridge_Ndown": {
+        "total_energy_ha": -3140.98093149,
+        "converged": true,
+        "e_ads_ha": -0.074439,
+        "e_ads_ev": -2.0256,
+        "e_ads_kcal_mol": -46.711
+      }
+    },
+    "DZP_NO_SZP_Ni": {
+      "Ni4_Ni9_hollow_Ndown": {
+        "total_energy_ha": -19628.79807778,
+        "converged": true,
+        "e_ads_ha": -0.120854,
+        "e_ads_ev": -3.2886,
+        "e_ads_kcal_mol": -75.837
+      },
+      "Ni4_Ni9_hollow_Odown": {
+        "total_energy_ha": -19628.73540792,
+        "converged": true,
+        "e_ads_ha": -0.058184,
+        "e_ads_ev": -1.5833,
+        "e_ads_kcal_mol": -36.511
+      },
+      "Ni4_Ni9_bridge_Ndown": {
+        "total_energy_ha": -19628.7318022,
+        "converged": true,
+        "e_ads_ha": -0.054578,
+        "e_ads_ev": -1.4852,
+        "e_ads_kcal_mol": -34.248
+      },
+      "Ni4_Ni9_top_Ndown": {
+        "total_energy_ha": -19628.66100388,
+        "converged": true,
+        "e_ads_ha": 0.01622,
+        "e_ads_ev": 0.4414,
+        "e_ads_kcal_mol": 10.178
+      }
+    }
+  },
+  "magnetic_quenching_check_hollow_Ndown": {
+    "e_antiparallel_S7_ha": -19627.59517115,
+    "e_parallel_S9_ha": -19627.36022311,
+    "parallel_converged": true,
+    "spin_pairing_stabilization_ev": 6.3933
+  }
+}

@@ -1,0 +1,61 @@
+# 1978 Dissertation Chapter IX 5-Atom Ni5 Hollow Cluster (N-Down, d_Ni-N = 3.70 Bohr, R_NO = 2.1747 Bohr)
+title: NO on 1978 Ni5(100) 4-Fold Hollow Pyramid (N-Down, Ferromagnetic LocalizedVB CAS(11e,12o) SZ/STO-6G)
+net_spin: 9
+control:
+  method: masked_vb
+  vb_wavefunction: cas
+  domain_mode: custom
+  core_embedding: exact_backprojected
+  environment_embedding: none
+  integral_backend: sto_ng
+  sto_ng_primitives: 6
+  spin_unrestricted: false
+  max_cycles: 300
+  convergence: 1.0e-06
+  default_basis: SZ
+  vb_orbital_specs:
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: active, atoms: [Ni1, N1, O1]}
+  - {role: active, atoms: [Ni1, N1, O1]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: active, atoms: [Ni2, N1, O1]}
+  - {role: active, atoms: [Ni2, N1, O1]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: active, atoms: [Ni3, N1, O1]}
+  - {role: active, atoms: [Ni3, N1, O1]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: active, atoms: [Ni4, N1, O1]}
+  - {role: active, atoms: [Ni4, N1, O1]}
+  - {role: inactive, atoms: [Ni5]}
+  - {role: inactive, atoms: [Ni5]}
+  - {role: inactive, atoms: [Ni5]}
+  - {role: inactive, atoms: [Ni5]}
+  - {role: active, atoms: [Ni5, N1, O1]}
+  - {role: active, atoms: [Ni5, N1, O1]}
+  - {role: inactive, atoms: [N1]}
+  - {role: inactive, atoms: [O1]}
+  - {role: inactive, atoms: [N1, O1]}
+  - {role: inactive, atoms: [N1, O1]}
+  - {role: inactive, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4, Ni5]}
+  - {role: active, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4, Ni5]}
+  - {role: active, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4, Ni5]}
+geometry:
+- {id: Ni1, element: Ni, xyz: [2.355, 2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni2, element: Ni, xyz: [-2.355, 2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni3, element: Ni, xyz: [-2.355, -2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni4, element: Ni, xyz: [2.355, -2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni5, element: Ni, xyz: [0.0, 0.0, -3.330473], active: true, fixed: true, basis: SZ}
+- {id: N1, element: N, xyz: [-0.010642, -0.010644, 0.292261], active: true, fixed: false, basis: SZ}
+- {id: O1, element: O, xyz: [0.031374, 0.031375, 3.052150], active: true, fixed: false, basis: SZ}

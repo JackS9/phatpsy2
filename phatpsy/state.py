@@ -491,6 +491,8 @@ class CalculationState(dict):
                     cand = self.get_embedded_atom(idx)
 
                 if cand is not None:
+                    if is_vb_run and not getattr(cand, "orbitals", None):
+                        continue
                     atom.embedded_state = cand
                     atom.starting_orbitals = (
                         cand.to_initial_orbitals()

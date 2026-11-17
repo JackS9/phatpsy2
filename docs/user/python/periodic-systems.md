@@ -123,7 +123,12 @@ The `phatpsy.chemisorption` module provides transition-metal chemisorption energ
 | `project_c4v_dband` | C4v crystal-field d-band projection (irreps $a_1$:$d_{z^2}$, $e$:{$d_{xz}$,$d_{yz}$}, $b_1$:$d_{x^2-y^2}$, $b_2$:$d_{xy}$), spin-resolved |
 | `scan_lateral_chemisorption_pes` | 2D lateral PES scan across top/bridge/hollow sites |
 | `compute_chemisorption_vibrational_shift` | Adsorbate vibrational frequency red-shift on adsorption |
-| `compute_surface_core_level_shifts` | Surface core-level shifts (metal and adsorbate) |
+| `compute_surface_core_level_shifts` | Koopmans (`koopmans_orbital_energy`) orbital-energy shifts (expect $\sim 15\text{ eV}$ offset vs. XPS) |
+| `compute_delta_casscf_core_1s_be` | Relaxed Bagus/Siegbahn CVS-$\Delta\text{CASSCF}$ $1s$ core-hole binding energies |
+| `compute_mayer_bond_orders` / `get_mayer_bond_order` | Spin-resolved Mayer bond orders $B_{AB}$ and atomic valences |
+| `build_surface_plaquette_vb_specs` | Ferromagnetic $3d^8 4s^2\,^3F$ (`2` spins up/Ni) active-space specs for $\text{Ni}_k + \text{NO}$ |
+
+See the [Python API Reference](reference.md) for complete signatures, return schemas, and default options.
 
 ```python
 from phatpsy.chemisorption import evaluate_chemisorption_energy

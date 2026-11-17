@@ -1021,3 +1021,667 @@ def compute_surface_core_level_shifts(
         koopmans_gas_1s_be_ev=gas_1s_map,
         koopmans_ads_1s_shift_ev=shift_1s_map,
     )
+
+
+# -----------------------------------------------------------------------------
+# Mayer Bond Orders & CVS-Delta-CASSCF Core-Hole Spectroscopy (Phase 18)
+# -----------------------------------------------------------------------------
+
+
+def compute_mayer_bond_orders(
+    state_or_deck: Union[CalculationState, CalculationDeck, str, Path],
+    driver: Optional[PhatpsyDriver] = None,
+) -> Dict[str, Any]:
+    """Compute spin-resolved Mayer bond orders ``B_AB`` and total atomic valences ``V_A``.
+
+    Uses exact spin-density matrices ``(P^alpha, P^beta)`` when available (e.g., ``rdm1_ao_spin``
+    from :class:`phatpsy.vb_driver.LocalizedVBDriver`) and the active-region AO overlap matrix ``S``:
+        B_AB = 2 * sum_{mu in A, nu in B} [(P^alpha S)_{mu,nu}(P^alpha S)_{nu,mu}
+                                           + (P^beta S)_{mu,nu}(P^beta S)_{nu,mu}]
+    For closed-shell wavefunctions (``P^alpha = P^beta = 0.5 * P_tot``), this reduces
+    identically to ``sum_{mu in A, nu in B} (P_tot S)_{mu,nu}(P_tot S)_{nu,mu}``.
+    """
+    if isinstance(state_or_deck, (str, Path)):
+        p = Path(state_or_deck)
+        deck = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+        res = (driver or PhatpsyDriver(quiet=True)).run_deck(deck)
+    elif isinstance(state_or_deck, CalculationDeck):
+        res = (driver or PhatpsyDriver(quiet=True)).run_deck(state_or_deck)
+    else:
+        res = state_or_deck
+
+    s_raw = res.get("ao_overlap")
+    if s_raw is None:
+        raise ValueError("CalculationState lacks 'ao_overlap'; cannot compute Mayer bond orders.")
+    S = np.asarray(s_raw, dtype=float)
+
+    rdm1_spin = res.get("rdm1_ao_spin")
+    if rdm1_spin is not None:
+        p_spin = np.asarray(rdm1_spin, dtype=float)
+        Pa = np.asarray(p_spin[0], dtype=float)
+        Pb = np.asarray(p_spin[1], dtype=float)
+    else:
+        rdm1_tot = res.get("rdm1_ao")
+        if rdm1_tot is None:
+            raise ValueError("CalculationState lacks 'rdm1_ao_spin' / 'rdm1_ao'; cannot compute Mayer bond orders.")
+        P_tot = np.asarray(rdm1_tot, dtype=float)
+        if P_tot.ndim == 3:
+            Pa, Pb = P_tot[0], P_tot[1]
+        else:
+            Pa = 0.5 * P_tot
+            Pb = 0.5 * P_tot
+
+    bi = res.get("basis_info") or {}
+    iatomx = np.asarray(bi.get("iatomx", []), dtype=int)
+    if iatomx.size != S.shape[0]:
+        raise ValueError(
+            f"basis_info['iatomx'] length ({iatomx.size}) does not match AO overlap dimension ({S.shape[0]})."
+        )
+
+    deck_geom = res.deck.geometry if getattr(res, "deck", None) is not None else []
+    unique_gidx = []
+    for g1 in iatomx.tolist():
+        if g1 not in unique_gidx:
+            unique_gidx.append(int(g1))
+
+    atom_ids: List[str] = []
+    ao_groups: List[np.ndarray] = []
+    for g1 in unique_gidx:
+        if 1 <= g1 <= len(deck_geom):
+            a_cfg = deck_geom[g1 - 1]
+            aid = a_cfg.id or f"{a_cfg.element.strip().capitalize()}{g1}"
+        else:
+            aid = f"Atom{g1}"
+        atom_ids.append(aid)
+        ao_groups.append(np.where(iatomx == g1)[0])
+
+    PSa = Pa @ S
+    PSb = Pb @ S
+    n_at = len(atom_ids)
+    bo_mat = np.zeros((n_at, n_at), dtype=float)
+    pair_bos: Dict[str, float] = {}
+    for ia in range(n_at):
+        idx_a = ao_groups[ia]
+        for ib in range(ia + 1, n_at):
+            idx_b = ao_groups[ib]
+            b_val = 2.0 * float(
+                np.sum(PSa[np.ix_(idx_a, idx_b)] * PSa[np.ix_(idx_b, idx_a)].T)
+                + np.sum(PSb[np.ix_(idx_a, idx_b)] * PSb[np.ix_(idx_b, idx_a)].T)
+            )
+            bo_mat[ia, ib] = b_val
+            bo_mat[ib, ia] = b_val
+            pair_bos[f"{atom_ids[ia]}-{atom_ids[ib]}"] = float(b_val)
+
+    valences = {
+        atom_ids[ia]: float(np.sum(bo_mat[ia, :]) - bo_mat[ia, ia])
+        for ia in range(n_at)
+    }
+    return {
+        "atom_ids": atom_ids,
+        "bond_order_matrix": bo_mat.tolist(),
+        "pair_bond_orders": pair_bos,
+        "atomic_valences": valences,
+    }
+
+
+def get_mayer_bond_order(mayer_result: Dict[str, Any], atom_id_a: str, atom_id_b: str) -> float:
+    """Look up symmetric Mayer bond order ``B_AB`` between two atom IDs."""
+    pairs = mayer_result.get("pair_bond_orders", {})
+    if f"{atom_id_a}-{atom_id_b}" in pairs:
+        return float(pairs[f"{atom_id_a}-{atom_id_b}"])
+    if f"{atom_id_b}-{atom_id_a}" in pairs:
+        return float(pairs[f"{atom_id_b}-{atom_id_a}"])
+    atom_ids = list(mayer_result.get("atom_ids", []))
+    if atom_id_a in atom_ids and atom_id_b in atom_ids:
+        ia = atom_ids.index(atom_id_a)
+        ib = atom_ids.index(atom_id_b)
+        return float(mayer_result["bond_order_matrix"][ia][ib])
+    raise KeyError(f"Atom pair ({atom_id_a}, {atom_id_b}) not found in Mayer bond order result.")
+
+
+def compute_delta_casscf_core_1s_be(
+    deck: Union[CalculationDeck, str, Path],
+    target_atom_id: str,
+    *,
+    cvs_penalty_ha: float = 100.0,
+    warm_ground_state: Optional[CalculationState] = None,
+    maxiter: int = 350,
+    gtol: float = 1e-6,
+) -> Dict[str, Any]:
+    """Bagus/Siegbahn Core-Valence-Separated Delta-CASSCF ``1s`` core-hole binding energy.
+
+    Unfreezes ONLY ``target_atom_id``'s atomic ``1s`` orbital ``c_1s`` as frozen active
+    orbital ``0``, projects all inactive and valence active orbitals strictly orthogonal to
+    ``c_1s`` (keeping all spectator cores/atoms and non-target active cores frozen in ``C_env``),
+    enforces single ``1s`` core-hole occupation ``n_1s = 1`` via the exact Hermitian CVS penalty
+    ``Lambda * (n_0 - 1)^2``, and relaxes all valence orbitals variationally via BFGS.
+
+    For open-shell ground states (``S_GS > 0``, e.g., paramagnetic ``NO(X 2Pi)``), evaluates
+    both high-spin (``S_+ = S_GS + 1/2``) and low-spin (``S_- = S_GS - 1/2``) core-hole
+    multiplets along with their spin-degeneracy-weighted average BE.
+    """
+    from pyscf import ao2mo, fci, lib
+
+    from phatpsy.embedding import (
+        FrozenEnvironmentAtom,
+        embed_from_full_integrals,
+    )
+    from phatpsy.localized_vb import (
+        bfgs_with_reset_continuation,
+        build_subset_gauge_pairs,
+        eval_orbital_gauge_and_hinge_penalty,
+    )
+    from phatpsy.multicenter_integrals import molecular_ao_integrals, sto_ng_ao_integrals
+    from phatpsy.vb_driver import (
+        LocalizedVBDriver,
+        _atomic_num,
+        _core_shells_count,
+        _frozen_env_from_atom,
+        _resolve_atom_stos,
+    )
+
+    if isinstance(deck, (str, Path)):
+        p = Path(deck)
+        calc_deck = CalculationDeck.from_yaml(p) if p.suffix in (".yaml", ".yml") else CalculationDeck.from_json(p)
+    else:
+        calc_deck = copy.deepcopy(deck)
+
+    calc_deck.ensure_atom_ids()
+    calc_deck.resolve_coordinates()
+    elem_map = calc_deck.resolve_elements()
+    ctrl = calc_deck.control
+
+    vb_drv = LocalizedVBDriver(quiet=True)
+    res_gs = warm_ground_state if warm_ground_state is not None else vb_drv.run_deck(calc_deck)
+    e_gs = float(res_gs["total_energy"])
+
+    kmap = res_gs.get("koopmans_core_energies_ha") or {}
+    koopmans_be_ev: Optional[float] = (
+        float(-float(kmap[f"{target_atom_id}_1s"]) * HARTREE_TO_EV)
+        if f"{target_atom_id}_1s" in kmap
+        else None
+    )
+
+    active_atoms = [a for a in calc_deck.geometry if not a.virtual and a.is_active]
+    spectator_atoms = [a for a in calc_deck.geometry if not a.virtual and not a.is_active]
+    target_matches = [
+        i for i, a in enumerate(active_atoms) if (a.id or "").strip() == target_atom_id.strip()
+    ]
+    if not target_matches:
+        raise ValueError(f"Target atom '{target_atom_id}' not found among active atoms.")
+    ia_target = target_matches[0]
+    z_target = int(_atomic_num(active_atoms[ia_target]))
+    if not (3 <= z_target <= 10):
+        raise ValueError(
+            f"Delta-CASSCF 1s solver supports first-row atoms (3 <= Z <= 10); got Z={z_target} ({target_atom_id})."
+        )
+
+    active_bases = []
+    for a in active_atoms:
+        stos, _ = _resolve_atom_stos(a, calc_deck, elem_map)
+        active_bases.append(stos)
+    spec_bases = []
+    spec_envs = []
+    for b in spectator_atoms:
+        stos_b, bname_b = _resolve_atom_stos(b, calc_deck, elem_map)
+        spec_bases.append(stos_b)
+        spec_envs.append(_frozen_env_from_atom(b, stos_b, bname_b))
+
+    integral_backend = str(getattr(ctrl, "integral_backend", "prolate") or "prolate").strip().lower()
+    sto_ng_k = int(getattr(ctrl, "sto_ng_primitives", 6))
+    core_mode = str(getattr(ctrl, "core_embedding", "exact_backprojected") or "exact_backprojected").lower()
+    env_mode = str(getattr(ctrl, "environment_embedding", "exact_joint_pk") or "exact_joint_pk").lower()
+    if core_mode not in ("all_electron", "exact_backprojected"):
+        raise ValueError(f"CVS-Delta-CASSCF requires core_embedding in ('all_electron', 'exact_backprojected'), got '{core_mode}'.")
+
+    full_active_basis = [f for b in active_bases for f in b]
+    n_act_ao = len(full_active_basis)
+    n_total_ao = n_act_ao + sum(len(b) for b in spec_bases)
+
+    all_specs = [
+        (float(_atomic_num(a)), tuple(float(v) for v in a.xyz), b)
+        for a, b in zip(active_atoms, active_bases)
+    ] + [
+        (float(_atomic_num(b)), tuple(float(v) for v in b.xyz), bb)
+        for b, bb in zip(spectator_atoms, spec_bases)
+    ]
+
+    # Build full-system or active-system integrals
+    ab_ints_h = None
+    pyscf_ctx_ab_h = None
+    full_ints_h = None
+    pyscf_ctx_h = None
+    if integral_backend == "sto_ng":
+        if spectator_atoms and env_mode == "exact_backprojected":
+            ab_ints_h, pyscf_ctx_ab_h = sto_ng_ao_integrals(
+                all_specs,
+                n_prim=sto_ng_k,
+                return_pyscf_context=True,
+                build_eri=(n_total_ao <= 90),
+            )
+            all_ord = list(active_atoms) + list(spectator_atoms)
+            pyscf_ctx_ab_h.fixed_atom_indices = tuple(
+                ia for ia, a_ord in enumerate(all_ord) if bool(a_ord.fixed)
+            )
+        else:
+            specs_mc = all_specs[: len(active_atoms)]
+            full_ints_h, pyscf_ctx_h = sto_ng_ao_integrals(
+                specs_mc,
+                n_prim=sto_ng_k,
+                return_pyscf_context=True,
+                build_eri=(n_act_ao <= 90 and not spectator_atoms and core_mode == "all_electron"),
+            )
+            pyscf_ctx_h.fixed_atom_indices = tuple(
+                ia for ia, a_ord in enumerate(active_atoms) if bool(a_ord.fixed)
+            )
+    else:
+        if spectator_atoms and env_mode == "exact_backprojected":
+            ab_ints_h = molecular_ao_integrals(all_specs, n_eta=32, n_phi=16, lmax=16, mmax=4)
+        else:
+            full_ints_h = molecular_ao_integrals(all_specs[: len(active_atoms)], n_eta=32, n_phi=16, lmax=16, mmax=4)
+
+    # Atomic 1s orbital vector on target atom in active AO space
+    target_off = sum(len(b) for b in active_bases[:ia_target])
+    target_coords = tuple(float(v) for v in active_atoms[ia_target].xyz)
+    f_target_1s = FrozenEnvironmentAtom.from_atomic_rhf(
+        float(z_target), target_coords, active_bases[ia_target], n_occ=1
+    )
+    v_1s_bare = np.zeros(n_act_ao, dtype=float)
+    v_1s_bare[target_off : target_off + len(active_bases[ia_target])] = f_target_1s.C_occ[:, 0]
+
+    # Active core columns OMITTING target_atom_id's 1s orbital when core_mode != 'all_electron'
+    core_cols_hole: List[np.ndarray] = []
+    off_c = 0
+    for ia, (a, b_a) in enumerate(zip(active_atoms, active_bases)):
+        z_a = _atomic_num(a)
+        nc_a = _core_shells_count(z_a)
+        if core_mode != "all_electron" and nc_a > 0 and ia != ia_target:
+            c_a = (float(a.xyz[0]), float(a.xyz[1]), float(a.xyz[2]))
+            f_env = FrozenEnvironmentAtom.from_atomic_rhf(float(z_a), c_a, b_a, n_occ=nc_a)
+            for ck in range(nc_a):
+                col = np.zeros(n_act_ao, dtype=float)
+                col[off_c : off_c + len(b_a)] = f_env.C_occ[:, ck]
+                core_cols_hole.append(col)
+        off_c += len(b_a)
+    C_core_hole = np.column_stack(core_cols_hole) if core_cols_hole else np.zeros((n_act_ao, 0), dtype=float)
+
+    if spectator_atoms and env_mode == "exact_backprojected":
+        env_cols = []
+        for ck in range(C_core_hole.shape[1]):
+            v = np.zeros(n_total_ao, dtype=float)
+            v[:n_act_ao] = C_core_hole[:, ck]
+            env_cols.append(v)
+        spec_off = n_act_ao
+        for sb, se in zip(spec_bases, spec_envs):
+            nb_ao = len(sb)
+            for ck in range(se.C_occ.shape[1]):
+                v = np.zeros(n_total_ao, dtype=float)
+                v[spec_off : spec_off + nb_ao] = se.C_occ[:, ck]
+                env_cols.append(v)
+            spec_off += nb_ao
+        C_env_h = np.column_stack(env_cols) if env_cols else np.zeros((n_total_ao, 0), dtype=float)
+        ints_hole = embed_from_full_integrals(
+            ab_ints_h,
+            C_env_h,
+            active_ao_idx=np.arange(n_act_ao, dtype=int),
+            mode="exact_backprojected",
+            pyscf_ctx=pyscf_ctx_ab_h,
+        )
+    elif core_mode != "all_electron" and C_core_hole.shape[1] > 0:
+        ints_hole = embed_from_full_integrals(
+            full_ints_h, C_core_hole, mode="exact_backprojected", pyscf_ctx=pyscf_ctx_h
+        )
+    else:
+        ints_hole = full_ints_h
+
+    S_h = ints_hole.S
+    h_h = ints_hole.h
+    eri_h = ints_hole.eri
+    eri_s8_h = getattr(ints_hole, "_eri_s8", None)
+    if eri_s8_h is None:
+        eri_s8_h = ao2mo.restore(8, eri_h, n_act_ao)
+        setattr(ints_hole, "_eri_s8", eri_s8_h)
+    Jm_h, Km_h = ints_hole.jk_matrices()
+
+    # Normalized target 1s core orbital in embedded metric
+    c_1s = v_1s_bare / math.sqrt(max(float(v_1s_bare @ S_h @ v_1s_bare), 1e-16))
+    S_c1s = S_h @ c_1s  # shape (n_act_ao,)
+
+    # Extract GS localized orbitals, roles, domain masks, and electron counts
+    roles_gs = list(res_gs["vb_roles"])
+    masks_gs = [np.asarray(m, dtype=int) for m in res_gs["vb_domain_masks"]]
+    na_gs, nb_gs = int(res_gs["vb_nelec_act"][0]), int(res_gs["vb_nelec_act"][1])
+    loc_bare = res_gs.get("localized_orbitals")
+    loc_emb = res_gs.get("localized_orbitals_embedded")
+    if loc_bare is not None and np.asarray(loc_bare, dtype=float).shape[1] == n_act_ao:
+        loc_gs = np.asarray(loc_bare, dtype=float)
+    else:
+        loc_gs = np.asarray(loc_emb, dtype=float)
+
+    # In all_electron mode, remove target 1s from GS inactive set so it isn't double-counted
+    keep_idx = list(range(len(roles_gs)))
+    if core_mode == "all_electron":
+        inact_indices = [k for k, r in enumerate(roles_gs) if r == "inactive"]
+        if inact_indices:
+            best_k = max(inact_indices, key=lambda k: abs(float(loc_gs[k] @ S_h @ c_1s)))
+            keep_idx.remove(best_k)
+
+    val_roles = [roles_gs[k] for k in keep_idx]
+    val_masks = [masks_gs[k] for k in keep_idx]
+    val_init_orbs = [loc_gs[k] - c_1s * float(S_c1s @ loc_gs[k]) for k in keep_idx]
+    off_m = np.cumsum([0] + [len(m) for m in val_masks])
+    x0_val = np.concatenate([o[m] for o, m in zip(val_init_orbs, val_masks)])
+    for k in range(len(val_masks)):
+        s0, s1 = int(off_m[k]), int(off_m[k + 1])
+        nrm_k = float(np.linalg.norm(x0_val[s0:s1]))
+        if nrm_k > 1e-12:
+            x0_val[s0:s1] /= nrm_k
+
+    # Precondition valence orbitals in S_perp-orthonormal non-null subspace per mask
+    # (projecting out frozen c_1s direction cleanly) with per-orbital unit-norm tether
+    # and subset-gauge orthogonality.
+    S_perp = 0.5 * ((S_h - np.outer(S_c1s, S_c1s)) + (S_h - np.outer(S_c1s, S_c1s)).T)
+    B_hole: List[np.ndarray] = []
+    P_hole: List[np.ndarray] = []
+    u0_hole_parts: List[np.ndarray] = []
+    for k_h, (_, m_h) in enumerate(zip(val_roles, val_masks)):
+        Sm_h = 0.5 * (S_perp[np.ix_(m_h, m_h)] + S_perp[np.ix_(m_h, m_h)].T)
+        wm_h, vm_h = np.linalg.eigh(Sm_h)
+        for col_h in range(vm_h.shape[1]):
+            imax_h = int(np.argmax(np.abs(vm_h[:, col_h])))
+            if vm_h[imax_h, col_h] < 0.0:
+                vm_h[:, col_h] *= -1.0
+        keep_h = wm_h > 1e-8
+        if not np.any(keep_h):
+            keep_h = np.array([int(np.argmax(wm_h))])
+        wk_h = np.maximum(wm_h[keep_h], 1e-12)
+        Bk_h = vm_h[:, keep_h] * (wk_h ** -0.5)[None, :]
+        Pk_h = vm_h[:, keep_h] * (wk_h ** 0.5)[None, :]
+        uk_h = Pk_h.T @ np.asarray(val_init_orbs[k_h][m_h], dtype=float)
+        nrm_uh = float(np.linalg.norm(uk_h))
+        if nrm_uh > 1e-12:
+            uk_h = uk_h / nrm_uh
+        B_hole.append(Bk_h)
+        P_hole.append(Pk_h)
+        u0_hole_parts.append(uk_h)
+    use_gauge_h = len(B_hole) > 1
+    F_hole, _, gauge_pairs_h, u0_hole_parts = build_subset_gauge_pairs(
+        val_roles,
+        val_masks,
+        B_hole,
+        P_hole,
+        S_perp,
+        u0_hole_parts,
+        orthogonalize_init=use_gauge_h,
+    )
+    u_off_h = np.cumsum([0] + [b.shape[1] for b in B_hole])
+    u0_hole = np.concatenate(u0_hole_parts) if u0_hole_parts else np.zeros(0, dtype=float)
+
+    # Total active orbitals in core-hole state = 1 (frozen c_1s) + GS active valence orbitals
+    nact_gs = sum(1 for r in val_roles if r == "active")
+    nact_tot = 1 + nact_gs
+    nelec_tot_hole = na_gs + nb_gs + 1
+    if abs(na_gs - nb_gs) == 0:
+        sectors = [("doublet", (na_gs + 1, nb_gs), 0.5, 2)]
+    else:
+        n_hi, n_lo = max(na_gs, nb_gs), min(na_gs, nb_gs)
+        s_gs = 0.5 * (n_hi - n_lo)
+        s_plus = s_gs + 0.5
+        s_minus = s_gs - 0.5
+        sectors = [
+            ("high_spin", (n_hi + 1, n_lo), s_plus, int(round(2.0 * s_plus + 1.0))),
+            ("low_spin", (n_hi, n_lo + 1), s_minus, int(round(2.0 * s_minus + 1.0))),
+        ]
+
+    Lambda = float(cvs_penalty_ha)
+    warm_u_state = [np.array(u0_hole, dtype=float, copy=True)]
+    I_n = np.eye(n_act_ao)
+
+    def _unpack_projected_spaces(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        inact_cols: List[np.ndarray] = []
+        act_cols: List[np.ndarray] = [c_1s]
+        for k, (r, m) in enumerate(zip(val_roles, val_masks)):
+            v_raw = np.zeros(n_act_ao, dtype=float)
+            v_raw[m] = x[int(off_m[k]) : int(off_m[k + 1])]
+            # Project strictly orthogonal to frozen c_1s: P_perp v = v - c_1s (S_c1s^T v)
+            v_perp = v_raw - c_1s * float(np.dot(S_c1s, v_raw))
+            if r == "inactive":
+                inact_cols.append(v_perp)
+            else:
+                act_cols.append(v_perp)
+        Xi = np.column_stack(inact_cols) if inact_cols else np.zeros((n_act_ao, 0), dtype=float)
+        Xa = np.column_stack(act_cols)
+        return Xi, Xa
+
+    def _solve_sector(
+        label: str, nelec_h: Tuple[int, int], s_targ: float
+    ) -> Tuple[float, float, float, bool]:
+        from pyscf.fci import cistring
+
+        need_fix_spin = (label == "low_spin") or abs(s_targ - 0.5 * abs(nelec_h[0] - nelec_h[1])) > 1e-6
+        last_ci: List[Optional[np.ndarray]] = [None]
+
+        def _fci_cvs_solve(h1_b: np.ndarray, eri4: np.ndarray, e_const_b: float) -> Tuple[float, np.ndarray, np.ndarray, float]:
+            h1_cvs = np.array(h1_b, dtype=float, copy=True)
+            eri4_cvs = np.array(eri4, dtype=float, copy=True)
+            h1_cvs[0, 0] -= Lambda
+            eri4_cvs[0, 0, 0, 0] += 2.0 * Lambda
+            e_const_cvs = float(e_const_b + Lambda)
+            eri_act_cvs = ao2mo.restore(8, eri4_cvs, nact_tot)
+
+            solver = fci.direct_spin1.FCI()
+            solver.max_memory = max(int(solver.max_memory), int(lib.current_memory()[0]) + 4000)
+            solver.conv_tol = 1e-10 if need_fix_spin else 1e-12
+            solver.max_cycle = 400
+            if need_fix_spin:
+                solver = fci.addons.fix_spin_(solver, ss=float(s_targ * (s_targ + 1.0)), shift=5.0)
+            na_h = int(cistring.num_strings(nact_tot, nelec_h[0]))
+            nb_h = int(cistring.num_strings(nact_tot, nelec_h[1]))
+            num_dets = na_h * nb_h
+            if (not need_fix_spin) and num_dets <= 1024:
+                h0_diag = solver.make_hdiag(h1_cvs, eri_act_cvs, nact_tot, nelec_h)
+                addr, h0_mat = solver.pspace(h1_cvs, eri_act_cvs, nact_tot, nelec_h, h0_diag, num_dets)
+                pw, pv = solver.eig(h0_mat)
+                ci_full = np.zeros(num_dets, dtype=float)
+                ci_full[addr] = pv[:, 0]
+                civec = ci_full.reshape(na_h, nb_h)
+                e_cvs = float(pw[0] + e_const_cvs)
+            elif last_ci[0] is not None:
+                e_cvs, civec = solver.kernel(
+                    h1_cvs, eri_act_cvs, nact_tot, nelec_h, ci0=last_ci[0], ecore=e_const_cvs
+                )
+            elif need_fix_spin:
+                e_cvs, civec = solver.kernel(
+                    h1_cvs, eri_act_cvs, nact_tot, nelec_h, ecore=e_const_cvs
+                )
+            else:
+                h0_diag = solver.make_hdiag(h1_cvs, eri_act_cvs, nact_tot, nelec_h)
+                n_ps = min(int(num_dets), 1024)
+                addr, h0_mat = solver.pspace(h1_cvs, eri_act_cvs, nact_tot, nelec_h, h0_diag, n_ps)
+                _, pv = solver.eig(h0_mat)
+                ci_full = np.zeros(num_dets, dtype=float)
+                ci_full[addr] = pv[:, 0]
+                e_cvs, civec = solver.kernel(
+                    h1_cvs, eri_act_cvs, nact_tot, nelec_h, ci0=ci_full.reshape(na_h, nb_h), ecore=e_const_cvs
+                )
+            last_ci[0] = civec
+            dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact_tot, nelec_h)
+            e_pure = float(e_const_b + np.sum(h1_b * dm1) + 0.5 * np.sum(eri4 * dm2))
+            return float(e_cvs), dm1, dm2, e_pure
+
+        def _contract_eri4(Ca_mat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            Ca2 = (Ca_mat[:, None, :, None] * Ca_mat[None, :, None, :]).reshape(
+                n_act_ao * n_act_ao, nact_tot * nact_tot
+            )
+            V4 = (Jm_h @ Ca2).reshape(n_act_ao, n_act_ao, nact_tot * nact_tot)
+            t3_loc = np.einsum("mnk,nq->mqk", V4, Ca_mat, optimize=True).reshape(
+                n_act_ao, nact_tot, nact_tot, nact_tot
+            )
+            eri4_loc = np.tensordot(Ca_mat.T, t3_loc, axes=(1, 0))
+            return t3_loc, eri4_loc
+
+        e_off_cvs = float(ints_hole.vnn + Lambda)
+        c_pen_h = 1.0e-3 if use_gauge_h else 1.0e-4
+
+        def _obj_and_grad_u(u: np.ndarray) -> Tuple[float, np.ndarray]:
+            pen_e, pen_g, x = eval_orbital_gauge_and_hinge_penalty(
+                u,
+                u_off_h,
+                B_hole,
+                F_hole,
+                val_masks,
+                S_perp,
+                gauge_pairs_h,
+                c_pen=c_pen_h,
+                c_hinge=1.0e-4,
+                w_floor=0.05,
+                use_gauge_and_hinge=use_gauge_h,
+            )
+            if pen_e >= 1.0e7:
+                return float(pen_e), np.zeros_like(u)
+
+            Xi, Xa = _unpack_projected_spaces(x)
+            if Xi.shape[1] > 0:
+                Gi = 0.5 * (Xi.T @ S_h @ Xi + (Xi.T @ S_h @ Xi).T)
+                wi, vi = np.linalg.eigh(Gi)
+                if wi[0] < 1e-10 or not np.all(np.isfinite(wi)):
+                    return 1.0e8, np.zeros_like(u)
+                Ni = (vi * (1.0 / wi)[None, :]) @ vi.T
+                Dc = Xi @ Ni @ Xi.T
+            else:
+                Ni = np.zeros((0, 0), dtype=float)
+                Dc = np.zeros((n_act_ao, n_act_ao), dtype=float)
+            J_Dc = (Jm_h @ Dc.ravel()).reshape(n_act_ao, n_act_ao)
+            K_Dc = (Km_h @ Dc.ravel()).reshape(n_act_ao, n_act_ao)
+            Fc = h_h + 2.0 * J_Dc - K_Dc
+            e_core = float(np.sum(Dc * (h_h + Fc)))
+
+            Y = Xa - Dc @ (S_h @ Xa)
+            M_ov = 0.5 * (Y.T @ S_h @ Y + (Y.T @ S_h @ Y).T)
+            w_m, V_m = np.linalg.eigh(M_ov)
+            if w_m[0] < 1e-10 or not np.all(np.isfinite(w_m)):
+                return 1.0e8, np.zeros_like(u)
+            Tm = (V_m * (1.0 / np.sqrt(w_m))[None, :]) @ V_m.T
+            Ca = Y @ Tm
+            h1_b = Ca.T @ Fc @ Ca
+            t3, eri4 = _contract_eri4(Ca)
+            e_cvs, dm1, dm2, _ = _fci_cvs_solve(h1_b, eri4, float(e_core + ints_hole.vnn))
+
+            Q_ca = np.einsum("mqrt,pqrt->mp", t3, dm2, optimize=True)
+            G_Ca = 2.0 * (Fc @ Ca @ dm1) + 2.0 * Q_ca
+            G_Y = (I_n - S_h @ Ca @ Ca.T) @ G_Ca @ Tm
+            G_Xa = (I_n - S_h @ Dc) @ G_Y
+
+            Pa = Ca @ dm1 @ Ca.T
+            J_Pa = (Jm_h @ Pa.ravel()).reshape(n_act_ao, n_act_ao)
+            K_Pa = (Km_h @ Pa.ravel()).reshape(n_act_ao, n_act_ao)
+            Ac = 2.0 * Fc + 2.0 * J_Pa - K_Pa - 0.5 * (S_h @ Xa @ G_Y.T + G_Y @ Xa.T @ S_h)
+            G_Xi = 2.0 * (I_n - S_h @ Dc) @ Ac @ Xi @ Ni if Xi.shape[1] > 0 else np.zeros((n_act_ao, 0))
+
+            gi = iter(G_Xi.T)
+            ga = iter(G_Xa[:, 1:].T)  # Column 0 is frozen c_1s
+            grads_u = []
+            for k_i, (r, m) in enumerate(zip(val_roles, val_masks)):
+                g_col = next(gi) if r == "inactive" else next(ga)
+                # Adjoint of P_perp = (I - c_1s S_c1s^T): P_perp^T g = g - S_c1s (c_1s^T g)
+                g_proj = g_col - S_c1s * float(np.dot(c_1s, g_col))
+                grads_u.append(B_hole[k_i].T @ g_proj[m])
+            gu = np.concatenate(grads_u) + pen_g
+            return float((e_cvs - e_off_cvs) + pen_e), gu
+
+        maxit_sec = int(maxiter)
+        gtol_sec = max(float(gtol), 1.0e-4) if (need_fix_spin and nact_tot >= 7) else float(gtol)
+        res_opt, u_opt_h_parts = bfgs_with_reset_continuation(
+            _obj_and_grad_u,
+            warm_u_state[0],
+            u_off_h,
+            maxiter=maxit_sec,
+            gtol=gtol_sec,
+            stat_tol=max(5e-3, gtol_sec * 50.0),
+        )
+        warm_u_state[0] = np.array(res_opt.x, dtype=float, copy=True)
+
+        # Evaluate converged unpenalized core-hole energy & verify n_1s == 1.0
+        x_opt_h = np.empty(int(off_m[-1]), dtype=float)
+        for k_i, Bk_h in enumerate(B_hole):
+            x_opt_h[int(off_m[k_i]) : int(off_m[k_i + 1])] = Bk_h @ u_opt_h_parts[k_i]
+        Xi_f, Xa_f = _unpack_projected_spaces(x_opt_h)
+        if Xi_f.shape[1] > 0:
+            Dc_f = Xi_f @ np.linalg.inv(Xi_f.T @ S_h @ Xi_f) @ Xi_f.T
+        else:
+            Dc_f = np.zeros((n_act_ao, n_act_ao), dtype=float)
+        J_Dcf = (Jm_h @ Dc_f.ravel()).reshape(n_act_ao, n_act_ao)
+        K_Dcf = (Km_h @ Dc_f.ravel()).reshape(n_act_ao, n_act_ao)
+        Fc_f = h_h + 2.0 * J_Dcf - K_Dcf
+        e_core_f = float(np.sum(Dc_f * (h_h + Fc_f)))
+        Y_f = Xa_f - Dc_f @ (S_h @ Xa_f)
+        M_f = 0.5 * (Y_f.T @ S_h @ Y_f + (Y_f.T @ S_h @ Y_f).T)
+        w_f, V_f = np.linalg.eigh(M_f)
+        w_f = np.maximum(w_f, 1e-14)
+        Ca_f = Y_f @ ((V_f * (1.0 / np.sqrt(w_f))[None, :]) @ V_f.T)
+        _, eri4_f = _contract_eri4(Ca_f)
+        last_ci[0] = None
+        _, dm1_f, _, e_pure_f = _fci_cvs_solve(Ca_f.T @ Fc_f @ Ca_f, eri4_f, float(e_core_f + ints_hole.vnn))
+        n_1s = float(dm1_f[0, 0])
+        if abs(n_1s - 1.0) >= 1e-3:
+            raise RuntimeError(
+                f"CVS core-hole variational check failed on {target_atom_id} ({label}): "
+                f"|n_1s - 1.0| = {abs(n_1s - 1.0):.3e} (n_1s={n_1s:.6f})"
+            )
+        be_ev = float((e_pure_f - e_gs) * HARTREE_TO_EV)
+        jac_arr_h = np.asarray(res_opt.jac, dtype=float) if getattr(res_opt, "jac", None) is not None else np.zeros(0)
+        jac_inf = float(np.max(np.abs(jac_arr_h))) if jac_arr_h.size else 0.0
+        n_iters_opt = int(getattr(res_opt, "nit", maxit_sec))
+        conv_s = bool(res_opt.success or jac_inf < max(5e-3, gtol_sec * 50.0) or (n_iters_opt < maxit_sec and jac_inf < 2e-2))
+        return float(e_pure_f), be_ev, n_1s, conv_s
+
+    sector_results: Dict[str, Dict[str, Any]] = {}
+    num_weighted = 0.0
+    den_weight = 0.0
+    max_n1s_err = 0.0
+    all_conv = True
+    for label, nelec_h, s_targ, mult_w in sectors:
+        e_hole_s, be_s, n1s_s, conv_s = _solve_sector(label, nelec_h, s_targ)
+        sector_results[label] = {
+            "energy_ha": round(float(e_hole_s), 8),
+            "be_ev": round(float(be_s), 4),
+            "n_1s_occupation": round(float(n1s_s), 8),
+            "spin_multiplicity": int(mult_w),
+            "converged": bool(conv_s),
+        }
+        num_weighted += float(mult_w) * be_s
+        den_weight += float(mult_w)
+        max_n1s_err = max(max_n1s_err, abs(n1s_s - 1.0))
+        all_conv = all_conv and conv_s
+
+    be_avg_ev = float(num_weighted / max(den_weight, 1.0))
+    if "high_spin" in sector_results and "low_spin" in sector_results:
+        be_hi = float(sector_results["high_spin"]["be_ev"])
+        be_lo = float(sector_results["low_spin"]["be_ev"])
+        split_ev = float(be_lo - be_hi)
+    else:
+        be_hi = float(be_avg_ev)
+        be_lo = float(be_avg_ev)
+        split_ev = 0.0
+
+    relax_ev = float(koopmans_be_ev - be_avg_ev) if koopmans_be_ev is not None else None
+    return {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": target_atom_id,
+        "ground_energy_ha": float(e_gs),
+        "be_multiplet_avg_ev": float(be_avg_ev),
+        "be_high_spin_ev": float(be_hi),
+        "be_low_spin_ev": float(be_lo),
+        "multiplet_splitting_ev": float(split_ev),
+        "n_1s_occupation": float(
+            sector_results[sectors[0][0]]["n_1s_occupation"]
+        ),
+        "max_n_1s_deviation": float(max_n1s_err),
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": float(koopmans_be_ev) if koopmans_be_ev is not None else None,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": float(relax_ev) if relax_ev is not None else None,
+        "cvs_penalty_ha": float(Lambda),
+        "converged": bool(all_conv),
+        "sectors": sector_results,
+    }

@@ -300,6 +300,7 @@ class EmbeddedAOIntegrals:
     L_backproj: Optional[np.ndarray] = field(repr=False, default=None)
     _Jmat: Optional[np.ndarray] = field(default=None, repr=False)
     _Kmat: Optional[np.ndarray] = field(default=None, repr=False)
+    _eri_s8: Optional[np.ndarray] = field(default=None, repr=False)
 
     @property
     def nao(self) -> int:
@@ -340,6 +341,7 @@ def embed_from_full_integrals(
     C_env: np.ndarray,
     active_ao_idx: Optional[Sequence[int]] = None,
     mode: str = "exact_backprojected",
+    pyscf_ctx: Optional[object] = None,
 ) -> EmbeddedAOIntegrals:
     """Construct :class:`EmbeddedAOIntegrals` on ``active_ao_idx`` from a full-system
     integral object ``full_ints`` and frozen doubly occupied environment orbitals ``C_env``
@@ -369,10 +371,6 @@ def embed_from_full_integrals(
     idx_A = np.asarray(active_ao_idx, dtype=int)
     n_A = idx_A.size
 
-    Jm, Km = full_ints.jk_matrices()
-    J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
-    K = lambda g: (Km @ g.ravel()).reshape(g.shape)
-
     if C_env.shape[1] > 0:
         S_orb = C_env.T @ S @ C_env
         S_orb_inv = np.linalg.inv(S_orb)
@@ -381,9 +379,6 @@ def embed_from_full_integrals(
         S_orb_inv = np.zeros((0, 0))
         D_B = np.zeros((n_full, n_full))
 
-    F_B = h + 2.0 * J(D_B) - K(D_B)
-    e_core_B = float(np.sum(D_B * (h + F_B)))
-
     # Back-projection matrix L: shape (n_full, n_A), mapping tilde_c on A to (1 - D_B S) tilde_c
     I_A = np.zeros((n_full, n_A))
     I_A[idx_A, np.arange(n_A)] = 1.0
@@ -391,15 +386,82 @@ def embed_from_full_integrals(
 
     S_AA = S[np.ix_(idx_A, idx_A)]
     h_AA = h[np.ix_(idx_A, idx_A)]
-    eri_AAAA = full_ints.eri[np.ix_(idx_A, idx_A, idx_A, idx_A)]
+    eri_eff_s8: Optional[np.ndarray] = None
+
+    if getattr(full_ints, "eri", None) is not None:
+        Jm, Km = full_ints.jk_matrices()
+        J_DB = (Jm @ D_B.ravel()).reshape(D_B.shape)
+        K_DB = (Km @ D_B.ravel()).reshape(D_B.shape)
+        F_B = h + 2.0 * J_DB - K_DB
+        e_core_B = float(np.sum(D_B * (h + F_B)))
+
+        if mode == "exact_backprojected":
+            S_eff = L.T @ S @ L
+            h_eff = L.T @ F_B @ L
+            t = np.einsum("mnls,mp->pnls", full_ints.eri, L, optimize=True)
+            t = np.einsum("pnls,nq->pqls", t, L, optimize=True)
+            t = np.einsum("pqls,lr->pqrs", t, L, optimize=True)
+            eri_eff = np.einsum("pqrs,st->pqrt", t, L, optimize=True)
+        else:
+            eri_AAAA = full_ints.eri[np.ix_(idx_A, idx_A, idx_A, idx_A)]
+    elif pyscf_ctx is not None:
+        from pyscf import ao2mo, scf
+        from phatpsy.multicenter_integrals import (
+            _pyscf_jk_and_ao2mo_direct_parallel,
+            build_pyscf_eri_s8_parallel,
+        )
+
+        ao_map = pyscf_ctx.ao_map
+        nao_py = int(ao_map.shape[0])
+        D_B_py = ao_map @ D_B @ ao_map.T if C_env.shape[1] > 0 else np.zeros((nao_py, nao_py))
+
+        if mode == "exact_backprojected":
+            L_py = ao_map @ L
+            if nao_py <= 220:
+                eri_s8_full = getattr(pyscf_ctx, "_eri_s8", None)
+                if eri_s8_full is None:
+                    eri_s8_full = build_pyscf_eri_s8_parallel(
+                        pyscf_ctx.mol,
+                        fixed_atom_indices=getattr(pyscf_ctx, "fixed_atom_indices", None),
+                    )
+                    pyscf_ctx._eri_s8 = eri_s8_full
+                if C_env.shape[1] > 0:
+                    vj, vk = scf._vhf.incore(eri_s8_full, D_B_py, 1, 1, 1)
+                else:
+                    vj = np.zeros((nao_py, nao_py), dtype=float)
+                    vk = np.zeros((nao_py, nao_py), dtype=float)
+                eri_s4_L = np.asarray(ao2mo.incore.full(eri_s8_full, L_py, compact=True), dtype=float)
+            else:
+                vj, vk, eri_s4_L = _pyscf_jk_and_ao2mo_direct_parallel(
+                    pyscf_ctx.mol, D_B_py, mo_L_py=L_py
+                )
+            J_DB = ao_map.T @ np.asarray(vj, dtype=float) @ ao_map if C_env.shape[1] > 0 else np.zeros((n_full, n_full))
+            K_DB = ao_map.T @ np.asarray(vk, dtype=float) @ ao_map if C_env.shape[1] > 0 else np.zeros((n_full, n_full))
+            F_B = h + 2.0 * J_DB - K_DB
+            e_core_B = float(np.sum(D_B * (h + F_B)))
+            S_eff = L.T @ S @ L
+            h_eff = L.T @ F_B @ L
+            eri_eff = np.asarray(ao2mo.restore(1, eri_s4_L, n_A), dtype=float)
+            eri_eff_s8 = np.asarray(ao2mo.restore(8, eri_s4_L, n_A), dtype=float)
+            del eri_s4_L
+        else:
+            if C_env.shape[1] > 0:
+                vj, vk = scf.hf.get_jk(pyscf_ctx.mol, D_B_py)
+                J_DB = ao_map.T @ vj @ ao_map
+                K_DB = ao_map.T @ vk @ ao_map
+            else:
+                J_DB = np.zeros((n_full, n_full))
+                K_DB = np.zeros((n_full, n_full))
+            F_B = h + 2.0 * J_DB - K_DB
+            e_core_B = float(np.sum(D_B * (h + F_B)))
+            eri_s4_A = ao2mo.kernel(pyscf_ctx.mol, ao_map[:, idx_A], aosym="s4")
+            eri_AAAA = np.asarray(ao2mo.restore(1, eri_s4_A, n_A), dtype=float)
+            del eri_s4_A
+    else:
+        raise ValueError("embed_from_full_integrals requires full_ints.eri or pyscf_ctx.")
 
     if mode == "exact_backprojected":
-        S_eff = L.T @ S @ L
-        h_eff = L.T @ F_B @ L
-        t = np.einsum("mnls,mp->pnls", full_ints.eri, L, optimize=True)
-        t = np.einsum("pnls,nq->pqls", t, L, optimize=True)
-        t = np.einsum("pqls,lr->pqrs", t, L, optimize=True)
-        eri_eff = np.einsum("pqrs,st->pqrt", t, L, optimize=True)
+        pass
     elif mode == "unprojected_eri":
         S_eff = L.T @ S @ L
         h_eff = L.T @ F_B @ L
@@ -434,12 +496,102 @@ def embed_from_full_integrals(
         S_bare=S_AA,
         h_bare=h_AA,
         L_backproj=L,
+        _eri_s8=eri_eff_s8,
     )
 
 
 # ---------------------------------------------------------------------------
 # ERI-free embedding of an active region in one-center PHATPSY environment atoms
 # ---------------------------------------------------------------------------
+
+def spherical_atomic_rhf_orbitals(
+    z_nuc: float,
+    basis: Sequence[STO],
+    shell_occs_by_l: Dict[int, Sequence[float]],
+    return_occs: Optional[Dict[int, int]] = None,
+    max_iter: int = 160,
+    tol: float = 1e-13,
+) -> np.ndarray:
+    """Solve spherically averaged atomic RHF/ROHF in symmetric ``(l, m)`` blocks.
+
+    Each radial shell ``k`` within angular momentum ``l`` is populated equally across
+    all ``2l + 1`` magnetic sublevels ``m`` with ``shell_occs_by_l[l][k]`` total electrons
+    in ``[0, 2]``, keeping ``J(D) - 0.5 K(D)`` strictly rotationally invariant.
+    """
+    S, T, V, eri = one_center_ao_matrices(basis, z_nuc)
+    h = T + V
+    n = len(basis)
+    Jm = eri.reshape(n * n, n * n)
+    Km = np.ascontiguousarray(eri.transpose(0, 3, 2, 1)).reshape(n * n, n * n)
+
+    # Group AOs by (l, m) with canonical eigensolver X_lm
+    channels: List[Tuple[int, int, np.ndarray, np.ndarray]] = []
+    l_vals = sorted(set(int(f.l) for f in basis))
+    for l_q in l_vals:
+        for m_q in range(-l_q, l_q + 1):
+            idx_lm = np.array(
+                [i for i, f in enumerate(basis) if int(f.l) == l_q and int(f.m) == m_q],
+                dtype=int,
+            )
+            if idx_lm.size == 0:
+                continue
+            S_lm = 0.5 * (S[np.ix_(idx_lm, idx_lm)] + S[np.ix_(idx_lm, idx_lm)].T)
+            w_lm, v_lm = np.linalg.eigh(S_lm)
+            keep = w_lm > 1e-12
+            X_lm = (v_lm[:, keep] / np.sqrt(w_lm[keep])) @ v_lm[:, keep].T
+            channels.append((l_q, m_q, idx_lm, X_lm))
+
+    def _solve_fock(F_mat: np.ndarray) -> Tuple[np.ndarray, Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]]:
+        D_tot = np.zeros((n, n), dtype=float)
+        mos: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
+        for l_q, m_q, idx_lm, X_lm in channels:
+            F_lm = 0.5 * (F_mat[np.ix_(idx_lm, idx_lm)] + F_mat[np.ix_(idx_lm, idx_lm)].T)
+            eps_lm, U_lm = np.linalg.eigh(X_lm.T @ F_lm @ X_lm)
+            C_lm = X_lm @ U_lm
+            for k in range(C_lm.shape[1]):
+                col = C_lm[:, k]
+                if col[int(np.argmax(np.abs(col)))] < 0.0:
+                    C_lm[:, k] = -col
+            mos[(l_q, m_q)] = (eps_lm, C_lm)
+            occs = shell_occs_by_l.get(l_q, ())
+            for k, occ_val in enumerate(occs):
+                if k < C_lm.shape[1] and occ_val > 0.0:
+                    vec = np.zeros(n, dtype=float)
+                    vec[idx_lm] = C_lm[:, k]
+                    D_tot += float(occ_val) * np.outer(vec, vec)
+        return D_tot, mos
+
+    D, mos = _solve_fock(h)
+    for _ in range(max_iter):
+        F = h + (Jm @ D.ravel() - 0.5 * (Km @ D.ravel())).reshape(n, n)
+        D_new, mos_new = _solve_fock(F)
+        diff = float(np.linalg.norm(D_new - D))
+        D = 0.5 * D + 0.5 * D_new
+        mos = mos_new
+        if diff < tol:
+            break
+
+    # Final diagonalization at converged density for clean orthogonal MOs
+    F_fin = h + (Jm @ D.ravel() - 0.5 * (Km @ D.ravel())).reshape(n, n)
+    _, mos = _solve_fock(F_fin)
+
+    cols_with_eps: List[Tuple[float, np.ndarray]] = []
+    for l_q, m_q, idx_lm, _ in channels:
+        eps_lm, C_lm = mos[(l_q, m_q)]
+        if return_occs is not None:
+            n_take = int(return_occs.get(l_q, 0))
+        else:
+            n_take = sum(1 for v in shell_occs_by_l.get(l_q, ()) if v > 0.0)
+        for k in range(min(n_take, C_lm.shape[1])):
+            vec = np.zeros(n, dtype=float)
+            vec[idx_lm] = C_lm[:, k]
+            cols_with_eps.append((float(eps_lm[k]), vec))
+
+    cols_with_eps.sort(key=lambda item: item[0])
+    if not cols_with_eps:
+        return np.zeros((n, 0), dtype=float)
+    return np.column_stack([vec for _, vec in cols_with_eps])
+
 
 @dataclass
 class FrozenEnvironmentAtom:
@@ -457,6 +609,27 @@ class FrozenEnvironmentAtom:
     def from_atomic_rhf(cls, z_nuc: float, center: Sequence[float], basis: Sequence[STO], n_occ: int):
         """Solve the exact one-center atomic RHF problem on ``basis`` and freeze the
         lowest ``n_occ`` doubly occupied orbitals."""
+        z_int = int(round(float(z_nuc)))
+        if 21 <= z_int <= 30 and n_occ == 9:
+            # Neutral [Ar] 3d^(Z-20) 4s^2 spherical screening for active transition-metal core
+            d_occ = max(0.0, float(z_int - 20) / 5.0)
+            C = spherical_atomic_rhf_orbitals(
+                z_nuc,
+                basis,
+                shell_occs_by_l={0: [2.0, 2.0, 2.0, 2.0], 1: [2.0, 2.0], 2: [d_occ]},
+                return_occs={0: 3, 1: 2, 2: 0},
+            )
+            return cls(float(z_nuc), tuple(float(c) for c in center), list(basis), C)
+        if z_int == 28 and n_occ == 14:
+            # Neutral closed-shell [Ar] 3d^10 spherical configuration for spectator Ni
+            C = spherical_atomic_rhf_orbitals(
+                z_nuc,
+                basis,
+                shell_occs_by_l={0: [2.0, 2.0, 2.0], 1: [2.0, 2.0], 2: [2.0]},
+                return_occs={0: 3, 1: 2, 2: 1},
+            )
+            return cls(float(z_nuc), tuple(float(c) for c in center), list(basis), C)
+
         S, T, V, eri = one_center_ao_matrices(basis, z_nuc)
         h = T + V
         n = len(basis)
@@ -475,6 +648,9 @@ class FrozenEnvironmentAtom:
                 C = C_new
                 break
             C = C_new
+        for k in range(C.shape[1]):
+            if C[int(np.argmax(np.abs(C[:, k]))), k] < 0.0:
+                C[:, k] = -C[:, k]
         return cls(float(z_nuc), tuple(float(c) for c in center), list(basis), C)
 
     @classmethod

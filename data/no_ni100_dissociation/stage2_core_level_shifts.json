@@ -1,0 +1,717 @@
+{
+  "metadata": {
+    "koopmans_label": "koopmans_orbital_energy",
+    "expected_koopmans_offset_ev": 15.0,
+    "cvs_method": "cvs_delta_casscf",
+    "shift_reference": "NO_gas_SZ_plaquette_matched",
+    "nickel_magnetic_model": "ferromagnetic_3d8_4s2_2_spins_up_per_active_Ni"
+  },
+  "systems": {
+    "NO_gas_SZ": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -128.89474921168582,
+        "be_multiplet_avg_ev": 421.1484109713778,
+        "be_high_spin_ev": 421.052,
+        "be_low_spin_ev": 421.4376,
+        "multiplet_splitting_ev": 0.385599999999954,
+        "n_1s_occupation": 0.99999981,
+        "max_n_1s_deviation": 2.5173764206520843e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 426.6591538155923,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 5.510742844214462,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -113.42137328,
+            "be_ev": 421.052,
+            "n_1s_occupation": 0.99999981,
+            "spin_multiplicity": 3,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -113.40720189,
+            "be_ev": 421.4376,
+            "n_1s_occupation": 0.99999975,
+            "spin_multiplicity": 1,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -128.89474921168582,
+        "be_multiplet_avg_ev": 556.0015466962291,
+        "be_high_spin_ev": 555.9734,
+        "be_low_spin_ev": 556.0861,
+        "multiplet_splitting_ev": 0.11270000000001801,
+        "n_1s_occupation": 0.99999976,
+        "max_n_1s_deviation": 2.880475049593656e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 564.8715102313585,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 8.869963535129386,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -108.46310509,
+            "be_ev": 555.9734,
+            "n_1s_occupation": 0.99999976,
+            "spin_multiplicity": 3,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -108.45896095,
+            "be_ev": 556.0861,
+            "n_1s_occupation": 0.99999971,
+            "spin_multiplicity": 1,
+            "converged": true
+          }
+        }
+      },
+      "N1s_koopmans_ev": 426.6592,
+      "O1s_koopmans_ev": 564.8715
+    },
+    "NO_gas_SZ_plaquette_matched": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -128.7533887225067,
+        "be_multiplet_avg_ev": 422.5167070337408,
+        "be_high_spin_ev": 422.4226,
+        "be_low_spin_ev": 422.799,
+        "multiplet_splitting_ev": 0.37639999999998963,
+        "n_1s_occupation": 1.0,
+        "max_n_1s_deviation": 1.1102230246251565e-16,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 428.3248841361022,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 5.808177102361412,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -113.22964399,
+            "be_ev": 422.4226,
+            "n_1s_occupation": 1.0,
+            "spin_multiplicity": 3,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -113.21581199,
+            "be_ev": 422.799,
+            "n_1s_occupation": 1.0,
+            "spin_multiplicity": 1,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -128.7533887225067,
+        "be_multiplet_avg_ev": 555.087389114329,
+        "be_high_spin_ev": 555.0354,
+        "be_low_spin_ev": 555.2434,
+        "multiplet_splitting_ev": 0.20799999999997,
+        "n_1s_occupation": 1.0,
+        "max_n_1s_deviation": 4.440892098500626e-16,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 564.4816650305498,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 9.394275916220863,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -108.3562147,
+            "be_ev": 555.0354,
+            "n_1s_occupation": 1.0,
+            "spin_multiplicity": 3,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -108.34856885,
+            "be_ev": 555.2434,
+            "n_1s_occupation": 1.0,
+            "spin_multiplicity": 1,
+            "converged": true
+          }
+        }
+      },
+      "N1s_koopmans_ev": 428.3249,
+      "O1s_koopmans_ev": 564.4817
+    },
+    "Ni2_bridge_Ndown": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -3132.293853832352,
+        "be_multiplet_avg_ev": 404.66976636458844,
+        "be_high_spin_ev": 404.6706,
+        "be_low_spin_ev": 404.6683,
+        "multiplet_splitting_ev": -0.002299999999991087,
+        "n_1s_occupation": 1.00000038,
+        "max_n_1s_deviation": 3.838654054622026e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 412.92647005061303,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 8.256703686024593,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -3117.42248253,
+            "be_ev": 404.6706,
+            "n_1s_occupation": 1.00000038,
+            "spin_multiplicity": 5,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -3117.42256666,
+            "be_ev": 404.6683,
+            "n_1s_occupation": 1.00000036,
+            "spin_multiplicity": 3,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -3132.293853833665,
+        "be_multiplet_avg_ev": 545.0774647021726,
+        "be_high_spin_ev": 545.0729,
+        "be_low_spin_ev": 545.0851,
+        "multiplet_splitting_ev": 0.012200000000007094,
+        "n_1s_occupation": 0.9999998,
+        "max_n_1s_deviation": 2.118699724551476e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 558.1616678831363,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 13.084203180963641,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -3112.26279512,
+            "be_ev": 545.0729,
+            "n_1s_occupation": 0.9999998,
+            "spin_multiplicity": 5,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -3112.26234491,
+            "be_ev": 545.0851,
+            "n_1s_occupation": 0.99999979,
+            "spin_multiplicity": 3,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -17.8469,
+      "delta_O1s_vs_gas_cvs_ev": -10.0099,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -16.4786,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -10.9241,
+      "koopmans_scls": {
+        "system_name": "NO on Ni2 Bridge Screening Model (N-Down, Ferromagnetic LocalizedVB CAS(5e,6o) SZ/STO-6G)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": 0.0,
+        "surface_core_level_ev": -905.02,
+        "bulk_core_level_ev": -905.02,
+        "adsorbate_n1s_be_ev": 412.93,
+        "adsorbate_o1s_be_ev": 558.16,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 412.926,
+          "O1": 558.162
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -15.398,
+          "O1": -6.32
+        }
+      }
+    },
+    "Ni5_1978_hollow_Ndown_fixed370": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -7636.731499455004,
+        "be_multiplet_avg_ev": 406.63943910044475,
+        "be_high_spin_ev": 406.7345,
+        "be_low_spin_ev": 406.5232,
+        "multiplet_splitting_ev": -0.2113000000000511,
+        "n_1s_occupation": 0.99999951,
+        "max_n_1s_deviation": 4.940348604653977e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 420.160511115665,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 13.521072015220227,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -7621.78428036,
+            "be_ev": 406.7345,
+            "n_1s_occupation": 0.99999951,
+            "spin_multiplicity": 11,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -7621.79204748,
+            "be_ev": 406.5232,
+            "n_1s_occupation": 0.99999951,
+            "spin_multiplicity": 9,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -7636.731499453815,
+        "be_multiplet_avg_ev": 544.8662132629845,
+        "be_high_spin_ev": 546.3861,
+        "be_low_spin_ev": 543.0086,
+        "multiplet_splitting_ev": -3.3775000000000546,
+        "n_1s_occupation": 0.99999965,
+        "max_n_1s_deviation": 3.58669196121042e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 562.5868700142006,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 17.720656751216097,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -7616.65218126,
+            "be_ev": 546.3861,
+            "n_1s_occupation": 0.99999965,
+            "spin_multiplicity": 11,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -7616.77630125,
+            "be_ev": 543.0086,
+            "n_1s_occupation": 0.99999964,
+            "spin_multiplicity": 9,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -15.8773,
+      "delta_O1s_vs_gas_cvs_ev": -10.2212,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -14.509,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -11.1353,
+      "koopmans_scls": {
+        "system_name": "NO on 1978 Ni5(100) 4-Fold Hollow Pyramid (N-Down, Ferromagnetic LocalizedVB CAS(11e,12o) SZ/STO-6G)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": -0.937,
+        "surface_core_level_ev": -894.33,
+        "bulk_core_level_ev": -893.39,
+        "adsorbate_n1s_be_ev": 420.16,
+        "adsorbate_o1s_be_ev": 562.59,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 420.161,
+          "O1": 562.587
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -8.164,
+          "O1": -1.895
+        }
+      }
+    },
+    "Ni5_1978_hollow_Odown_fixed370": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -7636.6615585548925,
+        "be_multiplet_avg_ev": 410.67430102814194,
+        "be_high_spin_ev": 411.0201,
+        "be_low_spin_ev": 410.2516,
+        "multiplet_splitting_ev": -0.7685000000000173,
+        "n_1s_occupation": 0.99999982,
+        "max_n_1s_deviation": 2.0085376351008932e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 424.6934305705356,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 14.01912954239367,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -7621.55684737,
+            "be_ev": 411.0201,
+            "n_1s_occupation": 0.99999982,
+            "spin_multiplicity": 11,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -7621.58508926,
+            "be_ev": 410.2516,
+            "n_1s_occupation": 0.9999998,
+            "spin_multiplicity": 9,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -7636.6615585548925,
+        "be_multiplet_avg_ev": 548.1783351142967,
+        "be_high_spin_ev": 548.1749,
+        "be_low_spin_ev": 548.1826,
+        "multiplet_splitting_ev": 0.007699999999999818,
+        "n_1s_occupation": 0.99999996,
+        "max_n_1s_deviation": 3.681672433586414e-08,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 557.7239325651854,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 9.545597450888636,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -7616.51650368,
+            "be_ev": 548.1749,
+            "n_1s_occupation": 0.99999996,
+            "spin_multiplicity": 11,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -7616.51622023,
+            "be_ev": 548.1826,
+            "n_1s_occupation": 0.99999996,
+            "spin_multiplicity": 9,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -11.8424,
+      "delta_O1s_vs_gas_cvs_ev": -6.9091,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -10.4741,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -7.8232,
+      "koopmans_scls": {
+        "system_name": "NO on 1978 Ni5(100) 4-Fold Hollow Pyramid (O-Down, Ferromagnetic LocalizedVB CAS(11e,12o) SZ/STO-6G)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": 2.044,
+        "surface_core_level_ev": -891.53,
+        "bulk_core_level_ev": -893.57,
+        "adsorbate_n1s_be_ev": 424.69,
+        "adsorbate_o1s_be_ev": 557.72,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 424.693,
+          "O1": 557.724
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -3.631,
+          "O1": -6.758
+        }
+      }
+    },
+    "Ni4_Ni9_hollow_Ndown": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -19627.595171155008,
+        "be_multiplet_avg_ev": 400.77052007559166,
+        "be_high_spin_ev": 401.5905,
+        "be_low_spin_ev": 399.7163,
+        "multiplet_splitting_ev": -1.8742000000000303,
+        "n_1s_occupation": 0.99999998,
+        "max_n_1s_deviation": 2.0922757415497983e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 412.791684429521,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 12.02116435392935,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19612.83699333,
+            "be_ev": 401.5905,
+            "n_1s_occupation": 0.99999998,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19612.90586815,
+            "be_ev": 399.7163,
+            "n_1s_occupation": 0.99999979,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -19627.595171155008,
+        "be_multiplet_avg_ev": 541.3233832107362,
+        "be_high_spin_ev": 543.7602,
+        "be_low_spin_ev": 538.1904,
+        "multiplet_splitting_ev": -5.5698000000001,
+        "n_1s_occupation": 1.0,
+        "max_n_1s_deviation": 1.2946719796236295e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 559.1766845168019,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 17.853301306065646,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19607.61235309,
+            "be_ev": 543.7602,
+            "n_1s_occupation": 1.0,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19607.81703989,
+            "be_ev": 538.1904,
+            "n_1s_occupation": 0.99999987,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -21.7462,
+      "delta_O1s_vs_gas_cvs_ev": -13.764,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -20.3779,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -14.6782,
+      "koopmans_scls": {
+        "system_name": "NO on Ni4/Ni9(100) 4-Fold Hollow Site (N-Down, Ferromagnetic LocalizedVB CAS(9e,10o) SZ/STO-6G)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": -56.348,
+        "surface_core_level_ev": -889.3,
+        "bulk_core_level_ev": -832.95,
+        "adsorbate_n1s_be_ev": 412.79,
+        "adsorbate_o1s_be_ev": 559.18,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 412.791,
+          "O1": 559.177
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -15.534,
+          "O1": -5.305
+        }
+      }
+    },
+    "Ni4_Ni9_hollow_Odown": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -19627.542914672027,
+        "be_multiplet_avg_ev": 408.40947553907495,
+        "be_high_spin_ev": 409.4124,
+        "be_low_spin_ev": 407.12,
+        "multiplet_splitting_ev": -2.2923999999999864,
+        "n_1s_occupation": 0.9999998,
+        "max_n_1s_deviation": 1.9683525542824043e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 425.9814365349834,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 17.571960995908455,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19612.49728618,
+            "be_ev": 409.4124,
+            "n_1s_occupation": 0.9999998,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19612.58153067,
+            "be_ev": 407.12,
+            "n_1s_occupation": 0.99999982,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -19627.542914707854,
+        "be_multiplet_avg_ev": 544.1237164658963,
+        "be_high_spin_ev": 544.1238,
+        "be_low_spin_ev": 544.1237,
+        "multiplet_splitting_ev": -9.999999997489795e-05,
+        "n_1s_occupation": 0.99999994,
+        "max_n_1s_deviation": 5.529195246101182e-08,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 556.0214504866551,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 11.897734020758776,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19607.54673502,
+            "be_ev": 544.1238,
+            "n_1s_occupation": 0.99999994,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19607.54673902,
+            "be_ev": 544.1237,
+            "n_1s_occupation": 0.99999995,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -14.1072,
+      "delta_O1s_vs_gas_cvs_ev": -10.9637,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -12.7389,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -11.8778,
+      "koopmans_scls": {
+        "system_name": "NO on Ni4/Ni9(100) 4-Fold Hollow Site (O-Down, Ferromagnetic LocalizedVB CAS(9e,10o) SZ/STO-6G)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": -77.888,
+        "surface_core_level_ev": -912.45,
+        "bulk_core_level_ev": -834.56,
+        "adsorbate_n1s_be_ev": 425.98,
+        "adsorbate_o1s_be_ev": 556.02,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 425.981,
+          "O1": 556.021
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -2.343,
+          "O1": -8.46
+        }
+      }
+    },
+    "Ni4_Ni9_bridge_Ndown_with_O_coads": {
+      "N1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "N1",
+        "ground_energy_ha": -19701.85870161804,
+        "be_multiplet_avg_ev": 405.6576143836816,
+        "be_high_spin_ev": 405.6546,
+        "be_low_spin_ev": 405.6615,
+        "multiplet_splitting_ev": 0.006899999999973261,
+        "n_1s_occupation": 0.99999971,
+        "max_n_1s_deviation": 2.897174093963173e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 414.238403643395,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 8.580789259713356,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19686.95117075,
+            "be_ev": 405.6546,
+            "n_1s_occupation": 0.99999971,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19686.9509156,
+            "be_ev": 405.6615,
+            "n_1s_occupation": 0.99999971,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "O1": {
+        "method": "cvs_delta_casscf",
+        "target_atom_id": "O1",
+        "ground_energy_ha": -19701.85870161804,
+        "be_multiplet_avg_ev": 544.88776631705,
+        "be_high_spin_ev": 547.3582,
+        "be_low_spin_ev": 541.7114,
+        "multiplet_splitting_ev": -5.646799999999985,
+        "n_1s_occupation": 0.99999998,
+        "max_n_1s_deviation": 1.517299813569295e-07,
+        "koopmans_method": "koopmans_orbital_energy",
+        "koopmans_be_ev": 559.4844582097694,
+        "expected_koopmans_offset_ev": 15.0,
+        "relaxation_energy_ev": 14.596691892719377,
+        "cvs_penalty_ha": 100.0,
+        "converged": true,
+        "sectors": {
+          "high_spin": {
+            "energy_ha": -19681.74365695,
+            "be_ev": 547.3582,
+            "n_1s_occupation": 0.99999998,
+            "spin_multiplicity": 9,
+            "converged": true
+          },
+          "low_spin": {
+            "energy_ha": -19681.95117333,
+            "be_ev": 541.7114,
+            "n_1s_occupation": 0.99999985,
+            "spin_multiplicity": 7,
+            "converged": true
+          }
+        }
+      },
+      "delta_N1s_vs_gas_cvs_ev": -16.8591,
+      "delta_O1s_vs_gas_cvs_ev": -10.1996,
+      "delta_N1s_vs_stage1_cas76_cvs_ev": -15.4908,
+      "delta_O1s_vs_stage1_cas76_cvs_ev": -11.1138,
+      "koopmans_scls": {
+        "system_name": "NO*(bridge) + O*(hollow) on Ferromagnetic Ni4/Ni9(100)",
+        "method_label": "koopmans_orbital_energy",
+        "expected_relaxation_offset_ev": 15.0,
+        "metal_scls_ev": -74.203,
+        "surface_core_level_ev": -908.2,
+        "bulk_core_level_ev": -834.0,
+        "adsorbate_n1s_be_ev": 414.24,
+        "adsorbate_o1s_be_ev": 559.48,
+        "koopmans_ads_1s_be_ev": {
+          "N1": 414.236,
+          "O1": 559.484,
+          "O2": 565.084
+        },
+        "koopmans_gas_1s_be_ev": {
+          "N1": 428.325,
+          "O1": 564.482
+        },
+        "koopmans_ads_1s_shift_ev": {
+          "N1": -14.089,
+          "O1": -4.998,
+          "O2": 0.602
+        }
+      }
+    }
+  }
+}

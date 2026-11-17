@@ -1,7 +1,7 @@
 # Model Potentials: Theory and Constrained Fitting
 
 > **Status:** DRAFT (Pending User / Author Review)  
-> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems* (1980), Chapter 4: *A Model Approximation to the Effective One-Electron Interatomic Coulomb Potential*.  
+> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems* (1978), Chapter 4: *A Model Approximation to the Effective One-Electron Interatomic Coulomb Potential*.  
 > **Implementation:** [`src/analys.f90`](https://github.com/JackS9/phatpsy2/blob/master/src/analys.f90) (Modern LAPACK `dgels`) | Legacy: `src/analys.f`
 
 ---

@@ -1,7 +1,7 @@
 # Equation & Routine Mapping: Dissertation to Code
 
 > **Status:** DRAFT (Pending User / Author Review)  
-> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems* (1980).  
+> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems* (1978).  
 > **Primary LaTeX Reference:** [`PhD_Thesis/PHATPSY.tex`](https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/PHATPSY.tex)
 
 This document provides a line-of-sight mapping connecting key mathematical derivations in the PhD dissertation to original legacy FORTRAN routines and their modernized Fortran 2018 / Python equivalents.

@@ -238,9 +238,55 @@ def generalized_ci_energy(dets, ints: AOIntegrals) -> Tuple[float, np.ndarray]:
 def _sym_orth_cols(C: np.ndarray, S: np.ndarray) -> np.ndarray:
     if C.shape[1] == 0:
         return np.zeros((C.shape[0], 0))
-    M = C.T @ S @ C
+    M = 0.5 * (C.T @ S @ C + (C.T @ S @ C).T)
     w, v = np.linalg.eigh(M)
-    return C @ (v @ np.diag(w ** -0.5) @ v.T)
+    return C @ (v @ np.diag(np.maximum(w, 1e-14) ** -0.5) @ v.T)
+
+
+def _fci_ground_state(
+    h1: np.ndarray,
+    eri_act: np.ndarray,
+    nact: int,
+    nelec_act: Tuple[int, int],
+    ecore: float,
+    ci0_guess: Optional[np.ndarray] = None,
+) -> Tuple[float, np.ndarray]:
+    """Deterministic PySCF direct_spin1 ground state avoiding degenerate pspace discard."""
+    from pyscf import fci, lib
+    from pyscf.fci import cistring
+
+    solver = fci.direct_spin1.FCI()
+    solver.max_memory = max(int(solver.max_memory), int(lib.current_memory()[0]) + 4000)
+    solver.conv_tol = 1e-12
+    solver.max_cycle = 200
+    na = int(cistring.num_strings(nact, nelec_act[0]))
+    nb = int(cistring.num_strings(nact, nelec_act[1]))
+    num_dets = na * nb
+    if num_dets <= 512:
+        hdiag = solver.make_hdiag(h1, eri_act, nact, nelec_act)
+        addr, h0 = solver.pspace(h1, eri_act, nact, nelec_act, hdiag, num_dets)
+        pw, pv = np.linalg.eigh(0.5 * (h0 + h0.T))
+        v0 = pv[:, 0]
+        if v0.size > 0 and v0[int(np.argmax(np.abs(v0)))] < 0.0:
+            v0 = -v0
+        civec = np.zeros(num_dets, dtype=float)
+        civec[addr] = v0
+        return float(pw[0] + ecore), civec.reshape(na, nb)
+    if ci0_guess is not None and isinstance(ci0_guess, np.ndarray) and ci0_guess.shape == (na, nb):
+        e, civec = solver.kernel(h1, eri_act, nact, nelec_act, ecore=ecore, ci0=ci0_guess)
+        return float(e), civec
+    hdiag = solver.make_hdiag(h1, eri_act, nact, nelec_act)
+    psize = min(num_dets, 1024)
+    addr, h0 = solver.pspace(h1, eri_act, nact, nelec_act, hdiag, psize)
+    pw, pv = solver.eig(h0)
+    if psize == num_dets:
+        civec = np.zeros(num_dets, dtype=float)
+        civec[addr] = pv[:, 0]
+        return float(pw[0] + ecore), civec.reshape(na, nb)
+    ci0 = np.zeros(num_dets, dtype=float)
+    ci0[addr] = pv[:, 0]
+    e, civec = solver.kernel(h1, eri_act, nact, nelec_act, ecore=ecore, ci0=ci0.reshape(na, nb))
+    return float(e), civec
 
 
 def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOIntegrals,
@@ -278,7 +324,7 @@ def cas_energy(inactive: np.ndarray, active: Sequence[np.ndarray], ints: AOInteg
         dm2 = np.einsum("pq,rs->pqrs", I_a, I_a) - np.einsum("ps,qr->pqrs", I_a, I_a)
         return float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
     eri = ao2mo.incore.full(ao2mo.restore(8, ints.eri, ints.nao), Ca)
-    e, _ = fci.direct_spin1.kernel(h1, eri, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+    e, _ = _fci_ground_state(h1, eri, nact, nelec_act, float(e_core + ints.vnn))
     return float(e)
 
 
@@ -355,7 +401,7 @@ def cas_rdm1_and_natural_orbitals(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegr
     else:
         h1 = Ca.T @ Fc @ Ca
         eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
-        e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
+        e, civec = _fci_ground_state(h1, eri_act, nact, nelec_act, float(e_core + ints.vnn))
         dm1_act_a, dm1_act_b = fci.direct_spin1.make_rdm1s(civec, nact, nelec_act)
 
     dm1_act = dm1_act_a + dm1_act_b
@@ -399,8 +445,14 @@ def cas_rdm1_and_natural_orbitals(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegr
     }
 
 
-def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
-                            nelec_act: Optional[Tuple[int, int]] = None):
+def cas_energy_and_gradient(
+    Xi: np.ndarray,
+    Xa: np.ndarray,
+    ints: AOIntegrals,
+    nelec_act: Optional[Tuple[int, int]] = None,
+    *,
+    ci_state: Optional[List[Optional[np.ndarray]]] = None,
+):
     """CI-in-active-span energy and its analytic gradient with respect to the raw
     (nonorthogonal, unnormalized) inactive and active orbital coefficients.
 
@@ -423,41 +475,76 @@ def cas_energy_and_gradient(Xi: np.ndarray, Xa: np.ndarray, ints: AOIntegrals,
     I = np.eye(n)
 
     if Xi.shape[1]:
-        Ni = np.linalg.inv(Xi.T @ S @ Xi)
+        Gi = 0.5 * (Xi.T @ S @ Xi + (Xi.T @ S @ Xi).T)
+        wi, vi = np.linalg.eigh(Gi)
+        if wi[0] < 1e-10 or not np.all(np.isfinite(wi)):
+            return 1.0e8, np.zeros_like(Xi), np.zeros_like(Xa)
+        Ni = (vi * (1.0 / wi)[None, :]) @ vi.T
         Dc = Xi @ Ni @ Xi.T
     else:
         Ni = np.zeros((0, 0))
         Dc = np.zeros((n, n))
-    Fc = h + 2 * J(Dc) - K(Dc)
-    e_core = float(np.sum(Dc * (h + Fc)))
 
     if Xa.shape[1] == 0:
+        Fc = h + 2 * J(Dc) - K(Dc)
+        e_core = float(np.sum(Dc * (h + Fc)))
         G_Xi = 2 * (I - S @ Dc) @ (2 * Fc) @ Xi @ Ni if Xi.shape[1] else np.zeros_like(Xi)
         return float(e_core + ints.vnn), G_Xi, np.zeros((n, 0))
 
     Y = Xa - Dc @ S @ Xa
-    w, v = np.linalg.eigh(Y.T @ S @ Y)
+    Gy = 0.5 * (Y.T @ S @ Y + (Y.T @ S @ Y).T)
+    w, v = np.linalg.eigh(Gy)
+    if w[0] < 1e-10 or not np.all(np.isfinite(w)):
+        return 1.0e8, np.zeros_like(Xi), np.zeros_like(Xa)
     T = v @ np.diag(w ** -0.5) @ v.T
     Ca = Y @ T
     nact = Ca.shape[1]
     if nelec_act is None:
         nelec_act = (nact // 2, nact - nact // 2)
-    h1 = Ca.T @ Fc @ Ca
+
+    # Exact 1-determinant closed-shell fast path (zero 4-index einsum or FCI calls)
+    if nelec_act == (nact, nact):
+        D_tot_half = Dc + Ca @ Ca.T
+        F_tot = h + 2.0 * J(D_tot_half) - K(D_tot_half)
+        e = float(np.sum(D_tot_half * (h + F_tot)) + ints.vnn)
+        G_Ca = 4.0 * (F_tot @ Ca)
+        G_Y = (I - S @ Ca @ Ca.T) @ G_Ca @ T
+        G_Xa = (I - S @ Dc) @ G_Y
+        A = 2.0 * F_tot - 0.5 * (S @ Xa @ G_Y.T + G_Y @ Xa.T @ S)
+        G_Xi = 2.0 * (I - S @ Dc) @ A @ Xi @ Ni if Xi.shape[1] else np.zeros_like(Xi)
+        return float(e), G_Xi, G_Xa
+
+    Fc = h + 2 * J(Dc) - K(Dc)
+    e_core = float(np.sum(Dc * (h + Fc)))
+
+    # Exact 1-determinant high-spin fast path (zero 4-index ERI contraction or FCI calls)
     if nelec_act == (nact, 0):
-        eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
-        dm1 = np.eye(nact)
-        dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
-        e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
-    else:
-        eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
-        e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
-        dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+        Pa = Ca @ Ca.T
+        Ja, Ka = J(Pa), K(Pa)
+        F_act = Fc + Ja - Ka
+        e = float(e_core + ints.vnn + np.sum(Pa * (Fc + 0.5 * (Ja - Ka))))
+        G_Ca = 2.0 * (F_act @ Ca)
+        G_Y = (I - S @ Ca @ Ca.T) @ G_Ca @ T
+        G_Xa = (I - S @ Dc) @ G_Y
+        A = 2.0 * Fc + 2.0 * Ja - Ka - 0.5 * (S @ Xa @ G_Y.T + G_Y @ Xa.T @ S)
+        G_Xi = 2.0 * (I - S @ Dc) @ A @ Xi @ Ni if Xi.shape[1] else np.zeros_like(Xi)
+        return float(e), G_Xi, G_Xa
+
+    h1 = Ca.T @ Fc @ Ca
+    # Contiguous Jm @ Ca2 DGEMM contraction: builds t3 (m,q,r,t) and 4-index ERI simultaneously
+    Ca2 = (Ca[:, None, :, None] * Ca[None, :, None, :]).reshape(n * n, nact * nact)
+    V4 = (Jm @ Ca2).reshape(n, n, nact * nact)
+    t3 = np.einsum("mnk,nq->mqk", V4, Ca, optimize=True).reshape(n, nact, nact, nact)
+    eri4 = np.tensordot(Ca.T, t3, axes=(1, 0))
+    eri_act = ao2mo.restore(8, eri4, nact)
+    ci0_prev = ci_state[0] if (ci_state is not None and len(ci_state) == 1) else None
+    e, civec = _fci_ground_state(h1, eri_act, nact, nelec_act, float(e_core + ints.vnn), ci0_guess=ci0_prev)
+    if ci_state is not None and len(ci_state) == 1:
+        ci_state[0] = civec
+    dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
 
     # dE/dC_a (unconstrained, RDMs fixed)
-    t = np.einsum("mnls,nq->mqls", ints.eri, Ca, optimize=True)
-    t = np.einsum("mqls,lr->mqrs", t, Ca, optimize=True)
-    t = np.einsum("mqrs,st->mqrt", t, Ca, optimize=True)
-    Q = np.einsum("mqrt,pqrt->mp", t, dm2, optimize=True)
+    Q = np.einsum("mqrt,pqrt->mp", t3, dm2, optimize=True)
     G_Ca = 2 * Fc @ Ca @ dm1 + 2 * Q
     # through Loewdin (span-only dependence) and the inactive projection
     G_Y = (I - S @ Ca @ Ca.T) @ G_Ca @ T
@@ -475,23 +562,36 @@ def cas_nuclear_gradient_intermediates(
     Xa: np.ndarray,
     ints: Any,
     nelec_act: Optional[Tuple[int, int]] = None,
+    pyscf_ctx: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Fixed-``(Xi, Xa)`` AO Lagrangian densities needed for exact analytical nuclear gradients.
 
     Because :class:`MaskedVB` minimizes ``E(x, c_CI)`` variationally with respect to both
     the domain-masked orbital parameters ``x`` and the CAS CI vector ``c_CI``, and raw
     columns ``(Xi, Xa)`` are independent of the AO metric ``S(R)`` when no frozen/CPHF-coupled
-    orbital projector depends on nuclear coordinates (all-electron CAS), the exact total
-    nuclear gradient reduces to explicit differentiation of ``(S, h, eri)`` plus nuclear
-    repulsion at fixed ``(Xi, Xa)`` (Pulay 1969).
+    orbital projector depends on nuclear coordinates (all-electron CAS), or when all frozen
+    orbitals are explicitly included in ``Xi`` over the full system (``exact_backprojected``),
+    the exact total nuclear gradient reduces to explicit differentiation of ``(S, h, eri)`` plus
+    nuclear repulsion at fixed ``(Xi, Xa)`` (Pulay 1969).
     """
-    from pyscf import ao2mo, fci
+    from pyscf import ao2mo, fci, scf
 
     S, h = ints.S, ints.h
     n = ints.nao
-    Jm, Km = ints.jk_matrices()
-    J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
-    K = lambda g: (Km @ g.ravel()).reshape(g.shape)
+    if getattr(ints, "eri", None) is not None:
+        Jm, Km = ints.jk_matrices()
+        J = lambda g: (Jm @ g.ravel()).reshape(g.shape)
+        K = lambda g: (Km @ g.ravel()).reshape(g.shape)
+    elif pyscf_ctx is not None:
+        from phatpsy.multicenter_integrals import pyscf_jk_from_ctx
+
+        def _jk_pair(g: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            return pyscf_jk_from_ctx(pyscf_ctx, g)
+
+        J = lambda g: _jk_pair(g)[0]
+        K = lambda g: _jk_pair(g)[1]
+    else:
+        raise ValueError("cas_nuclear_gradient_intermediates requires ints.eri or pyscf_ctx.")
 
     if Xi.shape[1]:
         Sc = 0.5 * (Xi.T @ S @ Xi + (Xi.T @ S @ Xi).T)
@@ -500,7 +600,11 @@ def cas_nuclear_gradient_intermediates(
     else:
         Ni = np.zeros((0, 0))
         Dc = np.zeros((n, n))
-    Fc = h + 2.0 * J(Dc) - K(Dc)
+    if getattr(ints, "eri", None) is None and pyscf_ctx is not None and Xi.shape[1]:
+        J_Dc, K_Dc = _jk_pair(Dc)
+        Fc = h + 2.0 * J_Dc - K_Dc
+    else:
+        Fc = h + 2.0 * J(Dc) - K(Dc)
     e_core = float(np.sum(Dc * (h + Fc)))
 
     nact = Xa.shape[1]
@@ -523,18 +627,47 @@ def cas_nuclear_gradient_intermediates(
         if nelec_act is None:
             nelec_act = (nact // 2, nact - nact // 2)
         h1 = Ca.T @ Fc @ Ca
-        if nelec_act == (nact, 0):
-            eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
-            dm1 = np.eye(nact)
-            dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
-            e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+        if getattr(ints, "eri", None) is not None:
+            if nelec_act == (nact, 0):
+                eri4 = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, Ca, Ca, Ca, Ca, optimize=True)
+                dm1 = np.eye(nact)
+                dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
+                e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+            else:
+                eri_s8_i = getattr(ints, "_eri_s8", None)
+                if eri_s8_i is None:
+                    eri_s8_i = ao2mo.restore(8, ints.eri, n)
+                    setattr(ints, "_eri_s8", eri_s8_i)
+                eri_act = ao2mo.incore.full(eri_s8_i, Ca)
+                e, civec = _fci_ground_state(h1, eri_act, nact, nelec_act, float(e_core + ints.vnn))
+                dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+            eri3_ca = np.einsum("mnls,nq,lr,st->mqrt", ints.eri, Ca, Ca, Ca, optimize=True)
         else:
-            eri_act = ao2mo.incore.full(ao2mo.restore(8, ints.eri, n), Ca)
-            e, civec = fci.direct_spin1.kernel(h1, eri_act, nact, nelec_act, ecore=e_core + ints.vnn, conv_tol=1e-12)
-            dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+            Ca_py = pyscf_ctx.ao_map @ Ca
+            eri_s8_ctx = getattr(pyscf_ctx, "_eri_s8", None)
+            if eri_s8_ctx is not None:
+                eri_act_s4 = ao2mo.incore.full(eri_s8_ctx, Ca_py, compact=True)
+            else:
+                eri_act_s4 = ao2mo.kernel(pyscf_ctx.mol, Ca_py, aosym="s4")
+            if nelec_act == (nact, 0):
+                eri4 = np.asarray(ao2mo.restore(1, eri_act_s4, nact), dtype=float)
+                dm1 = np.eye(nact)
+                dm2 = np.einsum("pq,rs->pqrs", dm1, dm1) - np.einsum("ps,qr->pqrs", dm1, dm1)
+                e = float(e_core + ints.vnn + np.trace(h1) + 0.5 * np.sum(eri4 * dm2))
+            else:
+                eri_act = ao2mo.restore(8, eri_act_s4, nact)
+                e, civec = _fci_ground_state(h1, eri_act, nact, nelec_act, float(e_core + ints.vnn))
+                dm1, dm2 = fci.direct_spin1.make_rdm12(civec, nact, nelec_act)
+            if eri_s8_ctx is not None:
+                eri3_ca = ao2mo.incore.general(
+                    eri_s8_ctx, (pyscf_ctx.ao_map, Ca_py, Ca_py, Ca_py), compact=False
+                ).reshape(n, nact, nact, nact)
+            else:
+                eri3_ca = ao2mo.general(
+                    pyscf_ctx.mol, (pyscf_ctx.ao_map, Ca_py, Ca_py, Ca_py), compact=False
+                ).reshape(n, nact, nact, nact)
 
         Pa = Ca @ dm1 @ Ca.T
-        eri3_ca = np.einsum("mnls,nq,lr,st->mqrt", ints.eri, Ca, Ca, Ca, optimize=True)
         Q_ca = np.einsum("mqrt,pqrt->mp", eri3_ca, dm2, optimize=True)
         G_Ca = 2.0 * (Fc @ Ca @ dm1) + 2.0 * Q_ca
 
@@ -543,8 +676,11 @@ def cas_nuclear_gradient_intermediates(
         W_M = V @ (0.5 * (B_V + B_V.T) / denom) @ V.T
         S_act_term = -Y @ W_M @ Y.T - 0.5 * (Dc @ G_Ca @ Ca.T + Ca @ G_Ca.T @ Dc)
 
-    Ja = J(Pa) if nact > 0 else np.zeros((n, n))
-    Ka = K(Pa) if nact > 0 else np.zeros((n, n))
+    if getattr(ints, "eri", None) is None and pyscf_ctx is not None and nact > 0:
+        Ja, Ka = _jk_pair(Pa)
+    else:
+        Ja = J(Pa) if nact > 0 else np.zeros((n, n))
+        Ka = K(Pa) if nact > 0 else np.zeros((n, n))
     Ac = 2.0 * Fc + 2.0 * Ja - Ka
     dE_dS_raw = -Dc @ Ac @ Dc + S_act_term
     dE_dS = 0.5 * (dE_dS_raw + dE_dS_raw.T)
@@ -697,6 +833,186 @@ class LocalizedVBModel:
 # Masked (per-orbital AO-domain) models and a gauge-invariant locality measure
 # ---------------------------------------------------------------------------
 
+def build_subset_gauge_pairs(
+    roles: Sequence[str],
+    masks: Sequence[np.ndarray],
+    B_list: Sequence[np.ndarray],
+    P_list: Sequence[np.ndarray],
+    S_metric: np.ndarray,
+    u_init_parts: Sequence[np.ndarray],
+    *,
+    orthogonalize_init: bool = True,
+) -> Tuple[List[np.ndarray], List[int], List[Tuple[int, int, np.ndarray]], List[np.ndarray]]:
+    """Build exact span-preserving subset-gauge pairs and Gram-Schmidt clean initial vectors."""
+    n_orb = len(roles)
+    nao = int(S_metric.shape[0])
+    F_list: List[np.ndarray] = []
+    mask_sets: List[set] = []
+    for m, Bk in zip(masks, B_list):
+        m_arr = np.asarray(m, dtype=int)
+        Fk = np.zeros((nao, Bk.shape[1]), dtype=float)
+        Fk[m_arr, :] = Bk
+        F_list.append(Fk)
+        mask_sets.append(set(int(i) for i in m_arr))
+
+    gs_order = sorted(
+        range(n_orb),
+        key=lambda k_o: (0 if roles[k_o] == "inactive" else 1, len(mask_sets[k_o]), k_o),
+    )
+    u_out = [np.array(u_k, dtype=float, copy=True) for u_k in u_init_parts]
+    gauge_pairs: List[Tuple[int, int, np.ndarray]] = []
+    if orthogonalize_init and n_orb > 1:
+        v_gs = [F_list[k_o] @ u_out[k_o] for k_o in range(n_orb)]
+        for pos, b_idx in enumerate(gs_order):
+            rb = roles[b_idx]
+            preds: List[int] = []
+            for a_idx in gs_order[:pos]:
+                ra = roles[a_idx]
+                if mask_sets[a_idx] <= mask_sets[b_idx] and (
+                    ra == rb or (ra == "inactive" and rb == "active")
+                ):
+                    preds.append(a_idx)
+                    gauge_pairs.append((a_idx, b_idx, F_list[a_idx].T @ (S_metric @ F_list[b_idx])))
+            if preds:
+                Vp = np.column_stack([v_gs[a_idx] for a_idx in preds])
+                Gp = 0.5 * (Vp.T @ S_metric @ Vp + (Vp.T @ S_metric @ Vp).T)
+                vb = v_gs[b_idx] - Vp @ (
+                    np.linalg.pinv(Gp, rcond=1e-10) @ (Vp.T @ S_metric @ v_gs[b_idx])
+                )
+                ub = P_list[b_idx].T @ vb[np.asarray(masks[b_idx], dtype=int)]
+                nrm_b = float(np.linalg.norm(ub))
+                if nrm_b > 1e-6:
+                    u_out[b_idx] = ub / nrm_b
+                    v_gs[b_idx] = F_list[b_idx] @ u_out[b_idx]
+    return F_list, gs_order, gauge_pairs, u_out
+
+
+def eval_orbital_gauge_and_hinge_penalty(
+    u: np.ndarray,
+    u_off: np.ndarray,
+    B_list: Sequence[np.ndarray],
+    F_list: Sequence[np.ndarray],
+    masks: Sequence[np.ndarray],
+    S_metric: np.ndarray,
+    gauge_pairs: Sequence[Tuple[int, int, np.ndarray]],
+    *,
+    c_pen: float,
+    c_hinge: float = 1.0e-4,
+    w_floor: float = 0.05,
+    use_gauge_and_hinge: bool = True,
+) -> Tuple[float, np.ndarray, np.ndarray]:
+    """Evaluate unit-norm, subset-gauge orthogonality, and C^2 log Gram-eigenvalue barrier penalties."""
+    n_orb = len(B_list)
+    nao = int(S_metric.shape[0])
+    pen_e = 0.0
+    pen_g = np.zeros_like(u)
+    u_parts: List[np.ndarray] = []
+    cols_all: List[np.ndarray] = []
+    for k_i in range(n_orb):
+        u0_k, u1_k = int(u_off[k_i]), int(u_off[k_i + 1])
+        uk = u[u0_k:u1_k]
+        u_parts.append(uk)
+        diff = float(np.dot(uk, uk)) - 1.0
+        pen_e += c_pen * diff * diff
+        pen_g[u0_k:u1_k] += (4.0 * c_pen * diff) * uk
+        if use_gauge_and_hinge:
+            cols_all.append(F_list[k_i] @ uk)
+
+    if use_gauge_and_hinge:
+        for a_idx, b_idx, Mab in gauge_pairs:
+            ua, ub = u_parts[a_idx], u_parts[b_idx]
+            v_ab = Mab @ ub
+            ov = float(np.dot(ua, v_ab))
+            pen_e += 2.0 * c_pen * (ov * ov)
+            pen_g[int(u_off[a_idx]):int(u_off[a_idx + 1])] += (4.0 * c_pen * ov) * v_ab
+            pen_g[int(u_off[b_idx]):int(u_off[b_idx + 1])] += (4.0 * c_pen * ov) * (Mab.T @ ua)
+
+        if n_orb > 1:
+            X_all = np.column_stack(cols_all) if cols_all else np.zeros((nao, 0), dtype=float)
+            SX = S_metric @ X_all
+            G_all = 0.5 * (X_all.T @ SX + (X_all.T @ SX).T)
+            wg, vg = np.linalg.eigh(G_all)
+            if wg.size > 0 and wg[0] <= 1e-11:
+                x = np.concatenate([B_list[k_i] @ u_parts[k_i] for k_i in range(n_orb)])
+                return 1.0e8, np.zeros_like(u), x
+            low = wg < w_floor
+            if np.any(low):
+                t = wg[low] / w_floor
+                phi = -np.log(t) + (t - 1.0) - 0.5 * ((t - 1.0) ** 2)
+                pen_e += c_hinge * float(np.sum(phi))
+                dpen_dw = (-c_hinge / w_floor) * (((1.0 - t) ** 2) / t)
+                V_low = vg[:, low]
+                M_h = (V_low * dpen_dw[None, :]) @ V_low.T
+                G_Xall = 2.0 * (SX @ M_h)
+                for k_i in range(n_orb):
+                    u0_k, u1_k = int(u_off[k_i]), int(u_off[k_i + 1])
+                    pen_g[u0_k:u1_k] += B_list[k_i].T @ G_Xall[masks[k_i], k_i]
+
+    x = np.concatenate([B_list[k_i] @ u_parts[k_i] for k_i in range(n_orb)]) if n_orb else np.zeros(0, dtype=float)
+    return float(pen_e), pen_g, x
+
+
+def normalize_u_blocks(u: np.ndarray, u_off: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
+    """Unit-normalize each per-orbital reduced coordinate block in ``u``."""
+    parts: List[np.ndarray] = []
+    for k_i in range(len(u_off) - 1):
+        u0_k, u1_k = int(u_off[k_i]), int(u_off[k_i + 1])
+        uk = np.array(u[u0_k:u1_k], dtype=float, copy=True)
+        nrm = float(np.linalg.norm(uk))
+        if nrm > 1e-12:
+            uk = uk / nrm
+        parts.append(uk)
+    u_cat = np.concatenate(parts) if parts else np.zeros(0, dtype=float)
+    return u_cat, parts
+
+
+def bfgs_with_reset_continuation(
+    fg_fn,
+    u0: np.ndarray,
+    u_off: np.ndarray,
+    *,
+    maxiter: int,
+    gtol: float,
+    stat_tol: Optional[float] = None,
+):
+    """Run BFGS with one fresh-Hessian continuation on early status=2 line-search stall."""
+    from scipy.optimize import minimize
+
+    res = minimize(
+        fg_fn,
+        u0,
+        jac=True,
+        method="BFGS",
+        options={"maxiter": int(maxiter), "gtol": float(gtol)},
+    )
+    nit_tot = int(getattr(res, "nit", 0))
+    if not getattr(res, "success", False) and nit_tot < int(maxiter):
+        u_restart = np.array(res.x, dtype=float, copy=True)
+        rem_iter = max(50, int(maxiter) - nit_tot)
+        res2 = minimize(
+            fg_fn,
+            u_restart,
+            jac=True,
+            method="BFGS",
+            options={"maxiter": rem_iter, "gtol": float(gtol)},
+        )
+        nit_tot += int(getattr(res2, "nit", 0))
+        if float(getattr(res2, "fun", res.fun)) <= float(res.fun) + 1e-10:
+            res = res2
+    res.nit = int(nit_tot)
+    tol_eff = max(5e-4, float(gtol) * 50.0) if stat_tol is None else float(stat_tol)
+    if not getattr(res, "success", False) and np.asarray(res.x).size > 0:
+        _, gu_raw = fg_fn(np.asarray(res.x, dtype=float))
+        if gu_raw.size > 0 and float(np.max(np.abs(gu_raw))) < tol_eff:
+            res.success = True
+    u_norm, parts = normalize_u_blocks(res.x, u_off)
+    if not getattr(res, "success", False) and u_norm.size > 0:
+        _, gu_chk = fg_fn(u_norm)
+        if gu_chk.size > 0 and float(np.max(np.abs(gu_chk))) < tol_eff:
+            res.success = True
+    return res, parts
+
+
 class MaskedVB:
     """CI over the span of the active orbitals, with doubly occupied inactive orbitals;
     every orbital has an explicit AO domain (``masks[k]``): strictly one-center (its own
@@ -728,9 +1044,9 @@ class MaskedVB:
             else np.zeros((n, 0))
         return Xi, Xa
 
-    def energy_and_grad(self, x: np.ndarray) -> Tuple[float, np.ndarray]:
+    def energy_and_grad(self, x: np.ndarray, *, ci_state: Optional[List[Optional[np.ndarray]]] = None) -> Tuple[float, np.ndarray]:
         Xi, Xa = self.spaces(self.orbitals(x))
-        e, Gi, Ga = cas_energy_and_gradient(Xi, Xa, self.ints, self.nelec_act)
+        e, Gi, Ga = cas_energy_and_gradient(Xi, Xa, self.ints, self.nelec_act, ci_state=ci_state)
         gi, ga = iter(Gi.T), iter(Ga.T)
         grads = [next(gi) if r == "inactive" else next(ga) for r in self.roles]
         return e, np.concatenate([g[m] for g, m in zip(grads, self.masks)])
@@ -738,19 +1054,153 @@ class MaskedVB:
     def optimize(self, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
         from scipy.optimize import minimize
 
-        x_init = np.array(x0, dtype=float, copy=True)
-        for k in range(len(self.masks)):
+        S = getattr(self.ints, "S", None)
+        if S is None:
+            x_init = np.array(x0, dtype=float, copy=True)
+            for k in range(len(self.masks)):
+                s0, s1 = int(self.off[k]), int(self.off[k + 1])
+                nrm = float(np.linalg.norm(x_init[s0:s1]))
+                if nrm > 1e-12:
+                    x_init[s0:s1] /= nrm
+            ci_state: List[Optional[np.ndarray]] = [None]
+            return minimize(
+                lambda x: self.energy_and_grad(x, ci_state=ci_state),
+                x_init,
+                jac=True,
+                method="BFGS",
+                options={"maxiter": maxiter, "gtol": gtol},
+            )
+
+        # Precondition in the S_eff-orthonormal non-null subspace per orbital domain so
+        # frozen-core nullspace directions never corrupt BFGS curvature updates.
+        B_list: List[np.ndarray] = []
+        P_list: List[np.ndarray] = []
+        u_init_parts: List[np.ndarray] = []
+        mask_sets: List[set] = []
+        for k, m in enumerate(self.masks):
+            Sm = 0.5 * (S[np.ix_(m, m)] + S[np.ix_(m, m)].T)
+            wm, vm = np.linalg.eigh(Sm)
+            for col in range(vm.shape[1]):
+                idx_max = int(np.argmax(np.abs(vm[:, col])))
+                if vm[idx_max, col] < 0.0:
+                    vm[:, col] *= -1.0
+            keep = wm > 1e-8
+            if not np.any(keep):
+                keep = np.array([int(np.argmax(wm))])
+            w_k = np.maximum(wm[keep], 1e-12)
+            Bk = vm[:, keep] * (w_k ** -0.5)[None, :]
+            Pk = vm[:, keep] * (w_k ** 0.5)[None, :]
             s0, s1 = int(self.off[k]), int(self.off[k + 1])
-            nrm = float(np.linalg.norm(x_init[s0:s1]))
+            uk = Pk.T @ np.asarray(x0[s0:s1], dtype=float)
+            nrm = float(np.linalg.norm(uk))
             if nrm > 1e-12:
-                x_init[s0:s1] /= nrm
-        return minimize(
-            self.energy_and_grad,
-            x_init,
-            jac=True,
-            method="BFGS",
-            options={"maxiter": maxiter, "gtol": gtol},
+                uk = uk / nrm
+            B_list.append(Bk)
+            P_list.append(Pk)
+            u_init_parts.append(uk)
+            mask_sets.append(set(int(i) for i in m))
+
+        is_embedded = (
+            type(self.ints).__name__ == "EmbeddedAOIntegrals"
+            or getattr(self.ints, "L_backproj", None) is not None
         )
+        use_gauge = bool(is_embedded and len(B_list) > 1)
+        F_list, gs_order, gauge_pairs, u_init_parts = build_subset_gauge_pairs(
+            self.roles,
+            self.masks,
+            B_list,
+            P_list,
+            S,
+            u_init_parts,
+            orthogonalize_init=use_gauge,
+        )
+
+        u_off = np.cumsum([0] + [b.shape[1] for b in B_list])
+        u0 = np.concatenate(u_init_parts)
+        ci_state = [None]
+        e_off = float(getattr(self.ints, "vnn", 0.0))
+        c_pen = 1.0e-2 if is_embedded else 1.0e-4
+
+        def _fg(u: np.ndarray) -> Tuple[float, np.ndarray]:
+            pen_e, pen_g, x = eval_orbital_gauge_and_hinge_penalty(
+                u,
+                u_off,
+                B_list,
+                F_list,
+                self.masks,
+                S,
+                gauge_pairs,
+                c_pen=c_pen,
+                c_hinge=1.0e-4,
+                w_floor=0.05,
+                use_gauge_and_hinge=use_gauge,
+            )
+            if pen_e >= 1.0e7:
+                return float(pen_e), np.zeros_like(u)
+            e, gx = self.energy_and_grad(x, ci_state=ci_state)
+            if e >= 1.0e7:
+                return float(e), np.zeros_like(u)
+            gu = np.concatenate([
+                B_list[k_i].T @ gx[int(self.off[k_i]):int(self.off[k_i + 1])]
+                for k_i in range(len(B_list))
+            ]) + pen_g
+            return float((e - e_off) + pen_e), gu
+
+        res, u_raw_parts = bfgs_with_reset_continuation(
+            _fg,
+            u0,
+            u_off,
+            maxiter=maxiter,
+            gtol=gtol,
+        )
+        x_opt = np.empty(int(self.off[-1]), dtype=float)
+        for k_i, Bk in enumerate(B_list):
+            s0, s1 = int(self.off[k_i]), int(self.off[k_i + 1])
+            x_opt[s0:s1] = Bk @ u_raw_parts[k_i]
+        e_true, gx_true = self.energy_and_grad(x_opt, ci_state=ci_state)
+
+        # Span-preserving Gram-Schmidt cleanup to remove subset-mask gauge overlap without altering energy
+        if use_gauge:
+            n_orb = len(self.roles)
+            v_gs = [F_list[k_o] @ u_raw_parts[k_o] for k_o in range(n_orb)]
+            u_clean_parts = [np.array(u_raw_parts[k_o], copy=True) for k_o in range(n_orb)]
+            for pos, b_idx in enumerate(gs_order):
+                rb = self.roles[b_idx]
+                preds = [
+                    a_idx
+                    for a_idx in gs_order[:pos]
+                    if mask_sets[a_idx] <= mask_sets[b_idx]
+                    and (self.roles[a_idx] == rb or (self.roles[a_idx] == "inactive" and rb == "active"))
+                ]
+                vb = v_gs[b_idx].copy()
+                if preds:
+                    Vp = np.column_stack([v_gs[a_idx] for a_idx in preds])
+                    Gp = 0.5 * (Vp.T @ S @ Vp + (Vp.T @ S @ Vp).T)
+                    Gp_inv = np.linalg.pinv(Gp, rcond=1e-10)
+                    vb = vb - Vp @ (Gp_inv @ (Vp.T @ S @ vb))
+                ub = P_list[b_idx].T @ vb[self.masks[b_idx]]
+                nrm_b = float(np.linalg.norm(ub))
+                if nrm_b > 1e-6:
+                    ub = ub / nrm_b
+                    u_clean_parts[b_idx] = ub
+                    v_gs[b_idx] = F_list[b_idx] @ ub
+            x_clean = np.empty_like(x_opt)
+            for k_i, Bk in enumerate(B_list):
+                x_clean[int(self.off[k_i]):int(self.off[k_i + 1])] = Bk @ u_clean_parts[k_i]
+            e_clean, gx_clean = self.energy_and_grad(x_clean, ci_state=ci_state)
+            if abs(float(e_clean) - float(e_true)) < 1e-10:
+                x_opt = x_clean
+                e_true = e_clean
+                gx_true = gx_clean
+                if not getattr(res, "success", False) and u_clean_parts:
+                    _, gu_clean = _fg(np.concatenate(u_clean_parts))
+                    if gu_clean.size > 0 and float(np.max(np.abs(gu_clean))) < max(5e-4, float(gtol) * 50.0):
+                        res.success = True
+
+        res.x = x_opt
+        res.fun = float(e_true)
+        res.jac = gx_true
+        return res
 
 
 def optimize_masked_vb(model: MaskedVB, x0: np.ndarray, maxiter: int = 4000, gtol: float = 1e-6):
@@ -820,13 +1270,50 @@ def pyscf_mean_field(ints: AOIntegrals, nelec: Tuple[int, int], kind: str = "RHF
     import warnings
     from pyscf import ao2mo, gto, scf
 
+    hh = ints.h if h is None else h
+    S0 = 0.5 * (ints.S + ints.S.T)
+    w_s, v_s = np.linalg.eigh(S0)
+    keep = w_s > 1e-6
+    if not np.all(keep) and np.any(keep):
+        # Project out core/environment nullspace cleanly before PySCF SCF instead of
+        # scf.addons.remove_linear_dep_ (which scales by diag(S)^-1/2 and amplifies noise).
+        X = v_s[:, keep] * (w_s[keep] ** -0.5)[None, :]
+        for j in range(X.shape[1]):
+            if X[int(np.argmax(np.abs(X[:, j]))), j] < 0.0:
+                X[:, j] *= -1.0
+
+        class _ReducedAOIntegrals:
+            pass
+
+        red = _ReducedAOIntegrals()
+        red.nao = int(X.shape[1])
+        red.S = np.eye(red.nao, dtype=float)
+        red.h = X.T @ hh @ X
+        red.eri = np.einsum("mnls,mp,nq,lr,st->pqrt", ints.eri, X, X, X, X, optimize=True)
+        red.vnn = ints.vnn if h is None else 0.0
+        mf_r = pyscf_mean_field(red, nelec, kind=kind, h=None, dm0=None)
+        mo_r = np.asarray(mf_r.mo_coeff, dtype=float)
+        mo_full = X @ mo_r if mo_r.ndim == 2 else np.einsum("ij,sjk->sik", X, mo_r)
+        if mo_full.ndim == 2:
+            for j in range(mo_full.shape[1]):
+                idx = int(np.argmax(np.abs(mo_full[:, j])))
+                if mo_full[idx, j] < 0.0:
+                    mo_full[:, j] *= -1.0
+        elif mo_full.ndim == 3:
+            for sp in range(mo_full.shape[0]):
+                for j in range(mo_full.shape[2]):
+                    idx = int(np.argmax(np.abs(mo_full[sp, :, j])))
+                    if mo_full[sp, idx, j] < 0.0:
+                        mo_full[sp, :, j] *= -1.0
+        mf_r.mo_coeff = mo_full
+        return mf_r
+
     mol = gto.M(verbose=0)
     mol.nelectron = int(sum(nelec))
     mol.spin = int(nelec[0] - nelec[1])
     mol.incore_anyway = True
     mol.nao_nr = lambda *a, **k: ints.nao
     mol.energy_nuc = lambda *a, **k: ints.vnn if h is None else 0.0
-    hh = ints.h if h is None else h
     mf = {"RHF": scf.RHF, "UHF": scf.UHF, "ROHF": scf.ROHF}[kind](mol)
     mf.get_hcore = lambda *a: hh
     mf.get_ovlp = lambda *a: ints.S
@@ -836,4 +1323,18 @@ def pyscf_mean_field(ints: AOIntegrals, nelec: Tuple[int, int], kind: str = "RHF
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Function mol.dumps drops attribute.*", category=UserWarning)
         mf.kernel(dm0=dm0)
+    # Deterministic MO column sign canonicalization across platforms
+    mo = np.asarray(mf.mo_coeff, dtype=float).copy()
+    if mo.ndim == 2:
+        for j in range(mo.shape[1]):
+            idx = int(np.argmax(np.abs(mo[:, j])))
+            if mo[idx, j] < 0.0:
+                mo[:, j] *= -1.0
+    elif mo.ndim == 3:
+        for sp in range(mo.shape[0]):
+            for j in range(mo.shape[2]):
+                idx = int(np.argmax(np.abs(mo[sp, :, j])))
+                if mo[sp, idx, j] < 0.0:
+                    mo[sp, :, j] *= -1.0
+    mf.mo_coeff = mo
     return mf

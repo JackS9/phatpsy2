@@ -179,7 +179,7 @@ VALID_CORE_EMBEDDINGS: Tuple[str, ...] = (
     "unprojected_eri",
     "eri_free_2c",
 )
-VALID_ENVIRONMENT_EMBEDDINGS: Tuple[str, ...] = ("exact_joint_pk", "model_potential", "none")
+VALID_ENVIRONMENT_EMBEDDINGS: Tuple[str, ...] = ("exact_joint_pk", "exact_backprojected", "model_potential", "none")
 VALID_INTEGRAL_BACKENDS: Tuple[str, ...] = ("prolate", "sto_ng")
 
 
@@ -189,10 +189,11 @@ class ControlConfig:
     vb_wavefunction: str = "cas"  # Active-space VB wavefunction ('cas', 'covalent', 'pp', or 'hl')
     domain_mode: str = "bond_local"  # Orbital AO domain policy ('strict_1c', 'bond_local', 'bond_local_h', 'blyholder_r0', 'blyholder_r1', 'blyholder_r2', 'delocalized', or 'custom')
     core_embedding: str = "unprojected_eri"  # Frozen noble-gas core treatment ('all_electron', 'exact_backprojected', 'unprojected_eri', or 'eri_free_2c')
-    environment_embedding: str = "exact_joint_pk"  # Spectator environment embedding ('exact_joint_pk' or 'model_potential')
+    environment_embedding: str = "exact_joint_pk"  # Spectator environment embedding ('exact_joint_pk', 'exact_backprojected', 'model_potential', or 'none')
     integral_backend: str = "prolate"  # Integral evaluation backend for localized_vb/masked_vb ('prolate' or 'sto_ng')
     sto_ng_primitives: int = 6  # Stewart (1970) L2-optimal Gaussian primitives per STO shell when integral_backend='sto_ng' (3..20)
     vb_orbital_specs: Optional[List[Dict[str, Any]]] = None  # Optional explicit orbital domain specs ([{'role': 'inactive'|'active', 'atoms': ['C1', ...]}])
+    target_spin: Optional[int] = None  # Optional active spin excess override (n_alpha - n_beta >= 0) for LocalizedVB/MaskedVB
     spin_unrestricted: bool = True
     max_cycles: int = 200
     convergence: float = 1.0e-6
@@ -267,6 +268,11 @@ class ControlConfig:
             raise ValueError(
                 f"ControlConfig.sto_ng_primitives must be an integer in 3..20, got {self.sto_ng_primitives!r}"
             )
+        if self.target_spin is not None:
+            if isinstance(self.target_spin, bool) or not isinstance(self.target_spin, int) or self.target_spin < 0:
+                raise ValueError(
+                    f"ControlConfig.target_spin must be a non-negative integer or None, got {self.target_spin!r}"
+                )
         if self.vb_orbital_specs is not None:
             if not isinstance(self.vb_orbital_specs, list) or len(self.vb_orbital_specs) == 0:
                 raise ValueError("ControlConfig.vb_orbital_specs must be a non-empty list of spec dicts when provided.")
@@ -357,6 +363,8 @@ class ControlConfig:
                 del d["sto_ng_primitives"]
         if self.vb_orbital_specs is None:
             d.pop("vb_orbital_specs", None)
+        if self.target_spin is None:
+            d.pop("target_spin", None)
         if not self.extra_namelist:
             del d["extra_namelist"]
         if self.default_basis is None:
@@ -373,7 +381,7 @@ class ControlConfig:
         valid_keys = {
             "method", "vb_wavefunction", "domain_mode", "core_embedding",
             "environment_embedding", "integral_backend", "sto_ng_primitives",
-            "vb_orbital_specs",
+            "vb_orbital_specs", "target_spin",
             "spin_unrestricted", "max_cycles", "convergence", "time_limit",
             "charge_damp", "charge_accel", "potential_damp", "potential_accel",
             "pk_scale", "use_pseudometric", "pk_energy", "use_constrained_fit",

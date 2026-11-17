@@ -333,7 +333,7 @@ PHATPSY 2.0 provides full second-derivative potential curvature analysis, normal
 2. **Eckart Translational & Rotational Projection:**
    Rigid-body translations ($T_x, T_y, T_z$) and infinitesimal rotations ($R_x, R_y, R_z$) are decoupled from the mass-weighted Cartesian Hessian $\mathcal{H}_{i, j}^{\text{mw}} = \frac{\mathbf{H}_{i, j}}{\sqrt{M_A M_B}}$ using the projection operator:
    $$\mathbf{P} = \mathbf{I}_{3N} - \mathbf{D}_{\text{TR}} \mathbf{D}_{\text{TR}}^T, \quad \mathcal{H}_{\text{proj}} = \mathbf{P} \mathcal{H}^{\text{mw}} \mathbf{P}$$
-   where $N_{\text{TR}} = 5$ for linear rotors and $N_{\text{TR}} = 6$ for non-linear rotors. (When fixed substrate atoms are present, projection is automatically skipped because the substrate breaks translational and rotational invariance).
+   where $N_{\text{TR}} = 5$ for linear rotors and $N_{\text{TR}} = 6$ for non-linear rotors. When `fixed: true` substrate atoms are present (or `is_adsorbate=True` in `compute_thermochemistry()`), the Hessian is restricted strictly to the $3 N_{\text{free}} \times 3 N_{\text{free}}$ active-adsorbate sub-block without ideal-gas Eckart T/R projection, preserving frustrated surface translations and rotations as genuine real modes, omitting gas-phase translational/rotational partitions and $+RT$, keeping ZPVE unfloored, and applying a quasi-RRHO frequency floor strictly to thermal entropy and energy. See the [Python API Reference](reference.md) for parameter signatures and defaults.
 
 3. **Normal Modes & Frequencies:**
    Diagonalization of $\mathcal{H}_{\text{proj}}$ yields eigenvalues $\lambda_k$ (in $\text{Hartree}/(\text{Bohr}^2 \cdot \text{amu})$):

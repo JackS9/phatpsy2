@@ -23,7 +23,9 @@ scales with (#target densities x #target points), independent of the number of s
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor
 import math
+import os
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -43,7 +45,7 @@ class MolecularAOIntegrals:
     S: np.ndarray
     T: np.ndarray
     V: np.ndarray                 # total nuclear attraction sum_C -Z_C/r_C
-    eri: np.ndarray
+    eri: Optional[np.ndarray]
     _Jmat: Optional[np.ndarray] = field(default=None, repr=False)
     _Kmat: Optional[np.ndarray] = field(default=None, repr=False)
 
@@ -64,6 +66,8 @@ class MolecularAOIntegrals:
         return float(e)
 
     def jk_matrices(self):
+        if self.eri is None:
+            raise ValueError("jk_matrices requires materialized 4-index ERI tensor (build_eri=True).")
         if self._Jmat is None:
             n = self.nao
             self._Jmat = self.eri.reshape(n * n, n * n)
@@ -362,7 +366,8 @@ def _cross_coulomb(src: _Frame, proj, tgt: _Frame, chi_fn, lmax, mmax, chunk=204
 
 def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[STO]]],
                            n_eta: int = 40, n_phi: int = 24, lmax: int = 24, mmax: int = 6,
-                           verbose: bool = False) -> MolecularAOIntegrals:
+                           verbose: bool = False,
+                           build_eri: bool = True) -> MolecularAOIntegrals:
     """Exact multi-center integrals over real STOs.
 
     atoms: sequence of (Z, xyz, basis STO list centred on xyz).
@@ -429,10 +434,12 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
             V[m, n] = V[n, m] = np.sum(rho * foci_v * w)
             dens.append(rho)
         dens = np.array(dens)
+        others = [c for c in range(natom) if c not in (fr.i, fr.j)]
         mm = min(mmax, lmax, g.n_phi // 2 - 1)
-        Peta, _, _ = g._neumann_tables(lmax, mm)
-        proj[key] = g._project_batch(dens, Peta, lmax, mm)
-        if any(k2 != key and _is_same_axis(g, frames[k2].grid) for k2 in frames):
+        if build_eri or others:
+            Peta, _, _ = g._neumann_tables(lmax, mm)
+            proj[key] = g._project_batch(dens, Peta, lmax, mm)
+        if build_eri and any(k2 != key and _is_same_axis(g, frames[k2].grid) for k2 in frames):
             h3 = (0.5 * g.R) ** 3
             jac2d = (g.xi[:, None] ** 2 - g.eta[None, :] ** 2) * (h3 * g.w_xi[:, None] * g.w_eta[None, :])
             csT = np.vstack([
@@ -445,8 +452,6 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
             gcs[np.abs(gcs) <= tol] = 0.0
             gcs *= jac2d[None, :, :, None, None]
             fr.rho_meridian = gcs.reshape(n_p, g.xi.size * g.eta.size, 2, mm + 1)
-        # nuclei that are not foci of this frame: potential of each pair density at R_C
-        others = [c for c in range(natom) if c not in (fr.i, fr.j)]
         if others:
             Vc = g.potentials_at(dens, coords[others], lmax=lmax, mmax=mm, proj=proj[key])
             for k, (m, n) in enumerate(fr.pairs):
@@ -454,10 +459,14 @@ def molecular_ao_integrals(atoms: Sequence[Tuple[float, Sequence[float], List[ST
                 V[m, n] += v
                 if m != n:
                     V[n, m] += v
-        G[(key, key)] = g.coulomb_matrix(dens, lmax=lmax, mmax=mm, proj=proj[key])
+        if build_eri:
+            G[(key, key)] = g.coulomb_matrix(dens, lmax=lmax, mmax=mm, proj=proj[key])
         del dens, chi, tchi
         if verbose:
             print(f"  frame {key}: {len(fr.pairs)} pair densities ({time.time()-t0:.0f}s)", flush=True)
+
+    if not build_eri:
+        return MolecularAOIntegrals(basis, atom_of, charges, coords, S, T, V, None)
 
     # --- cross-frame ERIs
     keys = list(frames)
@@ -704,21 +713,23 @@ _STEWART_TABULATED: Dict[Tuple[int, int, int], Tuple[Tuple[float, ...], Tuple[fl
 
 
 def _compute_stewart_sto_varpro(n_i: int, l_i: int, k_i: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Solve the Stewart (1970) L2 GTO expansion via reduced-QR Variable Projection.
+    """Solve the Stewart (1970) L2 GTO expansion via bounded log-ratio Variable Projection.
 
-    Uses mapped Gauss-Legendre radial quadrature on ``[0, inf)`` and exact
-    Golub-Pereyra analytical Jacobians for ``r = (Q Q^T - I) y`` inside
-    Levenberg-Marquardt least squares, avoiding the ill-conditioned normal-equation
-    Gram matrix and finite-difference gradient noise.
+    Parameterizes exponents strictly in increasing order via ``u[0] = log(alpha_0)`` and
+    log-spacings ``u[j] = log(alpha_j / alpha_{j-1}) >= log(r_min)``, guaranteeing
+    non-coalescing exponents, well-conditioned contraction coefficients (``max|c| ~ O(1)``),
+    and deterministic cross-platform convergence for high primitive counts (``k <= 20+``).
+    Uses mapped Gauss-Legendre radial quadrature (``r = 4 t^2 / (1-t)^2``) so both
+    nuclear cusps and diffuse tails are resolved without floating-point cancellation.
     """
     from numpy.polynomial.legendre import leggauss
     from scipy.optimize import least_squares
 
-    x_gl, w_gl = leggauss(160)
+    x_gl, w_gl = leggauss(220)
     t_gl = 0.5 * (x_gl + 1.0)
     wt_gl = 0.5 * w_gl
-    r_gl = t_gl / (1.0 - t_gl)
-    dr_gl = wt_gl / ((1.0 - t_gl) ** 2)
+    r_gl = 4.0 * (t_gl ** 2) / ((1.0 - t_gl) ** 2)
+    dr_gl = wt_gl * (8.0 * t_gl / ((1.0 - t_gl) ** 3))
     sqrt_w = np.sqrt(dr_gl) * r_gl
     r2 = r_gl ** 2
 
@@ -726,62 +737,57 @@ def _compute_stewart_sto_varpro(n_i: int, l_i: int, k_i: int) -> Tuple[np.ndarra
     y = sqrt_w * sto_norm * (r_gl ** (n_i - 1)) * np.exp(-r_gl)
     gto_pref = math.sqrt(2.0 / math.gamma(l_i + 1.5))
 
-    def _eval_A(log_a: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        a = np.exp(np.clip(log_a, -25.0, 25.0))
+    def _u_to_loga(u: np.ndarray) -> np.ndarray:
+        out = np.empty(k_i, dtype=float)
+        out[0] = u[0]
+        if k_i > 1:
+            out[1:] = u[0] + np.cumsum(u[1:])
+        return out
+
+    def _eval_A(u: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        log_a = np.clip(_u_to_loga(u), -20.0, 20.0)
+        a = np.exp(log_a)
         nrm_g = gto_pref * ((2.0 * a) ** (0.5 * l_i + 0.75))
         arg = -r2[:, None] * a[None, :]
         A = (sqrt_w * (r_gl ** l_i))[:, None] * np.exp(np.clip(arg, -700.0, 0.0)) * nrm_g[None, :]
         return a, A
 
-    def _res(log_a: np.ndarray) -> np.ndarray:
-        _, A = _eval_A(log_a)
+    def _res(u: np.ndarray) -> np.ndarray:
+        _, A = _eval_A(u)
         Q, _ = np.linalg.qr(A, mode="reduced")
         return Q @ (Q.T @ y) - y
 
-    def _jac(log_a: np.ndarray) -> np.ndarray:
-        a, A = _eval_A(log_a)
-        Q, R = np.linalg.qr(A, mode="reduced")
-        c = np.linalg.solve(R, Q.T @ y)
-        r = A @ c - y
-        D = ((0.5 * l_i + 0.75) - r2[:, None] * a[None, :]) * A
-        Dc = D * c[None, :]
-        P_perp_Dc = Dc - Q @ (Q.T @ Dc)
-        Dt_r = D.T @ r
-        term2 = Q @ np.linalg.solve(R.T, np.diag(Dt_r))
-        return P_perp_Dc - term2
+    min_gap = math.log(1.38 if k_i <= 12 else 1.28)
+    lb = np.full(k_i, min_gap, dtype=float)
+    ub = np.full(k_i, math.log(8.0), dtype=float)
+    lb[0] = math.log(1e-4)
+    ub[0] = math.log(2.0)
 
-    starts = [
-        np.linspace(math.log(0.05 / max(n_i, 1)), math.log(45.0 / max(n_i * n_i, 1)), k_i),
-        np.linspace(math.log(0.03 / max(n_i, 1)), math.log(8.0 / max(n_i * n_i, 1)), k_i),
-    ]
+    starts_range = (
+        (0.03 / max(n_i, 1), 80.0 / max(n_i, 1)),
+        (0.015 / max(n_i * n_i, 1), 3000.0 if l_i == 0 else 400.0),
+    )
     best: Optional[Tuple[float, np.ndarray, np.ndarray]] = None
-    for log_a0 in starts:
-        sol = least_squares(_res, log_a0, jac=_jac, method="lm", xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=1000)
-        a_cand, _ = _eval_A(sol.x)
-        order_idx = np.argsort(a_cand)
-        a_cand = np.ascontiguousarray(a_cand[order_idx], dtype=float)
-        if k_i > 1 and np.min(np.diff(a_cand) / np.maximum(a_cand[:-1], 1e-30)) < 1e-4:
-            continue
-        _, A_ord = _eval_A(np.log(a_cand))
-        Q_ord, R_ord = np.linalg.qr(A_ord, mode="reduced")
-        c_cand = np.ascontiguousarray(np.linalg.solve(R_ord, Q_ord.T @ y), dtype=float)
-        G_ord = (2.0 * np.sqrt(np.outer(a_cand, a_cand)) / (a_cand[:, None] + a_cand[None, :])) ** (l_i + 1.5)
-        c_cand /= math.sqrt(max(float(c_cand @ G_ord @ c_cand), 1e-30))
+    for a_lo, a_hi in starts_range:
+        if k_i > 1:
+            gaps = np.full(k_i - 1, max(min_gap + 0.05, math.log(a_hi / a_lo) / (k_i - 1)), dtype=float)
+            gaps = np.clip(gaps, lb[1:], ub[1:])
+            u0 = np.concatenate([[np.clip(math.log(a_lo), lb[0], ub[0])], gaps])
+        else:
+            u0 = np.array([np.clip(math.log(a_lo), lb[0], ub[0])], dtype=float)
+
+        sol = least_squares(
+            _res, u0, bounds=(lb, ub), method="trf",
+            xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=400,
+        )
+        a_cand, A_cand = _eval_A(sol.x)
+        Q_cand, R_cand = np.linalg.qr(A_cand, mode="reduced")
+        c_cand = np.ascontiguousarray(np.linalg.solve(R_cand, Q_cand.T @ y), dtype=float)
+        G_cand = (2.0 * np.sqrt(np.outer(a_cand, a_cand)) / (a_cand[:, None] + a_cand[None, :])) ** (l_i + 1.5)
+        c_cand /= math.sqrt(max(float(c_cand @ G_cand @ c_cand), 1e-30))
         l2_err = float(np.sum(sol.fun ** 2))
         if best is None or l2_err < best[0]:
-            best = (l2_err, a_cand, c_cand)
-
-    if best is None:
-        sol = least_squares(_res, starts[0], jac=_jac, method="lm", xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=1000)
-        a_opt, _ = _eval_A(sol.x)
-        order_idx = np.argsort(a_opt)
-        a_opt = np.ascontiguousarray(a_opt[order_idx], dtype=float)
-        _, A_ord = _eval_A(np.log(a_opt))
-        Q_ord, R_ord = np.linalg.qr(A_ord, mode="reduced")
-        c_opt = np.ascontiguousarray(np.linalg.solve(R_ord, Q_ord.T @ y), dtype=float)
-        G_ord = (2.0 * np.sqrt(np.outer(a_opt, a_opt)) / (a_opt[:, None] + a_opt[None, :])) ** (l_i + 1.5)
-        c_opt /= math.sqrt(max(float(c_opt @ G_ord @ c_opt), 1e-30))
-        return a_opt, c_opt
+            best = (l2_err, np.ascontiguousarray(a_cand, dtype=float), c_cand)
 
     return best[1], best[2]
 
@@ -831,21 +837,394 @@ class PySCFSTOContext:
     is_perm: bool
     perm_idx: Optional[np.ndarray] = None
     perm_scale: Optional[np.ndarray] = None
+    fixed_atom_indices: Optional[Tuple[int, ...]] = None
+    _eri_s8: Optional[np.ndarray] = field(default=None, repr=False)
+
+
+# Single-entry module cache for fixed-substrate 8-fold symmetric ERI tensor: (key, eri_s8_fixed)
+_FIXED_SUBSTRATE_S8_CACHE: Optional[Tuple[Any, np.ndarray]] = None
+
+
+def _fixed_substrate_cache_key(mol: Any, fixed_sorted: Tuple[int, ...]) -> Any:
+    items = []
+    for ia in fixed_sorted:
+        lbl, xyz = mol._atom[ia]
+        bas_spec = mol._basis[lbl]
+        bas_key = tuple(
+            (int(sh[0]), tuple(tuple(float(v) for v in prim) for prim in sh[1:]))
+            for sh in bas_spec
+        )
+        items.append((float(mol.atom_charge(ia)), tuple(float(c) for c in xyz), bas_key))
+    return tuple(items)
+
+
+def _partition_mol_shell_blocks(
+    mol: Any,
+    fixed_set: set,
+    max_compact_shells: int = 7,
+    diffuse_exp_cutoff: float = 0.35,
+) -> Tuple[List[Tuple[int, int]], List[bool]]:
+    """Group shell indices into blocks keeping fixed/moving sets and diffuse shells separate."""
+    nbas = int(mol.nbas)
+    blocks: List[Tuple[int, int]] = []
+    block_is_fixed: List[bool] = []
+    sh = 0
+    while sh < nbas:
+        sh_atom = int(mol.bas_atom(sh))
+        is_fix = sh_atom in fixed_set
+        is_diff = bool(np.min(mol.bas_exp(sh)) < diffuse_exp_cutoff)
+        if is_diff:
+            blocks.append((sh, sh + 1))
+            block_is_fixed.append(is_fix)
+            sh += 1
+            continue
+        sh_end = sh + 1
+        while (
+            sh_end < nbas
+            and (sh_end - sh) < max_compact_shells
+            and (int(mol.bas_atom(sh_end)) in fixed_set) == is_fix
+            and not bool(np.min(mol.bas_exp(sh_end)) < diffuse_exp_cutoff)
+        ):
+            sh_end += 1
+        blocks.append((sh, sh_end))
+        block_is_fixed.append(is_fix)
+        sh = sh_end
+    return blocks, block_is_fixed
+
+
+def build_pyscf_eri_s8_parallel(
+    mol: Any,
+    fixed_atom_indices: Optional[Sequence[int]] = None,
+    max_workers: Optional[int] = None,
+    schwarz_tol: float = 1e-14,
+) -> np.ndarray:
+    """Build exact 8-fold symmetric ERI array matching ``mol.intor("int2e", aosym="s8")``.
+
+    Evaluates canonical shell-block quartets in parallel using GIL-releasing ``mol.intor``
+    calls, writing strictly disjoint canonical elements with deterministic Schwarts
+    prescreening, and reuses the cached fixed-substrate ``(F, F | F, F)`` subtensor
+    when ``fixed_atom_indices`` are unchanged.
+    """
+    global _FIXED_SUBSTRATE_S8_CACHE
+    from pyscf import gto
+    from pyscf.scf import _vhf
+
+    nao = int(mol.nao_nr())
+    nbas = int(mol.nbas)
+    n_pair = nao * (nao + 1) // 2
+    n_s8 = n_pair * (n_pair + 1) // 2
+    if nbas == 0 or nao == 0:
+        return np.zeros(n_s8, dtype=float)
+
+    workers = int(max_workers or min(os.cpu_count() or 4, 12))
+    fixed_sorted = tuple(sorted({int(ia) for ia in (fixed_atom_indices or ()) if 0 <= int(ia) < int(mol.natm)}))
+    fixed_set = set(fixed_sorted) if len(fixed_sorted) > 0 and nao <= 220 else set()
+
+    eri_s8 = np.zeros(n_s8, dtype=float)
+    use_fixed_cache = False
+    if fixed_set:
+        key = _fixed_substrate_cache_key(mol, fixed_sorted)
+        cached = _FIXED_SUBSTRATE_S8_CACHE
+        if cached is not None and cached[0] == key:
+            eri_s8_fixed = cached[1]
+        else:
+            atoms_f = [mol._atom[ia] for ia in fixed_sorted]
+            basis_f = {mol._atom[ia][0]: mol._basis[mol._atom[ia][0]] for ia in fixed_sorted}
+            mol_fixed = gto.Mole(
+                atom=atoms_f,
+                basis=basis_f,
+                unit="Bohr",
+                cart=bool(mol.cart),
+                spin=sum(int(round(mol.atom_charge(ia))) for ia in fixed_sorted) % 2,
+                verbose=0,
+            )
+            mol_fixed.build(dump_input=False, parse_arg=False)
+            eri_s8_fixed = build_pyscf_eri_s8_parallel(mol_fixed, fixed_atom_indices=None, max_workers=workers)
+            eri_s8_fixed.setflags(write=False)
+            _FIXED_SUBSTRATE_S8_CACHE = (key, eri_s8_fixed)
+
+        if len(fixed_sorted) == int(mol.natm):
+            return np.array(eri_s8_fixed, dtype=float, copy=True)
+
+        # Scatter fixed-substrate (F, F | F, F) subtensor into full eri_s8 in bounded chunks
+        ao_slices = mol.aoslice_by_atom()
+        fixed_ao = np.concatenate([np.arange(int(ao_slices[ia, 2]), int(ao_slices[ia, 3])) for ia in fixed_sorted])
+        trf, tcf = np.tril_indices(fixed_ao.size)
+        p_g = fixed_ao[trf]
+        q_g = fixed_ao[tcf]
+        pq_map = p_g * (p_g + 1) // 2 + q_g
+        row_chunk = 512
+        off = 0
+        n_pf = pq_map.size
+        for r0_f in range(0, n_pf, row_chunk):
+            r1_f = min(r0_f + row_chunk, n_pf)
+            uv_parts = []
+            len_chunk = 0
+            for i_f in range(r0_f, r1_f):
+                pqi = int(pq_map[i_f])
+                uv_parts.append(pqi * (pqi + 1) // 2 + pq_map[: i_f + 1])
+                len_chunk += i_f + 1
+            uv_all = np.concatenate(uv_parts)
+            eri_s8[uv_all] = eri_s8_fixed[off : off + len_chunk]
+            off += len_chunk
+        use_fixed_cache = True
+
+    ao_loc = mol.ao_loc_nr()
+    vhfopt = _vhf.VHFOpt(mol, "int2e", "CVHFnrs8_prescreen", "CVHFsetnr_direct_scf", "CVHFsetnr_direct_scf_dm")
+    q_cond = np.asarray(vhfopt.q_cond, dtype=float)
+
+    blocks, block_is_fixed = _partition_mol_shell_blocks(mol, fixed_set)
+    nblk = len(blocks)
+    q_blk = np.array(
+        [
+            [
+                float(np.max(q_cond[blocks[i][0] : blocks[i][1], blocks[j][0] : blocks[j][1]]))
+                for j in range(nblk)
+            ]
+            for i in range(nblk)
+        ],
+        dtype=float,
+    )
+
+    block_pairs = [(bp, bq) for bp in range(nblk) for bq in range(bp + 1)]
+    quartets: List[Tuple[int, int, int, int]] = []
+    for idx_i, (bp, bq) in enumerate(block_pairs):
+        q_ij = q_blk[bp, bq]
+        if q_ij * float(q_blk.max()) < schwarz_tol:
+            continue
+        fix_ij = use_fixed_cache and block_is_fixed[bp] and block_is_fixed[bq]
+        for idx_j in range(idx_i + 1):
+            br, bs = block_pairs[idx_j]
+            if fix_ij and block_is_fixed[br] and block_is_fixed[bs]:
+                continue
+            if q_ij * q_blk[br, bs] < schwarz_tol:
+                continue
+            quartets.append((bp, bq, br, bs))
+
+    def _compute_quartet(q: Tuple[int, int, int, int]) -> None:
+        bp, bq, br, bs = q
+        sp0, sp1 = blocks[bp]
+        sq0, sq1 = blocks[bq]
+        sr0, sr1 = blocks[br]
+        ss0, ss1 = blocks[bs]
+        p0, p1 = int(ao_loc[sp0]), int(ao_loc[sp1])
+        q0, q1 = int(ao_loc[sq0]), int(ao_loc[sq1])
+        r0, r1 = int(ao_loc[sr0]), int(ao_loc[sr1])
+        s0, s1 = int(ao_loc[ss0]), int(ao_loc[ss1])
+        raw = mol.intor("int2e", aosym="s1", shls_slice=(sp0, sp1, sq0, sq1, sr0, sr1, ss0, ss1))
+        np_c, nq_c, nr_c, ns_c = raw.shape
+        pp = np.arange(p0, p1)[:, None]
+        qq = np.arange(q0, q1)[None, :]
+        pq = pp * (pp + 1) // 2 + qq
+        if bp == bq:
+            ij_r, ij_c = np.where(pp >= qq)
+            pq_flat = pq[ij_r, ij_c]
+            raw_ij = raw[ij_r, ij_c, :, :]
+        else:
+            pq_flat = pq.ravel()
+            raw_ij = raw.reshape(np_c * nq_c, nr_c, ns_c)
+        rr = np.arange(r0, r1)[:, None]
+        ss = np.arange(s0, s1)[None, :]
+        rs = rr * (rr + 1) // 2 + ss
+        if br == bs:
+            kl_r, kl_c = np.where(rr >= ss)
+            rs_flat = rs[kl_r, kl_c]
+            raw_ijkl = raw_ij[:, kl_r, kl_c]
+        else:
+            rs_flat = rs.ravel()
+            raw_ijkl = raw_ij.reshape(raw_ij.shape[0], nr_c * ns_c)
+        if (bp, bq) == (br, bs):
+            ii, jj = np.where(pq_flat[:, None] >= rs_flat[None, :])
+            uv = pq_flat[ii] * (pq_flat[ii] + 1) // 2 + rs_flat[jj]
+            eri_s8[uv] = raw_ijkl[ii, jj]
+        elif bp == br:
+            hi = np.maximum(pq_flat[:, None], rs_flat[None, :])
+            lo = np.minimum(pq_flat[:, None], rs_flat[None, :])
+            uv = (hi * (hi + 1) // 2 + lo).ravel()
+            eri_s8[uv] = raw_ijkl.ravel()
+        else:
+            uv = (pq_flat[:, None] * (pq_flat[:, None] + 1) // 2 + rs_flat[None, :]).ravel()
+            eri_s8[uv] = raw_ijkl.ravel()
+
+    if quartets:
+        if workers <= 1 or len(quartets) < 8:
+            for q in quartets:
+                _compute_quartet(q)
+        else:
+            n_batches = min(len(quartets), workers * 4)
+            batches = [quartets[k::n_batches] for k in range(n_batches)]
+
+            def _run_quartet_batch(batch: List[Tuple[int, int, int, int]]) -> None:
+                for q in batch:
+                    _compute_quartet(q)
+
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                for _ in ex.map(_run_quartet_batch, batches):
+                    pass
+    return eri_s8
+
+
+def _pyscf_jk_and_ao2mo_direct_parallel(
+    mol: Any,
+    D_py: np.ndarray,
+    mo_L_py: Optional[np.ndarray] = None,
+    max_workers: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    """Single-pass memory-bounded parallel ``(J, K)`` and optional ``ao2mo`` ``s4`` contraction.
+
+    Used when ``nao_py > 220`` (e.g., ``DZP`` on embedded ``Ni13 + NO``) so no giant ``s8``
+    tensor is allocated, while evaluating GIL-releasing shell-pair blocks in parallel and
+    reducing results in deterministic canonical order.
+    """
+    nao = int(mol.nao_nr())
+    nbas = int(mol.nbas)
+    ao_loc = mol.ao_loc_nr()
+    D_sym = 0.5 * (np.asarray(D_py, dtype=float) + np.asarray(D_py, dtype=float).T)
+    tril_r, tril_c = np.tril_indices(nao)
+    D_tril_w = D_sym[tril_r, tril_c] * np.where(tril_r == tril_c, 1.0, 2.0)
+
+    has_mo = mo_L_py is not None
+    if has_mo:
+        L_py = np.asarray(mo_L_py, dtype=float)
+        n_A = int(L_py.shape[1])
+        tril_a_r, tril_a_c = np.tril_indices(n_A)
+        n_A_pair = int(tril_a_r.size)
+        eri_s4_L = np.zeros((n_A_pair, n_A_pair), dtype=float)
+    else:
+        L_py = None
+        tril_a_r = np.zeros(0, dtype=int)
+        tril_a_c = np.zeros(0, dtype=int)
+        eri_s4_L = None
+
+    # Build small AO-bounded shell blocks (<= 9 AOs per block) so worker scratch stays ~50-100 MB
+    blocks: List[Tuple[int, int]] = []
+    sh = 0
+    while sh < nbas:
+        sh_end = sh + 1
+        while sh_end < nbas and (int(ao_loc[sh_end + 1]) - int(ao_loc[sh])) <= 9:
+            sh_end += 1
+        blocks.append((sh, sh_end))
+        sh = sh_end
+
+    nblk = len(blocks)
+    tasks = [(bp, bq) for bp in range(nblk) for bq in range(bp + 1)]
+    workers = int(max_workers or min(os.cpu_count() or 4, 8))
+
+    def _run_pair(task: Tuple[int, int]):
+        bp, bq = task
+        sp0, sp1 = blocks[bp]
+        sq0, sq1 = blocks[bq]
+        p0, p1 = int(ao_loc[sp0]), int(ao_loc[sp1])
+        q0, q1 = int(ao_loc[sq0]), int(ao_loc[sq1])
+        np_c, nq_c = p1 - p0, q1 - q0
+        raw_s2kl = mol.intor("int2e", aosym="s2kl", shls_slice=(sp0, sp1, sq0, sq1, 0, nbas, 0, nbas))
+        n_pq = np_c * nq_c
+        raw_2d = raw_s2kl.reshape(n_pq, -1)
+        j_blk = (raw_2d @ D_tril_w).reshape(np_c, nq_c)
+
+        buf4 = np.empty((np_c, nq_c, nao, nao), dtype=float)
+        raw_3d = raw_s2kl.reshape(np_c, nq_c, -1)
+        buf4[:, :, tril_r, tril_c] = raw_3d
+        buf4[:, :, tril_c, tril_r] = raw_3d
+
+        vk_p = np.einsum("pqrs,qs->pr", buf4, D_sym[q0:q1, :])
+        vk_q = np.einsum("pqrs,ps->qr", buf4, D_sym[p0:p1, :]) if bp > bq else None
+
+        m_flat = None
+        if L_py is not None:
+            m_3d = np.einsum("pqrs,rc->pqcs", buf4, L_py)
+            m_cd = np.einsum("pqcs,sd->pqcd", m_3d, L_py)
+            m_flat = m_cd[:, :, tril_a_r, tril_a_c].reshape(n_pq, n_A_pair)
+
+        return bp, bq, p0, p1, q0, q1, j_blk, vk_p, vk_q, m_flat
+
+    vj = np.zeros((nao, nao), dtype=float)
+    vk = np.zeros((nao, nao), dtype=float)
+
+    def _accumulate(res):
+        bp, bq, p0, p1, q0, q1, j_blk, vk_p, vk_q, m_flat = res
+        vj[p0:p1, q0:q1] = j_blk
+        if bp > bq:
+            vj[q0:q1, p0:p1] = j_blk.T
+        else:
+            vj[p0:p1, p0:p1] = 0.5 * (j_blk + j_blk.T)
+        vk[p0:p1, :] += vk_p
+        if vk_q is not None:
+            vk[q0:q1, :] += vk_q
+        if L_py is not None and m_flat is not None and eri_s4_L is not None:
+            Lp = L_py[p0:p1, :]
+            Lq = L_py[q0:q1, :]
+            W = (Lp[:, None, tril_a_r] * Lq[None, :, tril_a_c]).reshape(
+                (p1 - p0) * (q1 - q0), n_A_pair
+            ).T
+            if bp > bq:
+                W = W + (Lq[None, :, tril_a_r] * Lp[:, None, tril_a_c]).reshape(
+                    (p1 - p0) * (q1 - q0), n_A_pair
+                ).T
+            eri_s4_L[:] += W @ m_flat
+
+    if workers <= 1 or len(tasks) < 4:
+        for t in tasks:
+            _accumulate(_run_pair(t))
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for res in ex.map(_run_pair, tasks):
+                _accumulate(res)
+
+    vj = 0.5 * (vj + vj.T)
+    vk = 0.5 * (vk + vk.T)
+    if eri_s4_L is not None:
+        eri_s4_L = 0.5 * (eri_s4_L + eri_s4_L.T)
+    return vj, vk, eri_s4_L
+
+
+def pyscf_jk_from_ctx(
+    pyscf_ctx: PySCFSTOContext,
+    dm_ao: np.ndarray,
+    max_workers: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute ``(J(dm), K(dm))`` in PHATPSY AO order reusing cached ``s8`` when ``nao_py <= 220``."""
+    from pyscf import scf
+
+    ao_map = pyscf_ctx.ao_map
+    dm_py = ao_map @ np.asarray(dm_ao, dtype=float) @ ao_map.T
+    nao_py = int(ao_map.shape[0])
+    if nao_py <= 220:
+        eri_s8 = getattr(pyscf_ctx, "_eri_s8", None)
+        if eri_s8 is None:
+            eri_s8 = build_pyscf_eri_s8_parallel(
+                pyscf_ctx.mol,
+                fixed_atom_indices=pyscf_ctx.fixed_atom_indices,
+                max_workers=max_workers,
+            )
+            pyscf_ctx._eri_s8 = eri_s8
+        vj, vk = scf._vhf.incore(eri_s8, dm_py, 1, 1, 1)
+    else:
+        vj, vk, _ = _pyscf_jk_and_ao2mo_direct_parallel(
+            pyscf_ctx.mol, dm_py, mo_L_py=None, max_workers=max_workers
+        )
+    J_ao = ao_map.T @ np.asarray(vj, dtype=float) @ ao_map
+    K_ao = ao_map.T @ np.asarray(vk, dtype=float) @ ao_map
+    return 0.5 * (J_ao + J_ao.T), 0.5 * (K_ao + K_ao.T)
 
 
 def sto_ng_ao_integrals(
     atoms: Sequence[Tuple[float, Sequence[float], List[STO]]],
     n_prim: int = 6,
     return_pyscf_context: bool = False,
+    build_eri: bool = True,
 ) -> Union[MolecularAOIntegrals, Tuple[MolecularAOIntegrals, PySCFSTOContext]]:
     """Analytic multi-center AO integrals via Stewart (1970) ``STO-KG`` expansions in PySCF.
 
     Every unique radial shell ``(atom_idx, n, l, zeta)`` is represented by a single
     Condon-Shortley-compatible PySCF spherical Gaussian shell (``cart=False``) using
     the L2-optimal exponents and contraction coefficients from :func:`stewart_sto_expansion`.
+    Unique shells per atom are sorted by angular momentum ``l`` before ``mol.build()`` so
+    PySCF shell indices match ``ao_shell_loc`` regardless of input shell ordering.
     Two-electron integrals are evaluated analytically with 8-fold permutation symmetry
-    (``mol.intor("int2e", aosym="s8")``) so the resulting PES is :math:`C^\\infty` smooth,
-    strictly rotationally/translationally invariant, and free of nearest-frame discontinuities.
+    (``mol.intor("int2e", aosym="s8")`` or direct ``ao2mo`` when ``nao > 90``); passing
+    ``build_eri=False`` skips dense 4-index ERI allocation when direct PySCF contractions
+    are used downstream.
     """
     from pyscf import ao2mo, gto
 
@@ -875,20 +1254,33 @@ def sto_ng_ao_integrals(
         sym = num_to_sym.get(z_int, "H")
         lbl = f"{sym}@{ia + 1}"
         pyscf_atoms.append([lbl, [float(coords[ia, 0]), float(coords[ia, 1]), float(coords[ia, 2])]])
-        atom_shells: Dict[Tuple[int, int, float], int] = {}
-        atom_bas_list: List[Any] = []
-        for ao_idx in range(nao):
+        # Collect unique shells per atom, then sort by (l, first_seen_pos) so shell order matches PySCF mol.build()
+        atom_shell_aos: Dict[Tuple[int, int, float], List[int]] = {}
+        first_pos: Dict[Tuple[int, int, float], int] = {}
+        shell_sto: Dict[Tuple[int, int, float], STO] = {}
+        for pos, ao_idx in enumerate(range(nao)):
             if atom_of[ao_idx] != ia:
                 continue
             f = basis[ao_idx]
             sh_key = (int(f.n), int(f.l), round(float(f.zeta), 12))
-            if sh_key not in atom_shells:
-                a0, c0 = stewart_sto_expansion(int(f.n), int(f.l), n_prim=int(n_prim))
-                exps = a0 * (float(f.zeta) ** 2)
-                atom_bas_list.append([int(f.l)] + [[float(e), float(c)] for e, c in zip(exps, c0)])
-                atom_shells[sh_key] = global_sh_idx
-                global_sh_idx += 1
-            ao_shell_loc[ao_idx] = (atom_shells[sh_key], int(f.l), int(f.m), ia)
+            if sh_key not in atom_shell_aos:
+                atom_shell_aos[sh_key] = []
+                first_pos[sh_key] = pos
+                shell_sto[sh_key] = f
+            atom_shell_aos[sh_key].append(ao_idx)
+
+        sorted_keys = sorted(atom_shell_aos.keys(), key=lambda k: (k[1], first_pos[k]))
+        atom_bas_list: List[Any] = []
+        for sh_key in sorted_keys:
+            f0 = shell_sto[sh_key]
+            a0, c0 = stewart_sto_expansion(int(f0.n), int(f0.l), n_prim=int(n_prim))
+            exps = a0 * (float(f0.zeta) ** 2)
+            atom_bas_list.append([int(f0.l)] + [[float(e), float(c)] for e, c in zip(exps, c0)])
+            sh_idx = global_sh_idx
+            global_sh_idx += 1
+            for ao_idx in atom_shell_aos[sh_key]:
+                f = basis[ao_idx]
+                ao_shell_loc[ao_idx] = (sh_idx, int(f.l), int(f.m), ia)
         mol_basis_final[lbl] = atom_bas_list
 
     mol = gto.Mole()
@@ -906,6 +1298,10 @@ def sto_ng_ao_integrals(
     ao_map = np.zeros((nao_py, nao), dtype=float)
     for ao_idx in range(nao):
         sh_idx, l_val, m_val, _ = ao_shell_loc[ao_idx]
+        if int(mol.bas_angular(sh_idx)) != l_val:
+            raise AssertionError(
+                f"PySCF shell {sh_idx} angular momentum {int(mol.bas_angular(sh_idx))} != STO l={l_val}"
+            )
         ao0 = int(ao_loc[sh_idx])
         if l_val == 0:
             comp, phase = 0, 1.0
@@ -926,7 +1322,6 @@ def sto_ng_ao_integrals(
     S_py = np.asarray(mol.intor("int1e_ovlp"), dtype=float)
     T_py = np.asarray(mol.intor("int1e_kin"), dtype=float)
     V_py = np.asarray(mol.intor("int1e_nuc"), dtype=float)
-    eri_py = np.asarray(ao2mo.restore(1, mol.intor("int2e", aosym="s8"), nao_py), dtype=float)
 
     # Normalize each STO column so diag(S) == 1.0 to machine precision
     diag_raw = np.einsum("mi,mn,ni->i", ao_map, S_py, ao_map)
@@ -948,15 +1343,27 @@ def sto_ng_ao_integrals(
     if np.all(nnz_per_col == 1):
         perm_idx = np.argmax(np.abs(ao_map), axis=0)
         perm_scale = ao_map[perm_idx, np.arange(nao)]
-        eri = (
-            eri_py[np.ix_(perm_idx, perm_idx, perm_idx, perm_idx)]
-            * perm_scale[:, None, None, None]
-            * perm_scale[None, :, None, None]
-            * perm_scale[None, None, :, None]
-            * perm_scale[None, None, None, :]
-        )
-    else:
-        eri = np.einsum("ai,bj,ck,dl,abcd->ijkl", ao_map, ao_map, ao_map, ao_map, eri_py, optimize=True)
+
+    eri: Optional[np.ndarray] = None
+    if build_eri:
+        if nao > 90:
+            eri_s4 = ao2mo.kernel(mol, ao_map, aosym="s4")
+            eri = np.asarray(ao2mo.restore(1, eri_s4, nao), dtype=float)
+            del eri_s4
+        elif perm_idx is not None and perm_scale is not None:
+            eri_py = np.asarray(ao2mo.restore(1, mol.intor("int2e", aosym="s8"), nao_py), dtype=float)
+            eri = (
+                eri_py[np.ix_(perm_idx, perm_idx, perm_idx, perm_idx)]
+                * perm_scale[:, None, None, None]
+                * perm_scale[None, :, None, None]
+                * perm_scale[None, None, :, None]
+                * perm_scale[None, None, None, :]
+            )
+            del eri_py
+        else:
+            eri_py = np.asarray(ao2mo.restore(1, mol.intor("int2e", aosym="s8"), nao_py), dtype=float)
+            eri = np.einsum("ai,bj,ck,dl,abcd->ijkl", ao_map, ao_map, ao_map, ao_map, eri_py, optimize=True)
+            del eri_py
 
     ints = MolecularAOIntegrals(basis, atom_of, charges, coords, S, T, V, eri)
     if return_pyscf_context:

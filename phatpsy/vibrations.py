@@ -109,6 +109,8 @@ class Thermochemistry:
     total_enthalpy_h_t: float             # Hartree (E_elec + H_therm)
     total_gibbs_free_energy_g_t: float    # Hartree (H(T) - T * S_total)
     thermal_energy_components: Dict[str, float] = field(default_factory=dict)
+    is_adsorbate: bool = False
+    quasi_rrho_floor_cm: float = 50.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert thermochemistry to dictionary."""
@@ -127,13 +129,16 @@ class Thermochemistry:
             "total_energy_u_t": round(float(self.total_energy_u_t), 8),
             "total_enthalpy_h_t": round(float(self.total_enthalpy_h_t), 8),
             "total_gibbs_free_energy_g_t": round(float(self.total_gibbs_free_energy_g_t), 8),
+            "is_adsorbate": bool(self.is_adsorbate),
+            "quasi_rrho_floor_cm": round(float(self.quasi_rrho_floor_cm), 2),
         }
 
     def summary(self) -> str:
         """Formatted thermochemical summary report."""
+        mode_hdr = "HARMONIC ADSORBATE" if self.is_adsorbate else "RRHO / IDEAL GAS"
         lines = [
             "=" * 72,
-            " PHATPSY 2.0 THERMOCHEMICAL ANALYSIS (RRHO / IDEAL GAS)",
+            f" PHATPSY 2.0 THERMOCHEMICAL ANALYSIS ({mode_hdr})",
             "=" * 72,
             f" Temperature:                        {self.temperature_k:12.2f} K",
             f" Pressure:                           {self.pressure_atm:12.3f} atm",
@@ -484,6 +489,8 @@ def compute_hessian(
                 quiet=quiet,
             )
             warm_vb = res0.get("localized_orbitals_embedded", res0.get("localized_orbitals"))
+            if warm_vb is not None:
+                calc_deck._vb_restart_orbitals = warm_vb
             g0_flat = g0_raw.flatten()
             if getattr(calc_deck.control, "use_dispersion", False):
                 from phatpsy.dispersion import compute_dispersion_gradient
@@ -615,10 +622,15 @@ def compute_thermochemistry(
     pressure_atm: float = 1.0,
     symmetry_number: Optional[int] = None,
     is_linear: Optional[bool] = None,
+    is_adsorbate: bool = False,
+    quasi_rrho_floor_cm: float = 50.0,
 ) -> Thermochemistry:
     """
-    Computes standard ideal-gas thermochemical properties at temperature T and pressure P
-    using the Rigid-Rotor Harmonic Oscillator (RRHO) approximation.
+    Computes statistical thermochemical properties at temperature T and pressure P
+    using either the ideal-gas Rigid-Rotor Harmonic Oscillator (RRHO) approximation
+    (``is_adsorbate=False``) or the harmonic-adsorbate limit (``is_adsorbate=True``,
+    zero translational/rotational partitions, no +RT PV term, and a quasi-RRHO
+    frequency floor on frustrated low-frequency surface modes).
 
     Parameters
     ----------
@@ -665,14 +677,16 @@ def compute_thermochemistry(
     zpve_kcal = 0.5 * sum(real_freqs) * cm_to_kcal_mol
     zpve_au = zpve_kcal / HARTREE_TO_KCAL
 
-    # 2. Vibrational Contributions
+    # 2. Vibrational Contributions (quasi-RRHO floor applied only to thermal sums for adsorbates)
     E_vib_cal = 0.0
     S_vib_cal = 0.0
     Cv_vib_cal = 0.0
+    floor_cm = float(quasi_rrho_floor_cm) if (is_adsorbate and quasi_rrho_floor_cm > 0.0) else 0.0
 
     for nu in real_freqs:
-        # Characteristic vibrational temperature: theta_v = (h * c * nu) / k_B
-        theta_v = (h * c_cm * nu) / k_B
+        nu_eff = max(float(nu), floor_cm) if floor_cm > 0.0 else float(nu)
+        # Characteristic vibrational temperature: theta_v = (h * c * nu_eff) / k_B
+        theta_v = (h * c_cm * nu_eff) / k_B
         x = theta_v / T
         if x < 1e-4:
             # High-temperature limit
@@ -690,81 +704,90 @@ def compute_thermochemistry(
 
     E_vib_kcal = E_vib_cal / 1000.0
 
-    # 3. Translational Contributions (Sackur-Tetrode)
-    total_mass_amu = float(np.sum(masses))
-    total_mass_kg = total_mass_amu * AMU_TO_KG
-
-    V_m3 = (k_B * T) / P_pa
-    thermal_de_broglie = math.sqrt((h * h) / (2.0 * math.pi * total_mass_kg * k_B * T))
-    q_trans = V_m3 / (thermal_de_broglie ** 3)
-
-    S_trans_cal = R_cal * (math.log(q_trans) + 2.5)
-    E_trans_kcal = (1.5 * R_cal * T) / 1000.0
-    Cv_trans_cal = 1.5 * R_cal
-
-    # 4. Rotational Contributions
-    com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass_amu
-    r_bohr = coords - com
-    r_m = r_bohr * BOHR_TO_METER
-
-    I_tensor = np.zeros((3, 3), dtype=np.float64)
-    for i in range(n_atoms):
-        x, y, z = r_m[i]
-        m = masses[i] * AMU_TO_KG
-        I_tensor[0, 0] += m * (y * y + z * z)
-        I_tensor[1, 1] += m * (x * x + z * z)
-        I_tensor[2, 2] += m * (x * x + y * y)
-        I_tensor[0, 1] -= m * x * y
-        I_tensor[0, 2] -= m * x * z
-        I_tensor[1, 2] -= m * y * z
-    I_tensor[1, 0] = I_tensor[0, 1]
-    I_tensor[2, 0] = I_tensor[0, 2]
-    I_tensor[2, 1] = I_tensor[1, 2]
-
-    eig_I, _ = np.linalg.eigh(I_tensor)
-
-    if is_linear is None:
-        if n_atoms == 1:
-            is_linear = False
-        elif n_atoms == 2:
-            is_linear = True
-        else:
-            is_linear = (eig_I[0] < 1e-4 * eig_I[2]) or (eig_I[2] < 1e-40)
-
-    # Symmetry number sigma
-    if symmetry_number is None:
-        if n_atoms == 2 and abs(masses[0] - masses[1]) < 1e-3:
-            sigma = 2  # Homonuclear diatomic (e.g. N2)
-        else:
-            sigma = 1
-    else:
-        sigma = int(symmetry_number)
-
-    hbar = HBAR_J_S
-    if n_atoms == 1:
-        # Monatomic gas: no rotational degrees of freedom
+    if is_adsorbate:
+        # Harmonic adsorbate on clamped surface: all 3N_free degrees are vibrational
+        E_trans_kcal = 0.0
+        S_trans_cal = 0.0
+        Cv_trans_cal = 0.0
         E_rot_kcal = 0.0
         S_rot_cal = 0.0
         Cv_rot_cal = 0.0
-    elif is_linear:
-        # Linear rotor: 2 rotational degrees of freedom
-        I_eff = eig_I[2] if eig_I[2] > 1e-40 else eig_I[1]
-        theta_rot = (hbar * hbar) / (2.0 * I_eff * k_B)
-        q_rot = T / (float(sigma) * theta_rot)
-        S_rot_cal = R_cal * (math.log(max(1e-12, q_rot)) + 1.0)
-        E_rot_kcal = (R_cal * T) / 1000.0
-        Cv_rot_cal = R_cal
     else:
-        # Non-linear rotor: 3 rotational degrees of freedom
-        theta_1 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[0]) * k_B)
-        theta_2 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[1]) * k_B)
-        theta_3 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[2]) * k_B)
-        q_rot = (math.sqrt(math.pi) / float(sigma)) * math.sqrt(
-            (T * T * T) / (theta_1 * theta_2 * theta_3)
-        )
-        S_rot_cal = R_cal * (1.5 + math.log(max(1e-12, q_rot)))
-        E_rot_kcal = (1.5 * R_cal * T) / 1000.0
-        Cv_rot_cal = 1.5 * R_cal
+        # 3. Translational Contributions (Sackur-Tetrode)
+        total_mass_amu = float(np.sum(masses))
+        total_mass_kg = total_mass_amu * AMU_TO_KG
+
+        V_m3 = (k_B * T) / P_pa
+        thermal_de_broglie = math.sqrt((h * h) / (2.0 * math.pi * total_mass_kg * k_B * T))
+        q_trans = V_m3 / (thermal_de_broglie ** 3)
+
+        S_trans_cal = R_cal * (math.log(q_trans) + 2.5)
+        E_trans_kcal = (1.5 * R_cal * T) / 1000.0
+        Cv_trans_cal = 1.5 * R_cal
+
+        # 4. Rotational Contributions
+        com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass_amu
+        r_bohr = coords - com
+        r_m = r_bohr * BOHR_TO_METER
+
+        I_tensor = np.zeros((3, 3), dtype=np.float64)
+        for i in range(n_atoms):
+            x, y, z = r_m[i]
+            m = masses[i] * AMU_TO_KG
+            I_tensor[0, 0] += m * (y * y + z * z)
+            I_tensor[1, 1] += m * (x * x + z * z)
+            I_tensor[2, 2] += m * (x * x + y * y)
+            I_tensor[0, 1] -= m * x * y
+            I_tensor[0, 2] -= m * x * z
+            I_tensor[1, 2] -= m * y * z
+        I_tensor[1, 0] = I_tensor[0, 1]
+        I_tensor[2, 0] = I_tensor[0, 2]
+        I_tensor[2, 1] = I_tensor[1, 2]
+
+        eig_I, _ = np.linalg.eigh(I_tensor)
+
+        if is_linear is None:
+            if n_atoms == 1:
+                is_linear = False
+            elif n_atoms == 2:
+                is_linear = True
+            else:
+                is_linear = (eig_I[0] < 1e-4 * eig_I[2]) or (eig_I[2] < 1e-40)
+
+        # Symmetry number sigma
+        if symmetry_number is None:
+            if n_atoms == 2 and abs(masses[0] - masses[1]) < 1e-3:
+                sigma = 2  # Homonuclear diatomic (e.g. N2)
+            else:
+                sigma = 1
+        else:
+            sigma = int(symmetry_number)
+
+        hbar = HBAR_J_S
+        if n_atoms == 1:
+            # Monatomic gas: no rotational degrees of freedom
+            E_rot_kcal = 0.0
+            S_rot_cal = 0.0
+            Cv_rot_cal = 0.0
+        elif is_linear:
+            # Linear rotor: 2 rotational degrees of freedom
+            I_eff = eig_I[2] if eig_I[2] > 1e-40 else eig_I[1]
+            theta_rot = (hbar * hbar) / (2.0 * I_eff * k_B)
+            q_rot = T / (float(sigma) * theta_rot)
+            S_rot_cal = R_cal * (math.log(max(1e-12, q_rot)) + 1.0)
+            E_rot_kcal = (R_cal * T) / 1000.0
+            Cv_rot_cal = R_cal
+        else:
+            # Non-linear rotor: 3 rotational degrees of freedom
+            theta_1 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[0]) * k_B)
+            theta_2 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[1]) * k_B)
+            theta_3 = (hbar * hbar) / (2.0 * max(1e-45, eig_I[2]) * k_B)
+            q_rot = (math.sqrt(math.pi) / float(sigma)) * math.sqrt(
+                (T * T * T) / (theta_1 * theta_2 * theta_3)
+            )
+            S_rot_cal = R_cal * (1.5 + math.log(max(1e-12, q_rot)))
+            E_rot_kcal = (1.5 * R_cal * T) / 1000.0
+            Cv_rot_cal = 1.5 * R_cal
 
     # 5. Electronic Contributions
     g0 = max(1, spin_multiplicity)
@@ -775,8 +798,8 @@ def compute_thermochemistry(
     # 6. Totals
     # Thermal energy U_therm = E_trans + E_rot + E_vib
     U_therm_kcal = E_trans_kcal + E_rot_kcal + E_vib_kcal
-    # Thermal enthalpy H_therm = U_therm + R*T
-    H_therm_kcal = U_therm_kcal + (R_cal * T) / 1000.0
+    # Thermal enthalpy H_therm = U_therm (+ RT for ideal gas; no PV work for adsorbed phase)
+    H_therm_kcal = U_therm_kcal if is_adsorbate else (U_therm_kcal + (R_cal * T) / 1000.0)
 
     S_total_cal = S_trans_cal + S_rot_cal + S_vib_cal + S_elec_cal
     Cv_total_cal = Cv_trans_cal + Cv_rot_cal + Cv_vib_cal + Cv_elec_cal
@@ -824,6 +847,8 @@ def compute_thermochemistry(
             "zpve": zpve_kcal,
             "total": U_therm_kcal,
         },
+        is_adsorbate=bool(is_adsorbate),
+        quasi_rrho_floor_cm=float(quasi_rrho_floor_cm),
     )
 
 
@@ -846,6 +871,8 @@ def compute_vibrations(
     symmetry_number: Optional[int] = None,
     spin_multiplicity: int = 1,
     quiet: bool = True,
+    is_adsorbate: Optional[bool] = None,
+    quasi_rrho_floor_cm: float = 50.0,
 ) -> VibrationResult:
     """
     Performs full harmonic vibrational frequency analysis, normal mode displacement
@@ -909,37 +936,46 @@ def compute_vibrations(
     coords = np.array([a.xyz for a in atoms], dtype=np.float64)
     masses = np.array([ATOMIC_MASSES_AMU.get(a.element.strip().upper(), 12.0) for a in atoms], dtype=np.float64)
 
-    # Check if any atom is fixed (substrate / surface slab)
+    # Check if any atom is fixed / virtual (clamped substrate or surface slab)
     has_fixed_atoms = any(a.fixed for a in atoms)
+    has_constrained_atoms = has_fixed_atoms or (len(active_indices) < dim)
 
     # 2. Form Mass-Weighted Hessian: H_mw_{i, j} = H_{i, j} / sqrt(M_A * M_B)
     coord_masses = np.repeat(masses, 3)
     inv_sqrt_m = 1.0 / np.sqrt(coord_masses)
     H_mw = H_cart * np.outer(inv_sqrt_m, inv_sqrt_m)
 
-    # 3. Project Translations & Rotations if requested and no fixed atoms
+    # 3-4. Project T/R and diagonalize (strict 3*N_free sub-block when substrate atoms are fixed/virtual)
     n_tr = 0
-    if project_tr and not has_fixed_atoms and n_atoms > 1:
-        H_diag, P_proj, n_tr = project_translations_rotations(H_mw, coords, masses)
+    if has_constrained_atoms:
+        sub_idx = np.asarray(active_indices, dtype=int)
+        if sub_idx.size > 0:
+            H_sub = H_mw[np.ix_(sub_idx, sub_idx)]
+            H_sub = 0.5 * (H_sub + H_sub.T)
+            evals, evecs_sub = np.linalg.eigh(H_sub)
+            evecs = np.zeros((dim, sub_idx.size), dtype=np.float64)
+            evecs[sub_idx, :] = evecs_sub
+        else:
+            evals = np.zeros(0, dtype=np.float64)
+            evecs = np.zeros((dim, 0), dtype=np.float64)
+        tr_indices = set()
     else:
-        H_diag = H_mw.copy()
+        if project_tr and n_atoms > 1:
+            H_diag, P_proj, n_tr = project_translations_rotations(H_mw, coords, masses)
+        else:
+            H_diag = H_mw.copy()
+        evals, evecs = np.linalg.eigh(H_diag)
+        if project_tr and n_tr > 0:
+            abs_evals = np.abs(evals)
+            tr_indices = set(np.argsort(abs_evals)[:n_tr])
+        else:
+            tr_indices = set()
 
-    # 4. Diagonalize mass-weighted Hessian
-    evals, evecs = np.linalg.eigh(H_diag)
-
-    # 5. Build NormalMode objects
-    # evals are in Hartree / (Bohr^2 * amu)
+    # 5. Build NormalMode objects (len(modes) == 3*N_free when substrate-constrained)
     modes: List[NormalMode] = []
     vib_freqs_for_thermo: List[float] = []
 
-    # Identify TR modes by eigenvalue proximity to zero if projected (smallest absolute eigenvalues)
-    if project_tr and not has_fixed_atoms and n_tr > 0:
-        abs_evals = np.abs(evals)
-        tr_indices = set(np.argsort(abs_evals)[:n_tr])
-    else:
-        tr_indices = set()
-
-    for k in range(dim):
+    for k in range(evals.size):
         lam = float(evals[k])
         is_tr = (k in tr_indices)
 
@@ -994,6 +1030,7 @@ def compute_vibrations(
     E_elec = float(res_ref.total_energy)
 
     # 6. Statistical Thermochemistry
+    use_adsorbate = bool(has_fixed_atoms) if is_adsorbate is None else bool(is_adsorbate)
     thermo = compute_thermochemistry(
         frequencies=vib_freqs_for_thermo,
         coords=coords,
@@ -1003,6 +1040,8 @@ def compute_vibrations(
         temperature_k=temperature_k,
         pressure_atm=pressure_atm,
         symmetry_number=symmetry_number,
+        is_adsorbate=use_adsorbate,
+        quasi_rrho_floor_cm=quasi_rrho_floor_cm,
     )
 
     atom_meta = [

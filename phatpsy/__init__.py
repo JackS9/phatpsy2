@@ -210,6 +210,9 @@ from phatpsy.chemisorption import (
     scan_lateral_chemisorption_pes,
     compute_chemisorption_vibrational_shift,
     compute_surface_core_level_shifts,
+    compute_mayer_bond_orders,
+    get_mayer_bond_order,
+    compute_delta_casscf_core_1s_be,
     C4vDBandProjection,
     ChemisorptionEnergy,
     LateralSiteScanResult,
@@ -276,6 +279,7 @@ from phatpsy.vb_correction import (
 )
 from phatpsy.vb_driver import (
     LocalizedVBDriver,
+    build_surface_plaquette_vb_specs,
     run_localized_vb,
 )
 from phatpsy.benchmarks import (
@@ -450,6 +454,9 @@ __all__ = [
     "scan_lateral_chemisorption_pes",
     "compute_chemisorption_vibrational_shift",
     "compute_surface_core_level_shifts",
+    "compute_mayer_bond_orders",
+    "get_mayer_bond_order",
+    "compute_delta_casscf_core_1s_be",
     "C4vDBandProjection",
     "ChemisorptionEnergy",
     "LateralSiteScanResult",
@@ -495,6 +502,7 @@ __all__ = [
     "STO",
     "ProlateGrid",
     "LocalizedVBDriver",
+    "build_surface_plaquette_vb_specs",
     "run_localized_vb",
     "evaluate_diatomic_localized_vb_benchmark",
     "evaluate_h2o_localized_vb_benchmark",

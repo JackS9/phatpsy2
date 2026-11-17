@@ -55,6 +55,7 @@ from phatpsy.localized_vb import (
 from phatpsy.multicenter_integrals import (
     PySCFSTOContext,
     molecular_ao_integrals,
+    pyscf_jk_from_ctx,
     sto_ng_ao_integrals,
 )
 from phatpsy.schema import ATOMIC_NUMBERS, AtomConfig, CalculationDeck
@@ -92,6 +93,7 @@ _ATOM_HUND_SPIN: Dict[int, int] = {
 }
 
 _ATOM_REF_CACHE: Dict[Tuple[str, str], float] = {}
+_ATOMIC_NI_SEED_CACHE: Dict[Tuple[Tuple[Tuple[int, int, int, float], ...], int], np.ndarray] = {}
 
 
 @dataclass
@@ -596,6 +598,8 @@ def _build_setup_from_orbital_specs(
     core_embedding: str,
     net_spin_override: Optional[int],
     charge: int,
+    warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+    sto_ng_primitives: int = 6,
 ) -> Tuple[List[str], List[np.ndarray], Tuple[int, int], List[np.ndarray]]:
     """Construct roles, domain masks, active electron counts, and RHF-projected seeds from ``vb_orbital_specs``."""
     import warnings
@@ -685,98 +689,468 @@ def _build_setup_from_orbital_specs(
     if seeded_orbs and all(s is not None for s in seeded_orbs):
         return roles, masks, (int(na_act), int(nb_act)), [s for s in seeded_orbs if s is not None]
 
+    if warm_orbitals is not None and len(warm_orbitals) == len(roles):
+        warm_arr = [np.asarray(w, dtype=float) for w in warm_orbitals]
+        if all(w.shape == (nao,) for w in warm_arr):
+            return roles, masks, (int(na_act), int(nb_act)), warm_arr
+
+    n_docc_tot = min(na_tot, nb_tot)
+    n_occ_tot = max(na_tot, nb_tot)
+    h_mat = ints.h
+
+    def _canon_cols(M: np.ndarray) -> np.ndarray:
+        M_out = np.array(M, dtype=float, copy=True)
+        for col in range(M_out.shape[1]):
+            idx_c = int(np.argmax(np.abs(M_out[:, col])))
+            if M_out[idx_c, col] < 0.0:
+                M_out[:, col] *= -1.0
+        return M_out
+
+    def _weight_pool(C_sub: np.ndarray, e_sub: np.ndarray, sc: float) -> np.ndarray:
+        if C_sub.shape[1] == 0:
+            return C_sub
+        wt = 1.0 / np.sqrt(1.0 + sc * np.maximum(0.0, e_sub - e_sub[0]))
+        return C_sub * wt[None, :]
+
+    def _pick_mask_in_subspace(
+        m: np.ndarray,
+        S_sub: np.ndarray,
+        h_sub: np.ndarray,
+        C_pools: Sequence[np.ndarray],
+        Q_prev: List[np.ndarray],
+    ) -> np.ndarray:
+        n_dim = int(S_sub.shape[0])
+        S_m = 0.5 * (S_sub[np.ix_(m, m)] + S_sub[np.ix_(m, m)].T)
+        w_m, v_m = np.linalg.eigh(S_m)
+        v_m = _canon_cols(v_m)
+        km = w_m > 1e-8
+        if not np.any(km):
+            km = np.array([int(np.argmax(w_m))])
+        X_m = v_m[:, km] * (w_m[km] ** -0.5)[None, :]
+        h_orth = 0.5 * (X_m.T @ h_sub[np.ix_(m, m)] @ X_m + (X_m.T @ h_sub[np.ix_(m, m)] @ X_m).T)
+        h_orth_scaled = h_orth / max(1.0, float(np.linalg.norm(h_orth)))
+
+        Q_mat = np.column_stack(Q_prev) if Q_prev else None
+        S_Q_inv = np.linalg.pinv(Q_mat.T @ S_sub @ Q_mat, rcond=1e-10) if Q_mat is not None else None
+
+        for C_pool in C_pools:
+            if C_pool.shape[1] == 0:
+                continue
+            if Q_mat is not None:
+                C_rem = C_pool - Q_mat @ (S_Q_inv @ (Q_mat.T @ S_sub @ C_pool))
+            else:
+                C_rem = C_pool
+            Proj_m = X_m.T @ (S_sub[m, :] @ C_rem)
+            n_k = X_m.shape[1]
+            G_p = Proj_m @ Proj_m.T - 1e-6 * h_orth_scaled - 1e-10 * np.diag(np.arange(n_k, dtype=float))
+            G_p = 0.5 * (G_p + G_p.T)
+            w_p, U_p = np.linalg.eigh(G_p)
+            order_p = np.argsort(w_p)[::-1]
+            w_p = w_p[order_p]
+            U_p = _canon_cols(U_p[:, order_p])
+            for r in range(U_p.shape[1]):
+                if w_p[r] <= 1e-8:
+                    break
+                v_cand = np.zeros(n_dim, dtype=float)
+                v_cand[m] = X_m @ U_p[:, r]
+                nrm = float(np.sqrt(max(float(v_cand @ S_sub @ v_cand), 1e-16)))
+                v_cand /= nrm
+                if v_cand[int(np.argmax(np.abs(v_cand)))] < 0.0:
+                    v_cand *= -1.0
+                if Q_mat is None:
+                    return v_cand
+                v_perp = v_cand - Q_mat @ (S_Q_inv @ (Q_mat.T @ S_sub @ v_cand))
+                indep = float(np.sqrt(max(float(v_perp @ S_sub @ v_perp), 0.0)))
+                if indep > 0.15:
+                    return v_cand
+
+        # Orthogonal complement fallback inside non-singular mask subspace ordered by 1e energy
+        if Q_mat is not None:
+            B = X_m.T @ S_sub[np.ix_(m, np.arange(n_dim))] @ Q_mat
+            P_rem = B @ S_Q_inv @ B.T
+            P_null = np.eye(X_m.shape[1]) - 0.5 * (P_rem + P_rem.T)
+            w_n, v_n = np.linalg.eigh(P_null)
+            v_n = _canon_cols(v_n)
+            keep_n = np.where(w_n > 0.1)[0]
+            if keep_n.size == 0:
+                keep_n = np.array([int(np.argmax(w_n))])
+            Vn = v_n[:, keep_n]
+            _, vec_h = np.linalg.eigh(Vn.T @ h_orth @ Vn)
+            vec_h = _canon_cols(vec_h)
+            u_best = Vn @ vec_h[:, 0]
+        else:
+            _, vec_h = np.linalg.eigh(h_orth)
+            vec_h = _canon_cols(vec_h)
+            u_best = vec_h[:, 0]
+        v_cand = np.zeros(n_dim, dtype=float)
+        v_cand[m] = X_m @ u_best
+        v_cand /= float(np.sqrt(max(float(v_cand @ S_sub @ v_cand), 1e-16)))
+        if v_cand[int(np.argmax(np.abs(v_cand)))] < 0.0:
+            v_cand *= -1.0
+        return v_cand
+
+    # Isolated neutral fragment-block ground-state seeding for core-embedded Ni plaquettes
+    # (clean Ni_k and Ni_k + adsorbates): computes Ni(3d8 4s2 ^3F) and any neutral connected
+    # adsorbate fragments separately so both clean slabs and chemisorbed systems share the
+    # same atomic Ni(^3F) multiplet and adsorbates avoid unscreened +10 Ni core polarization.
+    elems = [a.element.strip().capitalize() for a in active_atoms]
+    if (
+        "Ni" in elems
+        and core_embedding != "all_electron"
+        and all(s is None for s in seeded_orbs)
+    ):
+        ni_atom_idxs = [i for i, e in enumerate(elems) if e == "Ni"]
+        ads_atom_idxs = [i for i, e in enumerate(elems) if e != "Ni"]
+        if ni_atom_idxs:
+            ni_orbs: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
+            for ai in ni_atom_idxs:
+                idx_ni = idx_by_atom[ai]
+                b_ni_raw = [ints.basis[p] for p in idx_ni]
+                b_ni_0 = [
+                    STO((0.0, 0.0, 0.0), f.n, f.l, f.m, f.zeta, getattr(f, "anorm", None))
+                    for f in b_ni_raw
+                ]
+                ni_key = (
+                    tuple((int(f.n), int(f.l), int(f.m), round(float(f.zeta), 8)) for f in b_ni_0),
+                    int(sto_ng_primitives),
+                )
+                C_ni_cached = _ATOMIC_NI_SEED_CACHE.get(ni_key)
+                if C_ni_cached is None:
+                    fi_ni, ctx_ni = sto_ng_ao_integrals(
+                        [(28.0, (0.0, 0.0, 0.0), b_ni_0)],
+                        n_prim=int(sto_ng_primitives),
+                        return_pyscf_context=True,
+                        build_eri=True,
+                    )
+                    fe_ni = FrozenEnvironmentAtom.from_atomic_rhf(28.0, (0.0, 0.0, 0.0), b_ni_0, n_occ=9)
+                    emb_ni = embed_from_full_integrals(
+                        fi_ni, fe_ni.C_occ, mode="exact_backprojected", pyscf_ctx=ctx_ni
+                    )
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        mf_ni = pyscf_mean_field(emb_ni, (6, 4), kind="ROHF")
+                    C_ni_cached = np.asarray(mf_ni.mo_coeff, dtype=float)
+                    _ATOMIC_NI_SEED_CACHE[ni_key] = C_ni_cached
+                ni_orbs[ai] = (idx_ni, C_ni_cached)
+
+            # Group adsorbate atoms into connected covalent fragments (< 3.4 Bohr)
+            rem_ads = list(ads_atom_idxs)
+            frag_groups: List[List[int]] = []
+            while rem_ads:
+                comp = [rem_ads.pop(0)]
+                changed = True
+                while changed:
+                    changed = False
+                    for u_a in list(rem_ads):
+                        ru = np.asarray(active_atoms[u_a].xyz, dtype=float)
+                        if any(float(np.linalg.norm(ru - np.asarray(active_atoms[v_a].xyz, dtype=float))) < 3.4 for v_a in comp):
+                            comp.append(u_a)
+                            rem_ads.remove(u_a)
+                            changed = True
+                frag_groups.append(sorted(comp))
+
+            ni_set = set(ni_atom_idxs)
+            frag_data: List[Tuple[List[int], np.ndarray, np.ndarray, np.ndarray, List[np.ndarray], List[np.ndarray], List[np.ndarray]]] = []
+            frag_ok = True
+            for f_atoms in frag_groups:
+                f_ao = np.where(np.isin(atom_of, f_atoms))[0]
+                f_specs = []
+                f_cols: List[np.ndarray] = []
+                off_a = 0
+                for ai in f_atoms:
+                    idx_a = idx_by_atom[ai]
+                    b_a = [ints.basis[p] for p in idx_a]
+                    z_a = float(_atomic_num(active_atoms[ai]))
+                    c_xyz = tuple(float(v) for v in active_atoms[ai].xyz)
+                    f_specs.append((z_a, c_xyz, b_a))
+                    nc_a = _core_shells_count(int(z_a))
+                    if nc_a > 0:
+                        fe_a = FrozenEnvironmentAtom.from_atomic_rhf(z_a, c_xyz, b_a, n_occ=nc_a)
+                        for ck in range(nc_a):
+                            col = np.zeros(int(f_ao.size), dtype=float)
+                            col[off_a:off_a + len(b_a)] = fe_a.C_occ[:, ck]
+                            f_cols.append(col)
+                    off_a += len(b_a)
+                fi_f, ctx_f = sto_ng_ao_integrals(
+                    f_specs,
+                    n_prim=int(sto_ng_primitives),
+                    return_pyscf_context=True,
+                    build_eri=True,
+                )
+                C_core_f = np.column_stack(f_cols) if f_cols else np.zeros((int(f_ao.size), 0), dtype=float)
+                emb_f = (
+                    embed_from_full_integrals(fi_f, C_core_f, mode="exact_backprojected", pyscf_ctx=ctx_f)
+                    if C_core_f.shape[1] > 0
+                    else fi_f
+                )
+                z_f = [
+                    int(ATOMIC_NUMBERS[elems[i]]) - 2 * _core_shells_count(int(ATOMIC_NUMBERS[elems[i]]))
+                    for i in f_atoms
+                ]
+                q_f = int(round(sum(float(getattr(active_atoms[i], "charge", 0.0)) for i in f_atoms)))
+                ne_f = sum(z_f) - q_f
+                if not (0 <= ne_f <= 2 * int(f_ao.size)):
+                    frag_ok = False
+                    break
+                na_f = (ne_f + (ne_f % 2)) // 2
+                nb_f = ne_f - na_f
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    mf_f = pyscf_mean_field(
+                        emb_f,
+                        (na_f, nb_f),
+                        kind=("RHF" if na_f == nb_f else "ROHF"),
+                    )
+                C_f = np.asarray(mf_f.mo_coeff, dtype=float)
+                f_set = set(f_atoms)
+                n_in_f = sum(
+                    1
+                    for r_s, m_s in zip(roles, masks)
+                    if r_s == "inactive" and any(int(atom_of[j]) in f_set for j in m_s)
+                )
+                n_ac_f = sum(
+                    1
+                    for r_s, m_s in zip(roles, masks)
+                    if r_s == "active"
+                    and len({int(atom_of[j]) for j in m_s} & ni_set) != 1
+                    and any(int(atom_of[j]) in f_set for j in m_s)
+                )
+                n_in_cut = max(nb_f, min(C_f.shape[1], n_in_f))
+                n_ac_end = min(C_f.shape[1], nb_f + max(2, n_ac_f))
+                inact_pools_f = [C_f[:, :n_in_cut], C_f[:, n_in_cut:]]
+                act_pools_f = [C_f[:, nb_f:n_ac_end], C_f[:, :nb_f], C_f[:, n_ac_end:]]
+                frag_data.append((f_atoms, f_ao, emb_f.S, emb_f.h, inact_pools_f, act_pools_f, []))
+
+            if frag_ok and len(frag_data) == len(frag_groups):
+                frag_seeds: List[Optional[np.ndarray]] = [None] * len(roles)
+                ni_inact_used: Dict[int, int] = {ai: 0 for ai in ni_atom_idxs}
+                ni_act_used: Dict[int, int] = {ai: 0 for ai in ni_atom_idxs}
+                assign_order = sorted(
+                    range(len(roles)),
+                    key=lambda k_o: (0 if roles[k_o] == "inactive" else 1, len(masks[k_o]), k_o),
+                )
+                for k_o in assign_order:
+                    role = roles[k_o]
+                    m = masks[k_o]
+                    atoms_in_m = sorted(set(int(atom_of[j]) for j in m))
+                    ni_in_m = [ai for ai in atoms_in_m if ai in ni_atom_idxs]
+                    ads_in_m = [ai for ai in atoms_in_m if ai in ads_atom_idxs]
+                    v = np.zeros(nao, dtype=float)
+                    if (
+                        len(ni_in_m) == 1
+                        and role == "inactive"
+                        and len(ads_in_m) == 0
+                        and ni_inact_used[ni_in_m[0]] < ni_orbs[ni_in_m[0]][1].shape[1]
+                    ):
+                        ai = ni_in_m[0]
+                        idx_ni, C_ni = ni_orbs[ai]
+                        col = ni_inact_used[ai]
+                        ni_inact_used[ai] += 1
+                        v[idx_ni] = C_ni[:, col]
+                    elif (
+                        len(ni_in_m) == 1
+                        and role == "active"
+                        and ni_act_used[ni_in_m[0]] < 2
+                        and (4 + ni_act_used[ni_in_m[0]]) < ni_orbs[ni_in_m[0]][1].shape[1]
+                    ):
+                        ai = ni_in_m[0]
+                        idx_ni, C_ni = ni_orbs[ai]
+                        col = 4 + ni_act_used[ai]
+                        ni_act_used[ai] += 1
+                        v[idx_ni] = C_ni[:, col]
+                    elif len(ads_in_m) > 0:
+                        hit = next(
+                            (fd for fd in frag_data if any(a_f in ads_in_m for a_f in fd[0])),
+                            None,
+                        )
+                        if hit is None:
+                            frag_ok = False
+                            break
+                        _, f_ao, S_f, h_f, inact_pools_f, act_pools_f, Q_f = hit
+                        m_f = np.intersect1d(m, f_ao)
+                        local_m = np.searchsorted(f_ao, m_f)
+                        if local_m.size == 0:
+                            frag_ok = False
+                            break
+                        pools_f = inact_pools_f if role == "inactive" else act_pools_f
+                        v_f = _pick_mask_in_subspace(local_m, S_f, h_f, pools_f, Q_f)
+                        Q_f.append(v_f)
+                        v[f_ao] = v_f
+                    else:
+                        frag_ok = False
+                        break
+                    v /= float(np.sqrt(max(float(v @ S @ v), 1e-16)))
+                    if v[int(np.argmax(np.abs(v)))] < 0.0:
+                        v *= -1.0
+                    frag_seeds[k_o] = v
+                if frag_ok and all(s is not None for s in frag_seeds):
+                    return roles, masks, (int(na_act), int(nb_act)), [s for s in frag_seeds if s is not None]
+
     mf_kind = "RHF" if na_tot == nb_tot else "ROHF"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         mf = pyscf_mean_field(ints, (na_tot, nb_tot), kind=mf_kind)
 
     C_all = np.asarray(mf.mo_coeff, dtype=float)
-    n_occ_tot = max(na_tot, nb_tot)
-    C_occ = C_all[:, :n_occ_tot]
-    C_virt = C_all[:, n_occ_tot:]
+    e_all = np.asarray(mf.mo_energy, dtype=float)
+    C_docc_w = _weight_pool(C_all[:, :n_docc_tot], e_all[:n_docc_tot], 0.05)
+    C_socc_w = _weight_pool(C_all[:, n_docc_tot:n_occ_tot], e_all[n_docc_tot:n_occ_tot], 0.05)
+    C_occ_w = _weight_pool(C_all[:, :n_occ_tot], e_all[:n_occ_tot], 0.05)
+    C_virt_w = _weight_pool(C_all[:, n_occ_tot:], e_all[n_occ_tot:], 0.10)
 
-    occ_weights = 1.0 / np.sqrt(1.0 + 0.02 * np.arange(C_occ.shape[1], dtype=float))
-    C_occ_w = C_occ * occ_weights[None, :]
-    virt_weights = 1.0 / np.sqrt(1.0 + 0.05 * np.arange(C_virt.shape[1], dtype=float))
-    C_virt_w = C_virt * virt_weights[None, :]
-
-    h_mat = ints.h
     Q_assigned: List[np.ndarray] = []
     seeds: List[Optional[np.ndarray]] = list(seeded_orbs)
     for s_orb in seeded_orbs:
         if s_orb is not None:
             Q_assigned.append(s_orb)
 
-    def _pick_mask_seed(m: np.ndarray, C_pool: np.ndarray) -> np.ndarray:
-        S_m = S[np.ix_(m, m)]
-        w_m, v_m = np.linalg.eigh(S_m)
-        km = w_m > 1e-10
-        S_m_inv_half = (v_m[:, km] * (w_m[km] ** -0.5)[None, :]) @ v_m[:, km].T
-
-        Q_mat = np.column_stack(Q_assigned) if Q_assigned else None
-        S_Q_inv = np.linalg.pinv(Q_mat.T @ S @ Q_mat, rcond=1e-10) if Q_mat is not None else None
-
-        if C_pool.shape[1] > 0:
-            if Q_mat is not None:
-                C_rem = C_pool - Q_mat @ (S_Q_inv @ (Q_mat.T @ S @ C_pool))
-            else:
-                C_rem = C_pool
-            Proj_m = S_m_inv_half @ (S[m, :] @ C_rem)
-            U, s_vals, _ = np.linalg.svd(Proj_m, full_matrices=False)
-            for r in range(min(U.shape[1], len(s_vals))):
-                if s_vals[r] < 1e-4:
-                    break
-                v_cand = np.zeros(nao, dtype=float)
-                v_cand[m] = S_m_inv_half @ U[:, r]
-                nrm = float(np.sqrt(max(float(v_cand @ S @ v_cand), 1e-16)))
-                v_cand /= nrm
-                if Q_mat is None:
-                    return v_cand
-                v_perp = v_cand - Q_mat @ (S_Q_inv @ (Q_mat.T @ S @ v_cand))
-                indep = float(np.sqrt(max(float(v_perp @ S @ v_perp), 0.0)))
-                if indep > 0.15:
-                    return v_cand
-
-        # Orthogonal complement fallback inside mask m ordered by projected 1e energy
-        h_orth = S_m_inv_half @ h_mat[np.ix_(m, m)] @ S_m_inv_half
-        if Q_mat is not None:
-            B = S_m_inv_half @ S[np.ix_(m, np.arange(nao))] @ Q_mat
-            P_rem = B @ S_Q_inv @ B.T
-            P_null = np.eye(len(m)) - 0.5 * (P_rem + P_rem.T)
-            w_n, v_n = np.linalg.eigh(P_null)
-            keep_n = np.where(w_n > 0.1)[0]
-            if keep_n.size == 0:
-                keep_n = np.array([int(np.argmax(w_n))])
-            Vn = v_n[:, keep_n]
-            _, vec_h = np.linalg.eigh(Vn.T @ h_orth @ Vn)
-            u_best = Vn @ vec_h[:, 0]
-        else:
-            _, vec_h = np.linalg.eigh(h_orth)
-            u_best = vec_h[:, 0]
-        v_cand = np.zeros(nao, dtype=float)
-        v_cand[m] = S_m_inv_half @ u_best
-        v_cand /= float(np.sqrt(max(float(v_cand @ S @ v_cand), 1e-16)))
-        return v_cand
-
-    # Assign inactive specs first (smallest masks first so atomic cores precede multi-center bonds)
+    # Assign inactive specs first (smallest masks first so atomic cores precede multi-center bonds);
+    # prefer strictly doubly-occupied orbitals before open-shell singly-occupied orbitals.
     inact_order = sorted([k for k, r in enumerate(roles) if r == "inactive" and seeds[k] is None], key=lambda k: (len(masks[k]), k))
+    inact_pools = [C_docc_w, C_occ_w] if n_docc_tot > 0 else [C_occ_w]
     for k in inact_order:
-        v = _pick_mask_seed(masks[k], C_occ_w)
+        v = _pick_mask_in_subspace(masks[k], S, h_mat, inact_pools, Q_assigned)
         seeds[k] = v
         Q_assigned.append(v)
 
-    # Assign occupied-count active specs from remaining occupied RHF space, remainder from lowest virtuals
+    # Assign occupied-count active specs from remaining docc/socc ROHF space, remainder from virtuals
     act_order = sorted([k for k, r in enumerate(roles) if r == "active" and seeds[k] is None], key=lambda k: (len(masks[k]), k))
+    n_act_docc = min(n_act, min(na_act, nb_act))
     n_act_occ = min(n_act, max(na_act, nb_act))
     n_seeded_act = sum(1 for k, r in enumerate(roles) if r == "active" and seeded_orbs[k] is not None)
     for pos, k in enumerate(act_order):
-        pool = C_occ_w if (n_seeded_act + pos) < n_act_occ else C_virt_w
-        v = _pick_mask_seed(masks[k], pool)
+        slot_idx = n_seeded_act + pos
+        if slot_idx < n_act_docc:
+            pools = [C_docc_w, C_socc_w, C_virt_w]
+        elif slot_idx < n_act_occ:
+            pools = [C_socc_w, C_docc_w, C_virt_w]
+        else:
+            pools = [C_virt_w, C_socc_w]
+        v = _pick_mask_in_subspace(masks[k], S, h_mat, pools, Q_assigned)
         seeds[k] = v
         Q_assigned.append(v)
 
     x0 = [s for s in seeds if s is not None]
     return roles, masks, (int(na_act), int(nb_act)), x0
+
+
+def build_surface_plaquette_vb_specs(
+    deck_or_atoms: Union[CalculationDeck, Sequence[AtomConfig]],
+    *,
+    include_cores: Optional[bool] = None,
+) -> List[Dict[str, Any]]:
+    """Construct ferromagnetic CAS ``vb_orbital_specs`` for Ni_k surface plaquettes with NO.
+
+    Models each active Nickel center in its ferromagnetic :math:`3d^8 4s^2\\,^3F`
+    valence manifold (2 spins up per active Ni atom):
+      - Each active Ni receives 4 localized ``inactive`` orbitals (``atoms=[ni_id]``)
+        and 2 ``active`` frontier orbitals across ``[ni_id] + no_ids`` (reducing to
+        ``[ni_id]`` on bare ``Ni_k`` clusters, where ``net_spin = 2k`` forms the single
+        ``(2k, 0)`` high-spin determinant).
+      - A bound NO pair receives 5 ``inactive`` orbitals (``3sigma`` on ``[n_id]``,
+        ``4sigma`` on ``[o_id]``, degenerate ``1pi_x/y`` on ``[n_id, o_id]``, and
+        ``5sigma`` Blyholder donation across ``[n_id, o_id] + ni_ids``) plus 2
+        degenerate ``2pi*`` ``active`` orbitals across ``[n_id, o_id] + ni_ids``
+        (reducing to ``[n_id, o_id]`` for isolated gas-phase NO, ``CAS(1e, 2o)``).
+      - Extra coadsorbed ``O*`` atoms receive 1 localized ``inactive`` ``[aid]`` plus
+        2 ``inactive`` orbitals across ``[aid] + ni_ids`` (preserving identical active
+        spaces between ``Ni4/Ni9 + O*`` and ``Ni4/Ni9 + NO* + O*``); extra ``N*``
+        receives 1 localized ``inactive``, 1 ``inactive`` on ``[aid] + ni_ids``, and
+        1 ``active`` on ``[aid] + ni_ids``.
+      - When ``include_cores`` is True (or ``deck.control.core_embedding == "all_electron"``),
+        exact per-atom noble-gas core ``inactive`` specs are prepended.
+
+    Yields ferromagnetic ``(2k, 0)`` single determinants for clean ``Ni_k``,
+    ``CAS(5e, 6o)`` for ``Ni2+NO`` (``net_spin=3``), ``CAS(9e, 10o)`` for ``Ni4+NO``
+    (``net_spin=7``), and ``CAS(11e, 12o)`` for ``Ni5+NO`` (``net_spin=9``).
+    """
+    if isinstance(deck_or_atoms, CalculationDeck):
+        atoms_all = list(deck_or_atoms.geometry)
+        core_emb = str(getattr(deck_or_atoms.control, "core_embedding", "exact_backprojected") or "exact_backprojected").lower()
+        if include_cores is None:
+            include_cores = (core_emb == "all_electron")
+    else:
+        atoms_all = list(deck_or_atoms)
+        if include_cores is None:
+            include_cores = False
+
+    active = [a for a in atoms_all if not getattr(a, "virtual", False) and getattr(a, "is_active", True)]
+    if not active:
+        raise ValueError("build_surface_plaquette_vb_specs requires at least one non-virtual active atom.")
+
+    aids = [a.id or f"{a.element.strip().capitalize()}{i + 1}" for i, a in enumerate(active)]
+    elems = [a.element.strip().capitalize() for a in active]
+    coords = np.array([a.xyz for a in active], dtype=float)
+
+    ni_indices = [i for i, e in enumerate(elems) if e == "Ni"]
+    n_indices = [i for i, e in enumerate(elems) if e == "N"]
+    o_indices = [i for i, e in enumerate(elems) if e == "O"]
+    ni_ids = [aids[i] for i in ni_indices]
+
+    # Identify bound NO pair (closest N-O pair if multiple N/O exist)
+    no_pair: Optional[Tuple[int, int]] = None
+    if n_indices and o_indices:
+        best_pair: Optional[Tuple[float, int, int]] = None
+        for in_i in n_indices:
+            for io_i in o_indices:
+                d = float(np.linalg.norm(coords[in_i] - coords[io_i]))
+                if best_pair is None or d < best_pair[0]:
+                    best_pair = (d, in_i, io_i)
+        if best_pair is not None:
+            no_pair = (best_pair[1], best_pair[2])
+
+    specs: List[Dict[str, Any]] = []
+    if include_cores:
+        for i, aid in enumerate(aids):
+            nc = _core_shells_count(int(ATOMIC_NUMBERS[elems[i]]))
+            for _ in range(nc):
+                specs.append({"role": "inactive", "atoms": [aid]})
+
+    no_ids = [aids[no_pair[0]], aids[no_pair[1]]] if no_pair is not None else []
+    for ni_id in ni_ids:
+        for _ in range(4):
+            specs.append({"role": "inactive", "atoms": [ni_id]})
+        dom_ni_act = [ni_id] + no_ids
+        for _ in range(2):
+            specs.append({"role": "active", "atoms": dom_ni_act})
+
+    used = set(ni_indices)
+    if no_pair is not None:
+        in_i, io_i = no_pair
+        used.update((in_i, io_i))
+        n_id, o_id = aids[in_i], aids[io_i]
+        specs.append({"role": "inactive", "atoms": [n_id]})
+        specs.append({"role": "inactive", "atoms": [o_id]})
+        specs.append({"role": "inactive", "atoms": [n_id, o_id]})
+        specs.append({"role": "inactive", "atoms": [n_id, o_id]})
+        specs.append({"role": "inactive", "atoms": [n_id, o_id] + ni_ids})
+        dom_no_act = [n_id, o_id] + ni_ids
+        specs.append({"role": "active", "atoms": dom_no_act})
+        specs.append({"role": "active", "atoms": dom_no_act})
+
+    # Extra adsorbates (e.g. coadsorbed O* or dissociated N*, O*)
+    for i, aid in enumerate(aids):
+        if i in used:
+            continue
+        el = elems[i]
+        n_val = int(ATOMIC_NUMBERS[el]) - 2 * _core_shells_count(int(ATOMIC_NUMBERS[el]))
+        if n_val == 6:  # e.g. O* oxo (1 localized inactive + 2 [O*, Ni*] inactive; 0 extra active)
+            specs.append({"role": "inactive", "atoms": [aid]})
+            specs.append({"role": "inactive", "atoms": [aid] + ni_ids})
+            specs.append({"role": "inactive", "atoms": [aid] + ni_ids})
+        elif n_val == 5:  # e.g. N* (1 localized inactive + 1 [N*, Ni*] inactive + 1 active)
+            specs.append({"role": "inactive", "atoms": [aid]})
+            specs.append({"role": "inactive", "atoms": [aid] + ni_ids})
+            specs.append({"role": "active", "atoms": [aid] + ni_ids})
+        else:
+            n_in_ex = max(0, (n_val - 1) // 2)
+            n_ac_ex = max(0, n_val - 2 * n_in_ex)
+            for _ in range(n_in_ex):
+                specs.append({"role": "inactive", "atoms": [aid] + ni_ids})
+            for _ in range(n_ac_ex):
+                specs.append({"role": "active", "atoms": [aid] + ni_ids})
+
+    return specs
 
 
 def _build_general_vb_setup(
@@ -787,6 +1161,8 @@ def _build_general_vb_setup(
     net_spin_override: Optional[int],
     charge: int,
     vb_orbital_specs: Optional[Sequence[Dict[str, Any]]] = None,
+    warm_orbitals: Optional[Sequence[np.ndarray]] = None,
+    sto_ng_primitives: int = 6,
 ) -> Tuple[List[str], List[np.ndarray], Tuple[int, int], List[np.ndarray]]:
     """Construct roles, domain masks, active electron counts, and chemically directed seeds."""
     n_atoms = len(active_atoms)
@@ -807,39 +1183,46 @@ def _build_general_vb_setup(
             core_embedding,
             net_spin_override,
             charge,
+            warm_orbitals=warm_orbitals,
+            sto_ng_primitives=sto_ng_primitives,
         )
 
     # Single active atom
     if n_atoms == 1:
         z0 = z_list[0]
-        if z0 == 28:
+        if z0 == 28 and (net_spin_override is None or net_spin_override == 2):
             # Ni open-shell 3d^8 4s^2
-            _, _, _, _, _, _, C_core, C_val = solve_atomic_ni_rohf()
-            l_v = np.array([f.l for f in basis])
-            m_v = np.array([f.m for f in basis])
-            inact_orbs: List[np.ndarray] = []
-            inact_masks: List[np.ndarray] = []
-            if core_embedding == "all_electron":
-                for c in range(C_core.shape[1]):
-                    inact_orbs.append(C_core[:, c])
-                    inact_masks.append(np.where(l_v == basis[int(np.argmax(np.abs(C_core[:, c])))].l)[0])
-            inact_orbs.extend([C_val[:, c] for c in range(4)])
-            inact_masks.extend([
-                np.where((l_v == 0) & (m_v == 0))[0],
-                np.where((l_v == 2) & (m_v == 2))[0],
-                np.where((l_v == 2) & (m_v == 1))[0],
-                np.where((l_v == 2) & (m_v == -1))[0],
-            ])
-            act_orbs = [C_val[:, 4], C_val[:, 5]]
-            act_masks = [
-                np.where((l_v == 2) & (m_v == 0))[0],
-                np.where((l_v == 2) & (m_v == -2))[0],
-            ]
-            roles = ["inactive"] * len(inact_orbs) + ["active"] * len(act_orbs)
-            return roles, inact_masks + act_masks, (2, 0), inact_orbs + act_orbs
+            ni_bmap = {15: "SZ", 18: "SZP", 30: "DZ", 33: "DZP"}
+            bname_ni = ni_bmap.get(len(basis))
+            if bname_ni is not None:
+                b_ni, _, _, _, _, _, C_core, C_val = solve_atomic_ni_rohf(basis_name=bname_ni)
+                if len(b_ni) == len(basis):
+                    l_v = np.array([f.l for f in basis])
+                    m_v = np.array([f.m for f in basis])
+                    inact_orbs: List[np.ndarray] = []
+                    inact_masks: List[np.ndarray] = []
+                    if core_embedding == "all_electron":
+                        for c in range(C_core.shape[1]):
+                            inact_orbs.append(C_core[:, c])
+                            inact_masks.append(np.where(l_v == basis[int(np.argmax(np.abs(C_core[:, c])))].l)[0])
+                    inact_orbs.extend([C_val[:, c] for c in range(4)])
+                    inact_masks.extend([
+                        np.where((l_v == 0) & (m_v == 0))[0],
+                        np.where((l_v == 2) & (m_v == 2))[0],
+                        np.where((l_v == 2) & (m_v == 1))[0],
+                        np.where((l_v == 2) & (m_v == -1))[0],
+                    ])
+                    act_orbs = [C_val[:, 4], C_val[:, 5]]
+                    act_masks = [
+                        np.where((l_v == 2) & (m_v == 0))[0],
+                        np.where((l_v == 2) & (m_v == -2))[0],
+                    ]
+                    roles = ["inactive"] * len(inact_orbs) + ["active"] * len(act_orbs)
+                    return roles, inact_masks + act_masks, (2, 0), inact_orbs + act_orbs
 
         _, mo, _ = _solve_atomic_mean_field(basis, z0)
-        nelec = z0 - charge - (2 * _core_shells_count(z0) if core_embedding != "all_electron" else 0)
+        n_core_shells = _core_shells_count(z0)
+        nelec = z0 - charge - (2 * n_core_shells if core_embedding != "all_electron" else 0)
         if net_spin_override is not None and (abs(net_spin_override) % 2) == (nelec % 2):
             spin0 = net_spin_override
         else:
@@ -848,9 +1231,10 @@ def _build_general_vb_setup(
         nb = (nelec - spin0) // 2
         n_doubly = min(na, nb)
         n_singly = max(na, nb) - n_doubly
+        offset_c = n_core_shells if core_embedding != "all_electron" else 0
         roles = ["inactive"] * n_doubly + ["active"] * n_singly
         masks = [np.arange(nao) for _ in range(n_doubly + n_singly)]
-        x0 = [mo[:, k] for k in range(n_doubly + n_singly)]
+        x0 = [mo[:, offset_c + k] for k in range(n_doubly + n_singly)]
         return roles, masks, (n_singly, 0) if na >= nb else (0, n_singly), x0
 
     # Connectivity graph for domain & hybrid seed construction
@@ -956,6 +1340,65 @@ def _build_general_vb_setup(
             elif n_val_i == 2:
                 inact_orbs.append(_s_vec(idxs, 0))
                 inact_masks.append(_inact_mask(idxs))
+            continue
+
+        if 21 <= zi <= 30:
+            # First-row transition metal (3d/4s): build rotationally invariant local frame (e1, e2, u)
+            # so 4 transverse 3d orbitals stay inactive and (4s, 3d_sigma) participate in active bonding.
+            if nbs:
+                u = coords[nbs[0]] - coords[i]
+                u = u / max(float(np.linalg.norm(u)), 1e-12)
+            else:
+                u = np.array([0.0, 0.0, 1.0])
+            trial = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.85 else np.array([0.0, 1.0, 0.0])
+            e1 = trial - np.dot(trial, u) * u
+            e1 /= max(float(np.linalg.norm(e1)), 1e-12)
+            e2 = np.cross(u, e1)
+            e2 /= max(float(np.linalg.norm(e2)), 1e-12)
+
+            # Rotate l=2 real spherical harmonics S_{2,m} into local (e1, e2, u) frame
+            from phatpsy.embedding import real_spherical_harmonics
+
+            theta_pts = np.array([0.4, 0.9, 1.4, 1.9, 2.5, 0.7, 1.2, 2.1, 1.6, 2.3])
+            phi_pts = np.array([0.2, 1.1, 2.3, 3.4, 4.7, 5.5, 0.8, 2.9, 4.1, 5.1])
+            pts_sph = np.column_stack([
+                np.sin(theta_pts) * np.cos(phi_pts),
+                np.sin(theta_pts) * np.sin(phi_pts),
+                np.cos(theta_pts),
+            ])
+            R_loc = np.column_stack([e1, e2, u])  # glob = R_loc @ loc  => loc = pts_sph @ R_loc
+            Yg = np.column_stack([real_spherical_harmonics(pts_sph, 2)[(2, m)] for m in (-2, -1, 0, 1, 2)])
+            Yl = np.column_stack([real_spherical_harmonics(pts_sph @ R_loc, 2)[(2, m)] for m in (-2, -1, 0, 1, 2)])
+            U_d, _, _, _ = np.linalg.lstsq(Yg, Yl, rcond=None)  # (5, 5): cols are m_loc in (-2,-1,0,+1,+2)
+
+            m_order = (-2, -1, 0, 1, 2)
+            d_vecs_loc: List[np.ndarray] = []
+            d_n = min((basis[k].n for k in idxs if basis[k].l == 2), default=None)
+            d_ao_by_m = {
+                m: [k for k in idxs if basis[k].l == 2 and basis[k].m == m and basis[k].n == d_n]
+                for m in m_order
+            }
+            for col_idx in range(5):
+                v_d = np.zeros(nao, dtype=float)
+                for row_idx, m_g in enumerate(m_order):
+                    cands = d_ao_by_m[m_g]
+                    if cands:
+                        v_d[cands[0]] = U_d[row_idx, col_idx]
+                d_vecs_loc.append(v_d)
+
+            s_val_tm = _s_vec(idxs, -1)
+            # Transverse local d orbitals: m_loc in (-2, -1, +1, +2) -> indices 0, 1, 3, 4; m_loc=0 -> idx 2
+            trans_d = [d_vecs_loc[0], d_vecs_loc[1], d_vecs_loc[3], d_vecs_loc[4]]
+            n_tm_atoms = sum(1 for z in z_list if 21 <= z <= 30)
+            n_tm_inact = 0 if (n_tm_atoms == 1 and n_atoms <= 3) else max(0, min(4, (n_val_i - 2) // 2))
+            for d_in in trans_d[:n_tm_inact]:
+                inact_orbs.append(d_in)
+                inact_masks.append(_inact_mask(idxs))
+            dom_tm = _domain_for(i, nbs)
+            for v_act in [s_val_tm, d_vecs_loc[2]] + trans_d[n_tm_inact:]:
+                act_orbs.append(v_act)
+                act_masks.append(dom_tm)
+                act_atoms_idx.append(i)
             continue
 
         # Valence orbital partitioning for main-group elements (Li..Ne, Na..Ar)
@@ -1241,14 +1684,26 @@ class LocalizedVBDriver:
         core_embedding = str(getattr(ctrl, "core_embedding", "unprojected_eri") or "unprojected_eri").strip().lower()
         vb_wavefunction = str(getattr(ctrl, "vb_wavefunction", "cas") or "cas").strip().lower()
         domain_mode = str(getattr(ctrl, "domain_mode", "bond_local") or "bond_local").strip().lower()
-        if integral_backend != "sto_ng" or core_embedding != "all_electron" or vb_wavefunction != "cas":
+        if (
+            integral_backend != "sto_ng"
+            or core_embedding not in ("all_electron", "exact_backprojected")
+            or vb_wavefunction != "cas"
+        ):
             return False
         non_virt = [a for a in deck.geometry if not a.virtual]
-        if any(not a.is_active for a in non_virt):
-            return False
         active_atoms = [a for a in non_virt if a.is_active]
+        spectator_atoms = [a for a in non_virt if not a.is_active]
         if len(active_atoms) == 0:
             return False
+        if spectator_atoms:
+            env_embedding = str(getattr(ctrl, "environment_embedding", "exact_joint_pk") or "exact_joint_pk").strip().lower()
+            if env_embedding != "exact_backprojected":
+                return False
+            for s in spectator_atoms:
+                if getattr(s, "embedded_state", None) is not None or getattr(s, "_embedded_state_path", None) is not None:
+                    return False
+                if _atomic_num(s) % 2 != 0:
+                    return False
         act_syms = [a.element.strip().capitalize() for a in active_atoms]
         if len(active_atoms) == 3 and act_syms == ["Ni", "C", "O"] and domain_mode.startswith("blyholder"):
             return False
@@ -1281,6 +1736,7 @@ class LocalizedVBDriver:
         compare_regimes: bool = False,
         warm_orbitals: Optional[Sequence[np.ndarray]] = None,
         return_grad_context: bool = False,
+        skip_koopmans: bool = False,
     ) -> Tuple[CalculationState, Optional[Dict[str, Any]]]:
         """Internal solver returning ``(state, grad_context_or_None)``."""
         is_quiet = self.quiet if quiet is None else quiet
@@ -1333,11 +1789,17 @@ class LocalizedVBDriver:
         integral_backend = str(getattr(ctrl, "integral_backend", "prolate") or "prolate").strip().lower()
         sto_ng_k = int(getattr(ctrl, "sto_ng_primitives", 6))
         vb_orbital_specs = getattr(ctrl, "vb_orbital_specs", None)
-        maxiter = max(200, int(getattr(ctrl, "max_cycles", 400)) * 5)
-        gtol = max(1e-7, float(getattr(ctrl, "convergence", 1e-6)))
-        if integral_backend == "sto_ng":
-            maxiter = max(maxiter, 800)
-            gtol = min(gtol, 1e-8)
+        if core_mode == "all_electron":
+            maxiter = max(200, int(getattr(ctrl, "max_cycles", 400)) * 5)
+        else:
+            maxiter = max(500, int(getattr(ctrl, "max_cycles", 400)) * 2)
+        gtol_req = float(getattr(ctrl, "convergence", 1e-6))
+        gtol = max(1e-10, gtol_req)
+        if integral_backend == "sto_ng" and core_mode != "all_electron":
+            if int(getattr(ctrl, "max_cycles", 400)) >= 200:
+                maxiter = max(maxiter, 500)
+            if gtol_req > 1e-6:
+                gtol = 1e-6
 
         # Check whether active region is the collinear C4v Ni + CO surface chemisorption motif
         act_syms = [a.element.strip().capitalize() for a in active_atoms]
@@ -1359,6 +1821,9 @@ class LocalizedVBDriver:
             embedding_diag["sto_ng_primitives"] = sto_ng_k
 
         pyscf_ctx: Optional[PySCFSTOContext] = None
+        ab_ints: Optional[Any] = None
+        pyscf_ctx_ab: Optional[PySCFSTOContext] = None
+        C_env_all: Optional[np.ndarray] = None
         Xi_opt: Optional[np.ndarray] = None
         Xa_opt: Optional[np.ndarray] = None
 
@@ -1432,18 +1897,45 @@ class LocalizedVBDriver:
             # General active integral path (STO-nG, 1-center, z-aligned 2-center, or multicenter prolate)
             full_active_basis = [f for b in active_bases for f in b]
             n_act_ao = len(full_active_basis)
+            n_total_ao = n_act_ao + sum(len(b) for b in spec_bases)
+            full_ints: Optional[Any] = None
             if integral_backend == "sto_ng":
-                specs_mc = [
+                all_specs = [
                     (float(_atomic_num(a)), tuple(float(v) for v in a.xyz), b)
                     for a, b in zip(active_atoms, active_bases)
+                ] + [
+                    (float(_atomic_num(b)), tuple(float(v) for v in b.xyz), bb)
+                    for b, bb in zip(spectator_atoms, spec_bases)
                 ]
-                full_ints, pyscf_ctx = sto_ng_ao_integrals(
-                    specs_mc,
-                    n_prim=sto_ng_k,
-                    return_pyscf_context=True,
-                )
-                bare_S = full_ints.S
-                bare_T = full_ints.T
+                if spectator_atoms and env_mode == "exact_backprojected":
+                    ab_ints, pyscf_ctx_ab = sto_ng_ao_integrals(
+                        all_specs,
+                        n_prim=sto_ng_k,
+                        return_pyscf_context=True,
+                        build_eri=(n_total_ao <= 30),
+                    )
+                    all_ordered_atoms = list(active_atoms) + list(spectator_atoms)
+                    pyscf_ctx_ab.fixed_atom_indices = tuple(
+                        ia for ia, a_ord in enumerate(all_ordered_atoms) if bool(a_ord.fixed)
+                    )
+                    bare_S = ab_ints.S[:n_act_ao, :n_act_ao]
+                    bare_T = ab_ints.T[:n_act_ao, :n_act_ao]
+                else:
+                    specs_mc = all_specs[: len(active_atoms)]
+                    need_full_eri = bool(
+                        n_act_ao <= 30 or (core_mode != "exact_backprojected" and n_act_ao <= 90)
+                    )
+                    full_ints, pyscf_ctx = sto_ng_ao_integrals(
+                        specs_mc,
+                        n_prim=sto_ng_k,
+                        return_pyscf_context=True,
+                        build_eri=need_full_eri,
+                    )
+                    pyscf_ctx.fixed_atom_indices = tuple(
+                        ia for ia, a_ord in enumerate(active_atoms) if bool(a_ord.fixed)
+                    )
+                    bare_S = full_ints.S
+                    bare_T = full_ints.T
             elif len(active_atoms) == 1:
                 full_ints = _wrap_one_center(active_bases[0], float(_atomic_num(active_atoms[0])))
                 bare_S = full_ints.S
@@ -1485,6 +1977,7 @@ class LocalizedVBDriver:
 
             # Build block-diagonal core MOs for active atoms if core_embedding != "all_electron"
             core_envs_for_diat: List[FrozenEnvironmentAtom] = []
+            active_core_env_by_ia: Dict[int, FrozenEnvironmentAtom] = {}
             core_cols: List[np.ndarray] = []
             offset = 0
             for ia, (a, b_a) in enumerate(zip(active_atoms, active_bases)):
@@ -1495,6 +1988,7 @@ class LocalizedVBDriver:
                     c_a = (float(a.xyz[0]), float(a.xyz[1]), float(a.xyz[2]))
                     f_env = FrozenEnvironmentAtom.from_atomic_rhf(float(z_a), c_a, b_a, n_occ=nc_a)
                     core_envs_for_diat.append(f_env)
+                    active_core_env_by_ia[ia] = f_env
                     for ck in range(nc_a):
                         col = np.zeros(n_act_ao, dtype=float)
                         col[offset:offset + len(b_a)] = f_env.C_occ[:, ck]
@@ -1553,11 +2047,47 @@ class LocalizedVBDriver:
                         spec_offset += nb_ao
                     C_env_all = np.column_stack(env_cols) if env_cols else np.zeros((n_total_ao, 0))
                     ints = embed_from_full_integrals(ab_ints, C_env_all, active_ao_idx=active_idx, mode="huzinaga_pk")
+            elif spectator_atoms and env_mode == "exact_backprojected":
+                if ab_ints is None:
+                    all_specs = [
+                        (float(_atomic_num(a)), tuple(float(v) for v in a.xyz), b)
+                        for a, b in zip(active_atoms, active_bases)
+                    ] + [
+                        (float(_atomic_num(b)), tuple(float(v) for v in b.xyz), bb)
+                        for b, bb in zip(spectator_atoms, spec_bases)
+                    ]
+                    ab_ints = molecular_ao_integrals(all_specs, n_eta=32, n_phi=16, lmax=16, mmax=4)
+                    pyscf_ctx_ab = None
+                n_total_ao = ab_ints.nao
+                active_idx = np.arange(n_act_ao, dtype=int)
+                env_cols = []
+                for c_k in range(C_core_active.shape[1]):
+                    v = np.zeros(n_total_ao, dtype=float)
+                    v[:n_act_ao] = C_core_active[:, c_k]
+                    env_cols.append(v)
+                spec_offset = n_act_ao
+                for sb, se in zip(spec_bases, spec_envs):
+                    nb_ao = len(sb)
+                    for c_k in range(se.C_occ.shape[1]):
+                        v = np.zeros(n_total_ao, dtype=float)
+                        v[spec_offset:spec_offset + nb_ao] = se.C_occ[:, c_k]
+                        env_cols.append(v)
+                    spec_offset += nb_ao
+                C_env_all = np.column_stack(env_cols) if env_cols else np.zeros((n_total_ao, 0))
+                ints = embed_from_full_integrals(
+                    ab_ints,
+                    C_env_all,
+                    active_ao_idx=active_idx,
+                    mode="exact_backprojected",
+                    pyscf_ctx=pyscf_ctx_ab,
+                )
             else:
                 # Active-only core embedding
                 if C_core_active.shape[1] > 0:
                     c_mode = "exact_backprojected" if core_mode == "exact_backprojected" else "unprojected_eri"
-                    ints = embed_from_full_integrals(full_ints, C_core_active, mode=c_mode)
+                    ints = embed_from_full_integrals(
+                        full_ints, C_core_active, mode=c_mode, pyscf_ctx=pyscf_ctx
+                    )
                 else:
                     ints = full_ints
 
@@ -1593,8 +2123,14 @@ class LocalizedVBDriver:
         used_localized_vb_model = False
 
         active_charge = int(round(sum(float(getattr(a, "charge", 0.0)) for a in active_atoms)))
-        spin_override = deck.physical_net_spin if deck.physical_net_spin is not None else (
-            deck.net_spin if deck.net_spin != 0 else None
+        spin_override = (
+            int(ctrl.target_spin)
+            if getattr(ctrl, "target_spin", None) is not None
+            else (
+                deck.physical_net_spin if deck.physical_net_spin is not None else (
+                    deck.net_spin if deck.net_spin != 0 else None
+                )
+            )
         )
 
         # One-center strict HL / PP / Covalent / CAS model on collinear diatomics when requested
@@ -1768,6 +2304,7 @@ class LocalizedVBDriver:
                     spin_override,
                     active_charge,
                     vb_orbital_specs=vb_orbital_specs,
+                    sto_ng_primitives=sto_ng_k,
                 )
         else:
             effective_dom = domain_mode
@@ -1779,6 +2316,8 @@ class LocalizedVBDriver:
                 spin_override,
                 active_charge,
                 vb_orbital_specs=vb_orbital_specs,
+                warm_orbitals=warm,
+                sto_ng_primitives=sto_ng_k,
             )
 
         run_general_sweep_in_place = (
@@ -2062,13 +2601,138 @@ class LocalizedVBDriver:
         # Packed identity/zero placeholders matching CalculationState fields
         n2orbt = (norbt * (norbt + 1)) // 2
         S_pack = np.zeros((n2orbt, ispin), dtype=float)
-        grad_norm = float(np.linalg.norm(getattr(opt_res, "jac", np.zeros(1)))) if hasattr(opt_res, "jac") and opt_res.jac is not None else 0.0
-        converged = bool(getattr(opt_res, "success", False) or grad_norm < max(1e-4, gtol * 10.0))
+        raw_jac = getattr(opt_res, "jac", None)
+        grad_norm = float(np.linalg.norm(raw_jac)) if raw_jac is not None else 0.0
         n_iters = int(getattr(opt_res, "nit", 0))
+        if (not used_localized_vb_model) and (raw_jac is not None) and hasattr(model, "masks") and hasattr(model, "off"):
+            scale_inact = np.ones(Xi_opt.shape[1] if Xi_opt is not None else 0, dtype=float)
+            scale_act = np.ones(Xa_opt.shape[1] if Xa_opt is not None else 0, dtype=float)
+            if Xi_opt is not None and Xi_opt.shape[1] > 0:
+                Mi = 0.5 * (Xi_opt.T @ ints.S @ Xi_opt + (Xi_opt.T @ ints.S @ Xi_opt).T)
+                Mi_inv = np.linalg.pinv(Mi, rcond=1e-12)
+                scale_inact = np.clip(np.maximum(np.diag(Mi_inv), 1e-12) ** -0.5, 1e-4, 1.0)
+                Dc_opt = Xi_opt @ Mi_inv @ Xi_opt.T
+            else:
+                Dc_opt = np.zeros((ints.nao, ints.nao), dtype=float)
+            if Xa_opt is not None and Xa_opt.shape[1] > 0:
+                Y_opt = Xa_opt - Dc_opt @ ints.S @ Xa_opt
+                My = 0.5 * (Y_opt.T @ ints.S @ Y_opt + (Y_opt.T @ ints.S @ Y_opt).T)
+                My_inv = np.linalg.pinv(My, rcond=1e-12)
+                scale_act = np.clip(np.maximum(np.diag(My_inv), 1e-12) ** -0.5, 1e-4, 1.0)
+
+            grad_inf_phys = 0.0
+            jac_arr = np.asarray(raw_jac, dtype=float)
+            i_ptr = 0
+            a_ptr = 0
+            for k_m, m_idx in enumerate(model.masks):
+                s0, s1 = int(model.off[k_m]), int(model.off[k_m + 1])
+                Sm = 0.5 * (ints.S[np.ix_(m_idx, m_idx)] + ints.S[np.ix_(m_idx, m_idx)].T)
+                wm, vm = np.linalg.eigh(Sm)
+                keep_m = wm > 1e-8
+                if not np.any(keep_m):
+                    keep_m = np.array([int(np.argmax(wm))])
+                Bk = vm[:, keep_m] * (np.maximum(wm[keep_m], 1e-12) ** -0.5)[None, :]
+                if roles[k_m] == "inactive":
+                    s_k = float(scale_inact[i_ptr]) if i_ptr < scale_inact.size else 1.0
+                    i_ptr += 1
+                else:
+                    s_k = float(scale_act[a_ptr]) if a_ptr < scale_act.size else 1.0
+                    a_ptr += 1
+                g_proj = s_k * (Bk.T @ jac_arr[s0:s1])
+                if g_proj.size:
+                    grad_inf_phys = max(grad_inf_phys, float(np.max(np.abs(g_proj))))
+            grad_norm_phys = grad_inf_phys
+        else:
+            grad_norm_phys = grad_norm
+        converged = bool(
+            getattr(opt_res, "success", False)
+            or grad_norm_phys < max(5e-4, gtol * 50.0)
+            or (n_iters < maxiter and grad_norm_phys < 2e-3)
+        )
 
         n_inact_roles = sum(1 for r in roles if r == "inactive")
         nat_occ_arr = np.asarray(rdm_info.get("nat_occ", occ_bare_tot), dtype=float)
         active_nat_occ = nat_occ_arr[n_inact_roles:].tolist() if nat_occ_arr.size > n_inact_roles else []
+
+        if not is_quiet and len(active_atoms) > 0:
+            pass
+
+        # Recompute bare-AO Koopmans core orbital energies (-eps) from molecular Fock matrix
+        koopmans_core: Dict[str, float] = {}
+        try:
+            F_k = None
+            S_k = None
+            atoms_k: List[AtomConfig] = []
+            bases_k: List[List[STO]] = []
+            if return_grad_context or skip_koopmans:
+                pass
+            elif (
+                ab_ints is not None
+                and C_env_all is not None
+                and getattr(ints, "L_backproj", None) is not None
+                and getattr(ints, "L_backproj").shape[0] == ab_ints.nao
+                and (getattr(ab_ints, "eri", None) is not None or pyscf_ctx_ab is not None)
+            ):
+                L_ab = np.asarray(getattr(ints, "L_backproj"), dtype=float)
+                if C_env_all.shape[1] > 0:
+                    D_env_ab = C_env_all @ np.linalg.inv(C_env_all.T @ ab_ints.S @ C_env_all) @ C_env_all.T
+                else:
+                    D_env_ab = np.zeros((ab_ints.nao, ab_ints.nao), dtype=float)
+                D_k = 2.0 * D_env_ab + L_ab @ rdm_info["dm1_ao"] @ L_ab.T
+                if getattr(ab_ints, "eri", None) is not None:
+                    Jm_k, Km_k = ab_ints.jk_matrices()
+                    J_k = (Jm_k @ D_k.ravel()).reshape(D_k.shape)
+                    K_k = (Km_k @ D_k.ravel()).reshape(D_k.shape)
+                else:
+                    J_k, K_k = pyscf_jk_from_ctx(pyscf_ctx_ab, D_k)
+                F_k = ab_ints.h + J_k - 0.5 * K_k
+                S_k = ab_ints.S
+                atoms_k = list(active_atoms) + list(spectator_atoms)
+                bases_k = list(active_bases) + list(spec_bases)
+            elif (
+                "full_ints" in locals()
+                and full_ints is not None
+                and full_ints.nao == dm1_ao_bare.shape[0]
+                and (getattr(full_ints, "eri", None) is not None or pyscf_ctx is not None)
+            ):
+                if getattr(full_ints, "eri", None) is not None:
+                    Jm_k, Km_k = full_ints.jk_matrices()
+                    J_k = (Jm_k @ dm1_ao_bare.ravel()).reshape(dm1_ao_bare.shape)
+                    K_k = (Km_k @ dm1_ao_bare.ravel()).reshape(dm1_ao_bare.shape)
+                else:
+                    J_k, K_k = pyscf_jk_from_ctx(pyscf_ctx, dm1_ao_bare)
+                F_k = full_ints.h + J_k - 0.5 * K_k
+                S_k = full_ints.S
+                atoms_k = list(active_atoms)
+                bases_k = list(active_bases)
+
+            if F_k is not None and S_k is not None:
+                from scipy.linalg import eigh as _sp_eigh
+                off_k = 0
+                for a_k, b_k in zip(atoms_k, bases_k):
+                    nb_k = len(b_k)
+                    aid_k = a_k.id or f"{a_k.element}{off_k + 1}"
+                    z_k = _atomic_num(a_k)
+                    F_sub = 0.5 * (F_k[off_k:off_k + nb_k, off_k:off_k + nb_k] + F_k[off_k:off_k + nb_k, off_k:off_k + nb_k].T)
+                    S_sub = 0.5 * (S_k[off_k:off_k + nb_k, off_k:off_k + nb_k] + S_k[off_k:off_k + nb_k, off_k:off_k + nb_k].T)
+                    evals_a, evecs_a = _sp_eigh(F_sub, S_sub)
+                    if 3 <= z_k <= 10 and evals_a.size > 0:
+                        koopmans_core[f"{aid_k}_1s"] = float(evals_a[0])
+                    elif z_k == 28 and evals_a.size >= 5:
+                        p_idx = [j for j, f in enumerate(b_k) if f.l == 1]
+                        if p_idx:
+                            p_evals = []
+                            for col_j in range(evecs_a.shape[1]):
+                                v_col = evecs_a[:, col_j]
+                                sv = S_sub @ v_col
+                                wt_p = float(np.sum(v_col[p_idx] * sv[p_idx]))
+                                if wt_p > 0.5:
+                                    p_evals.append(float(evals_a[col_j]))
+                            if len(p_evals) >= 3:
+                                koopmans_core[f"{aid_k}_2p"] = float(np.mean(p_evals[:3]))
+                    off_k += nb_k
+        except Exception:
+            koopmans_core = {}
 
         state_dict: Dict[str, Any] = {
             "converged": converged,
@@ -2112,6 +2776,9 @@ class LocalizedVBDriver:
             "localized_orbitals_embedded": loc_orbs_emb,
             "orthonormal_orbitals": orthonormal_emb,
             "rdm1_ao": dm1_ao_bare,
+            "rdm1_ao_spin": np.array([dm1_a_bare, dm1_b_bare], dtype=float),
+            "ao_overlap": S_for_pop,
+            "koopmans_core_energies_ha": koopmans_core,
             "vb_roles": list(roles),
             "vb_domain_masks": [np.asarray(m, dtype=int).tolist() for m in masks],
             "vb_nelec_act": [int(nelec_act[0]), int(nelec_act[1])],
@@ -2140,25 +2807,90 @@ class LocalizedVBDriver:
 
         state = CalculationState(state_dict, deck=deck)
         grad_ctx: Optional[Dict[str, Any]] = None
-        if (
+        can_build_sto_grad = (
             return_grad_context
-            and pyscf_ctx is not None
             and not uses_nico_pipeline
             and not used_localized_vb_model
-            and not spectator_atoms
-            and core_mode == "all_electron"
+            and integral_backend == "sto_ng"
             and vb_wf == "cas"
+            and core_mode in ("all_electron", "exact_backprojected")
             and Xi_opt is not None
             and Xa_opt is not None
-        ):
-            grad_ctx = {
-                "ints": ints,
-                "pyscf_ctx": pyscf_ctx,
-                "Xi": Xi_opt,
-                "Xa": Xa_opt,
-                "nelec_act": nelec_act,
-                "active_indices": list(active_indices),
-            }
+            and (
+                not spectator_atoms
+                or (
+                    env_mode == "exact_backprojected"
+                    and all(
+                        (_atomic_num(s) % 2 == 0)
+                        and getattr(s, "embedded_state", None) is None
+                        and getattr(s, "_embedded_state_path", None) is None
+                        for s in spectator_atoms
+                    )
+                )
+            )
+        )
+        if can_build_sto_grad:
+            if spectator_atoms and ab_ints is not None and pyscf_ctx_ab is not None:
+                grad_ints = ab_ints
+                grad_pyscf_ctx = pyscf_ctx_ab
+                C_env_grad = C_env_all if C_env_all is not None else np.zeros((ab_ints.nao, 0), dtype=float)
+                atom_deck_indices = list(active_indices) + list(spectator_indices)
+            elif (not spectator_atoms) and full_ints is not None and pyscf_ctx is not None:
+                grad_ints = full_ints
+                grad_pyscf_ctx = pyscf_ctx
+                C_env_grad = (
+                    C_core_active
+                    if (core_mode == "exact_backprojected" and C_core_active.shape[1] > 0)
+                    else np.zeros((full_ints.nao, 0), dtype=float)
+                )
+                atom_deck_indices = list(active_indices)
+            else:
+                grad_ints = None
+                grad_pyscf_ctx = None
+                C_env_grad = np.zeros((0, 0), dtype=float)
+                atom_deck_indices = []
+
+            if grad_ints is not None and grad_pyscf_ctx is not None:
+                if core_mode == "exact_backprojected" or spectator_atoms:
+                    Xi_clean = np.asarray(Xi_opt, dtype=float).copy()
+                    Xa_clean = np.asarray(Xa_opt, dtype=float).copy()
+                    offset_ia = 0
+                    for ia, (a_act, b_act) in enumerate(zip(active_atoms, active_bases)):
+                        nb_ia = len(b_act)
+                        if ia in active_core_env_by_ia:
+                            f_c = active_core_env_by_ia[ia]
+                            C_c = f_c.C_occ
+                            S_1c, _, _, _ = one_center_ao_matrices(b_act, float(_atomic_num(a_act)))
+                            Sc_inv = np.linalg.inv(C_c.T @ S_1c @ C_c)
+                            sl = slice(offset_ia, offset_ia + nb_ia)
+                            if Xi_clean.shape[1] > 0:
+                                Xi_clean[sl, :] -= C_c @ (Sc_inv @ (C_c.T @ (S_1c @ Xi_clean[sl, :])))
+                            if Xa_clean.shape[1] > 0:
+                                Xa_clean[sl, :] -= C_c @ (Sc_inv @ (C_c.T @ (S_1c @ Xa_clean[sl, :])))
+                        offset_ia += nb_ia
+                    n_grad_ao = grad_ints.nao
+                    n_act_loc = Xi_clean.shape[0]
+                    Xi_act_pad = np.zeros((n_grad_ao, Xi_clean.shape[1]), dtype=float)
+                    Xi_act_pad[:n_act_loc, :] = Xi_clean
+                    Xi_grad = np.hstack([C_env_grad, Xi_act_pad]) if C_env_grad.shape[1] > 0 else Xi_act_pad
+                    Xa_grad = np.zeros((n_grad_ao, Xa_clean.shape[1]), dtype=float)
+                    Xa_grad[:n_act_loc, :] = Xa_clean
+                else:
+                    Xi_grad = Xi_opt
+                    Xa_grad = Xa_opt
+
+                free_local_indices = [
+                    k for k, di in enumerate(atom_deck_indices) if not deck.geometry[di].fixed
+                ]
+                grad_ctx = {
+                    "ints": grad_ints,
+                    "pyscf_ctx": grad_pyscf_ctx,
+                    "Xi": Xi_grad,
+                    "Xa": Xa_grad,
+                    "nelec_act": nelec_act,
+                    "atom_deck_indices": atom_deck_indices,
+                    "free_local_indices": free_local_indices,
+                }
         return state, grad_ctx
 
     def energy_and_gradient(
@@ -2172,8 +2904,9 @@ class LocalizedVBDriver:
         """Compute both converged :class:`CalculationState` and nuclear gradient ``(natom, 3)`` in Ha/Bohr.
 
         When ``method`` is ``"auto"`` or ``"analytical"``/``"relaxed"`` and
-        :meth:`has_analytical_gradient` is True (all-electron ``STO-KG`` CAS MaskedVB),
-        evaluates exact variational analytical gradients without finite-difference displacements.
+        :meth:`has_analytical_gradient` is True (``STO-KG`` CAS MaskedVB with
+        ``all_electron`` or ``exact_backprojected`` embedding), evaluates exact
+        variational analytical gradients without finite-difference displacements.
         Otherwise falls back to warm-started central finite differences.
         """
         import copy
@@ -2198,25 +2931,33 @@ class LocalizedVBDriver:
         grad = np.zeros((n_atoms, 3), dtype=float)
 
         if use_analytic and grad_ctx is not None:
-            grad_active = _compute_sto_ng_nuclear_gradient(grad_ctx)
-            for ia, deck_idx in enumerate(grad_ctx["active_indices"]):
+            grad_local = _compute_sto_ng_nuclear_gradient(grad_ctx)
+            for loc_i, deck_idx in enumerate(grad_ctx["atom_deck_indices"]):
                 if not base_deck.geometry[deck_idx].fixed:
-                    grad[deck_idx] = grad_active[ia]
+                    grad[deck_idx] = grad_local[loc_i]
             return ref_state, grad
 
         warm = ref_state.get("localized_orbitals_embedded", ref_state.get("localized_orbitals"))
         h = float(finite_diff_step)
         for ia in range(n_atoms):
             atom = base_deck.geometry[ia]
-            if atom.virtual or atom.fixed or (not atom.is_active):
+            if atom.virtual or atom.fixed:
                 continue
             for axis in range(3):
                 dp = copy.deepcopy(base_deck)
-                dp.geometry[ia].xyz[axis] += h
                 dm = copy.deepcopy(base_deck)
+                for ja in range(n_atoms):
+                    if ja != ia:
+                        dp.geometry[ja].fixed = True
+                        dm.geometry[ja].fixed = True
+                dp.geometry[ia].xyz[axis] += h
                 dm.geometry[ia].xyz[axis] -= h
-                rp = self.run_deck(dp, quiet=is_quiet, warm_orbitals=warm)
-                rm = self.run_deck(dm, quiet=is_quiet, warm_orbitals=warm)
+                rp, _ = self._solve_deck_internal(
+                    dp, quiet=is_quiet, warm_orbitals=warm, return_grad_context=False, skip_koopmans=True
+                )
+                rm, _ = self._solve_deck_internal(
+                    dm, quiet=is_quiet, warm_orbitals=warm, return_grad_context=False, skip_koopmans=True
+                )
                 grad[ia, axis] = (float(rp["total_energy"]) - float(rm["total_energy"])) / (2.0 * h)
 
         return ref_state, grad
@@ -2241,21 +2982,27 @@ class LocalizedVBDriver:
 
 
 def _compute_sto_ng_nuclear_gradient(grad_ctx: Dict[str, Any]) -> np.ndarray:
-    """Compute exact variational nuclear gradient ``(n_active, 3)`` in Ha/Bohr from PySCF ``STO-KG`` context."""
+    """Compute exact variational nuclear gradient ``(n_atoms, 3)`` in Ha/Bohr from PySCF ``STO-KG`` context."""
     ints = grad_ctx["ints"]
     ctx: PySCFSTOContext = grad_ctx["pyscf_ctx"]
     Xi = grad_ctx["Xi"]
     Xa = grad_ctx["Xa"]
     nelec_act = grad_ctx["nelec_act"]
 
-    inter = cas_nuclear_gradient_intermediates(Xi, Xa, ints, nelec_act)
+    mol = ctx.mol
+    aoslices = mol.aoslice_by_atom()
+    n_all_atoms = len(aoslices)
+    free_local = list(grad_ctx.get("free_local_indices", list(range(n_all_atoms))))
+    if len(free_local) == 0:
+        return np.zeros((n_all_atoms, 3), dtype=float)
+
+    inter = cas_nuclear_gradient_intermediates(Xi, Xa, ints, nelec_act, pyscf_ctx=ctx)
     D_tot = inter["D_tot"]
     dE_dS = inter["dE_dS"]
     Pa = inter["Pa"]
     Ca = inter["Ca"]
     dm2 = inter["dm2"]
 
-    mol = ctx.mol
     ao_map = ctx.ao_map
     nao_py = int(ao_map.shape[0])
     n2 = nao_py * nao_py
@@ -2273,55 +3020,111 @@ def _compute_sto_ng_nuclear_gradient(grad_ctx: Dict[str, Any]) -> np.ndarray:
 
     s1 = -mol.intor("int1e_ipovlp")
     h1_ip = -(mol.intor("int1e_ipkin") + mol.intor("int1e_ipnuc"))
-    ip_s2 = -mol.intor("int2e_ip1", aosym="s2kl")
 
-    G_2e_a = np.zeros((nao_py, 3), dtype=float)
     tril_r, tril_c = np.tril_indices(nao_py)
     D_flat = D_py.ravel()
     Pa_flat = Pa_py.ravel() if n_act > 0 else None
-    for x in range(3):
-        buf = np.empty((nao_py, nao_py, nao_py, nao_py), dtype=float)
-        buf[:, :, tril_r, tril_c] = ip_s2[x]
-        buf[:, :, tril_c, tril_r] = ip_s2[x]
-        buf_2d = buf.reshape(n2, n2)
-        buf_ex_2d = buf.transpose(0, 3, 1, 2).reshape(n2, n2)
-        J_D = (buf_2d @ D_flat).reshape(nao_py, nao_py)
-        K_D = (buf_ex_2d @ D_flat).reshape(nao_py, nao_py)
-        term = 2.0 * np.sum(D_py * J_D, axis=1) - np.sum(D_py * K_D, axis=1)
-        if n_act > 0:
-            J_P = (buf_2d @ Pa_flat).reshape(nao_py, nao_py)
-            K_P = (buf_ex_2d @ Pa_flat).reshape(nao_py, nao_py)
-            term -= 2.0 * np.sum(Pa_py * J_P, axis=1) - np.sum(Pa_py * K_P, axis=1)
-            V_pqvw = (buf_2d @ Ca2_rsvw).reshape(nao_py, nao_py, n_act, n_act)
-            W_pt = np.einsum("pqvw,tuvw,qu->pt", V_pqvw, dm2, Ca_py, optimize=True)
-            term += 2.0 * np.sum(Ca_py * W_pt, axis=1)
-        G_2e_a[:, x] = term
 
-    aoslices = mol.aoslice_by_atom()
-    n_active = len(aoslices)
+    # Partition shells into chunks (<= ~18 AOs per chunk) for parallel GIL-free int2e_ip1 evaluation
+    nbas = int(mol.nbas)
+    ao_loc = mol.ao_loc_nr()
+    q_chunks: List[Tuple[int, int]] = []
+    sq = 0
+    while sq < nbas:
+        sq_end = sq + 1
+        while sq_end < nbas and (int(ao_loc[sq_end + 1]) - int(ao_loc[sq])) <= 18:
+            sq_end += 1
+        q_chunks.append((sq, sq_end))
+        sq = sq_end
+
     charges = np.asarray(ctx.charges, dtype=float)
     coords = np.asarray(ctx.coords, dtype=float)
-    grad_active = np.zeros((n_active, 3), dtype=float)
+    grad_all = np.zeros((n_all_atoms, 3), dtype=float)
 
-    for ia in range(n_active):
+    from concurrent.futures import ThreadPoolExecutor
+    import os
+
+    ip_tasks: List[Tuple[int, int, int]] = []
+    for ia in free_local:
+        sh0, sh1 = int(aoslices[ia, 0]), int(aoslices[ia, 1])
+        p0, p1 = int(aoslices[ia, 2]), int(aoslices[ia, 3])
+        if p1 > p0 and sh1 > sh0:
+            for sq0, sq1 in q_chunks:
+                ip_tasks.append((ia, sq0, sq1))
+
+    def _eval_ip_chunk(task: Tuple[int, int, int]) -> Tuple[int, np.ndarray]:
+        ia, sq0, sq1 = task
+        sh0, sh1 = int(aoslices[ia, 0]), int(aoslices[ia, 1])
+        p0, p1 = int(aoslices[ia, 2]), int(aoslices[ia, 3])
+        q0, q1 = int(ao_loc[sq0]), int(ao_loc[sq1])
+        np_ia = p1 - p0
+        nq_c = q1 - q0
+        ip_slice = -mol.intor(
+            "int2e_ip1",
+            aosym="s2kl",
+            shls_slice=(sh0, sh1, sq0, sq1, 0, nbas, 0, nbas),
+        )
+        g_part = np.zeros(3, dtype=float)
+        D_pq = D_py[p0:p1, q0:q1]
+        D_p = D_py[p0:p1, :]
+        D_qr_flat = D_py[q0:q1, :].ravel()
+        Pa_pq = Pa_py[p0:p1, q0:q1] if n_act > 0 else None
+        Pa_p = Pa_py[p0:p1, :] if n_act > 0 else None
+        Pa_qr_flat = Pa_py[q0:q1, :].ravel() if n_act > 0 else None
+        Ca_p = Ca_py[p0:p1, :] if n_act > 0 else None
+        Ca_q = Ca_py[q0:q1, :] if n_act > 0 else None
+
+        buf = np.empty((np_ia, nq_c, nao_py, nao_py), dtype=float)
+        for x in range(3):
+            buf[:, :, tril_r, tril_c] = ip_slice[x]
+            buf[:, :, tril_c, tril_r] = ip_slice[x]
+            buf_2d = buf.reshape(np_ia * nq_c, n2)
+            buf_ex_2d = buf.transpose(0, 3, 1, 2).reshape(np_ia * nao_py, nq_c * nao_py)
+            J_D = (buf_2d @ D_flat).reshape(np_ia, nq_c)
+            K_D = (buf_ex_2d @ D_qr_flat).reshape(np_ia, nao_py)
+            val = 2.0 * float(np.sum(D_pq * J_D)) - float(np.sum(D_p * K_D))
+            if n_act > 0:
+                J_P = (buf_2d @ Pa_flat).reshape(np_ia, nq_c)
+                K_P = (buf_ex_2d @ Pa_qr_flat).reshape(np_ia, nao_py)
+                val -= 2.0 * float(np.sum(Pa_pq * J_P)) - float(np.sum(Pa_p * K_P))
+                V_pqvw = (buf_2d @ Ca2_rsvw).reshape(np_ia, nq_c, n_act, n_act)
+                W_pt = np.einsum("pqvw,tuvw,qu->pt", V_pqvw, dm2, Ca_q, optimize=True)
+                val += 2.0 * float(np.sum(Ca_p * W_pt))
+            g_part[x] = val
+        return ia, g_part
+
+    g_2e_by_atom: Dict[int, np.ndarray] = {ia: np.zeros(3, dtype=float) for ia in free_local}
+    workers = min(os.cpu_count() or 4, 12)
+    if ip_tasks:
+        if workers <= 1 or len(ip_tasks) < 2:
+            for t in ip_tasks:
+                ia_t, gp = _eval_ip_chunk(t)
+                g_2e_by_atom[ia_t] += gp
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                for ia_t, gp in ex.map(_eval_ip_chunk, ip_tasks):
+                    g_2e_by_atom[ia_t] += gp
+
+    for ia in free_local:
         p0, p1 = int(aoslices[ia, 2]), int(aoslices[ia, 3])
         g1_kin_nuc = 2.0 * np.einsum("xab,ab->x", h1_ip[:, p0:p1, :], D_py[p0:p1, :])
         with mol.with_rinv_at_nucleus(ia):
             rinv_ip = mol.intor("int1e_iprinv")
         g1_hf = -2.0 * charges[ia] * np.einsum("xab,ab->x", rinv_ip, D_py)
         g_ovlp = 2.0 * np.einsum("xab,ab->x", s1[:, p0:p1, :], dS_py[p0:p1, :])
-        g_2e = np.sum(G_2e_a[p0:p1, :], axis=0)
+        g_2e = g_2e_by_atom[ia]
+
         g_vnn = np.zeros(3, dtype=float)
-        for ib in range(n_active):
+        for ib in range(n_all_atoms):
             if ib == ia:
                 continue
             dR = coords[ia] - coords[ib]
             r2 = float(np.dot(dR, dR))
             if r2 > 1e-24:
                 g_vnn -= (charges[ia] * charges[ib]) * (r2 ** -1.5) * dR
-        grad_active[ia] = g1_kin_nuc + g1_hf + g_ovlp + g_2e + g_vnn
+        grad_all[ia] = g1_kin_nuc + g1_hf + g_ovlp + g_2e + g_vnn
 
-    return grad_active
+    return grad_all
 
 
 def run_localized_vb(

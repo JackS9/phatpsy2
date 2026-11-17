@@ -1,7 +1,7 @@
 # Scientific Methodology Overview: The Projected Hamiltonian Approach
 
 > **Status:** DRAFT (Pending User / Author Review)  
-> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems*, Ph.D. Dissertation, Department of Chemistry & Quantum Theory Project, University of Florida (1980).  
+> **Source:** Jack A. Smith, *A Projected Hamiltonian Approach to Polyatomic Systems*, Ph.D. Dissertation, Department of Chemistry & Quantum Theory Project, University of Florida (1978).  
 > **Reference Text:** [`PhD_Thesis/PHATPSY.tex`](https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/PHATPSY.tex) | Archival Scanned: [`PhD_Thesis/projectedhamilto00smit.pdf`](https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/projectedhamilto00smit.pdf)
 
 ---
@@ -152,7 +152,7 @@ PHATPSY provides specialized atomic center classifications and spatial symmetry 
 
 ## 8. Surface Chemisorption Hierarchy (Dissertation Chapter IX: $NO$ and $CO$ on $Ni(100)$)
 
-In the PhD dissertation (Jack A. Smith, 1980, Chapter IX), chemisorption on transition-metal surfaces is addressed through a disciplined multi-scale localized progression designed to avoid artificial finite-cluster edge/boundary truncation effects without resorting to periodic boundary conditions:
+In the PhD dissertation (Jack A. Smith, 1978, Chapter IX), chemisorption on transition-metal surfaces is addressed through a disciplined multi-scale localized progression designed to avoid artificial finite-cluster edge/boundary truncation effects without resorting to periodic boundary conditions:
 
 ### A. The 4-Stage Progressive Hierarchy
 1. **Isolated Molecule ($NO$ / $CO$):**
@@ -345,5 +345,20 @@ Stage 3 diagnostics (`ROADMAP.md` Open Model Items; `phatpsy/vb_correction.py`) 
 
 1. **Active Bonded Region ($\mathcal{A}$):** Evaluated with exact two-center prolate-spheroidal Neumann quadrature (`phatpsy/two_center_integrals.py`) and multi-center pair-density Poisson integration (`phatpsy/multicenter_integrals.py`), with zero empirical pair fitting. Orbitals are optimized in orbital-restricted AO domains (`LocalizedVBModel` and `MaskedVB` in `phatpsy/localized_vb.py`) using `strict_1c`, `bond_local` (Option 1), Blyholder chemisorption (`blyholder_r0`/`r1`/`r2`), or full `delocalized` domains, and quantified via the gauge-invariant principal-angle overlap diagnostic `own_atom_character`.
 2. **Frozen Core & Non-Bonded Spectator Environment ($\mathcal{B}$):** Inner atomic shells ($1s^2$, $[\text{Ne}]$, $[\text{Ar}]$) and inactive spectators (`fixed: true` or `active: false`) are projected out via analytical Phillips-Kleinman / Huzinaga operators (`phatpsy/embedding.py`) across Levels **E1** (`exact_backprojected`), **E2** (`unprojected_eri` with charge-conserving metric renormalization $W$), and **E3** (`eri_free_2c`). Multi-atom slab/cluster environments use the **exact joint environment overlap inverse** $(S_{\mathcal{B}\mathcal{B}})^{-1}$ with unit projector scaling (`pk_scale = 1.0`), ensuring a strictly positive-definite valence pseudometric $\tilde{S}_{\text{eff}}$ on condensed-matter surfaces such as $\text{CO}/\text{Ni}(100)$. Fitted single-center model potentials remain available strictly as an optional fast approximation for distant non-bonded spectators (`environment_embedding="model_potential"`) or via `method="phatpsy_scf"`.
+
+---
+
+## 17. Embedded Analytical Gradients, Surface Thermochemistry, and Core-Hole Spectroscopy (Phase 18)
+
+To extend PHATPSY 2.0 from collinear chemisorption single points to unconstrained 3D catalytic surface optimization and vibrational/XPS analysis on embedded metal plaquettes (`ROADMAP.md` Phase 18), three exact methodological upgrades were added atop Phase 17:
+
+1. **Exact-Backprojected `STO-KG` Analytical Nuclear Gradients Without CPHF (`phatpsy/vb_driver.py`):**
+   Under Level E1 (`exact_backprojected` core and spectator embedding), the embedded valence energy $E_{\text{emb}}(\tilde{X}_i, \tilde{X}_a; \mathbf{R})$ equals the full-system `CASCI` expectation value $E_{\text{full}}([C_{\text{env}}, L\tilde{X}_i], L\tilde{X}_a; \mathbf{R})$, where $L(\mathbf{R}) = I_A - D_{\mathcal{B}}(\mathbf{R}) S(\mathbf{R}) I_A$ and $D_{\mathcal{B}} = C_{\text{env}} (C_{\text{env}}^T S C_{\text{env}})^{-1} C_{\text{env}}^T$ projects against all frozen core and closed-shell spectator orbitals $C_{\text{env}}$. After removing the 1-center active-core nullspace from $(\tilde{X}_i, \tilde{X}_a)$, lifting directly into $(X_i^{\text{full}} = [C_{\text{env}}, \tilde{X}_i], X_a^{\text{full}} = \tilde{X}_a)$ turns every Pulay derivative of $L(\mathbf{R})$ into the closed-form Schur-complement metric response $\Delta(\partial E/\partial S)$ contracted against `int1e_ipovlp`—requiring zero CPHF iterations when orbital parameters $(\tilde{X}_i, \tilde{X}_a)$ are variationally stationary.
+2. **Clamped-Substrate Partial Hessians & Harmonic Adsorbate Thermochemistry (`phatpsy/vibrations.py`):**
+   When surface substrate atoms are constrained (`fixed: true`), mass-weighted Hessians are restricted to the $3 N_{\text{free}} \times 3 N_{\text{free}}$ active sub-block without ideal-gas Eckart T/R projection, preserving all frustrated translations and rotations as genuine surface vibrational modes while eliminating spurious zero-frequency modes on clamped metal atoms. Adsorbate free energies $G_{\text{ads}}(T)$ (`is_adsorbate=True`) omit 3D gas translation/rotation partitions and the ideal-gas $+RT$ PV enthalpy term, retain unfloored ZPVE, and apply a $50\text{ cm}^{-1}$ quasi-RRHO frequency floor strictly to thermal $E_{\text{vib}}, S_{\text{vib}}, C_v$.
+3. **Spin-Resolved Mayer Bond Orders & Bagus/Siegbahn CVS-$\Delta\text{CASSCF}$ Core-1s Spectroscopy (`phatpsy/chemisorption.py`):**
+   Alongside Koopmans orbital-energy core shifts (`method_label="koopmans_orbital_energy"`, which overestimate experimental XPS absolute binding energies by $\sim 15\text{ eV}$ due to unrelaxed core holes), `compute_delta_casscf_core_1s_be` explicitly opens a single $1s$ core orbital $c_{1s}$ on a target atom, projects valence orbitals orthogonal via $P_{\perp 1s}$, enforces $n_{1s} = 1$ via the Hermitian core-valence-separation (CVS) penalty $\Lambda(\hat{n}_0 - 1)^2$, and relaxes all valence shells via BFGS across spin-adapted high- and low-spin core-hole multiplets (`compute_mayer_bond_orders` simultaneously tracks spin-resolved $B_{AB}$ bond weakening).
+4. **Ferromagnetic $\text{Ni}(100)$ Plaquette Active Space (`build_surface_plaquette_vb_specs`, `phatpsy/vb_driver.py`):**
+   Following the ferromagnetic $\text{CO}/\text{Ni}(100)$ formulation, each active metal center in an embedded $\text{Ni}_k$ plaquette is modeled in its $3d^8 4s^2\,^3F$ state with two unpaired high-spin active electrons per $\text{Ni}$ ($4$ localized inactive + $2$ active orbitals per active $\text{Ni}$, yielding a `(2k, 0)` high-spin single determinant with `net_spin = 2k` on clean $\text{Ni}_k$). Adsorbing paramagnetic $\text{NO}(X\,^2\Pi)$ (`5` inactive including Blyholder $5\sigma$ donation + `2` degenerate $2\pi^*$ active orbitals) couples antiferromagnetically between $\text{Ni}$ $3d$ and $\text{NO}$ $2\pi^*$ (`net_spin = 2k - 1`), forming $\text{CAS}(2k+1, 2k+2)$ across $\text{Ni}_2$, $\text{Ni}_4/\text{Ni}_9$, and the 1978 $\text{Ni}_5$ cluster.
 
 

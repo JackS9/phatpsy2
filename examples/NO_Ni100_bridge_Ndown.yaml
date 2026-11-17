@@ -1,0 +1,63 @@
+# Embedded Ni4(active)/Ni9(spectator) FCC(100) 2-fold bridge site: N-down NO*
+title: NO on Ni4/Ni9(100) 2-Fold Bridge Site (N-Down, Ferromagnetic LocalizedVB CAS(9e,10o) SZ/STO-6G)
+net_spin: 7
+control:
+  method: masked_vb
+  vb_wavefunction: cas
+  domain_mode: custom
+  core_embedding: exact_backprojected
+  environment_embedding: exact_backprojected
+  integral_backend: sto_ng
+  sto_ng_primitives: 6
+  spin_unrestricted: false
+  max_cycles: 300
+  convergence: 1.0e-06
+  default_basis: SZ
+  vb_orbital_specs:
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: inactive, atoms: [Ni1]}
+  - {role: active, atoms: [Ni1, N1, O1]}
+  - {role: active, atoms: [Ni1, N1, O1]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: inactive, atoms: [Ni2]}
+  - {role: active, atoms: [Ni2, N1, O1]}
+  - {role: active, atoms: [Ni2, N1, O1]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: inactive, atoms: [Ni3]}
+  - {role: active, atoms: [Ni3, N1, O1]}
+  - {role: active, atoms: [Ni3, N1, O1]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: inactive, atoms: [Ni4]}
+  - {role: active, atoms: [Ni4, N1, O1]}
+  - {role: active, atoms: [Ni4, N1, O1]}
+  - {role: inactive, atoms: [N1]}
+  - {role: inactive, atoms: [O1]}
+  - {role: inactive, atoms: [N1, O1]}
+  - {role: inactive, atoms: [N1, O1]}
+  - {role: inactive, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4]}
+  - {role: active, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4]}
+  - {role: active, atoms: [N1, O1, Ni1, Ni2, Ni3, Ni4]}
+geometry:
+- {id: Ni1, element: Ni, xyz: [2.355, 2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni2, element: Ni, xyz: [-2.355, 2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni3, element: Ni, xyz: [-2.355, -2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: Ni4, element: Ni, xyz: [2.355, -2.355, 0.0], active: true, fixed: true, basis: SZ}
+- {id: N1, element: N, xyz: [0.002536, 1.070892, 1.342872], active: true, fixed: false, basis: SZ}
+- {id: O1, element: O, xyz: [-0.008951, 1.962268, 3.844910], active: true, fixed: false, basis: SZ}
+- {id: Ni5, element: Ni, xyz: [0.0, 0.0, -3.330473], active: false, fixed: true, basis: SZ}
+- {id: Ni6, element: Ni, xyz: [7.065, 2.355, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni7, element: Ni, xyz: [7.065, -2.355, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni8, element: Ni, xyz: [-7.065, 2.355, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni9, element: Ni, xyz: [-7.065, -2.355, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni10, element: Ni, xyz: [2.355, 7.065, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni11, element: Ni, xyz: [-2.355, 7.065, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni12, element: Ni, xyz: [2.355, -7.065, 0.0], active: false, fixed: true, basis: SZ}
+- {id: Ni13, element: Ni, xyz: [-2.355, -7.065, 0.0], active: false, fixed: true, basis: SZ}
