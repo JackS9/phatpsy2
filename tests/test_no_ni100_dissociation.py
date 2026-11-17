@@ -183,21 +183,57 @@ def test_oracle_tilted_nih_l2_condon_shortley_vs_prolate(basis: str):
         )
     else:
         # Compare all-electron bond_local CAS(11e, 7o) STO-8G against external PySCF CASCI/CASSCF(11, 7) on DZP.
-        # Warm-start deterministically from closed-shell [Ar] RHF core + converged res_sto_tilt valence orbitals
-        # so 9 [Ar] core + 7 valence orbitals converge cleanly across macOS Accelerate and Linux OpenBLAS.
-        ints_vb, ctx_sto_vb = sto_ng_ao_integrals(specs, n_prim=n_prim_vb, return_pyscf_context=True, build_eri=False)
-        fe_ni = FrozenEnvironmentAtom.from_atomic_rhf(28.0, (0.0, 0.0, 0.0), b_ni, n_occ=9)
-        C_core = np.zeros((ints_vb.nao, 9), dtype=float)
-        C_core[:len(b_ni), :] = fe_ni.C_occ
+        # Build a deterministic 1-shot PHATPSY Fock + active natural-orbital seed placing [Ar \ {3p_sigma}, 3d_delta]
+        # in the 9 inactive 1-center Ni orbitals and [3p_sigma, valence \ {3d_delta}] in the 7 active orbitals.
+        # This avoids the 3p_sigma <-> 3d_delta saddle near [Ar] so step 0 starts inside the ground-state basin
+        # (< 5e-4 Ha from CASSCF) across both macOS Accelerate and Linux OpenBLAS.
+        from scipy.linalg import eigh
+
+        ints_vb, ctx_sto_vb = sto_ng_ao_integrals(specs, n_prim=n_prim_vb, return_pyscf_context=True, build_eri=True)
+        _, _, _, _, _, _, C_core_rohf, _ = solve_atomic_ni_rohf("DZP", (0.0, 0.0, 0.0))
+        S_vb, h_vb, eri_vb = ints_vb.S, ints_vb.h, ints_vb.eri
+        nao_vb = ints_vb.nao
+
+        C_pad = np.zeros((nao_vb, 9), dtype=float)
+        C_pad[:n_ni, :] = C_core_rohf
+        D_eb = np.asarray(res_sto_tilt["rdm1_ao"], dtype=float)
+        D_tot = D_eb if float(np.trace(D_eb @ S_vb)) > 20.0 else (2.0 * (C_pad @ C_pad.T) + D_eb)
+
         loc_eb = np.asarray(res_sto_tilt["localized_orbitals"], dtype=float)
-        roles_eb = res_sto_tilt["vb_roles"]
-        warm_ae = (
-            [C_core[:, k] for k in range(9)]
-            + [loc_eb[i] for i, r in enumerate(roles_eb) if r == "inactive"]
-            + [loc_eb[i] for i, r in enumerate(roles_eb) if r == "active"]
+        C_eb_orth = orthonormal_mo_guess(C_pad, loc_eb.T, S_vb)[:, 9:16]
+        M_rdm = C_eb_orth.T @ S_vb @ D_tot @ S_vb @ C_eb_orth
+        occ_nat, u_nat = np.linalg.eigh(0.5 * (M_rdm + M_rdm.T))
+        C_nat = C_eb_orth @ u_nat[:, ::-1]
+        occ_nat = occ_nat[::-1]
+        k_d_pair = min(
+            [k for k in range(7) if occ_nat[k] > 1.99],
+            key=lambda k: float(np.linalg.norm(S_vb[n_ni:, :] @ C_nat[:, k])),
         )
+
+        Jm = eri_vb.reshape(nao_vb * nao_vb, nao_vb * nao_vb)
+        Km = np.ascontiguousarray(eri_vb.transpose(0, 3, 2, 1)).reshape(nao_vb * nao_vb, nao_vb * nao_vb)
+        F0 = h_vb + (Jm @ D_tot.ravel()).reshape(nao_vb, nao_vb) - 0.5 * (Km @ D_tot.ravel()).reshape(nao_vb, nao_vb)
+        _, C_f0 = eigh(0.5 * (F0 + F0.T), S_vb)
+        p3_sig_idx = max(
+            range(6, 9),
+            key=lambda k: float(np.linalg.norm(S_vb[n_ni:, :] @ C_f0[:, k])),
+        )
+
+        Xi0 = np.zeros((nao_vb, 9), dtype=float)
+        for col, k in enumerate([k for k in range(9) if k != p3_sig_idx]):
+            v = C_f0[:n_ni, k].copy()
+            v /= np.sqrt(float(v @ S_vb[:n_ni, :n_ni] @ v))
+            Xi0[:n_ni, col] = v
+        v_d = C_nat[:n_ni, k_d_pair].copy()
+        v_d /= np.sqrt(float(v_d @ S_vb[:n_ni, :n_ni] @ v_d))
+        Xi0[:n_ni, 8] = v_d
+
+        Xa0 = np.column_stack([C_f0[:, p3_sig_idx]] + [C_nat[:, k] for k in range(7) if k != k_d_pair])
+        warm_ae = [Xi0[:, k] for k in range(9)] + [Xa0[:, k] for k in range(7)]
+
         dk_ae_tilt = _tilted_nih_deck("DZP", "sto_ng", n_prim=n_prim_vb, core_emb="all_electron")
-        dk_ae_tilt.control.max_cycles = 250
+        dk_ae_tilt.control.max_cycles = 350
+        dk_ae_tilt.control.convergence = 1.0e-7
         res_ae_tilt = drv.run_deck(dk_ae_tilt, warm_orbitals=warm_ae)
         assert res_ae_tilt["converged"] is True, "DZP NiH all-electron LocalizedVB failed to converge"
         loc = np.asarray(res_ae_tilt["localized_orbitals"], dtype=float)
