@@ -14,7 +14,7 @@ from phatpsy.chemisorption import (
     compute_mayer_bond_orders,
     get_mayer_bond_order,
 )
-from phatpsy.embedding import solve_atomic_ni_rohf
+from phatpsy.embedding import FrozenEnvironmentAtom, solve_atomic_ni_rohf
 from phatpsy.localized_vb import atom_basis, diatomic_ao_integrals, orthonormal_mo_guess
 from phatpsy.multicenter_integrals import (
     molecular_ao_integrals,
@@ -182,9 +182,24 @@ def test_oracle_tilted_nih_l2_condon_shortley_vs_prolate(basis: str):
             f"(sto={res_sto_tilt['total_energy']:.6f}, pro={res_pro_z['total_energy']:.6f})"
         )
     else:
-        # Compare all-electron bond_local CAS(11e, 7o) STO-8G against external PySCF CASCI/CASSCF(11, 7) on DZP
-        res_ae_tilt = drv.run_deck(_tilted_nih_deck("DZP", "sto_ng", n_prim=n_prim_vb, core_emb="all_electron"))
+        # Compare all-electron bond_local CAS(11e, 7o) STO-8G against external PySCF CASCI/CASSCF(11, 7) on DZP.
+        # Warm-start deterministically from closed-shell [Ar] RHF core + converged res_sto_tilt valence orbitals
+        # so 9 [Ar] core + 7 valence orbitals converge cleanly across macOS Accelerate and Linux OpenBLAS.
         ints_vb, ctx_sto_vb = sto_ng_ao_integrals(specs, n_prim=n_prim_vb, return_pyscf_context=True, build_eri=False)
+        fe_ni = FrozenEnvironmentAtom.from_atomic_rhf(28.0, (0.0, 0.0, 0.0), b_ni, n_occ=9)
+        C_core = np.zeros((ints_vb.nao, 9), dtype=float)
+        C_core[:len(b_ni), :] = fe_ni.C_occ
+        loc_eb = np.asarray(res_sto_tilt["localized_orbitals"], dtype=float)
+        roles_eb = res_sto_tilt["vb_roles"]
+        warm_ae = (
+            [C_core[:, k] for k in range(9)]
+            + [loc_eb[i] for i, r in enumerate(roles_eb) if r == "inactive"]
+            + [loc_eb[i] for i, r in enumerate(roles_eb) if r == "active"]
+        )
+        dk_ae_tilt = _tilted_nih_deck("DZP", "sto_ng", n_prim=n_prim_vb, core_emb="all_electron")
+        dk_ae_tilt.control.max_cycles = 250
+        res_ae_tilt = drv.run_deck(dk_ae_tilt, warm_orbitals=warm_ae)
+        assert res_ae_tilt["converged"] is True, "DZP NiH all-electron LocalizedVB failed to converge"
         loc = np.asarray(res_ae_tilt["localized_orbitals"], dtype=float)
         roles_vb = res_ae_tilt["vb_roles"]
         Xi_ae = loc[[i for i, r in enumerate(roles_vb) if r == "inactive"]].T
