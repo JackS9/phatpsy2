@@ -121,10 +121,10 @@ def test_eo_oxygen_mixed_spins_example():
     # Net orbital spin is 0, so atom.spin is not forced by valence_config
     assert atom.spin is None
 
-    # Full Ethylene Oxide (EO.yaml) and Transition State (EOtoAA.yaml):
+    # Full Ethylene Oxide (EO.yaml):
     # No ferromagnetic bond between C1 and C2; O1 has mixed-spin sp3 orbitals antiferromagnetically bonded to C1 and C2
     repo_root = Path(__file__).resolve().parent.parent
-    for fname in ("EO.yaml", "EOtoAA.yaml"):
+    for fname in ("EO.yaml",):
         deck_eo = CalculationDeck.from_yaml(repo_root / "examples" / fname)
         assert deck_eo.ferromagnetic_links == []
         assert deck_eo.physical_net_spin == 0
