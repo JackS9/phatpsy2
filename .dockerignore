@@ -1,0 +1,44 @@
+# Version control & editor metadata
+.git
+.gitignore
+.github
+.DS_Store
+*.swp
+*.bak
+*~
+
+# Build artifacts & compiled objects
+build/
+bin/
+site/
+*.o
+*.a
+*.so
+*.dylib
+*.mod
+*.pyd
+
+# Python caches & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Notebooks & non-runtime documentation/archives
+notebooks/
+.ipynb_checkpoints/
+*.ipynb
+PhD_Thesis/
+phatpsy_documentation/
+
+# Local scratch & tool outputs
+Phatpsy.*
+*.cube
+legacy_n2.out
+modern_n2.out
+graphify-out/
+zorabasis/
+personal/
