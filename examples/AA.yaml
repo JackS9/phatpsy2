@@ -1,0 +1,136 @@
+title: Acetaldehyde (CH3CHO), Singlet Alternating-Spin Configuration
+basis: DZP
+net_spin: 1
+physical_net_spin: 0
+geometry:
+- element: C
+  xyz:
+  - 2.7
+  - -0.9
+  - 0.0
+  id: C1
+  spin: down
+  hybridization: sp3
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H1
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H2
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H3
+- element: C
+  xyz:
+  - 0.0
+  - 0.0
+  - 0.0
+  id: C2
+  spin: up
+  hybridization: sp2
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: pi
+    connect_to: O1
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: H4
+- element: O
+  xyz:
+  - 0.0
+  - 2.29
+  - 0.0
+  id: O1
+  spin: down
+  hybridization: sp2
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+  - spin: down
+    occupation: 1
+    orbital_type: pi
+    connect_to: C2
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+  - spin: none
+    occupation: 2
+    orbital_type: lone_pair
+- element: H
+  xyz:
+  - 3.75
+  - 0.75
+  - 0.0
+  id: H1
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+- element: H
+  xyz:
+  - 2.85
+  - -2.0
+  - 1.65
+  id: H2
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+- element: H
+  xyz:
+  - 2.85
+  - -2.0
+  - -1.65
+  id: H3
+  spin: up
+  valence_config:
+  - spin: up
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C1
+- element: H
+  xyz:
+  - -1.75
+  - -1.05
+  - 0.0
+  id: H4
+  spin: down
+  valence_config:
+  - spin: down
+    occupation: 1
+    orbital_type: sigma
+    connect_to: C2
+elements:
+  C:
+    symbol: C
+    atomic_number: 6
+  O:
+    symbol: O
+    atomic_number: 8
+  H:
+    symbol: H
+    atomic_number: 1

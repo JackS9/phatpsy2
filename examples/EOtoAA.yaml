@@ -1,16 +1,7 @@
 title: '... Ethylene Oxide -> Acetaldehyde Transition State ...'
 net_spin: 1
 control:
-  spin_unrestricted: true
   max_cycles: 20
-  convergence: 1.0e-06
-  use_global_fermi: false
-  fermi_temperature: null
-  exchange_kernel: hartree-fock
-  exchange_alpha: 0.6666666666666666
-  separate_atoms_first_cycle: true
-  debug: false
-  trace: false
 geometry:
 - element: C
   xyz:
