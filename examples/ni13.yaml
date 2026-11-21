@@ -1,8 +1,6 @@
 title: '... Ni13, R(Ni-Ni)=4.71'
 net_spin: 13
 physical_net_spin: 2
-control:
-  max_cycles: 40
 geometry:
 - element: Ni
   xyz:

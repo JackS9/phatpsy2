@@ -1,7 +1,5 @@
 title: Ethylene Oxide (Oxirane, c-C2H4O), Singlet Mixed-Spin Oxygen Configuration
 net_spin: 1
-control:
-  max_cycles: 100
 geometry:
 - element: C
   xyz:
