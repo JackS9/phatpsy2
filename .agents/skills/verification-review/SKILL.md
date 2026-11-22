@@ -24,6 +24,8 @@ it with evidence; fixing is a separate task.
 Record the exit status and the pytest summary line verbatim. If the
 build fails, stop here and report the failure output.
 
+**CI state.** After the loop, record the conclusions of all three GitHub Actions workflows (CI, Benchmarks & Parity, Deploy Docs) for the head commit. If the change touches integrals, drivers, or numerical kernels and CI has not run — or is not green — on that commit, the verdict cannot be PASS: report UNVERIFIED (CI pending) with the local evidence attached. Local-only verification must be labeled as such; the local loop runs the fast test tier only, and full coverage exists only in Benchmarks & Parity.
+
 ## Step 2: Physics Sanity Checks
 
 For changes touching scientific routines, data files, or the Python
@@ -48,14 +50,14 @@ driver, check the invariants from
    sets (no spot-checking known-good elements), stored energies must
    satisfy the variational ordering (e.g. $E_{SZ} > E_{DZ}$), and no
    placeholder values (e.g. `eigval = 0.0`) may be present.
+5. **Oracle consistency & computed values:** Where the change affects quantities with an independent same-basis reference (PySCF CASCI/CASSCF, exact-integral evaluations, finite-difference gradients), confirm agreement within the tolerance the test states. Tolerances must predate the result — a tolerance widened in the same change as a failure is a FAIL. Confirm no function returns a stored constant in place of a computed quantity (AGENTS.md §1, invariant 6).
 
 ## Step 3: Diff Audit
 
 Inspect the change's diff (`git diff` / `git status`) and confirm:
 
 1. No protected path was violated (AGENTS.md, Section 5): generated
-   data files changed only via their ingest scripts, legacy baselines
-   untouched, tests not edited in the course of a bug fix.
+   data files changed only via their ingest scripts, validation baselines changed only as AGENTS.md §6 permits while the baseline exception is open, and only via the generator script, tests not edited in the course of a bug fix.
 2. Any numerical deviation from baselines is explicitly reported in
    the change summary.
 3. No new dependency or tool was installed without user consent
