@@ -6,18 +6,19 @@ These instructions govern all autonomous and pair-programming development work o
 
 ## 1. Project Mission & Invariants
 
-**PHATPSY 2.0** modernizes the 1970s FORTRAN quantum chemistry package (*Projected Hamiltonian Approach to Polyatomic Systems*, Jack A. Smith, PhD Dissertation, Univ. of Florida, 1980) into a modern, high-performance **Fortran 2018** core with a typed **Python API**, **CMake** build system, YAML configuration, and **Three.js** interactive visualization.
+**PHATPSY 2.0** is a localized valence-bond (VB) quantum chemistry package: variational calculations in domain-constrained localized orbitals built from exact one- and two-center STO integrals, with explicit per-orbital spin and occupation assignments (`valence_config`), embedded in an exact-integral environment. It descends from the 1970s PHATPSY package (*Projected Hamiltonian Approach to Polyatomic Systems*, Jack A. Smith, PhD Dissertation, Univ. of Florida, **1978**), whose atom-partitioned structure, embedded-atom construction, and localized spin assignments it retains as concepts. The legacy single-center model-potential/PK functional survives only in its designated roles: the environment treatment for non-bonded interactions, and the heritage `method: phatpsy_scf` engine. Implementation: a modern **Fortran 2018** core with a typed **Python API**, **CMake** build system, YAML configuration, and **Three.js** interactive visualization.
 
 ### Core Invariants:
-1. **Abandon Legacy Parity & Namelist Input:** Backward compatibility with the legacy 1980 FORTRAN 66/77 implementation, legacy punch-card scratch units, and legacy Namelist input decks (`*.stdin`) is officially abandoned. The project has moved on to modern methodology, standard YAML/JSON input (`CalculationDeck`), typed Python API, and standard LAPACK linear algebra.
+1. **YAML-First, No Legacy Input:** Backward compatibility with the legacy FORTRAN 66/77 implementation, legacy punch-card scratch units, and legacy Namelist input decks (`*.stdin`) is officially abandoned. **YAML is the reference representation of a calculation:** every deck must round-trip through YAML, and the Python API and CLI are equivalent views of the same deck. Scientific work is specified as modern `CalculationDeck` objects with standard LAPACK linear algebra.
 2. **Scientific Precision & Physical Invariants:** Calculations operate in **atomic units** (Hartrees, Bohrs). Validation relies on **basic physics-driven sanity checks** and physical boundary conditions:
    - Virial theorem: Neutral ground-state molecules must approach $-V/T \approx 2.00$ ($|-V/T - 2.0| \le 0.05$).
    - Particle conservation: Symmetrically orthogonalized Löwdin populations must yield strictly non-negative gross populations and physical total electron counts.
    - Variational bounds: Electronic energies and wavefunctions must be stable and self-consistent.
    - Translational/rotational invariance: Dipole moments and molecular properties must remain invariant under coordinate translation.
-3. **External Scientific Benchmarks:** Rather than attempting to match frozen historical legacy outputs, scientific accuracy is judged against external experimental and theoretical benchmarks (NIST CCCBDB, CRC Handbook, Herzberg, Somorjai & Li, and standard quantum chemistry packages like PySCF/Gaussian) as implemented in `phatpsy/benchmarks.py`.
+3. **External Scientific Benchmarks:** Rather than attempting to match frozen historical legacy outputs, scientific accuracy is judged against external experimental and theoretical benchmarks (NIST CCCBDB, CRC Handbook, Herzberg, Somorjai & Li, and standard quantum chemistry packages like PySCF/Gaussian) as implemented in `phatpsy/benchmarks.py`. For method-internal validation, the standing pattern is the **oracle**: an independent computation of the same quantity in the same basis (PySCF CASCI/CASSCF references, exact one-/two-center integral evaluations, finite-difference gradients), with agreement tolerances stated in advance. A result is verified against an oracle, never against the implementing code's own outputs.
 4. **Clean Decoupling:** Fortran 2018 handles intensive quantum matrix operations and dynamic allocations. Python handles user workflows, geometry synthesis, format conversion, and visualization.
 5. **Anti-Circularity in Validation:** Acceptance criteria must be computed by the active calculation path under test. If an accepted value appears verbatim or as a calibration target in the implementation (e.g. empirical fitted parameter tables like `PAIR_PARAMS`), the test is circular and does not verify the milestone. The reviewer must be able to point to the code path that computes each accepted value from fundamental inputs.
+6. **Computed, Never Stored:** A function that reports a physical quantity must compute it from the calculation's own integrals and wavefunction. Returning a stored constant, a benchmark value, or a placeholder in place of the computed quantity is fabrication, regardless of how close the constant is. Tests must assert against independently computed or external values, never against constants copied from the implementation. (Origin: the `phatpsy/chemisorption.py` literal stubs removed in the Phase 18 §2 cleanup.)
 
 ---
 
@@ -31,7 +32,7 @@ These instructions govern all autonomous and pair-programming development work o
 | **Fortran/Python Architecture & Memory Model** | [System Architecture](docs/development/architecture.md) |
 | **External Benchmarks & Physics Invariants** | [Validation Standards](docs/development/validation_standards.md) & [`phatpsy/benchmarks.py`](phatpsy/benchmarks.py) |
 | **Project Milestones & Future Goals** | [Development Roadmap](ROADMAP.md) |
-| **Modernizing a Legacy Routine** | Use the `routine-modernization` skill ([`.agents/skills/routine-modernization/SKILL.md`](.agents/skills/routine-modernization/SKILL.md)) |
+| **Heritage Fortran sources (`legacy/`)** | The `routine-modernization` skill (`.agents/skills/routine-modernization/SKILL.md`) — heritage reference only; the modernization it describes is complete |
 
 ---
 
@@ -46,19 +47,22 @@ These instructions govern all autonomous and pair-programming development work o
 7. **Terminology Freeze on Retirement:** Retired identifiers (e.g. `CDAMP`/`VDAMP` namelists, `charge_damp`/`potential_damp` YAML keys, legacy punch-card scratch files) must not appear in user manual pages except in clearly marked historical callouts.
 8. **Strict Admonitions and Code Blocks:** Documentation must use standard MkDocs `!!!` admonitions (never GitHub-style `> [!NOTE]` alerts) and specify language tags on all fenced code blocks.
 9. **No Out-of-Tree File Links in Docs:** Manual pages must not contain local `file:///` URLs or relative markdown links escaping `docs/` (such as `../../src/...`). Use full GitHub permalinks or inline code spans.
+10. **Notebook CI Is Optional:** Notebooks are documentation and worked examples. Notebook execution is a separate, opt-in check and is never a gate on the canonical verification loop or on CI.
+11. **Git Discipline:** Planned work lands on a branch and is merged by pull request; Jack merges. Direct commits to `master` only when Jack directs them for a specific change. In both cases, the pushed state is what gets verified (see §4).
 
 ---
 
 ## 4. Verification & Definition of Done
 
 1. **Canonical verification loop:** `./make_build_test.sh` — builds the modern CLI and the Python extension, and executes the full pytest suite.
-   *Healthy result:* the script exits 0 and the pytest summary reports all tests passed (0 failed, 0 errors).
+   *Healthy result:* the script exits 0 and the pytest summary reports all tests passed (0 failed, 0 errors). The canonical loop runs the default (fast) test tier; `slow`-marked tests are skipped locally. Full coverage runs in the Benchmarks & Parity workflow (`--runslow`).
 2. **Quick loop (Python-only changes):**
    `PYTHONPATH=. .venv/bin/pytest tests/ -v`
    *Healthy result:* `N passed` with 0 failed.
 3. **Evidence rule:** Work is not done until the verification loop has been run on the final state of the change. When reporting work complete, include the tail of the verification output (at minimum the pytest summary line) in the report. A claim that tests pass, without the output, is not evidence.
 4. **Mistake-twice rule:** When the same mistake is made twice, the correction goes into this file (or the relevant file under `.agents/rules/`) in the same commit as the fix, so the next session does not repeat it.
 5. **Executable Documentation Rule:** Documentation examples (YAML decks and Python snippets) are executed and validated as part of the test suite (`tests/test_docs_examples.py`). Any change to public APIs or schemas that breaks a documentation example fails the build.
+6. **CI Is the Gate for Numerical Work:** For any change touching integrals, SCF/VB drivers, or numerical kernels, work is not done until all three GitHub Actions workflows (CI, Benchmarks & Parity, Deploy Docs) are green on the pushed commit. A locally green run is not sufficient evidence: results must reproduce across BLAS backends (macOS Accelerate and Linux OpenBLAS). Formulate numerical solves in well-conditioned form (QR/SVD-based least squares; never solve through normal equations), and treat any platform-dependent result as a defect to be diagnosed — never as a tolerance to be loosened.
 
 ---
 

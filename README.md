@@ -58,6 +58,37 @@ cmake --build .
 cd ..
 ```
 
+### Docker
+
+Build the multi-stage container image from the repository root:
+
+```bash
+docker build -t phatpsy:2.0 .
+```
+
+Run the `phatpsy` CLI through the container (running with no arguments prints the CLI help):
+
+```bash
+# Print CLI help
+docker run --rm phatpsy:2.0
+
+# Inspect available basis sets for an element
+docker run --rm phatpsy:2.0 elements C
+```
+
+Run an example calculation deck with a mounted output directory:
+
+```bash
+mkdir -p out
+docker run --rm -v "$PWD/out:/work" phatpsy:2.0 examples/CO.yaml -o /work/CO.json
+```
+
+To run your own deck from the current directory, mount it into `/work` and pass its container path:
+
+```bash
+docker run --rm -v "$PWD:/work" phatpsy:2.0 /work/my_deck.yaml -o /work/my_deck.json
+```
+
 ---
 
 ## Usage
