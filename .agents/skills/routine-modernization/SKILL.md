@@ -3,6 +3,8 @@ name: routine-modernization
 description: Repeatable step-by-step procedure for modernizing legacy FORTRAN 66 fixed-form routines in PHATPSY into clean Fortran 2018 modules with LAPACK linear algebra and in-memory data structures.
 ---
 
+> **Status: HERITAGE — retired from active use (November 2026).** The Fortran modernization this skill describes was completed in October 2026: `src/` is entirely Fortran 2018, and the legacy sources live under `legacy/` as heritage. Do not use this skill to plan new conversion work. It is retained as the record of the conversion procedure and as reference for heritage questions about legacy routines.
+
 # Routine Modernization Skill
 
 Use this skill whenever converting a remaining legacy fixed-form Fortran routine (`src/*.f`) into a modern Fortran 2018 module (`src/*.f90`) or modernizing an existing mathematical kernel.
