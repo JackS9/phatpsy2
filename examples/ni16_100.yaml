@@ -1,17 +1,6 @@
 title: 'Ni(100) 3-Layer Ferromagnetic Surface Slab (2 Active: Surface + Subsurface, Fixed Bulk)'
 net_spin: 16
 physical_net_spin: 4
-control:
-  spin_unrestricted: true
-  max_cycles: 70
-  convergence: 1.0e-06
-  use_global_fermi: false
-  fermi_temperature: null
-  exchange_kernel: hartree-fock
-  exchange_alpha: 0.6666666666666666
-  separate_atoms_first_cycle: true
-  debug: false
-  trace: false
 geometry:
 # --- Layer 1: Surface (z = 0.00 Bohr) — 1 Active + 5 Virtual Equivalent Copies ---
 - element: Ni
