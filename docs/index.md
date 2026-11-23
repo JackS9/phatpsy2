@@ -2,6 +2,8 @@
 
 **PHATPSY 2.0** (*Projected Hamiltonian Approach to Polyatomic Systems*) modernizes the 1970s quantum chemistry package developed by Dr. Jack A. Smith (Ph.D. Dissertation, University of Florida, 1978) into a modern, high-performance computational platform.
 
+**New:** the [PHATPSY 2.0 project dashboard](dashboard/) — architecture, roadmap status, and recent development activity.
+
 The system combines:
 
 * **Fortran 2018 computational core** powered by standard LAPACK linear algebra and dynamic in-memory state management.
