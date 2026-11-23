@@ -47,6 +47,11 @@ jobs:
       - name: Build native core, Python extension, and verify (canonical loop)
         run: bash make_build_test.sh
 
+      - name: Refresh dashboard portal telemetry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .venv/bin/python tools/generate_portal.py --source github
+
       - name: Build documentation with MkDocs
         run: |
           .venv/bin/mkdocs build --strict
