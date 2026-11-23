@@ -1,6 +1,6 @@
 # Plan: Variational Optimization of the VB Orbitals Within Their Declared Domains (Masked Orbital Optimization)
 
-**Status:** Draft — prepared Nov 18, 2026; executing PRs linked as they land  
+**Status:** Approved — Decisions A–E adopted by Jack Nov 19, 2026 (A2, B1, C2, D1, E2); execution pending Phase 18 Stages 3–4 sign-off; executing PRs linked as they land  
 **Roadmap item:** `ROADMAP.md`, Part II — *Variational optimization of the VB orbitals within their declared domains (masked orbital optimization)* (`ROADMAP.md`, line 223)  
 **Audit baseline:** `master` at commit `891f64eac7a8b5b82baaf5fb54d620f303888550`  
 **Target engine:** Primary exact-integral localized valence-bond architecture (`control.method: localized_vb` and `control.method: masked_vb`)  
@@ -225,9 +225,11 @@ $$\mathcal{R}_k = \mathcal{V}_i \cap \mathcal{S}(M_k) \quad (k \in I), \qquad \m
 
 ## 3. Decisions Posed for Jack
 
-None of the five design and sequencing choices below are pre-decided by this plan; execution pauses on Jack's selection (or confirmation of the labeled recommendations) before Stage 1 / Stage 2 code lands.
+**Decisions adopted by Jack, Nov 19, 2026: A2, B1, C2, D1, E2** — in each case the option labeled Recommended below. The five choices are recorded here as posed, with the adopted option marked at the head of each subsection. Execution remains gated on Phase 18 Stages 3–4 sign-off.
 
 ### Decision A: Intra-Domain Orbital Optimizer Algorithm
+
+**Adopted (Jack, Nov 19, 2026): A2** — Riemannian/projected L-BFGS with generalized-Fock preconditioning and on-demand Lanczos escape.
 
 | Option | Summary | Evidence Required to Adopt | Pros / Cons |
 | :--- | :--- | :--- | :--- |
@@ -242,6 +244,8 @@ None of the five design and sequencing choices below are pre-decided by this pla
 
 ### Decision B: Wavefunction Mode Scope (`cas` Only vs Including `pp` and `covalent`)
 
+**Adopted (Jack, Nov 19, 2026): B1** — `cas` only, with a loud `NotImplementedError` replacing the silent fallback for `pp`/`covalent`/`hl`.
+
 | Option | Summary | Evidence Required to Adopt |
 | :--- | :--- | :--- |
 | **B1: Scope this plan to `vb_wavefunction: "cas"` + loud guard for `pp`/`covalent`/`hl` on `MaskedVB` *(Recommended)*** | Deliver full domain-constrained variational optimization for `cas` across all geometries/embeddings, keep existing 1c diatomic `LocalizedVBModel` support for `pp`/`covalent`, and replace the silent `cas` fallback in `phatpsy/vb_driver.py:2310-2361` with an explicit `NotImplementedError` naming the unsupported mode/domain combination. Defer general multi-domain `pp`/`covalent` analytic cofactor gradients and pair-schema design to a dedicated follow-up item. | Verify `NotImplementedError` test coverage on unsupported combinations while keeping all existing `LocalizedVBModel` diatomic `pp`/`covalent` tests (`tests/test_localized_vb.py`, `tests/test_vb_driver.py`) green. |
@@ -253,6 +257,8 @@ None of the five design and sequencing choices below are pre-decided by this pla
 ---
 
 ### Decision C: `ControlConfig` Deck Surface
+
+**Adopted (Jack, Nov 19, 2026): C2** — `optimize_orbitals` plus `vb_orbital_grad_tol`; `max_cycles` mapped 1:1.
 
 Existing `ControlConfig` localized-VB fields (`phatpsy/schema.py`, lines 188–200) are `method`, `vb_wavefunction`, `domain_mode`, `core_embedding`, `environment_embedding`, `integral_backend`, `sto_ng_primitives`, `vb_orbital_specs`, `target_spin`, `max_cycles` (default `200`), and `convergence` (default `1.0e-6`).
 
@@ -268,6 +274,8 @@ Existing `ControlConfig` localized-VB fields (`phatpsy/schema.py`, lines 188–2
 ---
 
 ### Decision D: CASCI Zero-Iteration Limit & Backward-Compatibility Contract
+
+**Adopted (Jack, Nov 19, 2026): D1** — default `True`, deterministic zero-iteration CASCI parity (<1e-13 Ha), `ValueError` guard on analytical gradients in CASCI mode.
 
 Because §1.1 established that `master` already runs legacy `optimize_masked_vb` on every deck (rather than 0-iteration CASCI), backward compatibility has two distinct aspects that must not be conflated:
 
@@ -286,7 +294,9 @@ Because §1.1 established that `master` already runs legacy `optimize_masked_vb`
 
 ### Decision E: Execution Order Relative to `docs/development/env-model-exact-integrals-plan.md`
 
-Both this plan and `docs/development/env-model-exact-integrals-plan.md` (drafted on branch `docs/env-model-plan`, commit `7ca64a05`) require Phase 18 Stages 3–4 to merge first and both modify `phatpsy/vb_driver.py`:
+**Adopted (Jack, Nov 19, 2026): E2** — this plan executes first, then the environment-model exact-integrals plan.
+
+Both this plan and `docs/development/env-model-exact-integrals-plan.md` (merged to `master` via PR #5, commit `1e35db8ab`) require Phase 18 Stages 3–4 to merge first and both modify `phatpsy/vb_driver.py`:
 
 - **`env-model-exact-integrals-plan.md` touchpoints in `phatpsy/vb_driver.py`:** `_apply_model_potential_spectators` dispatch (`lines 1883–1895`, plus the general `sto_ng`/multicenter active+spectator block around `lines 2001–2085`) and spectator model-potential nuclear-gradient assembly inside `energy_and_gradient` (`lines 2945–3095`).
 - **This plan's touchpoints in `phatpsy/vb_driver.py`:** iteration/tolerance setup (`lines 1792–1800`), Blyholder regime caps (`lines 2163, 2196`), `MaskedVB` solver invocation and `vb_wavefunction` guard (`lines 2310–2361`), convergence/relaxation-lowering state packaging (`lines 2604–2652, 2737–2760`), and the zero-iteration guard at the top of `energy_and_gradient` (`line 2890`).
