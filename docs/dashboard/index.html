@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<!-- Generated with Gemini Canvas, Nov 23, 2026 (share:
+https://share.gemini.google/MoZko0VT1x4s). Regenerate from that
+source rather than hand-editing this file. -->
+<html lang="en" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PHATPSY 2.0 — Projected Hamiltonian Approach to Polyatomic Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        spinAlpha: '#38bdf8',
+                        spinBeta: '#fb923c',
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-sky-100 selection:text-sky-900">
+
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-slate-950/95 backdrop-blur border-b border-slate-800 text-slate-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-400 to-orange-400 p-[1.5px] shadow-sm">
+                    <div
+                        class="w-full h-full bg-slate-950 rounded-[7px] flex items-center justify-center font-mono font-bold text-sm tracking-tight text-white">
+                        <span class="text-[#38bdf8]">↑</span><span class="text-[#fb923c]">↓</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="font-bold tracking-tight text-white text-base sm:text-lg">PHATPSY <span
+                            class="text-[#38bdf8]">2.0</span></span>
+                    <span
+                        class="hidden lg:inline-block text-xs text-slate-400 ml-2 border-l border-slate-800 pl-2">Localized
+                        Valence-Bond &amp; Active-Site Quantum Chemistry</span>
+                </div>
+            </a>
+
+            <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+                <a href="#architecture" class="hover:text-white transition-colors">Architecture</a>
+                <a href="#acceptance" class="hover:text-white transition-colors">Acceptance Status</a>
+                <a href="#quickstart" class="hover:text-white transition-colors">Quick Start</a>
+                <a href="#roadmap" class="hover:text-white transition-colors">Roadmap</a>
+                <a href="#activity" class="hover:text-white transition-colors">Activity</a>
+            </nav>
+
+            <div class="flex items-center gap-2">
+                <a href="https://jacks9.github.io/phatpsy2/" target="_blank" rel="noopener noreferrer"
+                    class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition-colors">
+                    Manual
+                </a>
+                <a href="https://github.com/JackS9/phatpsy2" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition-colors">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                        <path fill-rule="evenodd"
+                            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative bg-slate-950 text-white overflow-hidden border-b border-slate-800">
+        <!-- Subtle Bipartite Spin-Lattice Pattern -->
+        <div class="absolute inset-0 opacity-15 pointer-events-none"
+            style="background-image: radial-gradient(#38bdf8 1px, transparent 1px), radial-gradient(#fb923c 1px, #020617 1px); background-size: 44px 44px; background-position: 0 0, 22px 22px;">
+        </div>
+
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
+            <!-- Live Telemetry Pills -->
+            <div class="flex flex-wrap items-center gap-2 mb-6">
+                <span
+                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium bg-sky-950/90 text-[#38bdf8] border border-sky-800/80">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    v2.0.0-dev
+                </span>
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-900 text-slate-300 border border-slate-700">
+                    MIT License
+                </span>
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-slate-900 text-slate-200 border border-slate-700">
+                    275 Commits
+                </span>
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-slate-900 text-slate-200 border border-slate-700">
+                    8 Branches
+                </span>
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-slate-900 text-amber-300 border border-slate-700">
+                    0 Tags
+                </span>
+                <a href="https://github.com/JackS9/phatpsy2/commit/27709532e3f9ed8a2aae693c177de77aa039ad25"
+                    target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-slate-900 hover:bg-slate-800 text-[#fb923c] border border-slate-700 transition-colors">
+                    Latest: 2770953
+                </a>
+            </div>
+
+            <!-- Author & Institution Attribution -->
+            <p class="text-xs sm:text-sm font-mono text-slate-400 mb-3">
+                By <span class="text-slate-200 font-semibold">Jack A. Smith</span> · Quantum Theory Project, University
+                of
+                Florida
+            </p>
+
+            <!-- Title & LVB-First Positioning -->
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white max-w-4xl leading-tight">
+                PHATPSY 2.0 — <span
+                    class="text-transparent bg-clip-text bg-gradient-to-r from-[#38bdf8] via-slate-100 to-[#fb923c]">Projected
+                    Hamiltonian Approach to Polyatomic Systems</span>
+            </h1>
+
+            <p class="mt-5 text-base sm:text-lg text-slate-300 max-w-3xl leading-relaxed">
+                A <strong class="text-white font-semibold">Localized Valence-Bond (LVB)</strong> quantum chemistry
+                package for
+                polyatomic molecules, active-site embedding, and spin-catalysis / chemisorption complexes (such as <code
+                    class="font-mono text-sm text-[#38bdf8] bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">NO/Ni(100)</code>).
+                Alternating-spin electron pairs (<span class="text-[#38bdf8] font-mono font-semibold">α ↑</span> / <span
+                    class="text-[#fb923c] font-mono font-semibold">β ↓</span>) are localized across bipartite atomic
+                graphs and
+                embedded within non-bonded model-potential and Phillips–Kleinman (PK) environments.
+            </p>
+
+            <!-- Architectural Pivot Callout Banner -->
+            <div
+                class="mt-6 max-w-3xl rounded-xl bg-slate-900/90 border border-slate-800 p-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                <span class="font-mono font-semibold text-[#38bdf8]">Architectural Direction:</span>
+                Following the <strong class="text-white">Nov 13</strong> pivot to a <strong class="text-white">Localized
+                    VB-first</strong> architecture—and formalized by the <strong class="text-white">Nov 22
+                    Spin-Catalysis Flagship
+                    Acceptance Spec</strong> (PR #11, <code class="font-mono text-xs text-[#fb923c]">2770953</code>) and
+                docs/agent-rules reframing (<code class="font-mono text-xs text-slate-300">0ea116f</code>)—PHATPSY 2.0
+                treats
+                localized alternating-spin bonding and active-site embedding as its primary physics, scoping
+                model-potential /
+                PK projectors specifically to non-bonded environmental interactions.
+            </div>
+
+            <!-- Primary Direct Links -->
+            <div class="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
+                <a href="https://github.com/JackS9/phatpsy2" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-950/50 transition-all">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd"
+                            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    GitHub Repository
+                </a>
+
+                <a href="https://jacks9.github.io/phatpsy2/" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 transition-all">
+                    <svg class="w-4 h-4 text-[#38bdf8]" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    User Manual (GitHub Pages)
+                </a>
+
+                <a href="https://github.com/JackS9/phatpsy2/blob/master/ROADMAP.md" target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 transition-all">
+                    <svg class="w-4 h-4 text-[#fb923c]" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    Roadmap (ROADMAP.md)
+                </a>
+
+                <a href="https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/PHATPSY.pdf" target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 transition-all">
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    PhD Thesis (PHATPSY.pdf)
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16">
+
+        <!-- Section 1: Interactive Three-Pillar Architecture Explorer -->
+        <section id="architecture" class="scroll-mt-24">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-2">
+                <div>
+                    <span class="text-xs font-mono font-semibold uppercase tracking-wider text-sky-700">Software
+                        Architecture</span>
+                    <h2 class="text-2xl font-bold text-slate-900 mt-1">Three-Pillar Hybrid Architecture</h2>
+                </div>
+                <p class="text-sm text-slate-500">Localized VB orchestration over a modernized Fortran 2018 numerical
+                    core</p>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <!-- Tab Headers -->
+                <div class="border-b border-slate-200 bg-slate-50/80 px-4 sm:px-6 pt-4">
+                    <div class="flex flex-wrap gap-2" role="tablist" aria-label="Architecture Pillars">
+                        <button type="button" data-arch-tab="lvb"
+                            class="arch-tab px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 border-sky-600 text-sky-700 bg-white transition-colors">
+                            1. Localized VB &amp; Python Driver (<code class="font-mono">phatpsy/</code>)
+                        </button>
+                        <button type="button" data-arch-tab="fortran"
+                            class="arch-tab px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-lg border-b-2 border-transparent text-slate-600 hover:text-slate-900 transition-colors">
+                            2. Fortran 2018 Compute Core (<code class="font-mono">src/</code>)
+                        </button>
+                        <button type="button" data-arch-tab="webgl"
+                            class="arch-tab px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-lg border-b-2 border-transparent text-slate-600 hover:text-slate-900 transition-colors">
+                            3. Three.js 3D WebGL Visualizer (<code class="font-mono">visualizer.py</code>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pillar 1: Localized VB & Python Driver -->
+                <div id="arch-panel-lvb" class="arch-panel p-6 sm:p-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-4">
+                            <div
+                                class="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 text-xs font-mono font-semibold border border-sky-200/70">
+                                LVB Spin Graphs · Active-Site Embedding · Python Dataclasses
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900">Localized VB Engine &amp; Python Orchestration
+                                (<code class="font-mono text-base">phatpsy/</code>)</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed">
+                                The <code class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">phatpsy</code>
+                                package drives
+                                Localized Valence-Bond (LVB) electronic structure and active-site embedding workflows in
+                                memory, pairing
+                                bipartite alternating-spin assignment with Clementi–Roetti and Thakkar Slater-Type
+                                Orbital (STO) basis
+                                libraries.
+                            </p>
+                            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-sm">
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-sky-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Bipartite LVB Solver (<code
+                                                class="font-mono text-xs">spin.py</code>)</strong>
+                                        <span class="text-xs text-slate-600">Assigns alternating <span
+                                                class="text-sky-700 font-semibold">α
+                                                (↑)</span> and <span class="text-orange-700 font-semibold">β (↓)</span>
+                                            spin vectors across
+                                            localized bond pairs and active-site centers.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-sky-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Stepwise VB Assembler (<code
+                                                class="font-mono text-xs">builder.py</code>)</strong>
+                                        <span class="text-xs text-slate-600">Synthesizes molecular and chemisorption
+                                            decks
+                                            fragment-by-fragment with explicit spin and embedding specifications.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-sky-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Dataclass Deck Models (<code
+                                                class="font-mono text-xs">schema.py</code>)</strong>
+                                        <span class="text-xs text-slate-600">Typed Python <code
+                                                class="font-mono">dataclasses</code> (<code
+                                                class="font-mono">CalculationDeck</code>, <code
+                                                class="font-mono">AtomConfig</code>, <code
+                                                class="font-mono">SymmetrySpec</code>) representing geometries, basis
+                                            sets, and spin
+                                            states.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-sky-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Driver, Basis &amp; I/O (<code
+                                                class="font-mono text-xs">driver.py</code>, <code
+                                                class="font-mono text-xs">basis.py</code>,
+                                            <code class="font-mono text-xs">io.py</code>, <code
+                                                class="font-mono text-xs">cli.py</code>)</strong>
+                                        <span class="text-xs text-slate-600">In-memory execution via <code
+                                                class="font-mono">PhatpsyDriver</code>, STO database lookup, YAML /
+                                            legacy <code class="font-mono">.stdin</code> / JSON I/O, and CLI
+                                            commands.</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div
+                            class="bg-slate-950 text-slate-200 rounded-xl p-4 font-mono text-xs flex flex-col justify-between border border-slate-800">
+                            <div>
+                                <div class="text-slate-400 border-b border-slate-800 pb-2 mb-3 flex justify-between">
+                                    <span>phatpsy/ package</span>
+                                    <span class="text-[#38bdf8]">Python 3.10+</span>
+                                </div>
+                                <pre class="leading-relaxed text-slate-300 overflow-x-auto">phatpsy/
+├── spin.py        # LVB bipartite spin solver
+├── builder.py     # Stepwise VB assembler
+├── driver.py      # PhatpsyDriver orchestrator
+├── schema.py      # CalculationDeck dataclasses
+├── basis.py       # Clementi-Roetti / Thakkar STOs
+├── visualizer.py  # Three.js 3D WebGL renderer
+├── io.py          # YAML / .stdin / JSON I/O
+└── cli.py         # Command-line interface</pre>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+                                Supports active-site embedding inside non-bonded environmental matrices.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pillar 2: Fortran 2018 Compute Core -->
+                <div id="arch-panel-fortran" class="arch-panel hidden p-6 sm:p-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-4">
+                            <div
+                                class="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-orange-50 text-orange-700 text-xs font-mono font-semibold border border-orange-200/70">
+                                ISO Fortran 2018 · Dynamic Allocation · BLAS / LAPACK · f2py Bindings
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900">Fortran 2018 Compute Core (<code
+                                    class="font-mono text-base">src/</code>)</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed">
+                                Migrates legacy FORTRAN 66 global <code
+                                    class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">COMMON</code> blocks and
+                                fixed arena limits
+                                into modular ISO Fortran 2018 modules that evaluate STO integrals, subspace SCF updates,
+                                and non-bonded
+                                model-potential / PK projections.
+                            </p>
+                            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-sm">
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-orange-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Modular State &amp; Control</strong>
+                                        <span class="text-xs text-slate-600"><code
+                                                class="font-mono">phatpsy_state_mod.f90</code>, <code
+                                                class="font-mono">phatpsy_contrl_mod.f90</code>, and standalone
+                                            executable <code class="font-mono">phatpsy_cli.f90</code>.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-orange-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Dynamic Array Allocation</strong>
+                                        <span class="text-xs text-slate-600">Replaces rigid compile-time dimension caps
+                                            (<code class="font-mono">MXNATM</code>, <code
+                                                class="font-mono">MXNORB</code>, <code class="font-mono">MXMSTO</code>)
+                                            with runtime allocation sized to the deck.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-orange-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">BLAS &amp; LAPACK Backends</strong>
+                                        <span class="text-xs text-slate-600">Links against OpenBLAS or Apple Accelerate
+                                            via CMake for
+                                            symmetric eigensolves and linear algebra routines.</span>
+                                    </div>
+                                </li>
+                                <li
+                                    class="flex items-start gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span class="text-orange-600 font-bold mt-0.5">▪</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Typed <code class="font-mono">f2py</code>
+                                            Bindings</strong>
+                                        <span class="text-xs text-slate-600">Signature file <code
+                                                class="font-mono">src/_phatpsy_core.pyf</code> and stub <code
+                                                class="font-mono">_phatpsy_core.pyi</code> expose Fortran state arrays
+                                            and computation stages to
+                                            Python.</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div
+                            class="bg-slate-950 text-slate-200 rounded-xl p-4 font-mono text-xs flex flex-col justify-between border border-slate-800">
+                            <div>
+                                <div class="text-slate-400 border-b border-slate-800 pb-2 mb-3 flex justify-between">
+                                    <span>src/ &amp; bindings</span>
+                                    <span class="text-[#fb923c]">Fortran 2018</span>
+                                </div>
+                                <pre class="leading-relaxed text-slate-300 overflow-x-auto">src/
+├── phatpsy_state_mod.f90
+├── phatpsy_contrl_mod.f90
+├── phatpsy_cli.f90
+├── _phatpsy_core.pyf
+└── [STO integral, SCF/CPHF &amp;
+     non-bonded PK routines]
+_phatpsy_core.pyi</pre>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+                                Built via CMake 3.18+ with gfortran (GCC 10+).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pillar 3: Three.js 3D WebGL Visualizer -->
+                <div id="arch-panel-webgl" class="arch-panel hidden p-6 sm:p-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-4">
+                            <div
+                                class="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 text-xs font-mono font-semibold border border-sky-200/70">
+                                Three.js WebGL · deck.show() · phatpsy view
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900">Three.js 3D WebGL Visualizer (<code
+                                    class="font-mono text-base">visualizer.py</code>)</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed">
+                                Renders interactive 3D molecular and surface-cluster geometry directly inside Jupyter
+                                notebooks via
+                                <code class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">deck.show()</code> or
+                                in a standalone
+                                browser window via <code
+                                    class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">phatpsy view</code>.
+                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-sm">
+                                <div
+                                    class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 font-mono font-bold text-xs shrink-0">
+                                        <span class="text-[#38bdf8]">↑</span><span class="text-[#fb923c]">↓</span>
+                                    </span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Spin Vectors (α / β)</strong>
+                                        <span class="text-xs text-slate-600">Directional <span
+                                                class="text-sky-700 font-semibold">cyan (↑,
+                                                α)</span> and <span class="text-orange-700 font-semibold">orange (↓,
+                                                β)</span> arrows
+                                            visualizing localized spin assignments.</span>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-200 text-slate-700 font-mono font-bold text-xs shrink-0">◯</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Virtual Coordination Spheres</strong>
+                                        <span class="text-xs text-slate-600">Translucent wireframe spheres marking
+                                            virtual atoms and
+                                            neighborhood completion centers.</span>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-200 text-slate-700 font-mono font-bold text-xs shrink-0">⊞</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Fixed Matrix Cages</strong>
+                                        <span class="text-xs text-slate-600">Metallic cage wireframes separating frozen
+                                            host/surface atoms
+                                            from the active LVB site.</span>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                                    <span
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 text-orange-700 font-mono font-bold text-xs shrink-0">σ/Cₙ</span>
+                                    <div>
+                                        <strong class="text-slate-900 block">Symmetry Elements</strong>
+                                        <span class="text-xs text-slate-600">Reflection mirror planes, rotation axes,
+                                            and symmetry generator
+                                            linkage lines.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-slate-950 text-slate-200 rounded-xl p-5 flex flex-col justify-between border border-slate-800">
+                            <div>
+                                <div class="text-xs font-mono text-slate-400 uppercase tracking-wider mb-3">3D Scene
+                                    Legend</div>
+                                <div class="space-y-2.5 text-xs">
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="flex items-center gap-2 font-medium text-[#38bdf8]">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-[#38bdf8] inline-block"></span>
+                                            Alpha Spin (↑)
+                                        </span>
+                                        <span class="font-mono text-slate-400">Cyan Arrow</span>
+                                    </div>
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="flex items-center gap-2 font-medium text-[#fb923c]">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-[#fb923c] inline-block"></span>
+                                            Beta Spin (↓)
+                                        </span>
+                                        <span class="font-mono text-slate-400">Orange Arrow</span>
+                                    </div>
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="flex items-center gap-2 font-medium text-slate-300">
+                                            <span
+                                                class="w-2.5 h-2.5 rounded-full border border-dashed border-slate-400 inline-block"></span>
+                                            Virtual Atom
+                                        </span>
+                                        <span class="font-mono text-slate-400">Wireframe Sphere</span>
+                                    </div>
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="flex items-center gap-2 font-medium text-slate-300">
+                                            <span
+                                                class="w-2.5 h-2.5 rounded-sm border border-slate-400 inline-block"></span>
+                                            Fixed
+                                            Environment
+                                        </span>
+                                        <span class="font-mono text-slate-400">Metallic Cage</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-800 font-mono text-[11px] text-slate-400">
+                                CLI: <span class="text-[#38bdf8]">phatpsy view examples/n2.yaml</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Verification & Flagship Acceptance Status -->
+        <section id="acceptance" class="scroll-mt-24">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-2">
+                <div>
+                    <span class="text-xs font-mono font-semibold uppercase tracking-wider text-orange-700">Scientific
+                        Validation
+                        &amp; Release Readiness</span>
+                    <h2 class="text-2xl font-bold text-slate-900 mt-1">Verification &amp; Flagship Acceptance Status
+                    </h2>
+                </div>
+                <span
+                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200">
+                    Pre-release · 0 Tagged Releases
+                </span>
+            </div>
+
+            <p class="text-sm text-slate-600 max-w-4xl mb-6 leading-relaxed">
+                To maintain strict transparency prior to tagging <code
+                    class="font-mono text-xs bg-slate-200/80 px-1.5 py-0.5 rounded">v2.0.0</code>, the table below
+                separates
+                completed architectural and physics milestones from the quantitative flagship benchmark suite currently
+                governed
+                by the Nov 22 acceptance specification.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Item 1 -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span
+                                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Approved &amp; Merged · Nov 22
+                            </span>
+                            <a href="https://github.com/JackS9/phatpsy2/commit/27709532e3f9ed8a2aae693c177de77aa039ad25"
+                                target="_blank" rel="noopener noreferrer"
+                                class="font-mono text-xs text-sky-700 hover:underline">PR #11
+                                · 2770953</a>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900">Spin-Catalysis Flagship Acceptance Spec</h3>
+                        <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                            Approved Nov 22, 2026 and merged into <code
+                                class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">master</code> across <code
+                                class="font-mono text-xs">ROADMAP.md</code> (<code
+                                class="font-mono text-xs">d15796e</code>) and <code
+                                class="font-mono text-xs">docs/</code> (<code class="font-mono text-xs">2770953</code>),
+                            defining the
+                            acceptance gate for flagship spin-catalysis validation.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-100 text-xs font-mono text-slate-500">
+                        Scope: Governance &amp; Benchmark Criteria
+                    </div>
+                </div>
+
+                <!-- Item 2 -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span
+                                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Completed · Phase 18
+                            </span>
+                            <a href="https://github.com/JackS9/phatpsy2/commit/36d864ebc32fe7a643d6e70ff64501c1ec18300a"
+                                target="_blank" rel="noopener noreferrer"
+                                class="font-mono text-xs text-sky-700 hover:underline">36d864e</a>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900">Phase 18 NO/Ni(100) Chemisorption</h3>
+                        <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                            Stages 1–2 ferromagnetic chemisorption workflows for <code
+                                class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">NO/Ni(100)</code> implemented
+                            across <code class="font-mono text-xs">phatpsy/</code>, <code
+                                class="font-mono text-xs">notebooks/</code>, <code
+                                class="font-mono text-xs">data/</code>, and <code
+                                class="font-mono text-xs">tools/</code>.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-100 text-xs font-mono text-slate-500">
+                        Scope: Surface Cluster &amp; Active-Site Embedding
+                    </div>
+                </div>
+
+                <!-- Item 3 -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span
+                                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Completed · Fortran Core
+                            </span>
+                            <a href="https://github.com/JackS9/phatpsy2/commit/5342b534ffa60cba463a66f20db7fd8febe9e719"
+                                target="_blank" rel="noopener noreferrer"
+                                class="font-mono text-xs text-sky-700 hover:underline">5342b53</a>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900">H2 SCF &amp; CPHF Gradients</h3>
+                        <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                            Default/unseeded <code class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">H2</code>
+                            SCF and
+                            Coupled-Perturbed Hartree–Fock (CPHF) gradient fixes landed in <code
+                                class="font-mono text-xs">src/</code>
+                            alongside DZP <code class="font-mono text-xs">H2</code> bond documentation.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-100 text-xs font-mono text-slate-500">
+                        Scope: Diatomic SCF &amp; Analytical Derivatives
+                    </div>
+                </div>
+
+                <!-- Item 4 -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span
+                                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Completed · Phase 11.5
+                            </span>
+                            <a href="https://github.com/JackS9/phatpsy2/commit/409757eab269cf3f79b158fcfcd4407513e7dd31"
+                                target="_blank" rel="noopener noreferrer"
+                                class="font-mono text-xs text-sky-700 hover:underline">409757e</a>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900">Non-Bonded PK Pseudopotential Gradients</h3>
+                        <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                            Phase 11.5 Phillips–Kleinman (PK) pseudopotential gradients implemented in <code
+                                class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">src/</code> for non-bonded
+                            environmental
+                            interactions.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-100 text-xs font-mono text-slate-500">
+                        Scope: Non-Bonded Environmental Projectors
+                    </div>
+                </div>
+
+                <!-- Item 5: Active / Pending Benchmark Gate -->
+                <div
+                    class="md:col-span-2 bg-slate-950 text-slate-100 rounded-xl border border-slate-800 p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <span
+                                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-700/80">
+                                Active Target · Pending Sign-Off
+                            </span>
+                            <span class="font-mono text-xs text-slate-400">Release Gate: v2.0.0 (0 Tags
+                                Published)</span>
+                        </div>
+                        <h3 class="text-base font-bold text-white">Quantitative Flagship Benchmark Suite</h3>
+                        <p class="mt-2 text-sm text-slate-300 leading-relaxed">
+                            Full quantitative benchmark tables and reference energies governed by the Nov 22
+                            Spin-Catalysis Flagship
+                            Acceptance Spec are currently under active execution and verification on <code
+                                class="font-mono text-xs bg-slate-900 px-1.5 py-0.5 rounded text-[#38bdf8]">master</code>
+                            prior to
+                            cutting the first tagged <code class="font-mono text-xs text-[#fb923c]">v2.0.0</code>
+                            release.
+                        </p>
+                    </div>
+                    <div
+                        class="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-400">
+                        <span>CI Suite: pytest + CMake in .github/workflows/</span>
+                        <a href="https://github.com/JackS9/phatpsy2/blob/master/ROADMAP.md" target="_blank"
+                            rel="noopener noreferrer" class="text-[#38bdf8] hover:underline">
+                            Inspect Acceptance Criteria in ROADMAP.md &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Tabbed Quick Start (Verified Commands & CO Dative-Pi Deck) -->
+        <section id="quickstart" class="scroll-mt-24">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-2">
+                <div>
+                    <span class="text-xs font-mono font-semibold uppercase tracking-wider text-sky-700">Verified
+                        Interfaces</span>
+                    <h2 class="text-2xl font-bold text-slate-900 mt-1">Quick Start &amp; Verified API / CLI Usage</h2>
+                </div>
+                <p class="text-sm text-slate-500">Matched directly to <code class="font-mono text-xs">README.md</code>,
+                    <code class="font-mono text-xs">phatpsy/schema.py</code>, and <code
+                        class="font-mono text-xs">phatpsy/cli.py</code></p>
+            </div>
+
+            <div class="bg-slate-950 rounded-2xl border border-slate-800 shadow-md overflow-hidden text-slate-200">
+                <!-- Snippet Tabs -->
+                <div
+                    class="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800">
+                    <div class="flex flex-wrap gap-1.5" role="tablist">
+                        <button type="button" data-code-tab="cmake"
+                            class="code-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white transition-colors">
+                            CMake Build
+                        </button>
+                        <button type="button" data-code-tab="docker"
+                            class="code-tab px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                            Docker
+                        </button>
+                        <button type="button" data-code-tab="python"
+                            class="code-tab px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                            Python API (CO Dative-Pi)
+                        </button>
+                        <button type="button" data-code-tab="cli"
+                            class="code-tab px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                            CLI &amp; Docs
+                        </button>
+                    </div>
+
+                    <button type="button" id="copy-code-btn"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        <span id="copy-code-label">Copy Snippet</span>
+                    </button>
+                </div>
+
+                <!-- Code Panels -->
+                <div class="p-5 sm:p-6 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto">
+                    <pre id="code-panel-cmake" class="code-panel text-slate-200"><code># Prerequisites: gfortran (GCC 10+), cmake (3.18+), BLAS/LAPACK, Python 3.10+
+git clone https://github.com/JackS9/phatpsy2.git
+cd phatpsy2
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install numpy scipy matplotlib pyyaml ipykernel pytest
+
+# Build Fortran 2018 core, CLI executable, and _phatpsy_core f2py extension
+mkdir build &amp;&amp; cd build
+cmake ..
+cmake --build .
+cd ..</code></pre>
+
+                    <pre id="code-panel-docker" class="code-panel hidden text-slate-200"><code># Build multi-stage container image from the repository root
+docker build -t phatpsy:2.0 .
+
+# Print CLI help or inspect available Clementi-Roetti / Thakkar STO basis sets
+docker run --rm phatpsy:2.0
+docker run --rm phatpsy:2.0 elements C
+
+# Run an example calculation deck and export structured JSON output
+mkdir -p out
+docker run --rm -v "$PWD/out:/work" phatpsy:2.0 examples/CO.yaml -o /work/CO.json</code></pre>
+
+                    <pre id="code-panel-python" class="code-panel hidden text-slate-200"><code>from phatpsy import PhatpsyDriver, CalculationDeck
+
+# Load the zero-net-spin CO dative-pi baseline deck
+# (C: alpha up/up, O: beta down/down -> net spin = 0)
+deck = CalculationDeck.from_yaml("examples/CO.yaml")
+
+# Render interactive Three.js 3D WebGL viewer inside Jupyter Notebook
+deck.show()
+
+# Execute in-memory Localized VB / Projected Hamiltonian calculation
+driver = PhatpsyDriver()
+results = driver.run_deck(deck)</code></pre>
+
+                    <pre id="code-panel-cli" class="code-panel hidden text-slate-200"><code># Print PHATPSY CLI help
+phatpsy
+
+# Inspect available Clementi-Roetti &amp; Thakkar STO basis sets for Carbon
+phatpsy elements C
+
+# Run calculation deck and export structured JSON output
+phatpsy examples/CO.yaml -o CO.json
+
+# Launch standalone browser Three.js 3D viewer
+phatpsy view examples/n2.yaml
+
+# Build &amp; serve MkDocs Material user manual locally
+pip install -r docs/requirements.txt
+mkdocs serve</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Roadmap & Milestone Timeline -->
+        <section id="roadmap" class="scroll-mt-24">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-2">
+                <div>
+                    <span class="text-xs font-mono font-semibold uppercase tracking-wider text-orange-700">Modernization
+                        Trajectory</span>
+                    <h2 class="text-2xl font-bold text-slate-900 mt-1">Roadmap &amp; Milestone Timeline</h2>
+                </div>
+                <a href="https://github.com/JackS9/phatpsy2/blob/master/ROADMAP.md" target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-sm font-medium text-sky-700 hover:text-sky-800 inline-flex items-center gap-1">
+                    Full Roadmap in ROADMAP.md &rarr;
+                </a>
+            </div>
+
+            <div class="relative border-l-2 border-slate-200 ml-3 sm:ml-4 space-y-6 pl-6 sm:pl-8">
+                <!-- Milestone 1 -->
+                <div class="relative bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <span
+                        class="absolute -left-[33px] sm:-left-[41px] top-6 w-4 h-4 rounded-full bg-sky-600 ring-4 ring-slate-50"></span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-mono font-semibold text-sky-700">Nov 22, 2026 · PR #11 (2770953 /
+                            d15796e)</span>
+                        <span
+                            class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Merged</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">Spin-Catalysis Flagship Acceptance Spec &amp; LVB
+                        Rules
+                        Reframing</h3>
+                    <p class="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                        Codified the Nov 22 Spin-Catalysis Flagship Acceptance Spec in <code
+                            class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">ROADMAP.md</code> and <code
+                            class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">docs/</code>, paired with
+                        reframing <code class="font-mono text-xs">AGENTS.md</code> and <code
+                            class="font-mono text-xs">.agents/</code> (<code class="font-mono text-xs">0ea116f</code>)
+                        around Localized Valence-Bond first.
+                    </p>
+                </div>
+
+                <!-- Milestone 2 -->
+                <div class="relative bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <span
+                        class="absolute -left-[33px] sm:-left-[41px] top-6 w-4 h-4 rounded-full bg-orange-500 ring-4 ring-slate-50"></span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-mono font-semibold text-orange-700">Phase 18 · Commit 36d864e</span>
+                        <span
+                            class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">NO/Ni(100) Stages 1–2 Ferromagnetic Chemisorption
+                    </h3>
+                    <p class="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                        Delivered Stages 1–2 ferromagnetic chemisorption modeling for nitric oxide on <code
+                            class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">Ni(100)</code> across <code
+                            class="font-mono text-xs">phatpsy/</code>, <code
+                            class="font-mono text-xs">notebooks/</code>, <code class="font-mono text-xs">data/</code>,
+                        and <code class="font-mono text-xs">tools/</code>.
+                    </p>
+                </div>
+
+                <!-- Milestone 3 -->
+                <div class="relative bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <span
+                        class="absolute -left-[33px] sm:-left-[41px] top-6 w-4 h-4 rounded-full bg-sky-600 ring-4 ring-slate-50"></span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-mono font-semibold text-sky-700">Commits 886414c &amp; e6dc39b</span>
+                        <span
+                            class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">LVB &amp; Active-Site Embedding + Stepwise VB
+                        Molecular
+                        Assembler</h3>
+                    <p class="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                        Exposed Localized VB alternating-spin assignment and active-site embedding across the Python API
+                        and CLI
+                        (<code class="font-mono text-xs">886414c</code>), built atop the stepwise valence-bond molecular
+                        assembler
+                        in <code class="font-mono text-xs">phatpsy/builder.py</code> (<code
+                            class="font-mono text-xs">e6dc39b</code>).
+                    </p>
+                </div>
+
+                <!-- Milestone 4 -->
+                <div class="relative bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <span
+                        class="absolute -left-[33px] sm:-left-[41px] top-6 w-4 h-4 rounded-full bg-slate-700 ring-4 ring-slate-50"></span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <span class="text-xs font-mono font-semibold text-slate-600">Commits fc872c9, 6956a3e &amp;
+                            62e8e4c</span>
+                        <span
+                            class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Completed</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">Multi-Stage Docker Packaging &amp; Legacy Override
+                        Cleanup</h3>
+                    <p class="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                        Added reproducible multi-stage <code
+                            class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">Dockerfile</code> and container
+                        CLI docs (<code class="font-mono text-xs">fc872c9</code>), and retired legacy <code
+                            class="font-mono text-xs">max_cycles</code> overrides and <code
+                            class="font-mono text-xs">EOtoAA.yaml</code> workarounds in <code
+                            class="font-mono text-xs">examples/</code> and <code
+                            class="font-mono text-xs">tests/</code>.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Filterable Recent Development Activity Feed -->
+        <section id="activity" class="scroll-mt-24">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+                <div>
+                    <span class="text-xs font-mono font-semibold uppercase tracking-wider text-sky-700">Repository
+                        History ·
+                        JackS9/phatpsy2</span>
+                    <h2 class="text-2xl font-bold text-slate-900 mt-1">Recent Development Activity Feed</h2>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Category Filter Buttons -->
+                    <div class="inline-flex flex-wrap rounded-xl bg-slate-200/80 p-1 gap-0.5" role="group"
+                        aria-label="Filter commits">
+                        <button type="button" data-filter="all"
+                            class="feed-filter px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition-all">
+                            All (<span id="count-all">14</span>)
+                        </button>
+                        <button type="button" data-filter="vb"
+                            class="feed-filter px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all">
+                            VB &amp; Catalysis
+                        </button>
+                        <button type="button" data-filter="docs"
+                            class="feed-filter px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all">
+                            Docs &amp; Specs
+                        </button>
+                        <button type="button" data-filter="fortran"
+                            class="feed-filter px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all">
+                            Fortran Core
+                        </button>
+                        <button type="button" data-filter="build"
+                            class="feed-filter px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all">
+                            Build &amp; Tests
+                        </button>
+                    </div>
+
+                    <!-- Live GitHub Sync Button -->
+                    <button type="button" id="fetch-live-btn"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-950 hover:bg-slate-800 text-white shadow-sm transition-colors">
+                        <svg id="fetch-spinner" class="w-3.5 h-3.5 text-[#38bdf8]" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Sync Live GitHub Commits</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Banner -->
+            <div id="feed-status-banner"
+                class="mb-4 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                <span id="feed-status-text">Showing verified repository snapshot commits on <code
+                        class="font-mono text-slate-800">master</code> (275 total commits).</span>
+                <a href="https://github.com/JackS9/phatpsy2/commits/master/" target="_blank" rel="noopener noreferrer"
+                    class="font-medium text-sky-700 hover:underline">
+                    View all 275 commits on GitHub &rarr;
+                </a>
+            </div>
+
+            <!-- Commit Timeline List -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100"
+                id="commit-feed-list">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 text-slate-400 border-t border-slate-800 mt-16">
+        <div
+            class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div>
+                <div class="text-white font-bold text-base">PHATPSY 2.0 <span class="text-slate-500 font-normal">·
+                        Projected
+                        Hamiltonian Approach to Polyatomic Systems</span></div>
+                <p class="text-xs text-slate-400 mt-1">
+                    Developed by <strong class="text-slate-200">Jack A. Smith</strong> (Quantum Theory Project,
+                    University of
+                    Florida). Open-source under the MIT License.
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-4 text-xs font-medium">
+                <a href="https://github.com/JackS9/phatpsy2" target="_blank" rel="noopener noreferrer"
+                    class="hover:text-white transition-colors">GitHub</a>
+                <a href="https://jacks9.github.io/phatpsy2/" target="_blank" rel="noopener noreferrer"
+                    class="hover:text-white transition-colors">Manual</a>
+                <a href="https://github.com/JackS9/phatpsy2/blob/master/ROADMAP.md" target="_blank"
+                    rel="noopener noreferrer" class="hover:text-white transition-colors">Roadmap</a>
+                <a href="https://github.com/JackS9/phatpsy2/blob/master/PhD_Thesis/PHATPSY.pdf" target="_blank"
+                    rel="noopener noreferrer" class="hover:text-white transition-colors">PhD Thesis</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Client-Side Interactivity -->
+    <script>
+        (function () {
+            // 1. Architecture Explorer Tabs
+            const archTabs = document.querySelectorAll('.arch-tab');
+            const archPanels = document.querySelectorAll('.arch-panel');
+
+            archTabs.forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-arch-tab');
+
+                    archTabs.forEach((t) => {
+                        t.classList.remove('border-sky-600', 'text-sky-700', 'bg-white', 'font-semibold');
+                        t.classList.add('border-transparent', 'text-slate-600', 'font-medium');
+                    });
+                    tab.classList.add('border-sky-600', 'text-sky-700', 'bg-white', 'font-semibold');
+                    tab.classList.remove('border-transparent', 'text-slate-600', 'font-medium');
+
+                    archPanels.forEach((panel) => {
+                        panel.classList.toggle('hidden', panel.id !== `arch-panel-${target}`);
+                    });
+                });
+            });
+
+            // 2. Quick Start Snippet Tabs & Copy-to-Clipboard
+            const codeTabs = document.querySelectorAll('.code-tab');
+            const codePanels = document.querySelectorAll('.code-panel');
+            let activeCodeId = 'cmake';
+
+            codeTabs.forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    activeCodeId = tab.getAttribute('data-code-tab');
+
+                    codeTabs.forEach((t) => {
+                        t.classList.remove('bg-sky-600', 'text-white', 'font-semibold');
+                        t.classList.add('text-slate-400', 'font-medium');
+                    });
+                    tab.classList.add('bg-sky-600', 'text-white', 'font-semibold');
+                    tab.classList.remove('text-slate-400', 'font-medium');
+
+                    codePanels.forEach((panel) => {
+                        panel.classList.toggle('hidden', panel.id !== `code-panel-${activeCodeId}`);
+                    });
+                });
+            });
+
+            const copyBtn = document.getElementById('copy-code-btn');
+            const copyLabel = document.getElementById('copy-code-label');
+
+            copyBtn.addEventListener('click', () => {
+                const activePre = document.getElementById(`code-panel-${activeCodeId}`);
+                if (!activePre) return;
+
+                const textToCopy = activePre.innerText;
+                const tempArea = document.createElement('textarea');
+                tempArea.value = textToCopy;
+                tempArea.style.position = 'fixed';
+                tempArea.style.opacity = '0';
+                document.body.appendChild(tempArea);
+                tempArea.select();
+
+                try {
+                    document.execCommand('copy');
+                    copyLabel.textContent = 'Copied!';
+                    copyBtn.classList.add('border-emerald-500', 'text-emerald-300');
+                    setTimeout(() => {
+                        copyLabel.textContent = 'Copy Snippet';
+                        copyBtn.classList.remove('border-emerald-500', 'text-emerald-300');
+                    }, 2000);
+                } catch (err) {
+                    copyLabel.textContent = 'Copy failed';
+                } finally {
+                    document.body.removeChild(tempArea);
+                }
+            });
+
+            // 3. Verified Repository Snapshot Commits (14 real hashes)
+            const snapshotCommits = [
+                {
+                    sha: '2770953',
+                    time: '13 hours ago',
+                    message: 'Merge pull request #11 from JackS9/docs/flagship-acceptance-spec',
+                    ref: 'PR #11 · docs/flagship-acceptance-spec',
+                    paths: ['docs/'],
+                    category: 'docs',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/27709532e3f9ed8a2aae693c177de77aa039ad25'
+                },
+                {
+                    sha: 'd15796e',
+                    time: '14 hours ago',
+                    message: 'docs: add spin-catalysis flagship acceptance spec (approved Nov 22)',
+                    ref: 'master',
+                    paths: ['ROADMAP.md'],
+                    category: 'docs',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/d15796ec5eb4ebbb2b0f460488a8b24314fc0893'
+                },
+                {
+                    sha: '0ea116f',
+                    time: 'yesterday',
+                    message: 'docs: reframe agent rules and skills around localized VB',
+                    ref: 'master',
+                    paths: ['.agents/', 'AGENTS.md'],
+                    category: 'docs',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/0ea116f4c283bb55f4d7ef98aa1fe7e2f3cefdb1'
+                },
+                {
+                    sha: '6956a3e',
+                    time: '2 days ago',
+                    message: 'examples: remove max_cycles overrides and retire EOtoAA.yaml',
+                    ref: 'master',
+                    paths: ['examples/'],
+                    category: 'build',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/6956a3effae09834c9e99f95222506c6c68bd38e'
+                },
+                {
+                    sha: '62e8e4c',
+                    time: '2 days ago',
+                    message: 'tests: drop retired EOtoAA.yaml from test_eo_oxygen_mixed_spins_example',
+                    ref: 'master',
+                    paths: ['tests/'],
+                    category: 'build',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/62e8e4c58424614ceff5d3d22d6460bf5d71094a'
+                },
+                {
+                    sha: 'fc872c9',
+                    time: '3 days ago',
+                    message: 'build: add multi-stage Dockerfile, .dockerignore, and Docker docs',
+                    ref: 'master',
+                    paths: ['Dockerfile', '.dockerignore', 'README.md'],
+                    category: 'build',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/fc872c98712ce10b7bff6327be2e694eb2a37f88'
+                },
+                {
+                    sha: '36d864e',
+                    time: 'last week',
+                    message: 'feat(phase18): complete NO/Ni(100) Stages 1-2 ferromagnetic chemisorption',
+                    ref: 'Phase 18',
+                    paths: ['data/', 'notebooks/', 'phatpsy/', 'tools/'],
+                    category: 'vb',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/36d864ebc32fe7a643d6e70ff64501c1ec18300a'
+                },
+                {
+                    sha: '886414c',
+                    time: 'last week',
+                    message: 'feat(vb): expose Localized VB & active-site embedding across API, CLI',
+                    ref: 'LVB Engine',
+                    paths: ['.github/workflows/', 'make_build_test.sh', 'pytest.ini'],
+                    category: 'vb',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/886414c63a264c825c75512e548f45f769bdc332'
+                },
+                {
+                    sha: '5342b53',
+                    time: '2 weeks ago',
+                    message: 'Fix default/unseeded H2 SCF & CPHF gradients and document DZP H2 bond',
+                    ref: 'Fortran Core',
+                    paths: ['src/'],
+                    category: 'fortran',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/5342b534ffa60cba463a66f20db7fd8febe9e719'
+                },
+                {
+                    sha: '409757e',
+                    time: '3 weeks ago',
+                    message: 'feat(gradients): implement Phase 11.5 PK pseudopotential gradients',
+                    ref: 'Phase 11.5',
+                    paths: ['.gitignore', 'src/'],
+                    category: 'fortran',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/409757eab269cf3f79b158fcfcd4407513e7dd31'
+                },
+                {
+                    sha: 'e6dc39b',
+                    time: '3 weeks ago',
+                    message: 'feat(assembler): implement stepwise valence-bond molecular assembler',
+                    ref: 'LVB Assembler',
+                    paths: ['mkdocs.yml', 'phatpsy/builder.py'],
+                    category: 'vb',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/e6dc39b888ab78e99443948a7a71016d9cc1e4b4'
+                },
+                {
+                    sha: '20cef9a',
+                    time: '3 weeks ago',
+                    message: 'docs: add MIT license and update project attribution banners',
+                    ref: 'Licensing',
+                    paths: ['LICENSE', 'legacy/'],
+                    category: 'docs',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/20cef9aa79ff721c69c6578e71ae5c67eb110ab8'
+                },
+                {
+                    sha: '5fcaa64',
+                    time: 'last month',
+                    message: 'feat(diagnostics): modernize Group 7 output, mapping & diagnostics in core',
+                    ref: 'Fortran Core',
+                    paths: ['_phatpsy_core.pyi', 'src/'],
+                    category: 'fortran',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/5fcaa645d37106efc204711748f3296606dc492d'
+                },
+                {
+                    sha: 'b6c4ebf',
+                    time: 'last month',
+                    message: 'feat(methodology): complete 5-phase physical modernization and parameter cleanup',
+                    ref: 'Methodology',
+                    paths: ['CMakeLists.txt', 'src/'],
+                    category: 'fortran',
+                    url: 'https://github.com/JackS9/phatpsy2/commit/b6c4ebf5bc0af67cc2f2dccbff2602e9c8c1856c'
+                }
+            ];
+
+            let currentCommits = [...snapshotCommits];
+            let currentFilter = 'all';
+
+            const feedList = document.getElementById('commit-feed-list');
+            const countAllEl = document.getElementById('count-all');
+            const filterButtons = document.querySelectorAll('.feed-filter');
+
+            function classifyCommitMessage(msg) {
+                const lower = msg.toLowerCase();
+                if (lower.startsWith('docs') || lower.includes('merge pull request') || lower.includes('license')) {
+                    return 'docs';
+                }
+                if (lower.includes('(vb)') || lower.includes('valence-bond') || lower.includes('phase18') || lower.includes('no/ni') || lower.includes('assembler')) {
+                    return 'vb';
+                }
+                if (lower.includes('gradient') || lower.includes('scf') || lower.includes('diagnostics') || lower.includes('methodology') || lower.includes('fortran')) {
+                    return 'fortran';
+                }
+                return 'build';
+            }
+
+            function badgeStyle(category) {
+                if (category === 'vb') {
+                    return { label: 'VB & Catalysis', cls: 'bg-sky-50 text-sky-700 border-sky-200' };
+                }
+                if (category === 'docs') {
+                    return { label: 'Docs & Specs', cls: 'bg-orange-50 text-orange-700 border-orange-200' };
+                }
+                if (category === 'fortran') {
+                    return { label: 'Fortran Core', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                }
+                return { label: 'Build & Tests', cls: 'bg-slate-100 text-slate-700 border-slate-200' };
+            }
+
+            function renderFeed() {
+                const filtered = currentFilter === 'all'
+                    ? currentCommits
+                    : currentCommits.filter((c) => c.category === currentFilter);
+
+                countAllEl.textContent = currentCommits.length;
+
+                if (filtered.length === 0) {
+                    feedList.innerHTML = `<div class="p-8 text-center text-sm text-slate-500">No commits match this category filter.</div>`;
+                    return;
+                }
+
+                feedList.innerHTML = filtered.map((commit) => {
+                    const badge = badgeStyle(commit.category);
+                    const pathBadges = (commit.paths || [])
+                        .map((p) => `<span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[11px] border border-slate-200/80">${p}</span>`)
+                        .join(' ');
+
+                    return `
+            <div class="p-4 sm:px-6 sm:py-4 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="space-y-1.5 min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.cls}">${badge.label}</span>
+                  ${commit.ref ? `<span class="text-xs font-mono text-slate-500">${commit.ref}</span>` : ''}
+                  <span class="text-xs text-slate-400">· ${commit.time}</span>
+                </div>
+                <a href="${commit.url}" target="_blank" rel="noopener noreferrer"
+                   class="block text-sm sm:text-base font-semibold text-slate-900 hover:text-sky-700 transition-colors break-words">
+                  ${commit.message}
+                </a>
+                ${pathBadges ? `<div class="flex flex-wrap gap-1.5 pt-0.5">${pathBadges}</div>` : ''}
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <a href="${commit.url}" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-xs font-medium bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 transition-colors">
+                  <span>${commit.sha}</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+              </div>
+            </div>
+          `;
+                }).join('');
+            }
+
+            filterButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    currentFilter = btn.getAttribute('data-filter');
+
+                    filterButtons.forEach((b) => {
+                        b.classList.remove('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+                        b.classList.add('text-slate-600', 'font-medium');
+                    });
+                    btn.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+                    btn.classList.remove('text-slate-600', 'font-medium');
+
+                    renderFeed();
+                });
+            });
+
+            // 4. Live GitHub Commits Fetcher with Graceful Fallback
+            const fetchLiveBtn = document.getElementById('fetch-live-btn');
+            const fetchSpinner = document.getElementById('fetch-spinner');
+            const statusText = document.getElementById('feed-status-text');
+
+            function formatRelativeTime(isoDate) {
+                const diffSec = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+                if (diffSec < 3600) return `${Math.max(1, Math.floor(diffSec / 60))} mins ago`;
+                if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hours ago`;
+                const days = Math.floor(diffSec / 86400);
+                return days === 1 ? 'yesterday' : `${days} days ago`;
+            }
+
+            fetchLiveBtn.addEventListener('click', async () => {
+                fetchLiveBtn.disabled = true;
+                fetchSpinner.classList.add('animate-spin');
+                statusText.textContent = 'Querying GitHub REST API for live commits on JackS9/phatpsy2...';
+
+                try {
+                    const response = await fetch('https://api.github.com/repos/JackS9/phatpsy2/commits?per_page=15', {
+                        headers: { 'Accept': 'application/vnd.github+json' }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (!Array.isArray(data) || data.length === 0) {
+                        throw new Error('Empty response');
+                    }
+
+                    currentCommits = data.map((item) => {
+                        const fullMsg = (item.commit && item.commit.message) ? item.commit.message.split('\n')[0] : 'Commit';
+                        return {
+                            sha: item.sha.slice(0, 7),
+                            time: item.commit && item.commit.author ? formatRelativeTime(item.commit.author.date) : 'recent',
+                            message: fullMsg,
+                            ref: 'master (live)',
+                            paths: [],
+                            category: classifyCommitMessage(fullMsg),
+                            url: item.html_url
+                        };
+                    });
+
+                    statusText.innerHTML = `<span class="text-emerald-700 font-semibold">Live sync active:</span> Loaded ${currentCommits.length} latest commits directly from <code class="font-mono text-slate-800">api.github.com/repos/JackS9/phatpsy2</code>.`;
+                    renderFeed();
+                } catch (err) {
+                    currentCommits = [...snapshotCommits];
+                    statusText.innerHTML = `<span class="text-amber-700 font-semibold">Offline / Rate-limited fallback:</span> Displaying 14 verified repository snapshot commits on <code class="font-mono text-slate-800">master</code>.`;
+                    renderFeed();
+                } finally {
+                    fetchSpinner.classList.remove('animate-spin');
+                    fetchLiveBtn.disabled = false;
+                }
+            });
+
+            // Initial render
+            renderFeed();
+        })();
+    </script>
+</body>
+
+</html>
